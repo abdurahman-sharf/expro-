@@ -715,6 +715,12 @@ class Receivings extends Secure_Controller
         }
 
         if ($this->receiving_lib->get_stock_source() != $this->receiving_lib->get_stock_destination()) {
+            $unavailable = $this->unavailableRequisitionItem();
+
+            if ($unavailable !== null) {
+                return $this->_reload(['error' => lang('Receivings.unable_to_add_item') . ' ' . $unavailable]);
+            }
+
             $this->restoreRequisitionCart();
 
             foreach ($this->receiving_lib->get_cart() as $item) {
@@ -728,6 +734,22 @@ class Receivings extends Secure_Controller
         $data['error'] = lang('Receivings.error_requisition');
 
         return $this->_reload($data);    // TODO: Hungarian notation
+    }
+
+    /**
+     * The name of the first item of the cart that can no longer be added to a receiving because it is
+     * inactive, suspended or deleted, so that a requisition is refused whole and not completed without
+     * the line the register would drop.
+     */
+    private function unavailableRequisitionItem(): ?string
+    {
+        foreach ($this->receiving_lib->get_cart() as $line) {
+            if ($this->item->get_info_by_id_or_number((string) $line['item_id'], false) === '') {
+                return (string) $line['name'];
+            }
+        }
+
+        return null;
     }
 
     /**

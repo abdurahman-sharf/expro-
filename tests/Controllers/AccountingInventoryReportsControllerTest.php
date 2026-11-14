@@ -613,7 +613,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->putOnShelf($item, '1', $depot);
         $this->viewer();
 
-        $body = $this->get(self::SCREEN)->getBody();
+        $body = $this->get(self::SCREEN)->response()->getBody();
 
         $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
         $this->assertStringNotContainsString('<b>bold</b>', $body);

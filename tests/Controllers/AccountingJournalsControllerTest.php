@@ -169,9 +169,9 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $cash  = $this->accountId('cash');
         $draft = (new JournalService())->saveDraft($this->journalInput('50.00'), null);
 
-        $body = $this->get('/accounting_journals/edit/' . $draft)->getBody();
+        $body = $this->get('/accounting_journals/edit/' . $draft)->response()->getBody();
 
-        $this->assertStringContainsString('value="' . esc($this->accountingDb()->table('accounting_accounts')->where('account_id', $cash)->get()->getRow()->code) . ' - ', $body);
+        $this->assertStringContainsString('value="' . esc($this->accountingDb()->table('accounting_accounts')->where('account_id', $cash)->get()->getRow()->code . ' - ', 'attr'), $body);
         $this->assertStringNotContainsString('<datalist id="accounts_list">', $body);
     }
 
@@ -2633,7 +2633,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $input['description'] = '<script>alert(1)</script> entry';
         $journal              = (new JournalService())->postNew($input);
 
-        $body = $this->get('/accounting_journals/print/' . $journal)->getBody();
+        $body = $this->get('/accounting_journals/print/' . $journal)->response()->getBody();
 
         $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
         $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt; entry', $body);

@@ -122,7 +122,7 @@ class ItemKitsControllerTest extends CIUnitTestCase
         $response = $this->get('/item_kits/generateBarcodes/' . $payload);
         $response->assertStatus(200);
 
-        $body = $response->getBody();
+        $body = $response->response()->getBody();
         $this->assertStringNotContainsString('<svg onload', $body);
         $this->assertStringContainsString('%3Csvg', $body);
     }

@@ -264,7 +264,7 @@ class Custom_fieldsControllerTest extends CIUnitTestCase
         $this->manager();
         $id = (new CustomFields())->create('item', ['name' => '"><script>alert(1)</script>', 'type' => 'select', 'options' => "<b>one</b>\ntwo"], null);
 
-        $body = $this->get('/custom_fields/view/' . $id)->getBody();
+        $body = $this->get('/custom_fields/view/' . $id)->response()->getBody();
 
         $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
         $this->assertStringNotContainsString('<b>one</b>', $body);

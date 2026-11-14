@@ -2,6 +2,8 @@
 
 namespace App\Libraries\MasterData;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\LockedRead;
 use App\Libraries\Accounting\QuoteStatus;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -38,13 +40,18 @@ final class ItemOpenDocuments
     }
 
     /**
-     * How many open documents name each item that is named in any.
+     * How many open documents name each item that is named in any. With $locking every count is read
+     * with a lock, which reads what was committed last and not the snapshot of the caller's
+     * transaction, and makes a line that is being added for the items wait until that transaction ends. It
+     * does not stop a document that checked its item earlier and adds the line after a deletion committed.
      *
      * @param list<int> $itemIds
      *
      * @return array<int, int>
+     *
+     * @throws AccountingException
      */
-    public function counts(array $itemIds): array
+    public function counts(array $itemIds, bool $locking = false): array
     {
         $itemIds = array_values(array_unique(array_filter(array_map('intval', $itemIds), static fn (int $id): bool => $id > 0)));
 
@@ -71,7 +78,10 @@ final class ItemOpenDocuments
                 }
             }
 
-            foreach ($this->db->query(strtr($sql, $tables))->getResult() as $row) {
+            $sql  = strtr($sql, $tables);
+            $rows = $locking ? LockedRead::rows($this->db, $sql . ' LOCK IN SHARE MODE') : $this->db->query($sql)->getResult();
+
+            foreach ($rows as $row) {
                 $counts[(int) $row->item_id] = ($counts[(int) $row->item_id] ?? 0) + (int) $row->n;
             }
         }
@@ -85,10 +95,12 @@ final class ItemOpenDocuments
      * @param list<int> $itemIds
      *
      * @return array{item_id: int, name: string, count: int}|null
+     *
+     * @throws AccountingException
      */
-    public function first(array $itemIds): ?array
+    public function first(array $itemIds, bool $locking = false): ?array
     {
-        $counts = $this->counts($itemIds);
+        $counts = $this->counts($itemIds, $locking);
 
         if ($counts === []) {
             return null;

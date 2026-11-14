@@ -142,8 +142,8 @@ final class AccountingAiControllerTest extends CIUnitTestCase
 
     private function assertEscaped(TestResponse $page, string $where): void
     {
-        $this->assertStringContainsString(self::MARKUP_ESCAPED, $page->getBody(), $where . ' does not show what was typed as text');
-        $this->assertDoesNotMatchRegularExpression('/<img src="?x"? onerror/', $page->getBody(), $where . ' lets what was typed become markup');
+        $this->assertStringContainsString(self::MARKUP_ESCAPED, $page->response()->getBody(), $where . ' does not show what was typed as text');
+        $this->assertDoesNotMatchRegularExpression('/<img src="?x"? onerror/', $page->response()->getBody(), $where . ' lets what was typed become markup');
     }
 
     private function nameTheApproverWithMarkup(): void
@@ -479,7 +479,7 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         $this->assertArrayHasKey('csrf', $globals['before']);
 
         foreach (['approve/5', 'reject/5', 'propose', 'scan', 'decide/5', 'settings', 'disable'] as $uri) {
-            $this->assertSame(0, preg_match('#^(' . $globals['before']['csrf']['except'] . ')#', 'accounting_ai/' . $uri), "{$uri} is not excepted");
+            $this->assertSame(0, preg_match('#\A(' . implode('|', array_map(static fn (string $path): string => preg_quote($path, '#'), (array) $globals['before']['csrf']['except'])) . ')\z#', 'accounting_ai/' . $uri), "{$uri} is not excepted");
         }
     }
 
@@ -961,15 +961,15 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         $page = $this->get('/accounting_ai/proposal/' . $id);
 
         $this->assertEscaped($page, 'The proposal');
-        $this->assertStringContainsString('&lt;i&gt;B2&lt;/i&gt;', $page->getBody());
-        $this->assertStringNotContainsString('<i>B2</i>', $page->getBody());
+        $this->assertStringContainsString('&lt;i&gt;B2&lt;/i&gt;', $page->response()->getBody());
+        $this->assertStringNotContainsString('<i>B2</i>', $page->response()->getBody());
 
         $this->proposals->reject($id, self::MARKUP, $this->approver);
 
         $rejected = $this->get('/accounting_ai/proposal/' . $id);
 
         $this->assertEscaped($rejected, 'The rejected proposal');
-        $this->assertSame(1, preg_match('/id="ai_reject_reason">' . preg_quote(self::MARKUP_ESCAPED, '/') . '</', $rejected->getBody()));
+        $this->assertSame(1, preg_match('/id="ai_reject_reason">' . preg_quote(self::MARKUP_ESCAPED, '/') . '</', $rejected->response()->getBody()));
     }
 
     public function testGetProposal_ShowsTheTextOfAProposalOfTheAgentAsTextWhenTheTitleAndTheRationaleHoldMarkup(): void
@@ -990,8 +990,8 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         $page = $this->get('/accounting_ai');
 
         $this->assertEscaped($page, 'The list of proposals');
-        $this->assertStringContainsString('&lt;i&gt;B2&lt;/i&gt;', $page->getBody());
-        $this->assertStringNotContainsString('<i>B2</i>', $page->getBody());
+        $this->assertStringContainsString('&lt;i&gt;B2&lt;/i&gt;', $page->response()->getBody());
+        $this->assertStringNotContainsString('<i>B2</i>', $page->response()->getBody());
     }
 
     public function testGetFindings_ShowsWhatPeopleTypedAsTextAndNeverAsMarkup(): void
@@ -1005,10 +1005,10 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         $page = $this->get('/accounting_ai/findings');
 
         $this->assertEscaped($page, 'The findings');
-        $this->assertStringContainsString('&lt;i&gt;B2&lt;/i&gt;', $page->getBody());
-        $this->assertStringNotContainsString('<i>B2</i>', $page->getBody());
-        $this->assertSame(1, preg_match('/<p class="mb-2">[^<]*' . preg_quote(self::MARKUP_ESCAPED, '/') . '/', $page->getBody()));
-        $this->assertSame(1, preg_match('/ai-finding-decision">[^<]*' . preg_quote(self::MARKUP_ESCAPED, '/') . '/', $page->getBody()));
+        $this->assertStringContainsString('&lt;i&gt;B2&lt;/i&gt;', $page->response()->getBody());
+        $this->assertStringNotContainsString('<i>B2</i>', $page->response()->getBody());
+        $this->assertSame(1, preg_match('/<p class="mb-2">[^<]*' . preg_quote(self::MARKUP_ESCAPED, '/') . '/', $page->response()->getBody()));
+        $this->assertSame(1, preg_match('/ai-finding-decision">[^<]*' . preg_quote(self::MARKUP_ESCAPED, '/') . '/', $page->response()->getBody()));
     }
 
     public function testGetDecideForm_ShowsTheMessageOfAFindingAsText(): void

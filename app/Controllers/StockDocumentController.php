@@ -67,7 +67,7 @@ abstract class StockDocumentController extends AccountingController
     }
 
     /**
-     * Every stock location, to choose the one stock is asked from.
+     * Every active stock location, to choose the one stock is asked from.
      *
      * @return array<int, string>
      */
@@ -76,7 +76,9 @@ abstract class StockDocumentController extends AccountingController
         $locations = [];
 
         foreach (model(Stock_location::class)->get_all()->getResult() as $location) {
-            $locations[(int) $location->location_id] = (string) $location->location_name;
+            if ((int) $location->status === 1) {
+                $locations[(int) $location->location_id] = (string) $location->location_name;
+            }
         }
 
         return $locations;

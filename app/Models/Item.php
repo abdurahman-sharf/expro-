@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\LockedRead;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\StockAdjustment;
@@ -937,6 +938,10 @@ class Item extends Model
 
         $this->db->transStart();
 
+        if ($this->refusedUnderLock([(int) $itemId])) {
+            return false;
+        }
+
         // Set to 0 quantities
         $inventory = model(Inventory::class);
         $removed   = $inventory->resetRows($itemId);
@@ -972,13 +977,27 @@ class Item extends Model
     /**
      * An item that a draft, a quote, a suspended sale, an open order, a schedule, a stock request or a
      * stocktake still names is not deleted: the document would lose its line. The reason is kept as the
-     * failure of the last change.
+     * failure of the last change. With $locking, for a caller inside a transaction, the items are locked
+     * first and the documents are read under a lock, so a document committed before the lock is seen and
+     * a line that is being added for the items waits until the transaction ends. A document that checked
+     * its item before its own transaction and adds the line after the deletion committed is not stopped:
+     * the item is only marked as deleted, so the line still finds it.
      *
      * @param list<int> $itemIds
      */
-    public function isMentionedInOpenDocuments(array $itemIds): bool
+    public function isMentionedInOpenDocuments(array $itemIds, bool $locking = false): bool
     {
-        $found = (new ItemOpenDocuments($this->db))->first($itemIds);
+        try {
+            if ($locking) {
+                $this->lockItems($itemIds);
+            }
+
+            $found = (new ItemOpenDocuments($this->db))->first($itemIds, $locking);
+        } catch (AccountingException $refusal) {
+            $this->accountingFailure = $refusal;
+
+            return true;
+        }
 
         if ($found === null) {
             return false;
@@ -987,6 +1006,46 @@ class Item extends Model
         $this->accountingFailure = new AccountingException(AccountingError::ItemInOpenDocuments, 'The item is named in an open document.', ['name' => $found['name'], 'count' => $found['count']]);
 
         return true;
+    }
+
+    /**
+     * Whether an open document names one of the items, asked inside the transaction of a deletion, which
+     * is rolled back when it is refused or cannot ask.
+     *
+     * @param list<int> $itemIds
+     */
+    private function refusedUnderLock(array $itemIds): bool
+    {
+        try {
+            $refused = $this->isMentionedInOpenDocuments($itemIds, true);
+        } catch (Throwable $failure) {
+            $this->db->transRollback();
+
+            throw $failure;
+        }
+
+        if ($refused) {
+            $this->db->transRollback();
+        }
+
+        return $refused;
+    }
+
+    /**
+     * @param list<int> $itemIds
+     *
+     * @throws AccountingException
+     */
+    private function lockItems(array $itemIds): void
+    {
+        $itemIds = array_values(array_unique(array_filter($itemIds, static fn (int $id): bool => $id > 0)));
+
+        if ($itemIds === []) {
+            return;
+        }
+
+        sort($itemIds);
+        LockedRead::rows($this->db, 'SELECT item_id FROM ' . $this->db->prefixTable('items') . ' WHERE item_id IN (' . implode(',', $itemIds) . ') ORDER BY item_id FOR UPDATE');
     }
 
     /**
@@ -1094,6 +1153,10 @@ class Item extends Model
 
         // Run these queries as a transaction, we want to make sure we do all or nothing
         $this->db->transStart();
+
+        if ($this->refusedUnderLock(array_map('intval', $itemIds))) {
+            return false;
+        }
 
         // Set to 0 quantities
         $inventory = model(Inventory::class);
@@ -1259,6 +1322,38 @@ class Item extends Model
     }
 
     /**
+     * The items whose text attributes hold the search, one suggestion for each item.
+     *
+     * @param array<string, mixed>        $filters
+     * @param callable(BaseBuilder): void $constrain
+     *
+     * @return list<array{value: int|string, label: string}>
+     */
+    private function attributeSuggestions(string $search, array $filters, callable $constrain): array
+    {
+        $builder = $this->db->table('attribute_links');
+        $builder->select('items.*');
+        $builder->join('items', 'items.item_id = attribute_links.item_id');
+        $builder->join('attribute_values', 'attribute_links.attribute_id = attribute_values.attribute_id');
+        $builder->join('attribute_definitions', 'attribute_definitions.definition_id = attribute_links.definition_id');
+        $builder->like('attribute_values.attribute_value', $search);
+        $builder->where('attribute_definitions.definition_type', TEXT);
+        $builder->where('items.deleted', $filters['is_deleted']);
+        $this->hideInactive($builder, $filters);
+        $constrain($builder);
+        $builder->orderBy('items.name', 'asc');
+        $builder->orderBy('items.item_id', 'asc');
+
+        $suggestions = [];
+
+        foreach ($builder->get()->getResult() as $row) {
+            $suggestions[(int) $row->item_id] ??= ['value' => $row->item_id, 'label' => $this->get_search_suggestion_label($row)];
+        }
+
+        return array_values($suggestions);
+    }
+
+    /**
      * @param string $search
      * @param array $filters
      * @param bool $unique
@@ -1268,13 +1363,13 @@ class Item extends Model
     public function get_search_suggestions(string $search, array $filters = ['is_deleted' => false, 'search_custom' => false], bool $unique = false, int $limit = 25): array
     {
         $suggestions = [];
-        $non_kit = [ITEM, ITEM_AMOUNT_ENTRY];
+        $nonKit      = [ITEM, ITEM_AMOUNT_ENTRY];
 
         $builder = $this->db->table('items');
         $builder->select($this->get_search_suggestion_format('item_id, name, pack_name'));
         $builder->where('deleted', $filters['is_deleted']);
         $this->hideInactive($builder, $filters);
-        $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later
+        $builder->whereIn('item_type', $nonKit); // Standard, exclude kit items since kits will be picked up later
         $builder->like('name', $search);    // TODO: this and the next 11 lines are duplicated directly below.  We should extract a method here.
         $builder->orderBy('name', 'asc');
 
@@ -1286,7 +1381,7 @@ class Item extends Model
         $builder->select($this->get_search_suggestion_format('item_id, item_number, pack_name'));
         $builder->where('deleted', $filters['is_deleted']);
         $this->hideInactive($builder, $filters);
-        $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later
+        $builder->whereIn('item_type', $nonKit); // Standard, exclude kit items since kits will be picked up later
         $builder->like('item_number', $search);
         $builder->orderBy('item_number', 'asc');
 
@@ -1343,17 +1438,9 @@ class Item extends Model
 
             // Search in attributes
             if ($filters['search_custom'] !== false) {
-                $builder = $this->db->table('attribute_links');
-                $builder->join('attribute_values', 'attribute_links.attribute_id = attribute_values.attribute_id');
-                $builder->join('attribute_definitions', 'attribute_definitions.definition_id = attribute_links.definition_id');
-                $builder->like('attribute_value', $search);
-                $builder->where('definition_type', TEXT);
-                $builder->where('deleted', $filters['is_deleted']);
-                $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later
-
-                foreach ($builder->get()->getResult() as $row) {
-                    $suggestions[] = ['value' => $row->item_id, 'label' => $this->get_search_suggestion_label($row)];
-                }
+                $suggestions = array_merge($suggestions, $this->attributeSuggestions($search, $filters, static function (BaseBuilder $builder) use ($nonKit): void {
+                    $builder->whereIn('items.item_type', $nonKit); // Standard, exclude kit items since kits will be picked up later
+                }));
             }
         }
 
@@ -1376,13 +1463,13 @@ class Item extends Model
     public function get_stock_search_suggestions(string $search, array $filters = ['is_deleted' => false, 'search_custom' => false], bool $unique = false, int $limit = 25): array
     {
         $suggestions = [];
-        $non_kit = [ITEM, ITEM_AMOUNT_ENTRY];
+        $nonKit      = [ITEM, ITEM_AMOUNT_ENTRY];
 
         $builder = $this->db->table('items');
         $builder->select($this->get_search_suggestion_format('item_id, name, pack_name'));
         $builder->where('deleted', $filters['is_deleted']);
         $this->hideInactive($builder, $filters);
-        $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later
+        $builder->whereIn('item_type', $nonKit); // Standard, exclude kit items since kits will be picked up later
         $builder->where('stock_type', '0'); // Stocked items only
         $builder->like('name', $search);
         $builder->orderBy('name', 'asc');
@@ -1395,7 +1482,7 @@ class Item extends Model
         $builder->select($this->get_search_suggestion_format('item_id, item_number, pack_name'));
         $builder->where('deleted', $filters['is_deleted']);
         $this->hideInactive($builder, $filters);
-        $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later
+        $builder->whereIn('item_type', $nonKit); // Standard, exclude kit items since kits will be picked up later
         $builder->where('stock_type', '0'); // Stocked items only
         $builder->like('item_number', $search);
         $builder->orderBy('item_number', 'asc');
@@ -1410,7 +1497,7 @@ class Item extends Model
             $builder->select('category');
             $builder->where('deleted', $filters['is_deleted']);
             $this->hideInactive($builder, $filters);
-            $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later
+            $builder->whereIn('item_type', $nonKit); // Standard, exclude kit items since kits will be picked up later
             $builder->where('stock_type', '0'); // Stocked items only
             $builder->distinct();
             $builder->like('category', $search);
@@ -1439,7 +1526,7 @@ class Item extends Model
             $builder->select($this->get_search_suggestion_format('item_id, name, pack_name, description'));
             $builder->where('deleted', $filters['is_deleted']);
             $this->hideInactive($builder, $filters);
-            $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later
+            $builder->whereIn('item_type', $nonKit); // Standard, exclude kit items since kits will be picked up later
             $builder->where('stock_type', '0'); // Stocked items only
             $builder->like('description', $search);    // TODO: duplicated code, refactor method.
             $builder->orderBy('description', 'asc');
@@ -1454,18 +1541,10 @@ class Item extends Model
             }
 
             // Search by custom fields
-            if ($filters['search_custom'] !== false) {    // TODO: duplicated code.  We should refactor out a method... this can be replaced with `if ($filters['search_custom']`... no need for the double negative
-                $builder = $this->db->table('attribute_links');
-                $builder->join('attribute_values', 'attribute_links.attribute_id = attribute_values.attribute_id');
-                $builder->join('attribute_definitions', 'attribute_definitions.definition_id = attribute_links.definition_id');
-                $builder->like('attribute_value', $search);
-                $builder->where('definition_type', TEXT);
-                $builder->where('stock_type', '0'); // Stocked items only
-                $builder->where('deleted', $filters['is_deleted']);
-
-                foreach ($builder->get()->getResult() as $row) {
-                    $suggestions[] = ['value' => $row->item_id, 'label' => $this->get_search_suggestion_label($row)];
-                }
+            if ($filters['search_custom'] !== false) {
+                $suggestions = array_merge($suggestions, $this->attributeSuggestions($search, $filters, static function (BaseBuilder $builder): void {
+                    $builder->where('items.stock_type', '0'); // Stocked items only
+                }));
             }
         }
 
@@ -1487,7 +1566,7 @@ class Item extends Model
     public function get_kit_search_suggestions(string $search, array $filters = ['is_deleted' => false, 'search_custom' => false], bool $unique = false, int $limit = 25): array
     {
         $suggestions = [];
-        $non_kit = [ITEM, ITEM_AMOUNT_ENTRY];    // TODO: This variable is never used.
+        $nonKit      = [ITEM, ITEM_AMOUNT_ENTRY];    // TODO: This variable is never used.
 
         $builder = $this->db->table('items');
         $builder->select('item_id, name');
@@ -1561,18 +1640,10 @@ class Item extends Model
             }
 
             // Search in attributes
-            if ($filters['search_custom'] !== false) {    // TODO: Duplicate code... same as above... no double negatives
-                $builder = $this->db->table('attribute_links');
-                $builder->join('attribute_values', 'attribute_links.attribute_id = attribute_values.attribute_id');
-                $builder->join('attribute_definitions', 'attribute_definitions.definition_id = attribute_links.definition_id');
-                $builder->like('attribute_value', $search);
-                $builder->where('definition_type', TEXT);
-                $builder->where('stock_type', '0'); // Stocked items only
-                $builder->where('deleted', $filters['is_deleted']);
-
-                foreach ($builder->get()->getResult() as $row) {
-                    $suggestions[] = ['value' => $row->item_id, 'label' => $this->get_search_suggestion_label($row)];
-                }
+            if ($filters['search_custom'] !== false) {
+                $suggestions = array_merge($suggestions, $this->attributeSuggestions($search, $filters, static function (BaseBuilder $builder): void {
+                    $builder->where('items.stock_type', '0'); // Stocked items only
+                }));
             }
         }
 

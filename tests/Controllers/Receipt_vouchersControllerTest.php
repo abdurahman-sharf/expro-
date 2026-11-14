@@ -491,7 +491,7 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
         $this->actAsWith(['receipt_vouchers']);
         $id = $this->voucher(['description' => '<script>alert(1)</script> rent']);
 
-        $body = $this->get('/receipt_vouchers/print/' . $id)->getBody();
+        $body = $this->get('/receipt_vouchers/print/' . $id)->response()->getBody();
 
         $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
         $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt; rent', $body);

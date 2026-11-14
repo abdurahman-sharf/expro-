@@ -599,6 +599,78 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $response->assertSee('id="between_branches_note"');
     }
 
+    /**
+     * @return array<string, array{0: array<string, int>}>
+     */
+    public static function itemsNoRegisterCanAddAnyMore(): array
+    {
+        return [
+            'an inactive item'  => [['status' => 1]],
+            'a suspended item'  => [['status' => 2]],
+            'a deleted item'    => [['deleted' => 1]],
+        ];
+    }
+
+    #[DataProvider('itemsNoRegisterCanAddAnyMore')]
+    public function testPostRequisitionComplete_RefusesTheWholeRequisitionWhenAnItemOfTheCartCanNoLongerBeAdded(array $change): void
+    {
+        $buyerId = $this->buyer();
+        ['item' => $itemId, 'other' => $other] = $this->transferSetup($buyerId);
+        $second = $this->item('0.00');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($second, 0, '10', '50')]));
+
+        $before  = $this->countRows('receivings');
+        $refused = 'Refused ' . uniqid();
+        $cart    = $this->cart([$this->cartLine($itemId, 1, '4', '0'), array_replace($this->cartLine($second, 2, '3', '0'), ['name' => $refused])], 'requisition', null) + ['recv_stock_destination' => $other];
+
+        $this->loginAs($buyerId, $cart);
+        $this->accountingDb()->table('items')->where('item_id', $second)->update($change);
+
+        $response = $this->post('/receivings/requisitionComplete', $this->completeForm());
+
+        $response->assertSee(lang('Receivings.unable_to_add_item'), 'div.alert alert-danger');
+        $response->assertSee($refused, 'div.alert alert-danger');
+        $this->assertSame($before, $this->countRows('receivings'), 'nothing is saved');
+        $this->assertSame(['4.000', '3.000'], array_values(array_map(static fn (array $line): string => bcadd((string) $line['quantity'], '0', 3), session()->get('recv_cart'))), 'the cart keeps both lines as they were entered');
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('10.000', $this->onHand($second));
+    }
+
+    public function testPostRequisitionComplete_RefusesTheWholeRequisitionWithAccountingOffToo(): void
+    {
+        $buyerId = $this->buyer();
+        ['item' => $itemId, 'other' => $other] = $this->transferSetup($buyerId);
+        $before = $this->countRows('receivings');
+
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->loginAs($buyerId, $this->cart([$this->cartLine($itemId, 1, '4', '0')], 'requisition', null) + ['recv_stock_destination' => $other]);
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['status' => 1]);
+
+        try {
+            $this->post('/receivings/requisitionComplete', $this->completeForm())->assertSee(lang('Receivings.unable_to_add_item'), 'div.alert alert-danger');
+        } finally {
+            $this->setConfigValue('accounting_enabled', '1');
+        }
+
+        $this->assertSame($before, $this->countRows('receivings'));
+        $this->assertSame('10.000', $this->onHand($itemId));
+    }
+
+    public function testPostRequisitionComplete_CompletesTheRequisitionWhenEveryItemOfTheCartCanBeAdded(): void
+    {
+        $buyerId = $this->buyer();
+        ['item' => $itemId, 'other' => $other] = $this->transferSetup($buyerId);
+        $before = $this->countRows('receivings');
+
+        $this->loginAs($buyerId, $this->cart([$this->cartLine($itemId, 1, '4', '0')], 'requisition', null) + ['recv_stock_destination' => $other]);
+
+        $this->post('/receivings/requisitionComplete', $this->completeForm())->assertSee('RECV ');
+
+        $this->assertSame($before + 1, $this->countRows('receivings'));
+        $this->assertSame('4.000', $this->onHand($itemId, $other));
+    }
+
     public function testGetIndex_SaysTheSameOfARequisitionBetweenBranchesWithAccountingOffWithoutPromisingJournals(): void
     {
         $this->setConfigValue('accounting_enabled', '0');
@@ -1675,7 +1747,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $this->loginAs($this->buyer([1, $branch]));
 
-        $body = $this->get('/receivings/edit/' . $purchase)->getBody();
+        $body = $this->get('/receivings/edit/' . $purchase)->response()->getBody();
 
         $this->assertStringNotContainsString('<img src=x', $body);
         $this->assertStringNotContainsString('<b>drawer</b>', $body);
@@ -3933,7 +4005,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->loginAs($this->buyer());
 
         try {
-            $body = $this->get('/receivings/print/' . $receiving)->getBody();
+            $body = $this->get('/receivings/print/' . $receiving)->response()->getBody();
         } finally {
             $this->accountingDb()->query('SET FOREIGN_KEY_CHECKS = 0');
             $this->accountingDb()->table('custom_field_values')->truncate();
@@ -3972,7 +4044,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         config(OSPOS::class)->settings['document_terms_invoice']          = 'Invoice terms only';
 
         try {
-            $body = $this->get('/receivings/print/' . $receiving)->getBody();
+            $body = $this->get('/receivings/print/' . $receiving)->response()->getBody();
         } finally {
             config(OSPOS::class)->settings = $before;
         }
@@ -4002,7 +4074,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $receiving = $this->purchaseOf('500.00', $supplier);
         $this->loginAs($this->buyer());
 
-        $body = $this->get('/receivings/print/' . $receiving)->getBody();
+        $body = $this->get('/receivings/print/' . $receiving)->response()->getBody();
 
         $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
         $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt; Trading', $body);

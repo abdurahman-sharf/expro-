@@ -299,7 +299,7 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         ], 1);
         $this->viewer();
 
-        $body = $this->get('/accounting_receivables/customer/' . $this->customerId)->getBody();
+        $body = $this->get('/accounting_receivables/customer/' . $this->customerId)->response()->getBody();
 
         $this->assertStringContainsString('party-contacts', $body);
         $this->assertStringContainsString('&lt;b&gt;Sara&lt;/b&gt;', $body);

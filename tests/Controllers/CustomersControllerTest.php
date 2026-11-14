@@ -602,7 +602,7 @@ class CustomersControllerTest extends CIUnitTestCase
         model(Price_list::class)->saveList('<b>Gold</b> & <i>VIP</i>', true, null, null);
         $this->actAsEmployeeWith(['price_lists']);
 
-        $body = $this->get('/customers/view/' . $this->insertCustomer())->getBody();
+        $body = $this->get('/customers/view/' . $this->insertCustomer())->response()->getBody();
 
         $this->assertStringContainsString('&lt;b&gt;Gold&lt;/b&gt; &amp; &lt;i&gt;VIP&lt;/i&gt;', $body);
         $this->assertStringNotContainsString('<b>Gold</b>', $body);
@@ -1401,8 +1401,8 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->accountingDb()->table('people')->where('person_id', $employee)->update(['first_name' => $employeeName]);
         $this->classification($classification);
 
-        $form = $this->get('/customers/view/-1')->getBody();
-        $list = $this->get('/customers')->getBody();
+        $form = $this->get('/customers/view/-1')->response()->getBody();
+        $list = $this->get('/customers')->response()->getBody();
 
         foreach ([$form, $list] as $body) {
             $this->assertDoesNotMatchRegularExpression('/<img\b[^>]*onerror/i', $body);
@@ -2111,11 +2111,13 @@ class CustomersControllerTest extends CIUnitTestCase
     {
         $created = $this->saveWithContacts([$this->contactRow(['first_name' => '<script>alert(1)</script>', 'note' => '"><img src=x>'])]);
 
-        $html = $this->get('/customers/view/' . $created['id'])->getBody();
+        $html = $this->get('/customers/view/' . $created['id'])->response()->getBody();
 
         $this->assertStringContainsString('id="contacts_panel"', $html);
         $this->assertStringContainsString('name="contacts_present"', $html);
-        $this->assertStringContainsString('value="&lt;script&gt;alert(1)&lt;/script&gt;"', $html);
+        $this->assertStringContainsString('value="' . esc('<script>alert(1)</script>', 'attr') . '"', $html);
+        $this->assertStringContainsString('value="' . esc('"><img src=x>', 'attr') . '"', $html);
+        $this->assertStringNotContainsString('value="<script>', $html);
         $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
         $this->assertStringNotContainsString('"><img src=x>', $html);
     }

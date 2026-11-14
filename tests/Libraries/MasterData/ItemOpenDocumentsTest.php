@@ -271,4 +271,58 @@ final class ItemOpenDocumentsTest extends CIUnitTestCase
         $this->assertNull($this->documents()->first([$this->item()]));
         $this->assertNull($this->documents()->first([]));
     }
+
+    public function testCounts_AnswersTheSameUnderALockAsWithoutOne(): void
+    {
+        $named = $this->item();
+        $free  = $this->item();
+
+        $this->saleNaming($named, SUSPENDED);
+
+        $this->assertSame($this->documents()->counts([$named, $free]), $this->documents()->counts([$named, $free], true));
+        $this->assertSame($this->documents()->first([$named, $free]), $this->documents()->first([$named, $free], true));
+    }
+
+    public function testCounts_SeesADocumentCommittedAfterTheSnapshotOnlyWhenAskedToLock(): void
+    {
+        $itemId = $this->item();
+
+        $this->startWithSnapshot($this->accountingDb());
+
+        $other = $this->openSecondConnection();
+
+        $other->table('sales')->insert(['sale_status' => SUSPENDED, 'sale_type' => SALE_TYPE_INVOICE, 'employee_id' => 1, 'comment' => '']);
+        $other->table('sales_items')->insert(['sale_id' => (int) $other->insertID(), 'item_id' => $itemId, 'line' => 1, 'quantity_purchased' => 1, 'item_cost_price' => 1, 'item_unit_price' => 5, 'item_location' => 1]);
+        $other->close();
+
+        try {
+            $this->assertSame([], $this->documents()->counts([$itemId]), 'the plain read keeps to the snapshot');
+            $this->assertSame([$itemId => 1], $this->documents()->counts([$itemId], true));
+        } finally {
+            $this->releaseOpenTransactions();
+        }
+    }
+
+    public function testCounts_WaitsForARequestThatHoldsADocumentLineWhenAskedToLock(): void
+    {
+        $itemId = $this->item();
+
+        $this->saleNaming($itemId, SUSPENDED);
+
+        $other = $this->openSecondConnection();
+
+        $other->transStart();
+        $other->query('SELECT sale_id FROM ' . $other->prefixTable('sales_items') . ' WHERE item_id = ' . $itemId . ' FOR UPDATE');
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $this->assertSame([$itemId => 1], $this->documents()->counts([$itemId]), 'the plain read does not wait');
+            $this->assertWaitsForLock(fn () => $this->documents()->counts([$itemId], true));
+        } finally {
+            $other->transRollback();
+            $other->close();
+            $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
+            $this->releaseOpenTransactions();
+        }
+    }
 }

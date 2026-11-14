@@ -1,0 +1,460 @@
+[
+ {
+  "name": "G01 the sign-in is exempt from the employee filter by its exact path, not by a prefix or a suffix",
+  "file": "app/Config/Filters.php",
+  "find": "'isLoggedIn' => ['except' => ['login', 'migrate', 'portal', 'portal/*', 'api/*']],",
+  "replace": "'isLoggedIn' => ['except' => ['login|migrate', 'portal', 'portal/*', 'api/*']],",
+  "tests": [
+   "tests/Config/FiltersTest.php",
+   "tests/Filters/IsLoggedInTest.php"
+  ]
+ },
+ {
+  "name": "G02 the sign-in is exempt from the token filter by its exact path, not by a prefix or a suffix",
+  "file": "app/Config/Filters.php",
+  "find": "'csrf'       => ['except' => ['login', 'migrate']],",
+  "replace": "'csrf'       => ['except' => 'login|migrate'],",
+  "tests": [
+   "tests/Config/FiltersTest.php",
+   "tests/Filters/IsLoggedInTest.php"
+  ]
+ },
+ {
+  "name": "G03 a module counts its own sub-permissions and not every permission that begins with its id",
+  "file": "app/Models/Employee.php",
+  "find": "$builder->whereIn('permission_id', [$permissionId, ...$subpermissions]);",
+  "replace": "$builder->like('permission_id', $permissionId, 'after');",
+  "tests": [
+   "tests/Models/EmployeeTest.php"
+  ]
+ },
+ {
+  "name": "G04 the grants of the roles are counted by the same rule",
+  "file": "app/Models/Employee.php",
+  "find": "if ($permissionId === '' || in_array(strtolower($roleGranted), $countedLower, true)) {",
+  "replace": "if ($permissionId === '' || stripos($roleGranted, $permissionId) === 0) {",
+  "tests": [
+   "tests/Models/EmployeeTest.php"
+  ]
+ },
+ {
+  "name": "G05 a sub-permission belongs to the module in the catalog, not only by its id",
+  "file": "app/Models/Employee.php",
+  "find": "        $builder->where('module_id', $moduleId);\n\n        $prefix",
+  "replace": "\n        $prefix",
+  "tests": [
+   "tests/Models/EmployeeTest.php"
+  ]
+ },
+ {
+  "name": "G06 the empty module id asks for two grants of any kind",
+  "file": "app/Models/Employee.php",
+  "find": "        if ($permissionId === '') {\n            return count($held) > 1;\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Models/EmployeeTest.php"
+  ]
+ },
+ {
+  "name": "G07 a module needs a second grant only when the list of such modules says so (catalog rule)",
+  "file": "tests/Models/EmployeeTest.php",
+  "find": "['items', 'receivings', 'recurring_expenses', 'recurring_invoices', 'reports', 'sales'];",
+  "replace": "['items', 'receivings', 'recurring_expenses', 'recurring_invoices', 'sales'];",
+  "tests": [
+   "tests/Models/EmployeeTest.php"
+  ]
+ },
+ {
+  "name": "G08 no permission begins with the id of another module without being named in the exceptions (catalog rule)",
+  "file": "tests/Models/EmployeeTest.php",
+  "find": "['expenses_categories' => 'expenses'];",
+  "replace": "[];",
+  "tests": [
+   "tests/Models/EmployeeTest.php"
+  ]
+ },
+ {
+  "name": "G09 the settings form refuses a text field that arrives as an array",
+  "file": "app/Controllers/AccountingSetup.php",
+  "find": "$this->refuseNonText('base_currency', 'start_date', 'shipping_tax_percent', 'journal_description_sales', 'journal_description_purchases', 'picker_threshold')",
+  "replace": "null",
+  "tests": [
+   "--filter",
+   "SentAsAnArray",
+   "tests/Controllers/AccountingSetupControllerTest.php"
+  ]
+ },
+ {
+  "name": "G10 the controls form refuses a text field that arrives as an array",
+  "file": "app/Controllers/AccountingSetup.php",
+  "find": "$this->refuseNonText('default_list', 'max_discount')",
+  "replace": "null",
+  "tests": [
+   "--filter",
+   "SentAsAnArray",
+   "tests/Controllers/AccountingSetupControllerTest.php"
+  ]
+ },
+ {
+  "name": "G11 the shipping company form refuses a text field that arrives as an array",
+  "file": "app/Controllers/AccountingSetup.php",
+  "find": "$this->refuseNonText('name', 'account_id')",
+  "replace": "null",
+  "tests": [
+   "--filter",
+   "SentAsAnArray",
+   "tests/Controllers/AccountingSetupControllerTest.php"
+  ]
+ },
+ {
+  "name": "G12 the first fiscal year form refuses a text field that arrives as an array",
+  "file": "app/Controllers/AccountingSetup.php",
+  "find": "$this->refuseNonText('name', 'start_date', 'end_date')",
+  "replace": "null",
+  "tests": [
+   "--filter",
+   "SentAsAnArray",
+   "tests/Controllers/AccountingSetupControllerTest.php"
+  ]
+ },
+ {
+  "name": "G13 a value that is not text is the refusal",
+  "file": "app/Controllers/AccountingSetup.php",
+  "find": "if ($value !== null && ! is_string($value)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "SentAsAnArray",
+   "tests/Controllers/AccountingSetupControllerTest.php"
+  ]
+ },
+ {
+  "name": "G14 the refusal of a malformed request is a 400",
+  "file": "app/Controllers/AccountingSetup.php",
+  "find": "$this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => lang('Accounting_settings.malformed_request')",
+  "replace": "$this->response->setJSON(['success' => false, 'message' => lang('Accounting_settings.malformed_request')",
+  "tests": [
+   "--filter",
+   "SentAsAnArray",
+   "tests/Controllers/AccountingSetupControllerTest.php"
+  ]
+ },
+ {
+  "name": "G15 the list of sales debit notes keeps to the notes of an employee who sees their own records",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "        if ($mine !== null) {\n            $builder->where('n.created_by', $mine);\n        }\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "OwnRecord|OwnNote|HidesAnother|ARoleOfTheEmployee",
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "G16 taking back a debit note keeps to the notes of an employee who sees their own records",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "if (! $this->scope->allows($employeeId, $note->created_by)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "OwnRecord|OwnNote|HidesAnother|ARoleOfTheEmployee",
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "G17 reading one debit note keeps to the notes of an employee who sees their own records",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "return $note !== null && $this->scope->allows($viewerId, $note->created_by) ? $note : null;",
+  "replace": "return $note;",
+  "tests": [
+   "--filter",
+   "OwnRecord|OwnNote|HidesAnother|ARoleOfTheEmployee",
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "G18 the form of the taking back asks for the note as the employee sees it",
+  "file": "app/Controllers/AccountingDebitNotes.php",
+  "find": "$note = $this->notes->find($debitNoteId, $this->employeeId());",
+  "replace": "$note = $this->notes->find($debitNoteId);",
+  "tests": [
+   "--filter",
+   "OwnRecord",
+   "tests/Controllers/AccountingDebitNotesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G19 the contact panel escapes the value of a contact field in its attribute (customers and suppliers)",
+  "file": "app/Views/people/contacts_panel.php",
+  "find": "value=\"<?= esc((string) ($contact->{$field} ?? ''), 'attr') ?>\" aria-label",
+  "replace": "value=\"<?= (string) ($contact->{$field} ?? '') ?>\" aria-label",
+  "tests": [
+   "--filter",
+   "ContactPanelWithTheValuesEscaped",
+   "tests/Controllers/CustomersControllerTest.php",
+   "tests/Controllers/SuppliersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G20 the settings screen escapes the sales description template in its attribute",
+  "file": "app/Views/accounting_settings/manage.php",
+  "find": "value=\"<?= esc($journal_description_sales, 'attr') ?>\"",
+  "replace": "value=\"<?= $journal_description_sales ?>\"",
+  "tests": [
+   "--filter",
+   "DescriptionTemplatesEscaped",
+   "tests/Controllers/AccountingSetupControllerTest.php"
+  ]
+ },
+ {
+  "name": "G21 the settings screen escapes the purchases description template in its attribute",
+  "file": "app/Views/accounting_settings/manage.php",
+  "find": "value=\"<?= esc($journal_description_purchases, 'attr') ?>\"",
+  "replace": "value=\"<?= $journal_description_purchases ?>\"",
+  "tests": [
+   "--filter",
+   "DescriptionTemplatesEscaped",
+   "tests/Controllers/AccountingSetupControllerTest.php"
+  ]
+ },
+ {
+  "name": "G22 the custom field form escapes the name in its attribute",
+  "file": "app/Views/custom_fields/form.php",
+  "find": "value=\"<?= $isNew ? '' : esc($field->name, 'attr') ?>\"",
+  "replace": "value=\"<?= $isNew ? '' : $field->name ?>\"",
+  "tests": [
+   "--filter",
+   "EscapesItsNameAndOptions",
+   "tests/Controllers/Custom_fieldsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G23 the notifications list escapes what a notification says",
+  "file": "app/Views/notifications/manage.php",
+  "find": "<div><?= esc(Notifications::message($row)) ?></div>",
+  "replace": "<div><?= Notifications::message($row) ?></div>",
+  "tests": [
+   "--filter",
+   "EscapesWhatANotificationSays",
+   "tests/Controllers/NotificationsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G24 a requisition looks at its cart before it changes it",
+  "file": "app/Controllers/Receivings.php",
+  "find": "$unavailable = $this->unavailableRequisitionItem();",
+  "replace": "$unavailable = null;",
+  "tests": [
+   "--filter",
+   "testPostRequisitionComplete",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G25 an item that the register would no longer add refuses the requisition",
+  "file": "app/Controllers/Receivings.php",
+  "find": "if ($this->item->get_info_by_id_or_number((string) $line['item_id'], false) === '') {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testPostRequisitionComplete",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G26 a stock request asks stock only from active locations",
+  "file": "app/Controllers/StockDocumentController.php",
+  "find": "if ((int) $location->status === 1) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "OffersOnlyActiveLocations",
+   "tests/Controllers/StockRequestsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G27 the open documents of an item are counted under a lock when asked to lock",
+  "file": "app/Libraries/MasterData/ItemOpenDocuments.php",
+  "find": "$rows = $locking ? LockedRead::rows($this->db, $sql . ' LOCK IN SHARE MODE') : $this->db->query($sql)->getResult();",
+  "replace": "$rows = $this->db->query($sql)->getResult();",
+  "tests": [
+   "--filter",
+   "SeesADocument|WaitsForARequestThatHoldsADocumentLine",
+   "tests/Libraries/MasterData/ItemOpenDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G28 the items are locked before their documents are read",
+  "file": "app/Models/Item.php",
+  "find": "                $this->lockItems($itemIds);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "WaitsFor|SeesADocument",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G29 the deletion of an item asks again under the lock inside its transaction",
+  "file": "app/Models/Item.php",
+  "find": "if ($this->refusedUnderLock([(int) $itemId])) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testDelete_",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G30 the deletion of a list of items asks again under the lock inside its transaction",
+  "file": "app/Models/Item.php",
+  "find": "if ($this->refusedUnderLock(array_map('intval', $itemIds))) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testDeleteList_",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G31 a refusal under the lock rolls the deletion back",
+  "file": "app/Models/Item.php",
+  "find": "        if ($refused) {\n            $this->db->transRollback();\n        }\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "WaitsFor",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G32 the item form asks again under the lock inside its transaction",
+  "file": "app/Controllers/Items.php",
+  "find": "$this->item->isMentionedInOpenDocuments([$itemId], true)",
+  "replace": "false",
+  "tests": [
+   "--filter",
+   "AfterTheSnapshotOfTheRequest|WhileAnotherRequestHoldsIt",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G33 the attribute suggestions read the items they offer",
+  "file": "app/Models/Item.php",
+  "find": "        $builder->join('items', 'items.item_id = attribute_links.item_id');\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testSuggestions_|LeavesAKitOut",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G34 the attribute suggestions leave out inactive items when asked",
+  "file": "app/Models/Item.php",
+  "find": "        $this->hideInactive($builder, $filters);\n        $constrain($builder);\n",
+  "replace": "        $constrain($builder);\n",
+  "tests": [
+   "--filter",
+   "testSuggestions_",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G35 the item suggestions by attribute leave out kits",
+  "file": "app/Models/Item.php",
+  "find": "$builder->whereIn('items.item_type', $nonKit);",
+  "replace": "$builder->where('items.item_type >=', 0);",
+  "tests": [
+   "--filter",
+   "LeavesAKitOut",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G36 the stock suggestions by attribute leave out items without stock (the stock list)",
+  "file": "app/Models/Item.php",
+  "find": "            // Search by custom fields\n            if ($filters['search_custom'] !== false) {\n                $suggestions = array_merge($suggestions, $this->attributeSuggestions($search, $filters, static function (BaseBuilder $builder): void {\n                    $builder->where('items.stock_type', '0'); // Stocked items only",
+  "replace": "            // Search by custom fields\n            if ($filters['search_custom'] !== false) {\n                $suggestions = array_merge($suggestions, $this->attributeSuggestions($search, $filters, static function (BaseBuilder $builder): void {\n                    $builder->where('items.stock_type >=', 0);",
+  "tests": [
+   "--filter",
+   "LeaveAnItemWithoutStock",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G37 the stock suggestions by attribute leave out items without stock (the kit list)",
+  "file": "app/Models/Item.php",
+  "find": "            // Search in attributes\n            if ($filters['search_custom'] !== false) {\n                $suggestions = array_merge($suggestions, $this->attributeSuggestions($search, $filters, static function (BaseBuilder $builder): void {\n                    $builder->where('items.stock_type', '0'); // Stocked items only",
+  "replace": "            // Search in attributes\n            if ($filters['search_custom'] !== false) {\n                $suggestions = array_merge($suggestions, $this->attributeSuggestions($search, $filters, static function (BaseBuilder $builder): void {\n                    $builder->where('items.stock_type >=', 0);",
+  "tests": [
+   "--filter",
+   "LeaveAnItemWithoutStock",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G38 a module opens only for the holder of its own grant, never for sub-permissions alone",
+  "file": "app/Models/Employee.php",
+  "find": "        if (! in_array(strtolower($permissionId), $held, true)) {\n            return false;\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Models/EmployeeTest.php"
+  ]
+ },
+ {
+  "name": "G39 a requisition that is refused says which item it could not add",
+  "file": "app/Controllers/Receivings.php",
+  "find": "lang('Receivings.unable_to_add_item') . ' ' . $unavailable",
+  "replace": "lang('Receivings.unable_to_add_item')",
+  "tests": [
+   "--filter",
+   "testPostRequisitionComplete",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G40 the refusal to delete an item through the form says why, before the transaction",
+  "file": "app/Controllers/Items.php",
+  "find": "|| $this->item->holdsStockOutsideTheEmployeesBranches([$itemId]))) {\n            $this->adjustmentFailure = $this->item->accountingFailure();",
+  "replace": "|| $this->item->holdsStockOutsideTheEmployeesBranches([$itemId]))) {",
+  "tests": [
+   "--filter",
+   "testPostSave_Re",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G41 the refusal to delete an item through the form says why, under the lock",
+  "file": "app/Controllers/Items.php",
+  "find": "            $db->transRollback();\n            $this->adjustmentFailure = $this->item->accountingFailure();",
+  "replace": "            $db->transRollback();",
+  "tests": [
+   "--filter",
+   "testPostSave_Re",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G42 the attribute suggestions offer an item once, so that its attributes do not use the limit",
+  "file": "app/Models/Item.php",
+  "find": "$suggestions[(int) $row->item_id] ??= ['value'",
+  "replace": "$suggestions[] = ['value'",
+  "tests": [
+   "--filter",
+   "testSuggestions_",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G43 the attribute suggestions are ordered by the name of the item, as the other suggestions are",
+  "file": "app/Models/Item.php",
+  "find": "        $builder->orderBy('items.name', 'asc');\n        $builder->orderBy('items.item_id', 'asc');\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testSuggestions_",
+   "tests/Models/ItemTest.php"
+  ]
+ }
+]

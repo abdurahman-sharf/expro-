@@ -355,10 +355,11 @@ class SuppliersControllerTest extends CIUnitTestCase
     {
         $supplierId = $this->saveSupplier($this->form([PartyContacts::MARKER => '1', PartyContacts::FIELD => [$this->contactRow(['first_name' => '<script>x()</script>'])]]));
 
-        $html = $this->get('/suppliers/view/' . $supplierId)->getBody();
+        $html = $this->get('/suppliers/view/' . $supplierId)->response()->getBody();
 
         $this->assertStringContainsString('id="contacts_panel"', $html);
-        $this->assertStringContainsString('value="&lt;script&gt;x()&lt;/script&gt;"', $html);
+        $this->assertStringContainsString('value="' . esc('<script>x()</script>', 'attr') . '"', $html);
+        $this->assertStringNotContainsString('value="<script>', $html);
         $this->assertStringNotContainsString('<script>x()</script>', $html);
     }
 

@@ -5,6 +5,7 @@ namespace Tests\Controllers;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\SalesDebitNotes;
+use App\Libraries\Roles\RoleService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -399,5 +400,63 @@ class AccountingDebitNotesControllerTest extends CIUnitTestCase
                 $this->assertSame('posted', $this->accountingDb()->table('sales_debit_notes')->where('debit_note_id', $id)->get()->getRow()->status);
             }
         }
+    }
+
+    private function actAsOwnRecordsEmployee(): int
+    {
+        $personId = $this->actAsWith(['accounting_debit_notes', AccountingGuard::DEBIT_NOTES_MANAGE]);
+
+        (new RoleService())->setRecordScope($personId, 'own', null);
+
+        return $personId;
+    }
+
+    public function testGetIndex_ListsOnlyTheNotesTheEmployeeRaisedWhenTheEmployeeSeesTheirOwnRecords(): void
+    {
+        $theirs = $this->raise('222');
+        $viewer = $this->actAsOwnRecordsEmployee();
+        $mine   = $this->raise('111', null, $viewer);
+
+        $page = $this->get('/accounting_debit_notes');
+
+        $page->assertSee('id="debit_note_' . $mine . '"');
+        $page->assertDontSee('id="debit_note_' . $theirs . '"');
+    }
+
+    public function testGetIndex_ListsEveryNoteToAnEmployeeWhoSeesEveryRecord(): void
+    {
+        $first = $this->raise('222');
+
+        $this->actAsWith(['accounting_debit_notes', AccountingGuard::DEBIT_NOTES_MANAGE]);
+
+        $second = $this->raise('111');
+        $page   = $this->get('/accounting_debit_notes');
+
+        $page->assertSee('id="debit_note_' . $first . '"');
+        $page->assertSee('id="debit_note_' . $second . '"');
+    }
+
+    public function testGetReverseForm_RefusesAnotherEmployeesNoteWhenTheEmployeeSeesTheirOwnRecords(): void
+    {
+        $theirs = $this->raise();
+        $viewer = $this->actAsOwnRecordsEmployee();
+        $mine   = $this->raise('50', null, $viewer);
+
+        $this->assertSame(403, $this->get('/accounting_debit_notes/reverse_form/' . $theirs)->response()->getStatusCode());
+        $this->get('/accounting_debit_notes/reverse_form/' . $mine)->assertSee('name="reason"');
+    }
+
+    public function testPostReverse_RefusesAnotherEmployeesNoteInWordsWhenTheEmployeeSeesTheirOwnRecords(): void
+    {
+        $theirs = $this->raise();
+
+        $this->actAsOwnRecordsEmployee();
+
+        $refused = $this->postJson('/accounting_debit_notes/reverse/' . $theirs, ['reason' => 'by a stranger']);
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_debit_note_not_found'), $refused['message']);
+        $this->assertSame('posted', $this->accountingDb()->table('sales_debit_notes')->where('debit_note_id', $theirs)->get()->getRow()->status);
+        $this->assertSame('100.00', $this->balance($this->customerAccount()));
     }
 }

@@ -71,6 +71,7 @@ return [
     'line_description_required'                => '',
     'line_description_required_desc'           => '',
     'locked_note'                              => '',
+    'malformed_request'                        => '',
     'next_number'                              => '',
     'not_ready'                                => '',
     'picker_threshold'                         => '',

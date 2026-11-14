@@ -174,6 +174,22 @@ class StockRequestsControllerTest extends CIUnitTestCase
         $this->assertSame(403, $this->get('/stock_documents/requests/form')->response()->getStatusCode());
     }
 
+    public function testGetForm_OffersOnlyActiveLocationsToAskStockFrom(): void
+    {
+        $this->actAsKeeper();
+
+        $inactive = $this->openLocation('Closed depot');
+
+        $this->accountingDb()->table('stock_locations')->where('location_id', $inactive)->update(['status' => 0]);
+
+        $form = $this->get('/stock_documents/requests/form')->response()->getBody();
+        $from = (string) preg_replace('/^.*?<select name="from_location_id"[^>]*>(.*?)<\/select>.*$/s', '$1', $form);
+
+        $this->assertStringContainsString('value="' . $this->shop . '"', $from);
+        $this->assertStringNotContainsString('value="' . $inactive . '"', $from);
+        $this->assertStringNotContainsString('Closed depot', $from);
+    }
+
     public function testPostSaveRequest_AsksForStockAndPostsNothing(): void
     {
         $itemId   = $this->stocked('10', '50');

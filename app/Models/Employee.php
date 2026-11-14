@@ -451,41 +451,71 @@ class Employee extends Person
     }
 
     /**
-     * Determines whether the employee has access to at least one submodule, through their own
-     * grants or through their roles
+     * Determines whether the employee has access to a module, through their own grants or through their
+     * roles. The module opens for the holder of its own grant, and, when the catalog files sub-permissions
+     * under it with an id that begins with the module id and an underscore (the stock locations of items,
+     * sales and receivings, the reports and the recurring documents), for the holder of its own grant and at
+     * least one of them. Sub-permissions alone never open it: a stock location reaches every employee when
+     * it is created, so two of them cannot stand for the module. The permission of another module never
+     * counts, whatever its id begins with. The empty id asks for at least two grants of any kind.
      */
-    public function has_module_grant(string $permission_id, int $person_id): bool
+    public function has_module_grant(string $permissionId, int $personId): bool
     {
+        $subpermissions = $this->subpermissionIds($permissionId);
+        $countedLower   = array_map('strtolower', [$permissionId, ...$subpermissions]);
+
         $builder = $this->db->table('grants');
-        $builder->like('permission_id', $permission_id, 'after');
-        $builder->where('person_id', $person_id);
+        $builder->select('permission_id');
+        $builder->where('person_id', $personId);
 
-        $held = array_column($builder->get()->getResultArray(), 'permission_id');
+        if ($permissionId !== '') {
+            $builder->whereIn('permission_id', [$permissionId, ...$subpermissions]);
+        }
 
-        foreach ($this->roleGrants()->idsFor($person_id) as $roleGranted) {
-            if (stripos($roleGranted, $permission_id) === 0) {
-                $held[] = $roleGranted;
+        $held = array_map('strtolower', array_column($builder->get()->getResultArray(), 'permission_id'));
+
+        foreach ($this->roleGrants()->idsFor($personId) as $roleGranted) {
+            if ($permissionId === '' || in_array(strtolower($roleGranted), $countedLower, true)) {
+                $held[] = strtolower($roleGranted);
             }
         }
 
-        $resultCount = count(array_unique($held));
+        $held = array_unique($held);
 
-        if ($resultCount != 1) {
-            return ($resultCount != 0);
+        if ($permissionId === '') {
+            return count($held) > 1;
         }
 
-        return $this->has_subpermissions($permission_id);
+        if (! in_array(strtolower($permissionId), $held, true)) {
+            return false;
+        }
+
+        return count($held) > 1 || $subpermissions === [];
     }
 
     /**
-     * Checks permissions
+     * Whether the module has no sub-permission, so that its own grant alone opens it
      */
-    public function has_subpermissions(string $permission_id): bool
+    public function has_subpermissions(string $permissionId): bool
+    {
+        return $this->subpermissionIds($permissionId) === [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function subpermissionIds(string $moduleId): array
     {
         $builder = $this->db->table('permissions');
-        $builder->like('permission_id', $permission_id . '_', 'after');
+        $builder->select('permission_id');
+        $builder->where('module_id', $moduleId);
 
-        return ($builder->get()->getNumRows() == 0);    // TODO: ===
+        $prefix = strtolower($moduleId) . '_';
+
+        return array_values(array_filter(
+            array_column($builder->get()->getResultArray(), 'permission_id'),
+            static fn (string $permissionId): bool => str_starts_with(strtolower($permissionId), $prefix),
+        ));
     }
 
     /**

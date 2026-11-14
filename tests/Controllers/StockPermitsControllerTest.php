@@ -733,7 +733,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $globals = (new ReflectionClass(Filters::class))->getDefaultProperties()['globals'];
 
         $this->assertArrayHasKey('csrf', $globals['before']);
-        $this->assertSame(0, preg_match('#^(' . $globals['before']['csrf']['except'] . ')#', 'stock_documents/permits/save'));
+        $this->assertSame(0, preg_match('#\A(' . implode('|', array_map(static fn (string $path): string => preg_quote($path, '#'), (array) $globals['before']['csrf']['except'])) . ')\z#', 'stock_documents/permits/save'));
         $this->expectException(PageNotFoundException::class);
 
         $this->get('/stock_documents/permits/save');

@@ -8,7 +8,9 @@ use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 
@@ -21,6 +23,7 @@ use Tests\Support\EmployeeFixtureTrait;
 final class IsLoggedInTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use FeatureTestTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
 
@@ -104,5 +107,34 @@ final class IsLoggedInTest extends CIUnitTestCase
         $response = (new IsLoggedIn())->before($this->request(true));
 
         $this->assertSame(401, $response->getStatusCode());
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function routesWhoseLastSegmentIsFree(): array
+    {
+        return [
+            'a view that ends with migrate'      => ['GET', 'branches/view/migrate'],
+            'a view whose key ends with migrate' => ['GET', 'roles/view/xmigrate'],
+            'a save that ends with migrate'      => ['POST', 'branches/save/xmigrate'],
+            'a chart view that ends with it'     => ['GET', 'accounting_chart/view/migrate'],
+        ];
+    }
+
+    #[DataProvider('routesWhoseLastSegmentIsFree')]
+    public function testBefore_SendsAVisitorWhoAsksForARealRouteThatEndsWithMigrateToTheSignIn(string $method, string $path): void
+    {
+        $result = $method === 'POST' ? $this->post($path, []) : $this->get($path);
+
+        $result->assertRedirect();
+        $this->assertStringEndsWith('login', $result->getRedirectUrl(), $path);
+    }
+
+    public function testBefore_LetsAVisitorReachTheSignInItself(): void
+    {
+        $result = $this->get('login');
+
+        $result->assertStatus(200);
     }
 }

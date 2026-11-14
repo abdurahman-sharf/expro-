@@ -8,6 +8,7 @@ use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
+use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -44,6 +45,7 @@ final class SalesDebitNotes
     private BaseConnection $db;
     private AccountingGuard $guard;
     private BranchGuard $branches;
+    private RecordScope $scope;
     private AccountingSettings $settings;
     private PostingService $posting;
     private JournalService $journals;
@@ -59,6 +61,7 @@ final class SalesDebitNotes
         $this->db         = $db ?? Database::connect();
         $this->guard      = $guard ?? new AccountingGuard();
         $this->branches   = $branches ?? new BranchGuard($this->db);
+        $this->scope      = new RecordScope($this->db);
         $this->settings   = new AccountingSettings($this->db);
         $this->posting    = new PostingService($this->db);
         $this->journals   = new JournalService($this->db);
@@ -185,6 +188,10 @@ final class SalesDebitNotes
         $reason = $this->reason($reason);
         $note   = $this->found($debitNoteId);
 
+        if (! $this->scope->allows($employeeId, $note->created_by)) {
+            throw new AccountingException(AccountingError::DebitNoteNotFound, "Debit note {$debitNoteId} does not exist.", ['debit_note_id' => $debitNoteId]);
+        }
+
         $this->branches->requireBranch((int) $note->branch_id, $employeeId);
 
         $customerId = (int) $note->customer_id;
@@ -218,9 +225,9 @@ final class SalesDebitNotes
         }));
     }
 
-    public function find(int $debitNoteId): ?object
+    public function find(int $debitNoteId, ?int $viewerId = null): ?object
     {
-        return $this->db->table('sales_debit_notes n')
+        $note = $this->db->table('sales_debit_notes n')
             ->select("n.*, b.code AS branch_code, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS customer_name, d.number AS document_number", false)
             ->join('branches b', 'b.branch_id = n.branch_id')
             ->join('people p', 'p.person_id = n.customer_id', 'left')
@@ -229,10 +236,13 @@ final class SalesDebitNotes
             ->where('n.debit_note_id', $debitNoteId)
             ->get()
             ->getRow();
+
+        return $note !== null && $this->scope->allows($viewerId, $note->created_by) ? $note : null;
     }
 
     /**
-     * The debit notes of the branches the employee works in, the newest first.
+     * The debit notes of the branches the employee works in, the newest first, and of the employee alone
+     * when they see their own records only.
      *
      * @param array{status?: string, customer_id?: int, from?: string, to?: string, search?: string} $filters
      *
@@ -258,6 +268,7 @@ final class SalesDebitNotes
     private function searched(array $filters, ?int $employeeId): BaseBuilder
     {
         $branchIds = $this->branches->allowedBranchIds($employeeId);
+        $mine      = $this->scope->limit($employeeId);
 
         $builder = $this->db->table('sales_debit_notes n')
             ->join('branches b', 'b.branch_id = n.branch_id')
@@ -267,6 +278,10 @@ final class SalesDebitNotes
 
         if ($branchIds !== null) {
             $branchIds === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('n.branch_id', $branchIds);
+        }
+
+        if ($mine !== null) {
+            $builder->where('n.created_by', $mine);
         }
 
         if (($filters['status'] ?? '') === 'posted' || ($filters['status'] ?? '') === 'reversed') {
