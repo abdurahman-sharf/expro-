@@ -27,6 +27,7 @@ use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
+use Tests\Support\DatabaseFailureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
@@ -46,6 +47,7 @@ class ReceivingTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
     use ConcurrentDbRaceTrait;
+    use DatabaseFailureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
@@ -150,6 +152,7 @@ class ReceivingTest extends CIUnitTestCase
         $this->assertTrue($deleteResult);
         $this->assertEqualsWithDelta(0.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
     }
+
     public function testCreateTempTable_ReadsTheReceivingsOfADayWithoutWaitingForAPurchaseThatIsBeingSaved(): void
     {
         $db = Database::connect();
@@ -163,6 +166,26 @@ class ReceivingTest extends CIUnitTestCase
         } finally {
             $db->query('DROP TEMPORARY TABLE IF EXISTS ' . $db->prefixTable('receivings_items_temp'));
         }
+    }
+
+    public function testSaveValue_SavesTheNextPurchaseOfTheProcessAfterTheDatabaseRefusedOne(): void
+    {
+        $employeeId = $this->createEmployee();
+        $supplierId = $this->createSupplier();
+        $itemId     = $this->createTestItem(HAS_NO_STOCK);
+        $saved      = [];
+
+        $this->failWritesTo('receivings', 'comment', self::REFUSED_MARKER);
+
+        try {
+            foreach (['first', self::REFUSED_MARKER, 'third'] as $comment) {
+                $saved[] = model(Receiving::class)->save_value($this->buildReceivingLine($itemId, 1, 1.00), $supplierId, $employeeId, $comment, 'REF-' . uniqid(), 'Cash') > 0;
+            }
+        } finally {
+            $this->stopFailingWrites();
+        }
+
+        $this->assertSame([true, false, true], $saved);
     }
 
     public function testBranchIdsOfItems_NamesEachBranchOfTheLocationsOfTheLinesOnce(): void

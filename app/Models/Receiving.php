@@ -28,6 +28,7 @@ use App\Libraries\Accounting\SupplierLock;
 use App\Libraries\Accounting\SupplierPaymentDate;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Database\FailedTransaction;
 use App\Libraries\Database\ReadCommittedStatement;
 use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
@@ -1063,6 +1064,7 @@ class Receiving extends Model
             return ACCOUNTING_FAILED;
         } finally {
             $this->savingCurrency = null;
+            FailedTransaction::forget($this->db);
         }
     }
 

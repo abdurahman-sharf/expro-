@@ -30,6 +30,7 @@ use App\Libraries\Accounting\SalesTaxSettings;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\UndeliveredReturns;
+use App\Libraries\Database\FailedTransaction;
 use App\Libraries\Database\ReadCommittedStatement;
 use App\Libraries\HeaderCharges;
 use App\Libraries\HeaderChargesProblem;
@@ -1240,6 +1241,7 @@ class Sale extends Model
             return ACCOUNTING_FAILED;
         } finally {
             $this->savingCurrency = null;
+            FailedTransaction::forget($this->db);
         }
     }
 

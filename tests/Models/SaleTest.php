@@ -23,6 +23,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Config\OSPOS;
 use Tests\Support\ConcurrentDbRaceTrait;
+use Tests\Support\DatabaseFailureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\FailedQueryConnectionTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -37,6 +38,7 @@ use Tests\Support\UncommittedWriterTrait;
 class SaleTest extends CIUnitTestCase
 {
     use ConcurrentDbRaceTrait;
+    use DatabaseFailureTrait;
     use DatabaseTestTrait;
     use EmployeeFixtureTrait;
     use FailedQueryConnectionTrait;
@@ -558,6 +560,28 @@ class SaleTest extends CIUnitTestCase
 
         $this->assertTrue($deleteResult);
         $this->assertEqualsWithDelta(10.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+    }
+
+    public function testSaveValue_SavesTheNextSaleOfTheProcessAfterTheDatabaseRefusedOne(): void
+    {
+        $itemId     = $this->createTestItem(HAS_NO_STOCK);
+        $employeeId = $this->createEmployee();
+        $saved      = [];
+
+        $this->failWritesTo('sales', 'comment', self::REFUSED_MARKER);
+
+        try {
+            foreach (['first', self::REFUSED_MARKER, 'third'] as $comment) {
+                $status  = COMPLETED;
+                $items   = $this->buildCartLine($itemId, 1, 10.00);
+                $taxes   = [[], []];
+                $saved[] = model(Sale::class)->save_value(NEW_ENTRY, $status, $items, NEW_ENTRY, $employeeId, $comment, null, null, null, SALE_TYPE_POS, [$this->cashPayment()], null, $taxes, true) > 0;
+            }
+        } finally {
+            $this->stopFailingWrites();
+        }
+
+        $this->assertSame([true, false, true], $saved);
     }
 
     public function testGetAllSuspended_ReturnsEmptyArrayWhenQueryFails(): void
