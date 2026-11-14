@@ -107,7 +107,10 @@ trait CreditSourceFixtureTrait
         $day          = $this->daysAgo(3);
 
         $this->setConfigValue('accounting_customer_opening', '1');
-        $this->creditCheques();
+
+        if ($source === CreditSource::CHEQUE) {
+            $this->creditCheques();
+        }
 
         return match ($source) {
             CreditSource::CUSTOMER_ADVANCE => (new CustomerAdvances())->receive($customerId, $amount, $day, 'Cash', null, '', '', $this->creditClerk()),
@@ -161,7 +164,9 @@ trait CreditSourceFixtureTrait
      */
     protected function takeBackCustomerCredit(string $source, int $id): void
     {
-        $this->creditCheques();
+        if ($source === CreditSource::CHEQUE) {
+            $this->creditCheques();
+        }
 
         match ($source) {
             CreditSource::CUSTOMER_ADVANCE => (new CustomerAdvances())->cancel($id, 'mistake', $this->creditClerk()),
@@ -203,7 +208,10 @@ trait CreditSourceFixtureTrait
         $supplierId ??= $this->supplierId;
         $day          = $this->daysAgo(3);
 
-        $this->creditCheques();
+        if ($source === CreditSource::CHEQUE) {
+            $this->creditCheques();
+        }
+
         $this->treasurerOfSuppliers();
 
         return match ($source) {
@@ -230,7 +238,10 @@ trait CreditSourceFixtureTrait
      */
     protected function takeBackSupplierCredit(string $source, int $id): void
     {
-        $this->creditCheques();
+        if ($source === CreditSource::CHEQUE) {
+            $this->creditCheques();
+        }
+
         $this->treasurerOfSuppliers();
 
         match ($source) {

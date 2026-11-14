@@ -7,7 +7,10 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CustomerAdvances;
+use App\Libraries\Accounting\CreditSource;
+use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\QuoteStatus;
+use App\Libraries\Accounting\SalesDebitNotes;
 use App\Libraries\Pricing\SalesControlSettings;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -15,6 +18,7 @@ use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
+use Tests\Support\CreditSourceFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
@@ -27,6 +31,7 @@ final class CreditLimitTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
     use ConcurrentDbRaceTrait;
+    use CreditSourceFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
@@ -58,6 +63,9 @@ final class CreditLimitTest extends CIUnitTestCase
         $this->setConfigValue(SalesControlSettings::CREDIT_PERIOD, '0');
         $this->accountingDb()->table('accounting_audit_log')->whereIn('action', [CreditLimit::AUDIT_OVERRIDE, CreditLimit::AUDIT_REFUSED, 'customer_credit_changed'])->delete();
         $this->accountingDb()->table('customers')->update(['credit_limit' => 0, 'credit_period_days' => 0]);
+        $this->setConfigValue('accounting_debit_note', '0');
+        $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'sales_debit_note')->delete();
+        $this->stopCreditSources();
 
         $this->stopSelling();
 
@@ -857,5 +865,240 @@ final class CreditLimitTest extends CIUnitTestCase
         foreach ($this->accountingDb()->table('sales')->select('sale_id')->where('comment', 'race')->get()->getResult() as $row) {
             $this->saleIds[] = (int) $row->sale_id;
         }
+    }
+
+    private function debitNote(string $amount, int $daysAgo = 5, ?int $customerId = null): int
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        return (new SalesDebitNotes())->create(['customer_id' => $customerId ?? $this->customerId, 'date' => $this->daysAgo($daysAgo), 'amount' => $amount, 'tax_percent' => '0', 'note' => 'freight'], $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]));
+    }
+
+    private function opening(string $side, string $amount, int $daysAgo = 45): int
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        return (new CustomerOpening())->create($this->customerId, $side, $amount, $this->daysAgo($daysAgo), '', $this->employeeWithGrants([AccountingGuard::OPENING_MANAGE]));
+    }
+
+    private function assertRefusalIsTheLedger(?AccountingException $refusal, bool $nothingIsFree = true): void
+    {
+        $this->assertInstanceOf(AccountingException::class, $refusal);
+        $this->assertSame(AccountingError::CreditLimitExceeded, $refusal->error);
+        $this->assertSame(bcadd($this->position()->open(), '0', 2), $refusal->context['balance'], 'The refusal names what the ledger says is open');
+
+        if ($nothingIsFree) {
+            $this->assertSame('0.00', bcadd($this->position()->credit(), '0', 2));
+            $this->assertSame(bcadd($this->balance($this->customerAccount()), '0', 2), $refusal->context['balance'], 'With no credit free what is open is what the account holds');
+        }
+    }
+
+    public function testRefusalFor_CountsASalesDebitNoteAsWhatTheCustomerOwesAndAcceptsExactlyTheLimit(): void
+    {
+        $this->giveTerms('500');
+        $this->debitNote('300.00');
+
+        $sale = $this->invoiceOf('200.00');
+
+        $this->turnOn();
+
+        $this->assertSame('500.00', bcadd($this->position()->open(), '0', 2));
+        $this->assertNull($this->credit->refusalFor($this->customerId, $sale, date('Y-m-d')));
+    }
+
+    public function testRefusalFor_RefusesASaleThatTakesASalesDebitNoteAndTheInvoicesOverTheLimitByACent(): void
+    {
+        $this->giveTerms('500');
+        $this->debitNote('300.00');
+
+        $sale = $this->invoiceOf('200.01');
+
+        $this->turnOn();
+
+        $refusal = $this->credit->refusalFor($this->customerId, $sale, date('Y-m-d'));
+
+        $this->assertRefusalIsTheLedger($refusal);
+        $this->assertSame(['500.00', '500.01', '200.01'], [$refusal->context['limit'], $refusal->context['balance'], bcadd($refusal->context['new_debt'], '0', 2)]);
+    }
+
+    public function testRefusalFor_CountsAnOpeningBalanceTheCustomerOwesAsWhatTheyOweAndAcceptsExactlyTheLimit(): void
+    {
+        $this->giveTerms('500');
+        $this->opening(CustomerOpening::OWES_US, '300.00');
+
+        $sale = $this->invoiceOf('200.00');
+
+        $this->turnOn();
+
+        $this->assertSame('500.00', bcadd($this->position()->open(), '0', 2));
+        $this->assertNull($this->credit->refusalFor($this->customerId, $sale, date('Y-m-d')));
+    }
+
+    public function testRefusalFor_RefusesASaleThatTakesAnOpeningBalanceAndTheInvoicesOverTheLimitByACent(): void
+    {
+        $this->giveTerms('500');
+        $this->opening(CustomerOpening::OWES_US, '300.00');
+
+        $sale = $this->invoiceOf('200.01');
+
+        $this->turnOn();
+
+        $refusal = $this->credit->refusalFor($this->customerId, $sale, date('Y-m-d'));
+
+        $this->assertRefusalIsTheLedger($refusal);
+        $this->assertSame(['500.00', '500.01'], [$refusal->context['limit'], $refusal->context['balance']]);
+    }
+
+    public function testRefusalFor_CountsAnOpeningBalanceASalesDebitNoteAndAnInvoiceTogetherWithTheNewSale(): void
+    {
+        $this->giveTerms('500');
+        $this->opening(CustomerOpening::OWES_US, '100.00', 60);
+        $this->debitNote('150.00', 30);
+        $this->invoiceOf('100.00');
+
+        $sale = $this->invoiceOf('150.01');
+
+        $this->turnOn();
+
+        $refusal = $this->credit->refusalFor($this->customerId, $sale, date('Y-m-d'));
+
+        $this->assertRefusalIsTheLedger($refusal);
+        $this->assertSame('500.01', $refusal->context['balance']);
+        $this->assertTies();
+    }
+
+    public function testRefusalFor_DoesNotCountAnOpeningCreditAsDebtAndSpendsItOnTheSaleBeforeItLooksAtTheLimit(): void
+    {
+        $this->giveTerms('100');
+        $this->opening(CustomerOpening::WE_OWE, '200.00');
+
+        $sale = $this->invoiceOf('150.00');
+
+        $this->turnOn();
+
+        $this->assertSame('0.00', bcadd($this->position()->open(), '0', 2), 'The credit the customer held paid the sale');
+        $this->assertSame('50.00', bcadd($this->position()->credit(), '0', 2));
+        $this->assertNull($this->credit->refusalFor($this->customerId, $sale, date('Y-m-d')));
+    }
+
+    public function testRefusalFor_CountsOnlyWhatIsLeftOfASaleAfterAnOpeningCreditPaidPartOfIt(): void
+    {
+        $this->giveTerms('100');
+        $this->opening(CustomerOpening::WE_OWE, '200.00');
+
+        $sale = $this->invoiceOf('350.00');
+
+        $this->turnOn();
+
+        $refusal = $this->credit->refusalFor($this->customerId, $sale, date('Y-m-d'));
+
+        $this->assertRefusalIsTheLedger($refusal);
+        $this->assertSame('150.00', $refusal->context['balance'], 'The sale is 350 and the credit of the opening paid 200 of it');
+    }
+
+    public function testRefusalFor_CountsASalesDebitNoteLessWhatAnAdvancePaymentSpentOnIt(): void
+    {
+        $this->giveTerms('500');
+        $this->debitNote('300.00', 10);
+        $this->giveCustomerCredit(CreditSource::CUSTOMER_ADVANCE);
+
+        $fits = $this->invoiceOf('300.00');
+
+        $this->turnOn();
+
+        $this->assertSame('500.00', bcadd($this->position()->open(), '0', 2), 'The advance paid 100 of the note');
+        $this->assertNull($this->credit->refusalFor($this->customerId, $fits, date('Y-m-d')), 'With the sale the customer owes exactly the limit');
+
+        $this->turnOn(false);
+
+        $over = $this->invoiceOf('0.01');
+
+        $this->turnOn();
+
+        $refusal = $this->credit->refusalFor($this->customerId, $over, date('Y-m-d'));
+
+        $this->assertRefusalIsTheLedger($refusal);
+        $this->assertSame('500.01', $refusal->context['balance']);
+    }
+
+    public function testRefusalFor_DoesNotLetARefundOfCreditLowerWhatTheCustomerOwes(): void
+    {
+        $other = $this->anotherCustomer();
+
+        $this->giveTerms('140');
+        $this->giveTerms('140', 0, $other);
+        $this->giveCustomerCredit(CreditSource::CUSTOMER_ADVANCE);
+        $this->giveCustomerCredit(CreditSource::CUSTOMER_ADVANCE, '100.00', $other);
+        $this->refundCustomerCredit('100.00');
+
+        $refunded = $this->invoiceOf('150.00');
+        $kept     = $this->invoiceOf('150.00', $other);
+
+        $this->turnOn();
+
+        $refusal = $this->credit->refusalFor($this->customerId, $refunded, date('Y-m-d'));
+
+        $this->assertRefusalIsTheLedger($refusal);
+        $this->assertSame('150.00', $refusal->context['balance'], 'The credit was paid back in cash, so the whole sale is open');
+        $this->assertNull($this->credit->refusalFor($other, $kept, date('Y-m-d')), 'The same sale of a customer whose advance was kept is open for 50');
+    }
+
+    public function testRefusalFor_HoldsTheSaleToTheDaysOfAnOpenOpeningBalanceAndLetsItPassOnceAnAdvancePaidIt(): void
+    {
+        $this->giveTerms('0', 30);
+        $this->opening(CustomerOpening::OWES_US, '300.00', 45);
+
+        $sale = $this->invoiceOf('10.00');
+
+        $this->turnOn(false, true);
+
+        $refusal = $this->credit->refusalFor($this->customerId, $sale, date('Y-m-d'));
+
+        $this->assertSame(AccountingError::CreditPeriodExceeded, $refusal?->error);
+        $this->assertSame([30, 45, $this->daysAgo(45)], [$refusal->context['count'], $refusal->context['days'], $refusal->context['oldest_date']]);
+
+        $this->giveCustomerCredit(CreditSource::CUSTOMER_ADVANCE, '300.00');
+
+        $this->assertNull($this->credit->refusalFor($this->customerId, $sale, date('Y-m-d')), 'The advance paid the opening balance, so nothing old is open');
+    }
+
+    public function testRefusalFor_HoldsTheSaleToTheDaysOfAnOpenSalesDebitNote(): void
+    {
+        $this->giveTerms('0', 30);
+        $this->debitNote('100.00', 40);
+
+        $sale = $this->invoiceOf('10.00');
+
+        $this->turnOn(false, true);
+
+        $refusal = $this->credit->refusalFor($this->customerId, $sale, date('Y-m-d'));
+
+        $this->assertSame(AccountingError::CreditPeriodExceeded, $refusal?->error);
+        $this->assertSame([40, $this->daysAgo(40)], [$refusal->context['days'], $refusal->context['oldest_date']]);
+    }
+
+    public function testSave_RefusesTheSaleThatGoesOverTheLimitBecauseOfASalesDebitNoteAndAnOpeningBalanceAndAcceptsOneThatFits(): void
+    {
+        $this->giveTerms('250');
+        $this->opening(CustomerOpening::OWES_US, '100.00', 60);
+        $this->debitNote('100.00', 30);
+        $this->turnOn();
+
+        $sales    = $this->countSales();
+        $journals = $this->countJournals();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->invoiceOf('60.00'));
+
+        $failure = $this->failure();
+
+        $this->assertSame(AccountingError::CreditLimitExceeded, $failure->error);
+        $this->assertSame(['250.00', '260.00', '60.00'], [$failure->context['limit'], $failure->context['balance'], bcadd($failure->context['new_debt'], '0', 2)]);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertSame('200.00', $this->balance($this->customerAccount()));
+
+        $this->assertGreaterThan(0, $this->invoiceOf('50.00'));
+        $this->assertSame('250.00', bcadd($this->position()->open(), '0', 2));
+        $this->assertTies();
     }
 }
