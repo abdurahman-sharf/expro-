@@ -117,7 +117,7 @@
 | `tests/Controllers/Revenue_categoriesControllerTest.php` | نجح (10 tests, 84 assertions) |
 | `tests/Controllers/AccountingReceivablesControllerTest.php` | نجح (151 tests, 1309 assertions) |
 | `tests/Controllers/AccountingPayablesControllerTest.php` | نجح (115 tests, 1094 assertions) |
-| `tests/Controllers/SalesControllerTest.php` | لم يكتمل وقت كتابة هذه النسخة |
+| `tests/Controllers/SalesControllerTest.php` | نجح (637 tests, 4511 assertions) |
 | `tests/Controllers/AccountingJournalsControllerTest.php` | نجح (173 tests, 916 assertions) |
 | `tests/Controllers/ConfigTest.php` | نجح (54 tests, 228 assertions) |
 
