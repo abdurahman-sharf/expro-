@@ -211,6 +211,79 @@ class CashupControllerTest extends CIUnitTestCase
         $this->assertSame('-14.5000', $this->accountingDb()->table('cash_up')->where('cashup_id', $result['id'])->get()->getRow()->cash_difference);
     }
 
+    public function testPostSave_PostsOnlyTheMiscountOfADayOfEveryKindOfCash(): void
+    {
+        $cashierId = $this->accountingCashier();
+        $this->startBuying();
+
+        try {
+            $today = date('Y-m-d');
+            $db    = $this->accountingDb();
+
+            $this->sellFor('400.00', 'Cash', $today . ' 09:00:00');
+            $this->sellFor('250.00', 'Debit Card', $today . ' 09:30:00');
+            $db->table('revenues')->insert(['date' => $today, 'amount' => '20.00', 'payment_type' => 'Cash', 'description' => 'Voucher', 'employee_id' => $this->clerkId, 'deleted' => 0, 'branch_id' => 1]);
+            $expense = $this->expenseData('45.00', '0', 'Cash', null, $today . ' 10:00:00');
+
+            $this->assertTrue($this->expenses->save_value($expense, NEW_ENTRY, $this->clerkId));
+
+            $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($this->item('0.00'), 0, '2', '100')], -1, 'Cash'));
+
+            $onAccount = $this->buy([$this->purchaseLine($this->item('0.00'), 0, '3', '100')], -1, lang('Sales.due'));
+
+            $this->assertGreaterThan(0, $onAccount);
+            $this->assertTrue($this->purchases->update($onAccount, ['payments' => [[
+                'payment_id' => NEW_ENTRY, 'payment_type' => 'Cash', 'payment_amount' => '150.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => '',
+            ]]]));
+
+            $db->table('customer_credit_refunds')->insert(['branch_id' => 1, 'customer_id' => $this->customerId, 'amount' => '35.00', 'refund_date' => $today, 'payment_type' => 'Cash', 'status' => 'completed']);
+
+            $this->loginAs($cashierId);
+
+            $window = ['open_date' => $today . ' 00:00:00', 'close_date' => $today . ' 23:59:59'];
+            $closed = $this->saveClosing($this->closingForm('86.50', $window));
+            $row    = $db->table('cash_up')->where('cashup_id', $closed['id'])->get()->getRow();
+
+            $this->assertTrue($closed['success']);
+            $this->assertSame('90.0000', $row->expected_amount_cash);
+            $this->assertSame('-3.5000', $row->cash_difference);
+            $this->assertSame(
+                [$this->accountId('cash_difference') . '=3.50/0.00', $this->accountId('cash') . '=0.00/3.50'],
+                $this->postedLines('cashup', (int) $closed['id']),
+            );
+        } finally {
+            $db->table('revenues')->emptyTable();
+            $db->table('customer_credit_refunds')->emptyTable();
+            $this->stopBuying();
+        }
+    }
+
+    public function testPostSave_PostsNothingWhenTheCountIsTheCashOfADayOfEveryKind(): void
+    {
+        $cashierId = $this->accountingCashier();
+        $this->startBuying();
+
+        try {
+            $today = date('Y-m-d');
+            $db    = $this->accountingDb();
+
+            $this->sellFor('400.00', 'Cash', $today . ' 09:00:00');
+            $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($this->item('0.00'), 0, '2', '100')], -1, 'Cash'));
+            $db->table('customer_credit_refunds')->insert(['branch_id' => 1, 'customer_id' => $this->customerId, 'amount' => '35.00', 'refund_date' => $today, 'payment_type' => 'Cash', 'status' => 'completed']);
+
+            $this->loginAs($cashierId);
+
+            $closed = $this->saveClosing($this->closingForm('265.00', ['open_date' => $today . ' 00:00:00', 'close_date' => $today . ' 23:59:59']));
+
+            $this->assertTrue($closed['success']);
+            $this->assertSame('265.0000', $db->table('cash_up')->where('cashup_id', $closed['id'])->get()->getRow()->expected_amount_cash);
+            $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'cashup')->countAllResults());
+        } finally {
+            $db->table('customer_credit_refunds')->emptyTable();
+            $this->stopBuying();
+        }
+    }
+
     public function testPostSave_PostsNothingWhenTheCountIsWhatWasExpected(): void
     {
         $this->accountingCashier();
@@ -682,23 +755,6 @@ class CashupControllerTest extends CIUnitTestCase
         $row->assertStatus(200);
         $row->assertSee('77.77');
         $this->assertSame([(string) $legacyId], array_column(json_decode($this->get('/cashups/search' . self::DATED_SEARCH)->getJSON(), true)['rows'], 'cashup_id'));
-    }
-
-    public function testPostSave_RefusesToChangeACashUpWithNoBranchToAnEmployeeOfAnotherBranch(): void
-    {
-        $this->accountingCashier();
-        $this->setConfigValue('accounting_enabled', '0');
-
-        $legacyId = (int) $this->saveClosing($this->closingForm('77.77'))['id'];
-
-        $this->setConfigValue('accounting_enabled', '1');
-
-        $this->loginAs($this->employeeWithGrants(['cashups'], [$this->createBranch('B3')]));
-
-        $result = $this->saveClosing($this->closingForm('10.00'), $legacyId);
-
-        $this->assertFalse($result['success']);
-        $this->assertSame('77.77', $this->accountingDb()->table('cash_up')->where('cashup_id', $legacyId)->get()->getRow()->closed_amount_cash);
     }
 
     public function testPostDelete_RefusesCashUpsOfABranchTheEmployeeDoesNotWorkInAndDeletesNone(): void

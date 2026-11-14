@@ -58,40 +58,38 @@ class Cashup extends Model
 
     /**
      * Whether a cash-up belongs to a branch the employee does not work in. A cash-up carries the branch
-     * of its drawer; one saved before the books followed cash-ups carries none and is one of the default
-     * branch while accounting is on, and belongs to nobody in particular while it is off.
+     * of its drawer; one saved before the books followed cash-ups carries none and is read as one of the
+     * default branch while accounting is on, the branch all that was saved before branches belongs to.
      */
     public function outsideScope(int $cashupId, ?int $employeeId): bool
-    {
-        $branchId = $this->scopeBranchOf($cashupId);
-
-        return $branchId !== null && ! (new BranchGuard($this->db))->canAccess($branchId, $employeeId);
-    }
-
-    private function scopeBranchOf(int $cashupId): ?int
     {
         $row = $this->db->table('cash_up')->select('branch_id')->where('cashup_id', $cashupId)->get()->getRow();
 
         if ($row === null) {
-            return null;
+            return false;
         }
+
+        $guard = new BranchGuard($this->db);
 
         if ($row->branch_id !== null) {
-            return (int) $row->branch_id;
+            return ! $guard->canAccess((int) $row->branch_id, $employeeId);
         }
 
-        return (new AccountingSettings($this->db))->isEnabled() ? (new BranchGuard($this->db))->companyDefaultBranchId() : null;
+        return (new AccountingSettings($this->db))->isEnabled() && ! $guard->canAccess($guard->companyDefaultBranchId(), $employeeId);
     }
 
     /**
+     * Changing or deleting a cash-up asks for its branch. One the books never followed has none to ask
+     * for, and stays open to any employee who holds the cash-up permission, as it always was.
+     *
      * @throws BranchException
      */
     private function requireScope(int $cashupId, ?int $actorId): void
     {
-        $branchId = $this->scopeBranchOf($cashupId);
+        $row = $this->db->table('cash_up')->select('branch_id')->where('cashup_id', $cashupId)->get()->getRow();
 
-        if ($branchId !== null) {
-            (new BranchGuard($this->db))->requireBranch($branchId, $actorId);
+        if ($row !== null && $row->branch_id !== null) {
+            (new BranchGuard($this->db))->requireBranch((int) $row->branch_id, $actorId);
         }
     }
 
