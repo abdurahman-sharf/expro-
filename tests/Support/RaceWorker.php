@@ -11,6 +11,7 @@
 
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\Backfill\BackfillService;
+use App\Libraries\Accounting\ChequeService;
 use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\CrossBranchPayments;
 use App\Libraries\Accounting\CustomerAdvances;
@@ -447,10 +448,16 @@ $result = match ($method) {
 
         exit(0);
     })(),
-    'refundCredit'          => $attempt(static fn () => (new CreditRefunds((string) $args[0]))->refund((int) $args[1], (string) $args[2], (string) $args[3], 'Cash', null, '', '', (int) $args[4]), (string) $args[5]),
-    'cancelRefund'          => $attempt(static fn () => (new CreditRefunds((string) $args[0]))->cancel((int) $args[1], 'race', (int) $args[2]), (string) $args[3]),
-    'cancelCustomerAdvance' => $attempt(static fn () => (new CustomerAdvances())->cancel((int) $args[0], 'race', (int) $args[1]), (string) $args[2]),
-    'cancelSupplierAdvance' => $attempt(static fn () => (new SupplierAdvances())->cancel((int) $args[0], 'race', (int) $args[1]), (string) $args[2]),
+    'creditRace' => $attempt(static function () use ($args): void {
+        match ($args[0]) {
+            'refund'                => (new CreditRefunds((string) $args[1]))->refund((int) $args[2], (string) $args[3], (string) $args[4], 'Cash', null, '', '', (int) $args[5], $args[6] === '' ? null : (string) $args[6]),
+            'cancelRefund'          => (new CreditRefunds((string) $args[1]))->cancel((int) $args[2], 'race', (int) $args[3]),
+            'cancelCustomerAdvance' => (new CustomerAdvances())->cancel((int) $args[1], 'race', (int) $args[2]),
+            'cancelSupplierAdvance' => (new SupplierAdvances())->cancel((int) $args[1], 'race', (int) $args[2]),
+            'cancelOpening'         => (new CustomerOpening())->cancel((int) $args[1], 'race', (int) $args[2]),
+            'rejectCheque'          => (new ChequeService())->reject((int) $args[1], date('Y-m-d'), (int) $args[2]),
+        };
+    }, (string) $args[array_key_last($args)]),
     'saveExpense'           => $attemptModel(static function () use ($args): bool {
         $data = [
             'date'                => '2026-10-20 10:00:00',
