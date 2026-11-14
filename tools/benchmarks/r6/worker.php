@@ -46,6 +46,18 @@ $status = static function (string $like) use ($db): int {
     return (int) $db->query("SHOW GLOBAL STATUS LIKE '{$like}'")->getRow()->Value;
 };
 
+$killAfter = (int) (getenv('R6_KILL_AFTER_QUERIES') ?: 0);
+
+if ($killAfter > 0) {
+    $counted = 0;
+
+    \CodeIgniter\Events\Events::on('DBQuery', static function () use (&$counted, $killAfter): void {
+        if (++$counted >= $killAfter) {
+            posix_kill(posix_getpid(), SIGKILL);
+        }
+    });
+}
+
 $deadlocksBefore = $status('Innodb_deadlocks');
 $waitsBefore     = $status('Innodb_row_lock_waits');
 $deadline        = microtime(true) + $seconds;
