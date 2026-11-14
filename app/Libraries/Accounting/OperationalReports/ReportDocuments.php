@@ -31,6 +31,8 @@ use Config\Database;
  */
 final class ReportDocuments
 {
+    private const CHUNK = 400;
+
     private BaseConnection $db;
 
     public function __construct(?BaseConnection $db = null)
@@ -229,10 +231,24 @@ final class ReportDocuments
      */
     private function documents(array $rows, bool $withLines): array
     {
-        if ($rows === []) {
-            return [];
+        $documents = [];
+
+        foreach (array_chunk($rows, self::CHUNK) as $chunk) {
+            foreach ($this->documentsOf($chunk, $withLines) as $document) {
+                $documents[] = $document;
+            }
         }
 
+        return $documents;
+    }
+
+    /**
+     * @param list<object> $rows
+     *
+     * @return list<ReportDocument>
+     */
+    private function documentsOf(array $rows, bool $withLines): array
+    {
         $ids           = array_map(static fn (object $row): int => (int) $row->sale_id, $rows);
         $sales         = (new SaleReader($this->db))->documents($ids);
         $paid          = $this->paid($ids);

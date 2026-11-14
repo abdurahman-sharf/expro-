@@ -21,8 +21,9 @@ use LogicException;
  */
 final class JournalLines
 {
-    public const CHUNK         = 2000;
-    private const LINE_COLUMNS = 'j.journal_id, j.journal_date, j.series, j.number, j.description AS journal_description, j.source_type, j.entry_type, j.status, j.branch_id, l.line_id, l.line_no, l.description AS line_description, a.code AS account_code, a.name AS account_name, l.account_id, l.cost_center_id, l.debit, l.credit';
+    public const CHUNK            = 2000;
+    private const JOURNAL_COLUMNS = 'j.journal_id, j.journal_date, j.series, j.number, j.description, j.source_type, j.entry_type, j.status, j.branch_id, br.code AS branch_code, j.total_debit';
+    private const LINE_COLUMNS    = 'j.journal_id, j.journal_date, j.series, j.number, j.description AS journal_description, j.source_type, j.entry_type, j.status, j.branch_id, l.line_id, l.line_no, l.description AS line_description, a.code AS account_code, a.name AS account_name, l.account_id, l.cost_center_id, l.debit, l.credit';
 
     private BaseConnection $db;
 
@@ -180,6 +181,142 @@ final class JournalLines
             ->orderBy('j.journal_id', 'ASC')
             ->get()
             ->getResult();
+    }
+
+    /**
+     * How many journals each day of the period holds, for the days that hold any, cut down as journals() is.
+     *
+     * @return array<string, int>
+     */
+    public function journalDays(ReportScope $scope, ReportPeriod $period, ?string $source = null, ?int $owner = null, string $search = ''): array
+    {
+        $builder = $this->journalBase($scope, $period, $source, $owner, $search);
+        $days    = [];
+
+        if ($builder === null) {
+            return $days;
+        }
+
+        foreach ($builder->select('j.journal_date AS day, COUNT(*) AS found', false)->groupBy('j.journal_date')->orderBy('j.journal_date', 'ASC')->get()->getResult() as $row) {
+            $days[(string) $row->day] = (int) $row->found;
+        }
+
+        return $days;
+    }
+
+    /**
+     * The journals journals() gives, in the same order, a few thousand at a time: the journals of whole days,
+     * and a day of more journals than a chunk by number.
+     *
+     * @param array<string, int>|null $days What journalDays() gave for the same journals, when it was asked already.
+     *
+     * @return Generator<int, list<object>>
+     */
+    public function journalChunks(ReportScope $scope, ReportPeriod $period, ?string $source = null, ?int $owner = null, string $search = '', ?array $days = null): Generator
+    {
+        $days ??= $this->journalDays($scope, $period, $source, $owner, $search);
+        $first = null;
+        $last  = null;
+        $held  = 0;
+        $read  = fn (string $from, string $to): array => $this->journalRows($scope, ReportPeriod::of($from, $to), $source, $owner, $search);
+
+        foreach ($days as $day => $count) {
+            $day = (string) $day;
+
+            if ($count > $this->chunk) {
+                if ($first !== null) {
+                    yield $read($first, $last);
+                }
+
+                $first = null;
+                $held  = 0;
+                $after = 0;
+
+                while (true) {
+                    $journals = $this->journalBase($scope, ReportPeriod::of($day, $day), $source, $owner, $search)
+                        ->select(self::JOURNAL_COLUMNS)
+                        ->where('j.journal_id >', $after)
+                        ->orderBy('j.journal_id', 'ASC')
+                        ->limit($this->chunk)
+                        ->get()
+                        ->getResult();
+
+                    if ($journals === []) {
+                        break;
+                    }
+
+                    yield $journals;
+
+                    $after = (int) end($journals)->journal_id;
+                }
+
+                continue;
+            }
+
+            if ($held + $count > $this->chunk && $first !== null) {
+                yield $read($first, $last);
+
+                $first = null;
+                $held  = 0;
+            }
+
+            $first ??= $day;
+            $last = $day;
+            $held += $count;
+        }
+
+        if ($first !== null) {
+            yield $read($first, $last);
+        }
+    }
+
+    /**
+     * @return list<object>
+     */
+    private function journalRows(ReportScope $scope, ReportPeriod $period, ?string $source, ?int $owner, string $search): array
+    {
+        return $this->journalBase($scope, $period, $source, $owner, $search)
+            ?->select(self::JOURNAL_COLUMNS)
+            ->orderBy('j.journal_date', 'ASC')
+            ->orderBy('j.journal_id', 'ASC')
+            ->get()
+            ->getResult() ?? [];
+    }
+
+    private function journalBase(ReportScope $scope, ReportPeriod $period, ?string $source, ?int $owner, string $search): ?BaseBuilder
+    {
+        if ($scope->isEmpty()) {
+            return null;
+        }
+
+        $lines = $this->db->prefixTable('accounting_journal_lines');
+
+        $builder = $this->db->table('accounting_journals j')
+            ->join('accounting_journals o', 'o.journal_id = j.reverses_journal_id', 'left')
+            ->join('branches br', 'br.branch_id = j.branch_id', 'left')
+            ->where('j.company_id', CompanyContext::id())
+            ->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])
+            ->whereIn('j.branch_id', $scope->ids)
+            ->where('j.journal_date <=', $period->to)
+            ->where("EXISTS (SELECT 1 FROM {$lines} jl WHERE jl.journal_id = j.journal_id)", null, false);
+
+        if ($period->from !== null) {
+            $builder->where('j.journal_date >=', $period->from);
+        }
+
+        if ($source !== null && $source !== '') {
+            $builder->groupStart()->where('j.source_type', $source)->orWhere('o.source_type', $source)->groupEnd();
+        }
+
+        if ($owner !== null) {
+            $builder->where('j.created_by', $owner);
+        }
+
+        if ($search !== '') {
+            $builder->like('j.description', $search);
+        }
+
+        return $builder;
     }
 
     /**

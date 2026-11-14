@@ -2,7 +2,10 @@
 
 namespace App\Libraries\Accounting\FamilyReports;
 
+use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\SaleAmounts;
+use DateTimeImmutable;
+use Generator;
 
 /**
  * The movements of each item in each location in a period, one after the other, each with its kind and
@@ -11,7 +14,7 @@ use App\Libraries\Accounting\SaleAmounts;
  * out, what a returned sale cost when it was sold), the quantity and the value after it, and the
  * average cost that follows. The value of the movements is set beside the accounts of the locations.
  */
-final class StockMovementsReport implements FamilyReport
+final class StockMovementsReport implements StreamsReport
 {
     use BuildsReports;
 
@@ -23,75 +26,116 @@ final class StockMovementsReport implements FamilyReport
 
     public function build(ReportInput $input): ReportTable
     {
+        return $this->stream($input)->table();
+    }
+
+    public function stream(ReportInput $input): ReportStream
+    {
         $view    = $input->choice('view', ['plain', 'valued'], 'plain');
-        $period  = $input->period();
+        $period  = $input->period((new DateTimeImmutable($input->today))->format('Y-m-01'));
         $filters = ['location_id' => $input->id('location_id'), 'item_id' => $input->id('item_id'), 'category' => $input->text('category')];
-        $opening = [];
+        $valued  = $view === 'valued';
+        $count   = 0;
+        $value   = '0';
+        $shown   = [];
+        $plan    = null;
 
-        foreach ($this->entries->totals($input->scope, $period->from, null, $filters) as $row) {
-            $opening[(int) $row->item_id . ':' . (int) $row->location_id] = $row;
-        }
+        $sets = function () use (&$plan, $input, $period, $filters): array {
+            return $plan ??= $this->plan($input, $period, $filters);
+        };
 
-        $sets = [];
+        $events = function () use ($sets, $input, $period, $filters, $valued, &$count, &$value, &$shown): Generator {
+            $plan  = $sets();
+            $moves = $this->entries->stream($input->scope, $period->from, $period->to, $filters, array_values(array_filter(array_column($plan['sets'], 'pair'))));
 
-        foreach ($opening as $key => $row) {
-            $sets[$key] = ['title' => $row->item_name . ' - ' . $row->location_name, 'opening' => $row, 'moves' => []];
-        }
+            foreach ($plan['sets'] as $key => $set) {
+                $quantity = $set['opening'] === null ? '0' : (string) $set['opening']->quantity;
+                $worth    = $set['opening'] === null ? '0' : (string) $set['opening']->value;
 
-        $locations = [];
+                yield StreamEvent::open($set['title']);
 
-        foreach ($this->entries->movements($input->scope, $period->from, $period->to, $filters) as $entry) {
-            $key = (int) $entry->item_id . ':' . (int) $entry->location_id;
+                if ($set['opening'] !== null) {
+                    yield StreamEvent::row(new ReportRow($this->openingCells($valued, $period->from, $quantity, $worth)));
+                }
 
-            $sets[$key] ??= ['title' => $entry->item_name . ' - ' . $entry->location_name, 'opening' => null, 'moves' => []];
-            $sets[$key]['moves'][]                = $entry;
-            $locations[(int) $entry->location_id] = true;
-        }
+                if ($set['pair'] !== null) {
+                    foreach ($moves->current()[1] as $entry) {
+                        $quantity = bcadd($quantity, (string) $entry->quantity, 3);
+                        $worth    = bcadd($worth, (string) $entry->value, SaleAmounts::SCALE);
+                        $count++;
 
-        uasort($sets, static fn (array $first, array $second): int => mb_strtolower($first['title']) <=> mb_strtolower($second['title']));
+                        yield StreamEvent::row(new ReportRow($this->moveCells($valued, $entry, $quantity, $worth)));
+                    }
 
-        $valued = $view === 'valued';
-        $blocks = [];
-        $count  = 0;
-        $value  = '0';
-        $shown  = [];
+                    $moves->next();
+                }
 
-        foreach ($sets as $key => $set) {
-            $quantity = $set['opening'] === null ? '0' : (string) $set['opening']->quantity;
-            $worth    = $set['opening'] === null ? '0' : (string) $set['opening']->value;
-            $rows     = [];
+                $value                                       = bcadd($value, $worth, SaleAmounts::SCALE);
+                $shown[(int) explode(':', (string) $key)[1]] = true;
 
-            if ($set['opening'] !== null) {
-                $rows[] = new ReportRow($this->openingCells($valued, $period->from, $quantity, $worth));
+                yield StreamEvent::close();
+            }
+        };
+
+        $summary = function () use ($input, $period, $filters, $valued, &$count, &$value, &$shown): array {
+            $notes = [$this->text('note_movements_reversals'), $this->text('note_movements_count', $count)];
+            $ties  = [];
+
+            if ($valued && $filters['item_id'] === 0 && $filters['category'] === '') {
+                $ties[] = $this->ties->closing($input->scope, $value, $period->to, $input->today, array_keys($shown));
+            } elseif ($valued) {
+                $notes[] = $this->text('note_item_filter_not_compared');
             }
 
-            foreach ($set['moves'] as $entry) {
-                $quantity = bcadd($quantity, (string) $entry->quantity, 3);
-                $worth    = bcadd($worth, (string) $entry->value, SaleAmounts::SCALE);
-                $rows[]   = new ReportRow($this->moveCells($valued, $entry, $quantity, $worth));
-                $count++;
+            if ($input->defaultsToTheMonth()) {
+                $notes[] = $this->text('note_default_month', $period->from);
             }
 
-            $value = bcadd($value, $worth, SaleAmounts::SCALE);
-
-            $shown[(int) explode(':', $key)[1]] = true;
-            $blocks[]                           = new ReportBlock($set['title'], $rows);
-        }
+            return ['grand' => null, 'ties' => $ties, 'notes' => $notes];
+        };
 
         $columns = $valued
             ? [$this->column('date', ColumnKind::Date), $this->column('kind'), $this->column('reference'), $this->column('location'), $this->column('quantity', ColumnKind::Quantity), $this->column('unit_cost', ColumnKind::Amount), $this->column('quantity_after', ColumnKind::Quantity), $this->column('average_cost', ColumnKind::Amount), $this->column('value', ColumnKind::Amount), $this->column('value_after', ColumnKind::Amount)]
             : [$this->column('date', ColumnKind::Date), $this->column('kind'), $this->column('reference'), $this->column('location'), $this->column('in', ColumnKind::Quantity), $this->column('out', ColumnKind::Quantity), $this->column('quantity_after', ColumnKind::Quantity)];
 
-        $notes = [$this->text('note_movements_reversals'), $this->text('note_movements_count', $count)];
-        $ties  = [];
+        return new ReportStream($this->text('stock_movements_title'), $columns, $events, $summary, static function () use ($sets): int {
+            $plan = $sets();
 
-        if ($valued && $filters['item_id'] === 0 && $filters['category'] === '') {
-            $ties[] = $this->ties->closing($input->scope, $value, $period->to, $input->today, array_keys($shown));
-        } elseif ($valued) {
-            $notes[] = $this->text('note_item_filter_not_compared');
+            return count(array_filter(array_column($plan['sets'], 'opening'))) + $plan['moves'];
+        });
+    }
+
+    /**
+     * The items in each location that have a block, in the order of their titles, with what each held before
+     * the period and what moved in it. Titles that read the same keep the order in which the books first met them.
+     *
+     * @param array{location_id: int, item_id: int, category: string} $filters
+     *
+     * @return array{sets: array<string, array{title: string, opening: ?object, pair: ?object}>, moves: int}
+     */
+    private function plan(ReportInput $input, ReportPeriod $period, array $filters): array
+    {
+        $sets = [];
+
+        foreach ($this->entries->totals($input->scope, $period->from, null, $filters) as $row) {
+            $sets[(int) $row->item_id . ':' . (int) $row->location_id] = ['title' => $row->item_name . ' - ' . $row->location_name, 'opening' => $row, 'pair' => null];
         }
 
-        return new ReportTable($this->text('stock_movements_title'), $columns, $blocks, null, $ties, $notes);
+        $pairs = $this->entries->pairs($input->scope, $period->from, $period->to, $filters);
+        $moves = array_sum(array_map(static fn (object $pair): int => $pair->found, $pairs));
+
+        usort($pairs, static fn (object $first, object $second): int => strcmp($first->first_seen, $second->first_seen));
+
+        foreach ($pairs as $pair) {
+            $key = (int) $pair->item_id . ':' . (int) $pair->location_id;
+
+            $sets[$key] ??= ['title' => $pair->item_name . ' - ' . $pair->location_name, 'opening' => null, 'pair' => null];
+            $sets[$key]['pair'] = $pair;
+        }
+
+        uasort($sets, static fn (array $first, array $second): int => mb_strtolower($first['title']) <=> mb_strtolower($second['title']));
+
+        return ['sets' => $sets, 'moves' => $moves];
     }
 
     /**

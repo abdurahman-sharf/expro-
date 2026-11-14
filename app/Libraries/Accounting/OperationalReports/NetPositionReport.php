@@ -23,8 +23,9 @@ final class NetPositionReport
 {
     use BuildsBlocks;
 
-    public const STATES   = ['unpaid', 'partial', 'paid', 'excess', 'returned', 'partial_return'];
-    private const FIGURES = ['total', 'paid', 'returns', 'net'];
+    public const STATES        = ['unpaid', 'partial', 'paid', 'excess', 'returned', 'partial_return'];
+    private const FIGURES      = ['total', 'paid', 'returns', 'net'];
+    private const LEDGER_CHUNK = 300;
 
     private BaseConnection $db;
     private ReportDocuments $documents;
@@ -115,11 +116,15 @@ final class NetPositionReport
         $reportedPaid = '0';
         $ledgerPaid   = '0';
 
-        foreach ($perCustomer as $customerId => $members) {
-            $position = $ledger->position($customerId);
+        $ledgerInvoices = [];
 
+        foreach (array_chunk(array_keys($perCustomer), self::LEDGER_CHUNK) as $customerIds) {
+            $ledgerInvoices += $ledger->invoicesOf($customerIds);
+        }
+
+        foreach ($perCustomer as $customerId => $members) {
             foreach ($members as $invoice) {
-                $figures = $position->invoice($invoice->id);
+                $figures = $ledgerInvoices[$customerId][$invoice->id] ?? null;
 
                 $reportedNet  = Amounts::add($reportedNet, Amounts::sub($invoice->total, $invoice->returnedAll()));
                 $reportedPaid = Amounts::add($reportedPaid, $invoice->paid());

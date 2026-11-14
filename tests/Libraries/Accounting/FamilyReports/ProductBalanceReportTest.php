@@ -5,6 +5,8 @@ namespace Tests\Libraries\Accounting\FamilyReports;
 use App\Libraries\Accounting\FamilyReports\ProductBalanceReport;
 use CodeIgniter\Events\Events;
 use Tests\Support\FamilyReportTestCase;
+use Tests\Support\LegacyFamilyReports\LegacyProductBalanceReport;
+use Tests\Support\StockHistoryFixtureTrait;
 
 /**
  * For each item what it held before a period, what came in, what went out and what it holds after, in
@@ -14,6 +16,8 @@ use Tests\Support\FamilyReportTestCase;
  */
 final class ProductBalanceReportTest extends FamilyReportTestCase
 {
+    use StockHistoryFixtureTrait;
+
     private ProductBalanceReport $report;
 
     protected function setUp(): void
@@ -149,5 +153,36 @@ final class ProductBalanceReportTest extends FamilyReportTestCase
         $this->assertTrue($reconciles($this->queriesOfBuild($this->today())), 'The whole company now');
         $this->assertFalse($reconciles($this->queriesOfBuild($this->today(), [1])), 'A branch of the company');
         $this->assertFalse($reconciles($this->queriesOfBuild($this->ago(2))), 'A day of the past');
+    }
+
+    public function testBuild_GivesTheTableTheReportGaveWhenItReadEveryMovementAtOnce(): void
+    {
+        $history = $this->stockHistory();
+        $legacy  = new LegacyProductBalanceReport();
+        $periods = [
+            'default' => [],
+            'whole'   => ['from' => $history['from'], 'to' => $history['to']],
+            'month'   => ['from' => $this->ago(30), 'to' => $history['to']],
+            'middle'  => ['from' => $this->ago(50), 'to' => $this->ago(10)],
+            'empty'   => ['from' => $this->ago(300), 'to' => $this->ago(200)],
+            'day'     => $this->thisDay(),
+        ];
+        $filters = [
+            'none'     => [],
+            'location' => ['location_id' => (string) $history['depot']],
+            'item'     => ['item_id' => (string) $history['items']['soap']],
+            'category' => ['category' => 'Care'],
+            'all rows' => ['empty' => '1'],
+        ];
+
+        foreach ($periods as $periodName => $period) {
+            foreach ($filters as $filterName => $filter) {
+                $input = $this->input([...$period, ...$filter]);
+
+                $this->assertEquals($legacy->build($input), $this->report->build($input), "{$periodName}, {$filterName}");
+            }
+        }
+
+        $this->assertGreaterThan(3, $legacy->build($this->input($periods['whole']))->rowCount());
     }
 }

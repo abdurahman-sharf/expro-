@@ -28,22 +28,26 @@ final class ProductBalanceReport implements FamilyReport
         $filters = ['location_id' => $input->id('location_id'), 'item_id' => $input->id('item_id'), 'category' => $input->text('category')];
         $items   = [];
 
-        foreach ($this->entries->totals($input->scope, $period->from, null, $filters) as $row) {
-            $items[(int) $row->item_id]                    = $this->fresh((string) $row->item_name, (string) ($row->item_number ?? ''), $items[(int) $row->item_id] ?? null);
-            $items[(int) $row->item_id]['before_quantity'] = bcadd($items[(int) $row->item_id]['before_quantity'], (string) $row->quantity, 3);
-            $items[(int) $row->item_id]['before_value']    = bcadd($items[(int) $row->item_id]['before_value'], (string) $row->value, SaleAmounts::SCALE);
+        foreach ($this->entries->totalsByItem($input->scope, $period->from, null, $filters) as $row) {
+            $items[(int) $row->item_id]                    = $this->fresh((string) $row->item_name, (string) ($row->item_number ?? ''), null);
+            $items[(int) $row->item_id]['before_quantity'] = bcadd('0', (string) $row->quantity, 3);
+            $items[(int) $row->item_id]['before_value']    = bcadd('0', (string) $row->value, SaleAmounts::SCALE);
         }
 
-        $locations = [];
+        $moved = $this->entries->inAndOutByItem($input->scope, $period->from, $period->to, $filters);
 
-        foreach ($this->entries->movements($input->scope, $period->from, $period->to, $filters) as $entry) {
-            $id                                   = (int) $entry->item_id;
-            $items[$id]                           = $this->fresh((string) $entry->item_name, (string) ($entry->item_number ?? ''), $items[$id] ?? null);
-            $in                                   = bccomp((string) $entry->quantity, '0', 3) > 0;
-            $slot                                 = $in ? 'in' : 'out';
-            $items[$id][$slot . '_quantity']      = bcadd($items[$id][$slot . '_quantity'], ltrim((string) $entry->quantity, '-') === '' ? '0' : ltrim((string) $entry->quantity, '-'), 3);
-            $items[$id][$slot . '_value']         = bcadd($items[$id][$slot . '_value'], ltrim((string) $entry->value, '-') === '' ? '0' : ltrim((string) $entry->value, '-'), SaleAmounts::SCALE);
-            $locations[(int) $entry->location_id] = true;
+        usort($moved, static fn (object $first, object $second): int => strcmp($first->first_seen, $second->first_seen));
+
+        foreach ($moved as $row) {
+            $id         = (int) $row->item_id;
+            $items[$id] = $this->fresh((string) $row->item_name, (string) ($row->item_number ?? ''), $items[$id] ?? null);
+
+            foreach (['in', 'out'] as $way) {
+                if ((int) $row->{$way . '_count'} > 0) {
+                    $items[$id][$way . '_quantity'] = bcadd('0', (string) $row->{$way . '_quantity'}, 3);
+                    $items[$id][$way . '_value']    = bcadd('0', (string) $row->{$way . '_value'}, SaleAmounts::SCALE);
+                }
+            }
         }
 
         uasort($items, static fn (array $first, array $second): int => mb_strtolower($first['name']) <=> mb_strtolower($second['name']));

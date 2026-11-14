@@ -6,6 +6,8 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\FamilyReports\StockTurnoverReport;
 use Tests\Support\FamilyReportTestCase;
+use Tests\Support\LegacyFamilyReports\LegacyStockTurnoverReport;
+use Tests\Support\StockHistoryFixtureTrait;
 
 /**
  * How fast the stock turns over, in the usual way: the cost of sales divided by the average of the
@@ -17,6 +19,8 @@ use Tests\Support\FamilyReportTestCase;
  */
 final class StockTurnoverReportTest extends FamilyReportTestCase
 {
+    use StockHistoryFixtureTrait;
+
     private StockTurnoverReport $report;
 
     protected function setUp(): void
@@ -174,5 +178,37 @@ final class StockTurnoverReportTest extends FamilyReportTestCase
         $this->expectException(AccountingException::class);
 
         $this->built($this->report, ['from' => '2026-05-02', 'to' => '2026-05-01']);
+    }
+
+    public function testBuild_GivesTheTableTheReportGaveWhenItReadEveryMovementAtOnce(): void
+    {
+        $history = $this->stockHistory();
+        $legacy  = new LegacyStockTurnoverReport();
+        $periods = [
+            'default' => [],
+            'whole'   => ['from' => $history['from'], 'to' => $history['to']],
+            'month'   => ['from' => $this->ago(30), 'to' => $history['to']],
+            'middle'  => ['from' => $this->ago(50), 'to' => $this->ago(10)],
+            'day'     => $this->thisDay(),
+        ];
+        $filters = [
+            'none'     => [],
+            'location' => ['location_id' => (string) $history['depot']],
+            'item'     => ['item_id' => (string) $history['items']['lotion']],
+            'category' => ['category' => 'Care'],
+        ];
+
+        foreach ($periods as $periodName => $period) {
+            foreach (['item', 'category'] as $group) {
+                foreach ($filters as $filterName => $filter) {
+                    $input = $this->input([...$period, ...$filter, 'group' => $group]);
+
+                    $this->assertEquals($legacy->build($input), $this->report->build($input), "{$periodName}, by {$group}, {$filterName}");
+                }
+            }
+        }
+
+        $this->assertGreaterThan(3, $legacy->build($this->input($periods['whole']))->rowCount());
+        $this->assertNotSame('0', $legacy->build($this->input($periods['whole']))->grand->cell('cogs'));
     }
 }

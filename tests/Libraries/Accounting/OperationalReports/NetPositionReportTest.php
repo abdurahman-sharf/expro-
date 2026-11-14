@@ -3,7 +3,9 @@
 namespace Tests\Libraries\Accounting\OperationalReports;
 
 use App\Libraries\Accounting\Currencies;
+use App\Libraries\Accounting\OperationalReports\DocumentKind;
 use App\Libraries\Accounting\OperationalReports\NetPositionReport;
+use App\Libraries\Accounting\OperationalReports\ReportDocuments;
 use App\Libraries\Accounting\OperationalReports\ReportTable;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\ReportScope;
@@ -297,5 +299,30 @@ class NetPositionReportTest extends CIUnitTestCase
             $this->assertTrue($tie->isRefused());
             $this->assertSame(['POS ' . $invoice . ' (USD)'], $tie->refusalArguments);
         }
+    }
+
+    public function testTies_ReadsTheLedgerOfEveryCustomerInAFewQueriesWhateverTheirNumber(): void
+    {
+        $this->documents();
+
+        $others = [$this->anotherCustomer('Fourth', 'Buyer'), $this->anotherCustomer('Fifth', 'Buyer'), $this->anotherCustomer('Sixth', 'Buyer')];
+
+        foreach ($others as $customer) {
+            $this->invoiceOf('60', $customer, [$this->payment(lang('Sales.cash'), '10')]);
+        }
+
+        $scope     = ReportScope::resolve(null, null);
+        $invoices  = (new ReportDocuments())->read($scope, '2020-01-01', date('Y-m-d'), [DocumentKind::Invoice]);
+        $db        = $this->accountingDb();
+        $questions = static fn (): int => (int) $db->query("SHOW SESSION STATUS LIKE 'Questions'")->getRow()->Value;
+        $before    = $questions();
+        $ties      = (new NetPositionReport())->ties($invoices);
+        $asked     = $questions() - $before - 1;
+
+        $this->assertCount(5, array_unique(array_map(static fn ($invoice): int => (int) $invoice->customerId, $invoices)));
+        $this->assertLessThanOrEqual(5, $asked);
+        $this->assertTrue($ties[0]->ties());
+        $this->assertTrue($ties[1]->ties());
+        $this->assertSame('381.2500', $ties[0]->ledger);
     }
 }

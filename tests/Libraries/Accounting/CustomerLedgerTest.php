@@ -834,4 +834,97 @@ class CustomerLedgerTest extends CIUnitTestCase
 
         $this->setConfigValue('accounting_customer_opening', '0');
     }
+
+    public function testInvoicesOf_GivesEachInvoiceOfSeveralCustomersTheFiguresPositionGivesInAFewQueries(): void
+    {
+        $second = $this->anotherCustomer();
+        $third  = $this->anotherCustomer('Third', 'Buyer');
+        $silent = $this->anotherCustomer('Silent', 'Buyer');
+
+        $paid   = $this->invoiceOf('1000.00');
+        $unpaid = $this->invoiceOf('250.00', $second);
+        $aged   = $this->invoiceDated('300.00', $this->daysAgo(45), 15, $third);
+        $kept   = $this->invoiceOf('80.00', $second, [$this->payment(lang('Sales.cash'), '80')]);
+
+        $this->addPayment($paid, '300.00');
+        $this->addPayment($paid, '200.00', lang('Sales.check'));
+        $this->creditNoteOf($paid, '100.00');
+        $this->creditNoteOf($unpaid, '50.00', $second);
+
+        $ledger    = new CustomerLedger();
+        $ids       = [$this->customerId, $second, $third, $silent, 987654];
+        $db        = $this->accountingDb();
+        $questions = static fn (): int => (int) $db->query("SHOW SESSION STATUS LIKE 'Questions'")->getRow()->Value;
+        $before    = $questions();
+        $found     = $ledger->invoicesOf($ids);
+        $asked     = $questions() - $before - 1;
+
+        $this->assertLessThanOrEqual(5, $asked);
+        $this->assertSame([], $found[$silent] ?? []);
+        $this->assertArrayNotHasKey(987654, $found);
+
+        foreach ([$this->customerId, $second, $third, $silent] as $customerId) {
+            $expected = [];
+
+            foreach ($ledger->position($customerId)->invoices as $invoice) {
+                if ($invoice->saleId > 0) {
+                    $expected[$invoice->saleId] = $invoice;
+                }
+            }
+
+            $this->assertEquals($expected, $found[$customerId] ?? [], 'customer ' . $customerId);
+        }
+
+        $this->assertCount(3, $found);
+        $this->assertSame('100.0000', $found[$this->customerId][$paid]->returned);
+        $this->assertSame('500.0000', $found[$this->customerId][$paid]->paid);
+        $this->assertSame([$unpaid, $kept], array_keys($found[$second]));
+        $this->assertSame([$aged], array_keys($found[$third]));
+    }
+
+    public function testCustomersWithBalance_ReadsTheBalancesOnceAndPagesThemInTheOrderAsked(): void
+    {
+        $names = ['Bashir Ali', 'amal Saleh', 'Zaid Omar', 'Carla Nasr', 'Dina Fahd'];
+        $ids   = [];
+
+        foreach ($names as $index => $name) {
+            [$first, $last] = explode(' ', $name);
+
+            $customer = $this->anotherCustomer($first, $last);
+            $ids[]    = $customer;
+
+            $this->invoiceOf((string) (100 + 10 * ($index % 3)) . '.00', $customer);
+        }
+
+        $ledger    = new CustomerLedger();
+        $db        = $this->accountingDb();
+        $questions = static fn (): int => (int) $db->query("SHOW SESSION STATUS LIKE 'Questions'")->getRow()->Value;
+
+        foreach ([['balance', 'desc'], ['balance', 'asc'], ['customer_name', 'asc'], ['customer_name', 'desc']] as [$sort, $order]) {
+            $all = $ledger->customersWithBalance('', $sort, $order, 100, 0);
+
+            $this->assertSame(5, $all['total']);
+            $this->assertCount(5, $all['rows']);
+
+            foreach ([1, 2, 3] as $size) {
+                $paged = [];
+
+                for ($offset = 0; $offset < 5; $offset += $size) {
+                    $paged = [...$paged, ...$ledger->customersWithBalance('', $sort, $order, $size, $offset)['rows']];
+                }
+
+                $this->assertEquals($all['rows'], $paged, "{$sort} {$order} by {$size}");
+            }
+        }
+
+        $before = $questions();
+
+        $ledger->customersWithBalance('', 'balance', 'desc', 2, 2);
+
+        $this->assertSame(1, $questions() - $before - 1);
+        $this->assertSame(['amal Saleh'], array_map(static fn (object $row): string => $row->customer_name, $ledger->customersWithBalance('amal', 'balance', 'desc')['rows']));
+        $this->assertSame(1, $ledger->customersWithBalance('amal')['total']);
+        $this->assertSame([], $ledger->customersWithBalance('', 'balance', 'desc', 25, 50)['rows']);
+        $this->assertSame(['amal Saleh', 'Bashir Ali'], array_slice(array_map(static fn (object $row): string => $row->customer_name, $ledger->customersWithBalance('', 'customer_name', 'asc')['rows']), 0, 2));
+    }
 }
