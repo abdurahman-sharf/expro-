@@ -138,7 +138,7 @@
 | `bd39686` | `tests/Config/RoutesAccessTest.php` (جولة المسارات) |
 | `7169d78` | 8 اختبارات سباق + 4 طرق في `RaceWorker` |
 | `8a740ce` | إصلاح R3-B1 لمصب `specific_customer_input` (اختبار أولًا: فشل ثم نجح) |
-| `0bde6b2` | `RoutesAccessTest`: اختبار الاستعلام العدائي وجولة «ترك صلاحية واحدة» + هذا التقرير |
+| آخر التزام يمس هذا الملف (`git log -1 -- docs/accounting/readiness/R3-report.md`) | `RoutesAccessTest`: اختبار الاستعلام العدائي وجولة «ترك صلاحية واحدة» + هذا التقرير |
 
 ## 10. ما لم أتحقق منه
 
