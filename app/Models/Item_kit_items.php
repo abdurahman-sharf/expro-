@@ -11,13 +11,14 @@ use CodeIgniter\Model;
  */
 class Item_kit_items extends Model
 {
-    protected $table            = 'item_kit_items';
-    protected $primaryKey       = 'item_kit_id';
+    protected $table = 'item_kit_items';
+    protected $primaryKey = 'item_kit_id';
     protected $useAutoIncrement = true;
-    protected $useSoftDeletes   = false;
-    protected $allowedFields    = [
-        'kit_sequence',
+    protected $useSoftDeletes = false;
+    protected $allowedFields = [
+        'kit_sequence'
     ];
+
     private ?AccountingException $bundleRefusal = null;
 
     public function bundleRefusal(): ?AccountingException
@@ -79,7 +80,7 @@ class Item_kit_items extends Model
 
         $this->delete($item_kit_id);
 
-        if ($item_kit_items_data !== null) {
+        if ($item_kit_items_data != null) {
             $builder = $this->db->table('item_kit_items');
 
             foreach ($item_kit_items_data as $row) {
@@ -97,8 +98,6 @@ class Item_kit_items extends Model
 
     /**
      * Deletes item kit items given an item kit
-     *
-     * @param mixed|null $item_kit_id
      */
     public function delete($item_kit_id = null, bool $purge = false): bool
     {

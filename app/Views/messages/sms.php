@@ -1,7 +1,7 @@
 <?= view('partial/header') ?>
 
 <div class="sms-card p-4 bg-body-tertiary rounded-3">
-    <?= form_open('messages/send/', ['id' => 'send_sms_form', 'enctype' => 'multipart/form-data', 'method' => 'post', 'class' => 'app-form']) ?>
+    <?= form_open("messages/send/", ['id' => 'send_sms_form', 'enctype' => 'multipart/form-data', 'method' => 'post', 'class' => 'app-form']) ?>
         <fieldset>
 
             <legend class="text-center"><?= lang('Messages.sms_send') ?></legend>
@@ -20,7 +20,7 @@
                 'name'  => 'submit_form',
                 'id'    => 'submit_form',
                 'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm',
+                'class' => 'btn btn-primary btn-sm'
             ]) ?>
 
         </fieldset>

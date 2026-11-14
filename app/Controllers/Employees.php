@@ -18,9 +18,13 @@ use App\Models\Stock_location;
 use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Database;
+use Config\Services;
 
 /**
- * @property Module module
+ *
+ *
+ * @property module module
+ *
  */
 class Employees extends Persons
 {
@@ -51,11 +55,10 @@ class Employees extends Persons
         $sort   = $this->sanitizeSortColumn(person_headers(), $this->request->getGet('sort', FILTER_SANITIZE_FULL_SPECIAL_CHARS), 'people.person_id');
         $order  = $this->request->getGet('order', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-        $employees  = $this->employee->search($search, $limit, $offset, $sort, $order);
+        $employees = $this->employee->search($search, $limit, $offset, $sort, $order);
         $total_rows = $this->employee->get_found_rows($search);
 
         $data_rows = [];
-
         foreach ($employees->getResult() as $person) {
             $data_rows[] = get_person_data_row($person);
         }
@@ -65,18 +68,23 @@ class Employees extends Persons
 
     /**
      * AJAX called function gives search suggestions based on what is being searched for.
+     *
+     * @return ResponseInterface
      */
     public function getSuggest(): ResponseInterface
     {
-        $search      = $this->request->getGet('term');
+        $search = $this->request->getGet('term');
         $suggestions = $this->employee->get_search_suggestions($search, 25, true);
 
         return $this->response->setJSON($suggestions);
     }
 
+    /**
+     * @return ResponseInterface
+     */
     public function suggest_search(): ResponseInterface
     {
-        $search      = $this->request->getPost('term');
+        $search = $this->request->getPost('term');
         $suggestions = $this->employee->get_search_suggestions($search);
 
         return $this->response->setJSON($suggestions);
@@ -84,24 +92,24 @@ class Employees extends Persons
 
     /**
      * Loads the employee edit form
+     * @return string
      */
     public function getView(int $employee_id = NEW_ENTRY): string
     {
         $personInfo  = $this->employee->get_info($employee_id);
         $currentUser = $this->employee->get_logged_in_employee_info();
 
-        if ($employee_id !== NEW_ENTRY && ! $this->employee->canModifyEmployee($personInfo->person_id, $currentUser->person_id)) {
+        if ($employee_id != NEW_ENTRY && ! $this->employee->canModifyEmployee($personInfo->person_id, $currentUser->person_id)) {
             throw new RedirectException('no_access/employees/employees');
         }
 
         foreach (get_object_vars($personInfo) as $property => $value) {
-            $personInfo->{$property} = $value;
+            $personInfo->$property = $value;
         }
         $data['person_info'] = $personInfo;
         $data['employee_id'] = $employee_id;
 
         $modules = [];
-
         foreach ($this->module->get_all_modules()->getResult() as $module) {
             $module->grant      = $this->employee->hasDirectGrant($module->module_id, $personInfo->person_id);
             $module->menu_group = $this->employee->get_menu_group($module->module_id, $personInfo->person_id);
@@ -111,7 +119,6 @@ class Employees extends Persons
         $data['all_modules'] = $modules;
 
         $permissions = [];
-
         foreach ($this->module->get_all_subpermissions()->getResult() as $permission) {    // TODO: subpermissions does not follow naming standards.
             if ($permission->permission_id === BranchGuard::ALL_BRANCHES) {
                 continue;
@@ -126,36 +133,37 @@ class Employees extends Persons
         $data['sensitive_permissions'] = AccountingGuard::SENSITIVE;
         $data['is_admin']              = $this->employee->isAdmin($currentUser->person_id);
         $data['branch_tab']            = $this->branchTab($employee_id, $currentUser->person_id);
-        $data['roles_tab']             = $this->rolesTab($employee_id === NEW_ENTRY ? 0 : (int) $employee_id, (int) $currentUser->person_id);
+        $data['roles_tab']             = $this->rolesTab($employee_id == NEW_ENTRY ? 0 : (int) $employee_id, (int) $currentUser->person_id);
 
         return view('employees/form', $data);
     }
 
     /**
      * Inserts/updates an employee
+     * @return ResponseInterface
      */
     public function postSave(int $employeeId = NEW_ENTRY): ResponseInterface
     {
         $currentUser = $this->employee->get_logged_in_employee_info();
 
-        if ($employeeId !== NEW_ENTRY) {
+        if ($employeeId != NEW_ENTRY) {
             $targetEmployee = $this->employee->get_info($employeeId);
-            if (! $this->employee->canModifyEmployee($targetEmployee->person_id, $currentUser->person_id)) {
+            if (!$this->employee->canModifyEmployee($targetEmployee->person_id, $currentUser->person_id)) {
                 return $this->response->setJSON([
                     'success' => false,
                     'message' => lang('Employees.error_updating_admin'),
-                    'id'      => NEW_ENTRY,
+                    'id'      => NEW_ENTRY
                 ]);
             }
         }
 
         $firstName = $this->request->getPost('first_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS);    // TODO: duplicated code
-        $lastName  = $this->request->getPost('last_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-        $email     = strtolower($this->request->getPost('email', FILTER_SANITIZE_EMAIL));
+        $lastName = $this->request->getPost('last_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $email = strtolower($this->request->getPost('email', FILTER_SANITIZE_EMAIL));
 
         // format first and last name properly
         $firstName = $this->nameize($firstName);
-        $lastName  = $this->nameize($lastName);
+        $lastName = $this->nameize($lastName);
 
         $personData = [
             'first_name'   => $firstName,
@@ -169,17 +177,17 @@ class Employees extends Persons
             'state'        => $this->request->getPost('state', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'zip'          => $this->request->getPost('zip', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'country'      => $this->request->getPost('country', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'comments'     => $this->request->getPost('comments', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+            'comments'     => $this->request->getPost('comments', FILTER_SANITIZE_FULL_SPECIAL_CHARS)
         ];
 
-        $grantsArray   = [];
-        $isAdmin       = $this->employee->isAdmin($currentUser->person_id);
-        $sensitiveHeld = $employeeId === NEW_ENTRY ? [] : $this->sensitivePermissions->heldBy((int) $employeeId);
+        $grantsArray = [];
+        $isAdmin = $this->employee->isAdmin($currentUser->person_id);
+        $sensitiveHeld = $employeeId == NEW_ENTRY ? [] : $this->sensitivePermissions->heldBy((int) $employeeId);
 
         foreach ($this->module->get_all_permissions()->getResult() as $permission) {
             $grants = [];
 
-            if (! $isAdmin && SensitivePermissions::isSensitive($permission->permission_id)) {
+            if (!$isAdmin && SensitivePermissions::isSensitive($permission->permission_id)) {
                 if (in_array($permission->permission_id, $sensitiveHeld, true)) {
                     $grantsArray[] = ['permission_id' => $permission->permission_id, 'menu_group' => '--'];
                 }
@@ -187,19 +195,19 @@ class Employees extends Persons
                 continue;
             }
 
-            $grant = $this->request->getPost('grant_' . $permission->permission_id) !== null ? $this->request->getPost('grant_' . $permission->permission_id, FILTER_SANITIZE_FULL_SPECIAL_CHARS) : '';
+            $grant = $this->request->getPost('grant_' . $permission->permission_id) != null ? $this->request->getPost('grant_' . $permission->permission_id, FILTER_SANITIZE_FULL_SPECIAL_CHARS) : '';
 
-            if ($grant === $permission->permission_id) {
-                if (! $isAdmin && ! $this->employee->has_grant($permission->permission_id, $currentUser->person_id)) {
+            if ($grant == $permission->permission_id) {
+                if (!$isAdmin && !$this->employee->has_grant($permission->permission_id, $currentUser->person_id)) {
                     continue;
                 }
                 $grants['permission_id'] = $permission->permission_id;
-                $grants['menu_group']    = $this->request->getPost('menu_group_' . $permission->permission_id) !== null ? $this->request->getPost('menu_group_' . $permission->permission_id, FILTER_SANITIZE_FULL_SPECIAL_CHARS) : '--';
-                $grantsArray[]           = $grants;
+                $grants['menu_group'] = $this->request->getPost('menu_group_' . $permission->permission_id) != null ? $this->request->getPost('menu_group_' . $permission->permission_id, FILTER_SANITIZE_FULL_SPECIAL_CHARS) : '--';
+                $grantsArray[] = $grants;
             }
         }
 
-        $targetId          = $employeeId === NEW_ENTRY ? null : (int) $employeeId;
+        $targetId          = $employeeId == NEW_ENTRY ? null : (int) $employeeId;
         $previousScope     = $targetId === null ? null : $this->branchScopes->scopeOf($targetId);
         $requestedScope    = $this->requestedBranchScope($currentUser->person_id, $targetId);
         $requestedRoles    = $this->requestedRoles((int) $currentUser->person_id);
@@ -218,19 +226,19 @@ class Employees extends Persons
                 return $this->response->setJSON([
                     'success' => false,
                     'message' => lang('Branches.error_' . $exception->error->value),
-                    'id'      => $employeeId,
+                    'id'      => $employeeId
                 ]);
             }
         }
 
-        $minimumGrants       = ['employees', 'home', 'office'];
+        $minimumGrants = ['employees', 'home', 'office'];
         $missingMinimumGrant = array_diff($minimumGrants, array_column($grantsArray, 'permission_id'));
 
-        if ($isAdmin && $employeeId === $currentUser->person_id && ! empty($missingMinimumGrant)) {
+        if ($isAdmin && $employeeId == $currentUser->person_id && !empty($missingMinimumGrant)) {
             return $this->response->setJSON([
                 'success' => false,
                 'message' => lang('Employees.error_cannot_remove_own_minimum_grant'),
-                'id'      => $employeeId,
+                'id'      => $employeeId
             ]);
         }
 
@@ -239,34 +247,34 @@ class Employees extends Persons
             return $this->response->setJSON([
                 'success' => false,
                 'message' => lang('Employees.error_grant_change_disallowed'),
-                'id'      => $employeeId,
+                'id'      => $employeeId
             ]);
         }
 
-        if (! empty($this->request->getPost('password')) && ENVIRONMENT !== 'testing' && filter_var(getenv('DISALLOW_PASSWORD_CHANGE'), FILTER_VALIDATE_BOOLEAN)) {
+        if (!empty($this->request->getPost('password')) && ENVIRONMENT != 'testing' && filter_var(getenv('DISALLOW_PASSWORD_CHANGE'), FILTER_VALIDATE_BOOLEAN)) {
             return $this->response->setJSON([
                 'success' => false,
                 'message' => lang('Employees.error_password_change_disallowed'),
-                'id'      => $employeeId,
+                'id'      => $employeeId
             ]);
         }
 
         // Password has been changed OR first time password set
-        if (! empty($this->request->getPost('password')) && ENVIRONMENT !== 'testing') {
-            $exploded     = explode(':', $this->request->getPost('language', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
+        if (!empty($this->request->getPost('password')) && ENVIRONMENT != 'testing') {
+            $exploded = explode(":", $this->request->getPost('language', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
             $employeeData = [
                 'username'      => $this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
                 'password'      => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT),
                 'hash_version'  => 2,
                 'language_code' => $exploded[0],
-                'language'      => $exploded[1],
+                'language'      => $exploded[1]
             ];
         } else { // Password not changed
-            $exploded     = explode(':', $this->request->getPost('language', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
+            $exploded = explode(":", $this->request->getPost('language', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
             $employeeData = [
                 'username'      => $this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
                 'language_code' => $exploded[0],
-                'language'      => $exploded[1],
+                'language'      => $exploded[1]
             ];
 
             // In the testing environment the password above is never persisted
@@ -274,7 +282,7 @@ class Employees extends Persons
             // is NOT NULL. When creating a new employee, supply a placeholder hash
             // so the insert succeeds and the grant-handling logic under test is
             // not masked by a constraint failure. Production behavior is unchanged.
-            if (ENVIRONMENT === 'testing' && $employeeId === NEW_ENTRY) {
+            if (ENVIRONMENT === 'testing' && $employeeId == NEW_ENTRY) {
                 $employeeData['password']     = password_hash('test-placeholder', PASSWORD_DEFAULT);
                 $employeeData['hash_version'] = 2;
             }
@@ -283,53 +291,53 @@ class Employees extends Persons
         if ($this->employee->save_employee($personData, $employeeData, $grantsArray, $employeeId)) {
             $this->sensitivePermissions->recordChange(
                 $currentUser->person_id,
-                (int) ($employeeId === NEW_ENTRY ? $employeeData['person_id'] : $employeeId),
+                (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId),
                 $sensitiveHeld,
                 array_values(array_filter(array_column($grantsArray, 'permission_id'), [SensitivePermissions::class, 'isSensitive'])),
             );
 
             try {
-                $this->branchScopes->afterEmployeeSave($currentUser->person_id, (int) ($employeeId === NEW_ENTRY ? $employeeData['person_id'] : $employeeId), $previousScope, $requestedScope);
+                $this->branchScopes->afterEmployeeSave($currentUser->person_id, (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId), $previousScope, $requestedScope);
             } catch (BranchException $exception) {
                 return $this->response->setJSON([
                     'success' => false,
                     'message' => lang('Branches.error_' . $exception->error->value),
-                    'id'      => $employeeId,
+                    'id'      => $employeeId
                 ]);
             }
 
             try {
-                $this->applyRolesAndDefaults((int) $currentUser->person_id, (int) ($employeeId === NEW_ENTRY ? $employeeData['person_id'] : $employeeId), $requestedRoles, $requestedLocation);
+                $this->applyRolesAndDefaults((int) $currentUser->person_id, (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId), $requestedRoles, $requestedLocation);
             } catch (RoleException $exception) {
                 return $this->roleRefusal($exception, $employeeId);
             }
 
             // New employee
-            if ($employeeId === NEW_ENTRY) {
+            if ($employeeId == NEW_ENTRY) {
                 return $this->response->setJSON([
                     'success' => true,
                     'message' => lang('Employees.successful_adding') . ' ' . $firstName . ' ' . $lastName,
-                    'id'      => $employeeData['person_id'],
+                    'id'      => $employeeData['person_id']
                 ]);
-            }   // Existing employee
-            $loggedInEmployeeId = session()->get('person_id');
-            if ($employeeId === $loggedInEmployeeId) {
-                session()->set('language_code', $employeeData['language_code']);
-                session()->set('language', $employeeData['language']);
+            } else { // Existing employee
+                $loggedInEmployeeId = session()->get('person_id');
+                if ($employeeId == $loggedInEmployeeId) {
+                    session()->set('language_code', $employeeData['language_code']);
+                    session()->set('language', $employeeData['language']);
+                }
+                return $this->response->setJSON([
+                    'success' => true,
+                    'message' => lang('Employees.successful_updating') . ' ' . $firstName . ' ' . $lastName,
+                    'id'      => $employeeId
+                ]);
             }
-
+        } else { // Failure
             return $this->response->setJSON([
-                'success' => true,
-                'message' => lang('Employees.successful_updating') . ' ' . $firstName . ' ' . $lastName,
-                'id'      => $employeeId,
+                'success' => false,
+                'message' => lang('Employees.error_adding_updating') . ' ' . $firstName . ' ' . $lastName,
+                'id'      => NEW_ENTRY
             ]);
-        }   // Failure
-
-        return $this->response->setJSON([
-            'success' => false,
-            'message' => lang('Employees.error_adding_updating') . ' ' . $firstName . ' ' . $lastName,
-            'id'      => NEW_ENTRY,
-        ]);
+        }
     }
 
     /**
@@ -340,26 +348,26 @@ class Employees extends Persons
     {
         $currentGrantIds = [];
 
-        if ($employeeId !== NEW_ENTRY) {
+        if ($employeeId != NEW_ENTRY) {
             $currentGrantIds = array_values(array_diff(
                 array_column($this->employee->getDirectGrants($employeeId), 'permission_id'),
                 [BranchGuard::ALL_BRANCHES],
             ));
 
-            if (! $isAdmin) {
+            if (!$isAdmin) {
                 $currentGrantIds = array_values(array_filter(
                     $currentGrantIds,
-                    fn ($permissionId) => $this->employee->has_grant($permissionId, $currentUser->person_id),
+                    fn ($permissionId) => $this->employee->has_grant($permissionId, $currentUser->person_id)
                 ));
             }
         }
 
         $submittedGrantIds = array_column($grantsArray, 'permission_id');
 
-        if (! $isAdmin) {
+        if (!$isAdmin) {
             $submittedGrantIds = array_values(array_filter(
                 $submittedGrantIds,
-                fn ($permissionId) => $this->employee->has_grant($permissionId, $currentUser->person_id),
+                fn ($permissionId) => $this->employee->has_grant($permissionId, $currentUser->person_id)
             ));
         }
 
@@ -490,7 +498,7 @@ class Employees extends Persons
      */
     private function branchTab(int $employeeId, int $actorId): ?array
     {
-        $targetId = $employeeId === NEW_ENTRY ? null : $employeeId;
+        $targetId = $employeeId == NEW_ENTRY ? null : $employeeId;
 
         if (! $this->branchScopes->canManageScope($actorId, $targetId)) {
             return null;
@@ -502,8 +510,8 @@ class Employees extends Persons
             return null;
         }
 
-        $guard = new BranchGuard(null, $this->employee);
-        $scope = $targetId === null
+        $guard   = new BranchGuard(null, $this->employee);
+        $scope   = $targetId === null
             ? ['all' => false, 'branch_ids' => [$guard->defaultBranchId($actorId)], 'default_branch_id' => $guard->defaultBranchId($actorId)]
             : $this->branchScopes->scopeOf($targetId);
         $visible = array_map(static fn (object $branch): int => (int) $branch->branch_id, $branches);
@@ -543,15 +551,16 @@ class Employees extends Persons
 
     /**
      * This deletes employees from the employees table
+     * @return ResponseInterface
      */
     public function postDelete(): ResponseInterface
     {
         $employees_to_delete = $this->request->getPost('ids', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-        $current_user        = $this->employee->get_logged_in_employee_info();
+        $current_user = $this->employee->get_logged_in_employee_info();
 
-        if (! $this->employee->isAdmin($current_user->person_id)) {
+        if (!$this->employee->isAdmin($current_user->person_id)) {
             foreach ($employees_to_delete as $emp_id) {
-                if ($this->employee->isAdmin((int) $emp_id)) {
+                if ($this->employee->isAdmin((int)$emp_id)) {
                     return $this->response->setJSON(['success' => false, 'message' => lang('Employees.error_deleting_admin')]);
                 }
             }
@@ -574,24 +583,23 @@ class Employees extends Persons
 
             return $this->response->setJSON([
                 'success' => true,
-                'message' => lang('Employees.successful_deleted') . ' ' . count($employees_to_delete) . ' ' . lang('Employees.one_or_multiple'),
+                'message' => lang('Employees.successful_deleted') . ' ' . count($employees_to_delete) . ' ' . lang('Employees.one_or_multiple')
             ]);
+        } else {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Employees.cannot_be_deleted')]);
         }
-
-        return $this->response->setJSON(['success' => false, 'message' => lang('Employees.cannot_be_deleted')]);
     }
 
     /**
      * Checks an employee username against the database. Used in app\Views\employees\form.php
      *
+     * @param $employee_id
+     * @return ResponseInterface
      * @noinspection PhpUnused
-     *
-     * @param mixed $employee_id
      */
     public function getCheckUsername($employee_id): ResponseInterface
     {
         $exists = $this->employee->username_exists($employee_id, $this->request->getGet('username'));
-
-        return $this->response->setJSON(! $exists ? 'true' : 'false');
+        return $this->response->setJSON(!$exists ? 'true' : 'false');
     }
 }

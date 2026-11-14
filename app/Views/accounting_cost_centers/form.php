@@ -1,9 +1,10 @@
 <?php
 /**
- * @var object|null  $center
+ * @var object|null $center
  * @var list<object> $parents
- * @var string       $suggested_code
+ * @var string $suggested_code
  */
+
 $isNew = $center === null;
 ?>
 

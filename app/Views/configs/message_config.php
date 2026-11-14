@@ -1,7 +1,7 @@
 <?php
 /**
  * @var array $config
- * @var bool  $msg_pwd_set
+ * @var bool $msg_pwd_set
  */
 ?>
 
@@ -23,7 +23,7 @@
                             'name'  => 'msg_uid',
                             'id'    => 'msg_uid',
                             'class' => 'form-control form-control-sm required',
-                            'value' => $config['msg_uid'],
+                            'value' => $config['msg_uid']
                         ]) ?>
                     </div>
                 </div>
@@ -40,7 +40,7 @@
                                name="msg_pwd"
                                id="msg_pwd"
                                class="form-control form-control-sm"
-                               placeholder="<?= ! empty($msg_pwd_set) ? lang('Config.msg_pwd_set') : esc(lang('Config.msg_pwd')) ?>"
+                               placeholder="<?= !empty($msg_pwd_set) ? lang('Config.msg_pwd_set') : esc(lang('Config.msg_pwd')) ?>"
                                autocomplete="off">
                     </div>
                 </div>
@@ -57,7 +57,7 @@
                             'name'  => 'msg_src',
                             'id'    => 'msg_src',
                             'class' => 'form-control form-control-sm required',
-                            'value' => $config['msg_src'] === null ? $config['company'] : $config['msg_src'],
+                            'value' => $config['msg_src'] == null ? $config['company'] : $config['msg_src']
                         ]) ?>
                     </div>
                 </div>
@@ -72,7 +72,7 @@
                         'class'       => 'form-control form-control-sm',
                         'value'       => $config['msg_msg'],
                         'style'       => 'resize: vertical',
-                        'placeholder' => lang('Config.msg_msg_placeholder'),
+                        'placeholder' => lang('Config.msg_msg_placeholder')
                     ]) ?>
                 </div>
             </div>
@@ -82,7 +82,7 @@
                     'name'  => 'submit_message',
                     'id'    => 'submit_message',
                     'value' => lang('Common.submit'),
-                    'class' => 'btn btn-primary',
+                    'class' => 'btn btn-primary'
                 ]) ?>
             </div>
 

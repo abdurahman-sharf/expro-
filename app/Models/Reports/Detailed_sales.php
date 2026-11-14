@@ -5,10 +5,17 @@ namespace App\Models\Reports;
 use App\Models\Sale;
 
 /**
- * @property Sale sale
+ *
+ *
+ * @property sale sale
+ *
  */
 class Detailed_sales extends Report
 {
+    /**
+     * @param array $inputs
+     * @return void
+     */
     public function create(array $inputs): void
     {
         // Create our temp tables to work with the data in our report
@@ -16,24 +23,27 @@ class Detailed_sales extends Report
         $sale->create_temp_table($this->limitedInputs($inputs));
     }
 
+    /**
+     * @return array
+     */
     public function getDataColumns(): array
     {
         return [    // TODO: Duplicated code
             'summary' => [
-                ['id' => lang('Reports.sale_id')],
-                ['type_code'        => lang('Reports.code_type')],
-                ['sale_time'        => lang('Reports.date'), 'sortable' => false],
-                ['quantity'         => lang('Reports.quantity')],
-                ['employee_name'    => lang('Reports.sold_by')],
-                ['customer_name'    => lang('Reports.sold_to')],
+                ['id'            => lang('Reports.sale_id')],
+                ['type_code'     => lang('Reports.code_type')],
+                ['sale_time'     => lang('Reports.date'), 'sortable' => false],
+                ['quantity'      => lang('Reports.quantity')],
+                ['employee_name' => lang('Reports.sold_by')],
+                ['customer_name' => lang('Reports.sold_to')],
                 ['invoice_discount' => lang('Reports.invoice_discount'), 'sorter' => 'number_sorter'],
-                ['subtotal'         => lang('Reports.subtotal'), 'sorter' => 'number_sorter'],
-                ['tax'              => lang('Reports.tax'), 'sorter' => 'number_sorter'],
-                ['total'            => lang('Reports.total'), 'sorter' => 'number_sorter'],
-                ['cost'             => lang('Reports.cost'), 'sorter' => 'number_sorter'],
-                ['profit'           => lang('Reports.profit'), 'sorter' => 'number_sorter'],
-                ['payment_type'     => lang('Reports.payment_type'), 'sortable' => false],
-                ['comment'          => lang('Reports.comments')],
+                ['subtotal'      => lang('Reports.subtotal'), 'sorter' => 'number_sorter'],
+                ['tax'           => lang('Reports.tax'), 'sorter' => 'number_sorter'],
+                ['total'         => lang('Reports.total'), 'sorter' => 'number_sorter'],
+                ['cost'          => lang('Reports.cost'), 'sorter' => 'number_sorter'],
+                ['profit'        => lang('Reports.profit'), 'sorter' => 'number_sorter'],
+                ['payment_type'  => lang('Reports.payment_type'), 'sortable' => false],
+                ['comment'       => lang('Reports.comments')]
             ],
             'details' => [
                 lang('Reports.name'),
@@ -46,15 +56,19 @@ class Detailed_sales extends Report
                 lang('Reports.total'),
                 lang('Reports.cost'),
                 lang('Reports.profit'),
-                lang('Reports.discount'),
+                lang('Reports.discount')
             ],
             'details_rewards' => [
                 lang('Reports.used'),
-                lang('Reports.earned'),
-            ],
+                lang('Reports.earned')
+            ]
         ];
     }
 
+    /**
+     * @param int $sale_id
+     * @return array
+     */
     public function getDataBySaleId(int $sale_id): array
     {
         $builder = $this->db->table('sales_items_temp');
@@ -77,6 +91,10 @@ class Detailed_sales extends Report
         return $builder->get()->getRowArray();
     }
 
+    /**
+     * @param array $inputs
+     * @return array
+     */
     public function getData(array $inputs): array
     {
         $builder = $this->db->table('sales_items_temp');
@@ -104,7 +122,7 @@ class Detailed_sales extends Report
             MAX(payment_type) AS payment_type,
             MAX(comment) AS comment');
 
-        if ($inputs['location_id'] !== 'all') {    // TODO: Duplicated code
+        if ($inputs['location_id'] != 'all') {    // TODO: Duplicated code
             $builder->where('item_location', $inputs['location_id']);
         }
 
@@ -149,7 +167,7 @@ class Detailed_sales extends Report
         $builder->groupBy('sale_id');
         $builder->orderBy('MAX(sale_time)');
 
-        $data            = [];
+        $data = [];
         $data['summary'] = $builder->get()->getResultArray();
         $data['details'] = [];
         $data['rewards'] = [];
@@ -175,7 +193,7 @@ class Detailed_sales extends Report
             if (count($inputs['definition_ids']) > 0) {
                 $format = $this->db->escape(dateformat_mysql());
                 $builder->select('GROUP_CONCAT(DISTINCT CONCAT_WS(\'_\', definition_id, attribute_value) ORDER BY definition_id SEPARATOR \'|\') AS attribute_values');
-                $builder->select("GROUP_CONCAT(DISTINCT CONCAT_WS('_', definition_id, DATE_FORMAT(attribute_date, {$format})) SEPARATOR '|') AS attribute_dtvalues");
+                $builder->select("GROUP_CONCAT(DISTINCT CONCAT_WS('_', definition_id, DATE_FORMAT(attribute_date, $format)) SEPARATOR '|') AS attribute_dtvalues");
                 $builder->select('GROUP_CONCAT(DISTINCT CONCAT_WS(\'_\', definition_id, attribute_decimal) SEPARATOR \'|\') AS attribute_dvalues');
                 $builder->join('attribute_links', 'attribute_links.item_id = sales_items_temp.item_id AND attribute_links.sale_id = sales_items_temp.sale_id AND definition_id IN (' . implode(',', $inputs['definition_ids']) . ')', 'left');
                 $builder->join('attribute_values', 'attribute_values.attribute_id = attribute_links.attribute_id', 'left');
@@ -194,12 +212,16 @@ class Detailed_sales extends Report
         return $data;
     }
 
+    /**
+     * @param array $inputs
+     * @return array
+     */
     public function getSummaryData(array $inputs): array
     {
         $builder = $this->db->table('sales_items_temp');
         $builder->select('SUM(subtotal) AS subtotal, SUM(tax) AS tax, SUM(total) AS total, SUM(cost) AS cost, SUM(profit) AS profit');
 
-        if ($inputs['location_id'] !== 'all') {    // TODO: Duplicated code
+        if ($inputs['location_id'] != 'all') {    // TODO: Duplicated code
             $builder->where('item_location', $inputs['location_id']);
         }
 

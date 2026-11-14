@@ -1,10 +1,11 @@
 <?php
 /**
  * @var object $user_info
- * @var array  $allowed_modules
+ * @var array $allowed_modules
  * @var string $controller_name
- * @var array  $config
+ * @var array $config
  */
+
 $pageTitle = navigationPageTitle($controller_name ?? '');
 ?>
 
@@ -14,7 +15,7 @@ $pageTitle = navigationPageTitle($controller_name ?? '');
 <head>
     <meta charset="utf-8">
     <base href="<?= base_url() ?>">
-    <title><?= esc(($pageTitle !== '' ? "{$pageTitle} | " : '') . $config['company'] . ' | ' . BRAND_NAME) ?></title>
+    <title><?= esc(($pageTitle !== '' ? "$pageTitle | " : '') . $config['company'] . ' | ' . BRAND_NAME) ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#042359">

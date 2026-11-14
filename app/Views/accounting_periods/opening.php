@@ -1,17 +1,18 @@
 <?php
 /**
- * @var list<object>                                                                                                                              $branches
- * @var int                                                                                                                                       $branch_id
- * @var list<object>                                                                                                                              $accounts
- * @var array<string, mixed>|null                                                                                                                 $picker The search box that replaces the list of accounts when there are many.
+ * @var list<object> $branches
+ * @var int $branch_id
+ * @var list<object> $accounts
+ * @var array<string, mixed>|null $picker The search box that replaces the list of accounts when there are many.
  * @var array{start_date: ?string, posted: ?object, draft: list<array{account_id: int, description: string, debit: string, credit: string}>|null} $state
- * @var bool                                                                                                                                      $can_manage
- * @var string                                                                                                                                    $start_date
- * @var bool                                                                                                                                      $show_branch
- * @var list<array<string, mixed>>                                                                                                                $stock
- * @var list<string>                                                                                                                              $deleted_stock
- * @var string|null                                                                                                                               $notice
+ * @var bool $can_manage
+ * @var string $start_date
+ * @var bool $show_branch
+ * @var list<array<string, mixed>> $stock
+ * @var list<string> $deleted_stock
+ * @var string|null $notice
  */
+
 $posted    = $state['posted'];
 $draft     = $state['draft'];
 $editable  = $can_manage && $posted === null && $state['start_date'] !== null;
@@ -170,11 +171,11 @@ $accountInputs = static function (string $name, ?int $selected) use ($labels, $p
         $(document).ready(function() {
             const editable = <?= $editable ? 'true' : 'false' ?>;
             const text = <?= json_encode([
-                'balanced'        => lang('Accounting_journals.balanced'),
-                'unbalanced'      => lang('Accounting_journals.unbalanced'),
+                'balanced' => lang('Accounting_journals.balanced'),
+                'unbalanced' => lang('Accounting_journals.unbalanced'),
                 'confirm_discard' => lang('Accounting_periods.opening_confirm_discard'),
                 'confirm_balance' => lang('Accounting_periods.opening_confirm_balance'),
-                'failed'          => lang('Accounting_journals.request_failed'),
+                'failed' => lang('Accounting_journals.request_failed'),
             ], $jsonFlags) ?>;
             const SCALE = 10000;
             const picker = accounting_support.accountPicker('accounts_list', <?= json_encode($picker, $jsonFlags) ?>);

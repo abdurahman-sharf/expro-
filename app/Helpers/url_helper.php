@@ -1,8 +1,11 @@
 <?php
 
-if (! function_exists('base64url_encode')) {
+if (!function_exists('base64url_encode')) {
     /**
      * Encode data to Base64 URL-safe string.
+     *
+     * @param string $data
+     * @return string
      */
     function base64url_encode(string $data): string
     {
@@ -10,9 +13,12 @@ if (! function_exists('base64url_encode')) {
     }
 }
 
-if (! function_exists('base64url_decode')) {
+if (!function_exists('base64url_decode')) {
     /**
      * Decode Base64 URL-safe string to original data.
+     *
+     * @param string $data
+     * @return string|false
      */
     function base64url_decode(string $data): false|string
     {
@@ -20,7 +26,6 @@ if (! function_exists('base64url_decode')) {
         if ($remainder) {
             $data .= str_repeat('=', 4 - $remainder);
         }
-
-        return base64_decode(strtr($data, '-_', '+/'), true);
+        return base64_decode(strtr($data, '-_', '+/'));
     }
 }

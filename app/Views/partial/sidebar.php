@@ -1,14 +1,14 @@
 <?php
 /**
  * @var object $user_info
- * @var array  $allowed_modules
+ * @var array $allowed_modules
  */
 
 use Config\Services;
 
-$request      = Services::request();
+$request = Services::request();
 $activeModule = navigationActiveModule($request->getUri()->getSegment(1));
-$initial      = mb_substr(trim($user_info->first_name . $user_info->last_name) ?: $user_info->username, 0, 1);
+$initial = mb_substr(trim($user_info->first_name . $user_info->last_name) ?: $user_info->username, 0, 1);
 ?>
 
 <aside id="app-sidebar" class="app-sidebar offcanvas offcanvas-start" tabindex="-1" aria-label="<?= lang('Common.main_navigation') ?>">
@@ -38,11 +38,11 @@ $initial      = mb_substr(trim($user_info->first_name . $user_info->last_name) ?
 
     <div class="app-sidebar-foot">
         <?= anchor(
-            "home/changePassword/{$user_info->person_id}",
+            "home/changePassword/$user_info->person_id",
             '<span class="app-avatar" aria-hidden="true">' . esc($initial) . '</span>'
-                . '<span class="app-user"><span class="app-user-name">' . esc("{$user_info->first_name} {$user_info->last_name}") . '</span>'
+                . '<span class="app-user"><span class="app-user-name">' . esc("$user_info->first_name $user_info->last_name") . '</span>'
                 . '<span class="app-user-sub">' . esc($user_info->username) . '</span></span>',
-            ['class' => 'app-user-link modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Employees.change_password')],
+            ['class' => 'app-user-link modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Employees.change_password')]
         ) ?>
         <a class="app-logout" href="<?= site_url('home/logout') ?>" title="<?= lang('Login.logout') ?>">
             <i class="bi bi-box-arrow-right" aria-hidden="true"></i>

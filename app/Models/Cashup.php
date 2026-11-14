@@ -20,11 +20,11 @@ use Throwable;
  */
 class Cashup extends Model
 {
-    protected $table            = 'cash_up';
-    protected $primaryKey       = 'cashup_id';
+    protected $table = 'cash_up';
+    protected $primaryKey = 'cashup_id';
     protected $useAutoIncrement = true;
-    protected $useSoftDeletes   = false;
-    protected $allowedFields    = [
+    protected $useSoftDeletes = false;
+    protected $allowedFields = [
         'open_date',
         'close_date',
         'open_cash_amount',
@@ -42,7 +42,7 @@ class Cashup extends Model
         'branch_id',
         'treasury_id',
         'expected_amount_cash',
-        'cash_difference',
+        'cash_difference'
     ];
     private ?Throwable $accountingFailure = null;
 
@@ -62,7 +62,7 @@ class Cashup extends Model
         $builder = $this->db->table('cash_up');
         $builder->where('cashup_id', $cashup_id);
 
-        return $builder->get()->getNumRows() === 1;    // TODO: ===
+        return ($builder->get()->getNumRows() == 1);    // TODO: ===
     }
 
     /**
@@ -78,6 +78,10 @@ class Cashup extends Model
         return $employee->get_info($builder->get()->getRow()->employee_id);
     }
 
+    /**
+     * @param string $cashup_ids
+     * @return ResultInterface
+     */
     public function get_multiple_info(string $cashup_ids): ResultInterface
     {
         $builder = $this->db->table('cash_up');
@@ -101,25 +105,15 @@ class Cashup extends Model
     public function search(string $search, array $filters, ?int $rows = 0, ?int $limit_from = 0, ?string $sort = 'cashup_id', ?string $order = 'asc', ?bool $count_only = false)
     {
         // Set default values
-        if ($rows === null) {
-            $rows = 0;
-        }
-        if ($limit_from === null) {
-            $limit_from = 0;
-        }
-        if ($sort === null) {
-            $sort = 'cashup_id';
-        }
-        if ($order === null) {
-            $order = 'asc';
-        }
-        if ($count_only === null) {
-            $count_only = false;
-        }
+        if ($rows == null) $rows = 0;
+        if ($limit_from == null) $limit_from = 0;
+        if ($sort == null) $sort = 'cashup_id';
+        if ($order == null) $order = 'asc';
+        if ($count_only == null) $count_only = false;
 
-        $config       = config(OSPOS::class)->settings;
+        $config = config(OSPOS::class)->settings;
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
-        $builder      = $this->db->table('cash_up AS cash_up');
+        $builder = $this->db->table('cash_up AS cash_up');
 
         // get_found_rows case
         if ($count_only) {
@@ -167,7 +161,7 @@ class Cashup extends Model
 
         $builder->where('cash_up.deleted', $filters['is_deleted']);
 
-        if ($accountingOn && ! empty($filters['only_unposted'])) {
+        if ($accountingOn && !empty($filters['only_unposted'])) {
             $builder->where('cash_up.branch_id IS NULL AND cash_up.deleted = 0', null, false);
         }
 
@@ -180,8 +174,9 @@ class Cashup extends Model
         // get_found_rows case
         if ($count_only) {
             return $builder->get()->getRow()->count;
+        } else {
+            $builder->groupBy('cashup_id');
         }
-        $builder->groupBy('cashup_id');
 
         $builder->orderBy($sort, $order);
 
@@ -198,7 +193,7 @@ class Cashup extends Model
     public function get_info(int $cashup_id): object
     {
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
-        $builder      = $this->db->table('cash_up AS cash_up');
+        $builder = $this->db->table('cash_up AS cash_up');
         $builder->select('
             cash_up.cashup_id AS cashup_id,
             cash_up.open_date AS open_date,
@@ -231,15 +226,17 @@ class Cashup extends Model
         }
 
         $query = $builder->get();
-        if ($query->getNumRows() === 1) {    // TODO: ===
+        if ($query->getNumRows() == 1) {    // TODO: ===
             return $query->getRow();
+        } else {
+            return $this->getEmptyObject('cash_up');
         }
-
-        return $this->getEmptyObject('cash_up');
     }
 
     /**
      * Initializes an empty object based on database definitions
+     * @param string $table_name
+     * @return object
      */
     private function getEmptyObject(string $table_name): object
     {
@@ -250,15 +247,16 @@ class Cashup extends Model
         foreach ($this->db->getFieldData($table_name) as $field) {
             $field_name = $field->name;
 
-            if (in_array($field->type, ['int', 'tinyint', 'decimal'], true)) {
-                $empty_obj->{$field_name} = ($field->primary_key === 1) ? NEW_ENTRY : 0;
+            if (in_array($field->type, ['int', 'tinyint', 'decimal'])) {
+                $empty_obj->$field_name = ($field->primary_key == 1) ? NEW_ENTRY : 0;
             } else {
-                $empty_obj->{$field_name} = null;
+                $empty_obj->$field_name = null;
             }
         }
 
         return $empty_obj;
     }
+
 
     /**
      * Inserts or updates a cashup. With accounting on, a cash-up the books follow is saved with the
@@ -266,8 +264,6 @@ class Cashup extends Model
      * accountingFailure() then says why. The actor is the employee who makes the change, whose
      * branches and treasuries decide what is allowed, and is the employee who closes the cash-up
      * when none is given.
-     *
-     * @param mixed $cashupId
      */
     public function save_value(array &$cashUpData, $cashupId = NEW_ENTRY, ?int $actorId = null): bool
     {
@@ -292,10 +288,10 @@ class Cashup extends Model
                 $stored = LockedRead::row($this->db, 'SELECT * FROM ' . $this->db->prefixTable('cash_up') . ' WHERE cashup_id = ? FOR UPDATE', [$cashupId]);
             }
 
-            $plan       = $posting->plan($cashUpData, $stored, $actorId);
-            $branch     = $plan['branch_id'];
+            $plan         = $posting->plan($cashUpData, $stored, $actorId);
+            $branch       = $plan['branch_id'];
             $cashUpData = $plan['data'];
-            $success    = $this->saveRow($cashUpData, $cashupId);
+            $success      = $this->saveRow($cashUpData, $cashupId);
 
             if ($success && $plan['post']) {
                 $posting->sync($stored === null ? (int) $cashUpData['cashup_id'] : $cashupId, $actorId);
@@ -322,7 +318,7 @@ class Cashup extends Model
 
     private function saveRow(array &$cashUpData, $cashupId): bool
     {
-        if (! $cashupId === NEW_ENTRY || ! $this->exists($cashupId)) {
+        if (!$cashupId == NEW_ENTRY || !$this->exists($cashupId)) {
             $builder = $this->db->table('cash_up');
             if ($builder->insert($cashUpData)) {
                 $cashUpData['cashup_id'] = $this->db->insertID();

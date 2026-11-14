@@ -138,8 +138,8 @@ class Receivings extends Secure_Controller
         $stockDestination = $this->request->getPost('stock_destination', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
         $stockSource      = $this->request->getPost('stock_source', FILTER_SANITIZE_NUMBER_INT);
 
-        if ((! $stockSource || $stockSource === $this->receiving_lib->get_stock_source())
-            && (! $stockDestination || $stockDestination === $this->receiving_lib->get_stock_destination())
+        if ((! $stockSource || $stockSource == $this->receiving_lib->get_stock_source())
+            && (! $stockDestination || $stockDestination == $this->receiving_lib->get_stock_destination())
         ) {
             $this->receiving_lib->clear_reference();
             $mode = $this->request->getPost('mode', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
@@ -190,7 +190,7 @@ class Receivings extends Secure_Controller
      */
     public function postSetPrintAfterSale(): ResponseInterface
     {
-        $this->receiving_lib->set_print_after_sale($this->request->getPost('recv_print_after_sale') !== null);
+        $this->receiving_lib->set_print_after_sale($this->request->getPost('recv_print_after_sale') != null);
 
         return $this->response->setJSON(['success' => true]);
     }
@@ -445,11 +445,9 @@ class Receivings extends Secure_Controller
     /**
      * Edit a receiving. Used in app/Controllers/Receivings.php
      *
-     * @noinspection PhpUnused
-     *
-     * @param mixed $receiving_id
-     *
      * @return string
+     *
+     * @noinspection PhpUnused
      */
     public function getEdit($receiving_id): ResponseInterface|string
     {
@@ -477,7 +475,7 @@ class Receivings extends Secure_Controller
             }
         } else {
             $storedEmployeeId                     = $receivingInfo['employee_id'];
-            $storedEmployee                       = $this->employee->get_info($storedEmployeeId);
+            $storedEmployee                        = $this->employee->get_info($storedEmployeeId);
             $data['employees'][$storedEmployeeId] = $storedEmployee->first_name . ' ' . $storedEmployee->last_name;
         }
 
@@ -510,8 +508,8 @@ class Receivings extends Secure_Controller
         }
 
         $data += $this->documentNumberOf((int) $receiving_id);
-        $data['treasury_options']     = [];
-        $data['new_treasury_options'] = [];
+        $data['treasury_options']       = [];
+        $data['new_treasury_options']   = [];
 
         $data['invoiceDiscount']      = InvoiceDiscount::stored($receivingInfo['invoice_discount_type'] === null ? null : (int) $receivingInfo['invoice_discount_type'], $receivingInfo['invoice_discount'] === null ? null : (string) $receivingInfo['invoice_discount']);
         $data['invoiceDiscountShare'] = $this->invoiceDiscountOf((int) $receiving_id);
@@ -544,11 +542,11 @@ class Receivings extends Secure_Controller
             }
 
             if ($data['locked'] && $data['takes_payments']) {
-                $position               = (new SupplierLedger())->position((int) $receivingInfo['supplier_id']);
-                $data['payable']        = $position->purchase((int) $receiving_id);
-                $data['credit']         = $position->credit();
-                $data['applications']   = $this->applicationsOf((int) $receiving_id, (int) $receivingInfo['supplier_id']);
-                $data['can_debit_note'] = $data['payable'] !== null && ! $this->nothingLeftToReturn((int) $receiving_id);
+                $position                = (new SupplierLedger())->position((int) $receivingInfo['supplier_id']);
+                $data['payable']         = $position->purchase((int) $receiving_id);
+                $data['credit']          = $position->credit();
+                $data['applications']    = $this->applicationsOf((int) $receiving_id, (int) $receivingInfo['supplier_id']);
+                $data['can_debit_note']  = $data['payable'] !== null && ! $this->nothingLeftToReturn((int) $receiving_id);
             } elseif ($data['locked'] && $receivingInfo['receiving_type'] === ReceivingType::Return->value && $receivingInfo['supplier_id'] !== null) {
                 $data['applications'] = $this->applicationsOf((int) $receiving_id, (int) $receivingInfo['supplier_id']);
             }
@@ -561,8 +559,6 @@ class Receivings extends Secure_Controller
      * Deletes an item from the current receiving. Used in app/Views/receivings/receiving.php
      *
      * @noinspection PhpUnused
-     *
-     * @param mixed $item_number
      */
     public function getDeleteItem($item_number): string
     {
@@ -577,7 +573,7 @@ class Receivings extends Secure_Controller
     public function postDelete(int $receiving_id = -1, bool $update_inventory = true): ResponseInterface
     {
         $employee_id   = $this->employee->get_logged_in_employee_info()->person_id;
-        $receiving_ids = $receiving_id === -1 ? $this->request->getPost('ids', FILTER_SANITIZE_NUMBER_INT) : [$receiving_id];    // TODO: Replace -1 with constant
+        $receiving_ids = $receiving_id == -1 ? $this->request->getPost('ids', FILTER_SANITIZE_NUMBER_INT) : [$receiving_id];    // TODO: Replace -1 with constant
 
         if ($this->outsideBranchScope(...array_map('intval', (array) $receiving_ids))) {
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => $this->scopeMessage()]);
@@ -651,18 +647,18 @@ class Receivings extends Secure_Controller
         $data['invoiceDiscount']       = $this->receiving_lib->getInvoiceDiscount();
         $data['invoiceDiscountAmount'] = $this->receiving_lib->getInvoiceDiscountAmount();
 
-        if ($this->request->getPost('amount_tendered') !== null) {
+        if ($this->request->getPost('amount_tendered') != null) {
             $data['amount_tendered'] = parse_decimals($this->request->getPost('amount_tendered'));
             $data['amount_change']   = to_currency($data['amount_tendered'] - $data['total_with_tax']);
         }
 
-        $employeeId       = $this->employee->get_logged_in_employee_info()->person_id;
-        $employeeInfo     = $this->employee->get_info($employeeId);
+        $employeeId      = $this->employee->get_logged_in_employee_info()->person_id;
+        $employeeInfo    = $this->employee->get_info($employeeId);
         $data['employee'] = $employeeInfo->first_name . ' ' . $employeeInfo->last_name;
 
         $supplierId = $this->receiving_lib->get_supplier();
-        if ($supplierId !== -1) {
-            $supplierInfo             = $this->supplier->get_info($supplierId);
+        if ($supplierId != -1) {
+            $supplierInfo            = $this->supplier->get_info($supplierId);
             $data['supplier']         = $supplierInfo->company_name;    // TODO: duplicated code
             $data['first_name']       = $supplierInfo->first_name;
             $data['last_name']        = $supplierInfo->last_name;
@@ -718,7 +714,7 @@ class Receivings extends Secure_Controller
             return $this->_reload(['error' => lang('Receivings.location_not_allowed')]);
         }
 
-        if ($this->receiving_lib->get_stock_source() !== $this->receiving_lib->get_stock_destination()) {
+        if ($this->receiving_lib->get_stock_source() != $this->receiving_lib->get_stock_destination()) {
             $unavailable = $this->unavailableRequisitionItem();
 
             if ($unavailable !== null) {
@@ -783,11 +779,9 @@ class Receivings extends Secure_Controller
     /**
      * Gets the receipt for a receiving. Used in app/Views/receivings/form.php
      *
-     * @noinspection PhpUnused
-     *
-     * @param mixed $receiving_id
-     *
      * @return string
+     *
+     * @noinspection PhpUnused
      */
     public function getReceipt($receiving_id): ResponseInterface|string
     {
@@ -840,8 +834,8 @@ class Receivings extends Secure_Controller
         $data['employee'] = $employeeInfo->first_name . ' ' . $employeeInfo->last_name;
 
         $supplierId = $this->receiving_lib->get_supplier();    // TODO: Duplicated code
-        if ($supplierId !== -1) {
-            $supplierInfo             = $this->supplier->get_info($supplierId);
+        if ($supplierId != -1) {
+            $supplierInfo            = $this->supplier->get_info($supplierId);
             $data['supplier']         = $supplierInfo->company_name;
             $data['first_name']       = $supplierInfo->first_name;
             $data['last_name']        = $supplierInfo->last_name;
@@ -1018,21 +1012,21 @@ class Receivings extends Secure_Controller
             }
         }
 
-        $data['total']                 = $this->receiving_lib->get_total();
-        $data['tax_total']             = $this->receiving_lib->get_tax_total();
-        $data['total_with_tax']        = $this->receiving_lib->get_total_with_tax();
-        $data['return_origin']         = $this->receiving_lib->get_return_origin();
-        $data['order_source']          = $this->orderSourceLabel();
-        $data['items_module_allowed']  = $this->employee->has_grant('items', $this->employee->get_logged_in_employee_info()->person_id);
-        $data['comment']               = $this->receiving_lib->get_comment();
-        $data['reference']             = $this->receiving_lib->get_reference();
-        $data['payment_options']       = $this->receiving->get_payment_options();
-        $data['accounting_enabled']    = (new AccountingSettings())->isEnabled();
-        $data['invoice_date']          = $this->receiving_lib->getInvoiceDate();
-        $data['payment_terms']         = $this->receiving_lib->getPaymentTerms();
-        $data['due_date_label']        = $this->registerDueDateLabel();
+        $data['total']                = $this->receiving_lib->get_total();
+        $data['tax_total']            = $this->receiving_lib->get_tax_total();
+        $data['total_with_tax']       = $this->receiving_lib->get_total_with_tax();
+        $data['return_origin']        = $this->receiving_lib->get_return_origin();
+        $data['order_source']         = $this->orderSourceLabel();
+        $data['items_module_allowed'] = $this->employee->has_grant('items', $this->employee->get_logged_in_employee_info()->person_id);
+        $data['comment']              = $this->receiving_lib->get_comment();
+        $data['reference']            = $this->receiving_lib->get_reference();
+        $data['payment_options']      = $this->receiving->get_payment_options();
+        $data['accounting_enabled']   = (new AccountingSettings())->isEnabled();
+        $data['invoice_date']         = $this->receiving_lib->getInvoiceDate();
+        $data['payment_terms']        = $this->receiving_lib->getPaymentTerms();
+        $data['due_date_label']       = $this->registerDueDateLabel();
         $data['can_type_invoice_date'] = $this->mayTypeInvoiceDate();
-        $data['today']                 = date('Y-m-d');
+        $data['today']                = date('Y-m-d');
 
         $data['invoiceDiscount']       = $this->receiving_lib->getInvoiceDiscount();
         $data['invoiceDiscountAmount'] = $this->receiving_lib->getInvoiceDiscountAmount();
@@ -1045,7 +1039,7 @@ class Receivings extends Secure_Controller
 
         $supplier_id = $this->receiving_lib->get_supplier();
 
-        if ($supplier_id !== -1) {    // TODO: Duplicated Code... replace -1 with a constant
+        if ($supplier_id != -1) {    // TODO: Duplicated Code... replace -1 with a constant
             $supplier_info            = $this->supplier->get_info($supplier_id);
             $data['supplier']         = $supplier_info->company_name;
             $data['first_name']       = $supplier_info->first_name;
@@ -1094,7 +1088,7 @@ class Receivings extends Secure_Controller
             'supplier_id'    => $this->request->getPost('supplier_id') ? $this->request->getPost('supplier_id', FILTER_SANITIZE_NUMBER_INT) : null,
             'employee_id'    => $employee_id,
             'comment'        => $this->request->getPost('comment', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'reference'      => $this->request->getPost('reference') !== '' ? $this->request->getPost('reference', FILTER_SANITIZE_FULL_SPECIAL_CHARS) : null,
+            'reference'      => $this->request->getPost('reference') != '' ? $this->request->getPost('reference', FILTER_SANITIZE_FULL_SPECIAL_CHARS) : null,
             'changed_by'     => (int) $current_employee_id,
         ];
 
@@ -1375,7 +1369,7 @@ class Receivings extends Secure_Controller
         $payments = [];
         $number   = (int) $this->request->getPost('number_of_payments', FILTER_SANITIZE_NUMBER_INT);
 
-        for ($i = 0; $i < $number; $i++) {
+        for ($i = 0; $i < $number; ++$i) {
             $payments[] = [
                 'payment_id'     => (int) $this->request->getPost("payment_id_{$i}", FILTER_SANITIZE_NUMBER_INT),
                 'payment_type'   => $this->request->getPost("payment_type_{$i}", FILTER_SANITIZE_FULL_SPECIAL_CHARS),

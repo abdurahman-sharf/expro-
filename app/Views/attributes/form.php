@@ -2,18 +2,18 @@
 /**
  * @var string $definition_id
  * @var object $definition_info
- * @var array  $definition_group
- * @var array  $definition_flags
- * @var array  $selected_definition_flags
+ * @var array $definition_group
+ * @var array $definition_flags
+ * @var array $selected_definition_flags
  * @var string $controller_name
- * @var array  $definition_values
+ * @var array $definition_values
  */
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 <ul id="error_message_box" class="error_message_box"></ul>
 
-<?= form_open("attributes/saveDefinition/{$definition_id}", ['id' => 'attribute_form', 'class' => 'app-form']) ?>
+<?= form_open("attributes/saveDefinition/$definition_id", ['id' => 'attribute_form', 'class' => 'app-form']) ?>
     <fieldset id="attribute_basic_info" class="form-grid">
 
         <div class="field">
@@ -23,7 +23,7 @@
                     'name'  => 'definition_name',
                     'id'    => 'definition_name',
                     'class' => 'form-control form-control-sm',
-                    'value' => $definition_info->definition_name,
+                    'value' => $definition_info->definition_name
                 ]) ?>
             </div>
         </div>
@@ -31,7 +31,7 @@
         <div class="field">
             <?= form_label(lang('Attributes.definition_type'), 'definition_type', ['class' => 'form-label text-danger required']) ?>
             <div class="field-control">
-                <?= form_dropdown('definition_type', DEFINITION_TYPES, array_search($definition_info->definition_type, DEFINITION_TYPES, true), 'id="definition_type" class="form-select"') ?>
+                <?= form_dropdown('definition_type', DEFINITION_TYPES, array_search($definition_info->definition_type, DEFINITION_TYPES), 'id="definition_type" class="form-select"') ?>
             </div>
         </div>
 
@@ -42,7 +42,7 @@
                     'definition_group',
                     $definition_group,
                     $definition_info->definition_fk,
-                    'id="definition_group" class="form-select" ' . (empty($definition_group) ? 'disabled="disabled"' : ''),
+                    'id="definition_group" class="form-select" ' . (empty($definition_group) ? 'disabled="disabled"' : '')
                 ) ?>
             </div>
         </div>
@@ -56,7 +56,7 @@
                     'data-none-selected-text'   => lang('Common.none_selected_text'),
                     'data-selected-text-format' => 'count > 1',
                     'data-style'                => 'btn-outline-secondary btn-sm',
-                    'data-width'                => '100%',
+                    'data-width'                => '100%'
                 ]) ?>
             </div>
         </div>
@@ -68,7 +68,7 @@
                     'name'  => 'definition_unit',
                     'value' => $definition_info->definition_unit,
                     'class' => 'form-control form-control-sm',
-                    'id'    => 'definition_unit',
+                    'id'    => 'definition_unit'
                 ]) ?>
             </div>
         </div>
@@ -150,7 +150,7 @@
             if (is_new) {
                 values.splice($.inArray(value, values), 1);
             } else {
-                $.post('<?= esc("{$controller_name}/DeleteDropdownAttributeValue/") ?>', {
+                $.post('<?= esc("$controller_name/DeleteDropdownAttributeValue/") ?>', {
                     definition_id: definition_id,
                     attribute_value: value
                 });
@@ -175,7 +175,7 @@
                 if (is_new) {
                     values.push(value);
                 } else {
-                    $.post('<?= 'attributes/saveAttributeValue/' ?>', {
+                    $.post('<?= "attributes/saveAttributeValue/" ?>', {
                         definition_id: definition_id,
                         attribute_value: value
                     });

@@ -1,7 +1,7 @@
 <?php
 /**
  * @var object $person_info
- * @var array  $config
+ * @var array $config
  */
 ?>
 
@@ -13,7 +13,7 @@
                 'name'  => 'first_name',
                 'id'    => 'first_name',
                 'class' => 'form-control form-control-sm',
-                'value' => $person_info->first_name,
+                'value' => $person_info->first_name
             ]) ?>
         </div>
     </div>
@@ -25,13 +25,13 @@
                 'name'  => 'last_name',
                 'id'    => 'last_name',
                 'class' => 'form-control form-control-sm',
-                'value' => $person_info->last_name,
+                'value' => $person_info->last_name
             ]) ?>
         </div>
     </div>
 
     <div class="field span-all">
-        <span id="gender_label" class="form-label<?= ! empty($basic_version) ? ' text-danger required' : '' ?>"><?= lang('Common.gender') ?></span>
+        <span id="gender_label" class="form-label<?= !empty($basic_version) ? ' text-danger required' : '' ?>"><?= lang('Common.gender') ?></span>
         <div class="field-control" role="radiogroup" aria-labelledby="gender_label">
             <label class="choice">
                 <?= form_radio([
@@ -39,7 +39,7 @@
                     'type'    => 'radio',
                     'id'      => 'gender_male',
                     'value'   => 1,
-                    'checked' => $person_info->gender === '1',
+                    'checked' => $person_info->gender === '1'
                 ]) ?> <?= lang('Common.gender_male') ?>
             </label>
             <label class="choice">
@@ -48,7 +48,7 @@
                     'type'    => 'radio',
                     'id'      => 'gender_female',
                     'value'   => 0,
-                    'checked' => $person_info->gender === '0',
+                    'checked' => $person_info->gender === '0'
                 ]) ?> <?= lang('Common.gender_female') ?>
             </label>
         </div>
@@ -66,7 +66,7 @@
                     'name'  => 'email',
                     'id'    => 'email',
                     'class' => 'form-control form-control-sm',
-                    'value' => $person_info->email,
+                    'value' => $person_info->email
                 ]) ?>
             </div>
         </div>
@@ -79,7 +79,7 @@
                     'name'  => 'phone_number',
                     'id'    => 'phone_number',
                     'class' => 'form-control form-control-sm',
-                    'value' => $person_info->phone_number,
+                    'value' => $person_info->phone_number
                 ]) ?>
             </div>
         </div>
@@ -95,7 +95,7 @@
                 'name'  => 'address_1',
                 'id'    => 'address_1',
                 'class' => 'form-control form-control-sm',
-                'value' => $person_info->address_1,
+                'value' => $person_info->address_1
             ]) ?>
         </div>
 
@@ -105,7 +105,7 @@
                 'name'  => 'address_2',
                 'id'    => 'address_2',
                 'class' => 'form-control form-control-sm',
-                'value' => $person_info->address_2,
+                'value' => $person_info->address_2
             ]) ?>
         </div>
 
@@ -115,7 +115,7 @@
                 'name'  => 'zip',
                 'id'    => 'postcode',
                 'class' => 'form-control form-control-sm',
-                'value' => $person_info->zip,
+                'value' => $person_info->zip
             ]) ?>
         </div>
 
@@ -125,7 +125,7 @@
                 'name'  => 'city',
                 'id'    => 'city',
                 'class' => 'form-control form-control-sm',
-                'value' => $person_info->city,
+                'value' => $person_info->city
             ]) ?>
         </div>
 
@@ -135,7 +135,7 @@
                 'name'  => 'state',
                 'id'    => 'state',
                 'class' => 'form-control form-control-sm',
-                'value' => $person_info->state,
+                'value' => $person_info->state
             ]) ?>
         </div>
 
@@ -145,7 +145,7 @@
                 'name'  => 'country',
                 'id'    => 'country',
                 'class' => 'form-control form-control-sm',
-                'value' => $person_info->country,
+                'value' => $person_info->country
             ]) ?>
         </div>
     </div>

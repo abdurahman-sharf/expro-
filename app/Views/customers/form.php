@@ -1,44 +1,45 @@
 <?php
 /**
- * @var string                                                                                                       $controller_name
- * @var object                                                                                                       $person_info
- * @var array                                                                                                        $packages
- * @var int                                                                                                          $selected_package
- * @var bool                                                                                                         $use_destination_based_tax
- * @var string                                                                                                       $sales_tax_code_label
- * @var string                                                                                                       $employee
- * @var string|null                                                                                                  $automaticAccountNumber
- * @var array                                                                                                        $config
- * @var bool                                                                                                         $opening_offered
- * @var string                                                                                                       $opening_today
- * @var array<int, string>|null                                                                                      $priceListOptions
- * @var int                                                                                                          $priceListSelected
- * @var bool                                                                                                         $canAssignPriceList
- * @var bool                                                                                                         $creditLimitShown
- * @var bool                                                                                                         $creditPeriodShown
- * @var bool                                                                                                         $creditEditable
- * @var string                                                                                                       $creditLimit
- * @var int                                                                                                          $creditDays
- * @var array<int, string>                                                                                           $classificationOptions
- * @var array<string, string>                                                                                        $statusOptions
- * @var array<string, string>                                                                                        $typeOptions
- * @var array<string, string>                                                                                        $billingOptions
- * @var array<int, string>                                                                                           $employeeOptions
- * @var array<string, mixed>                                                                                         $masterData
+ * @var string $controller_name
+ * @var object $person_info
+ * @var array $packages
+ * @var int $selected_package
+ * @var bool $use_destination_based_tax
+ * @var string $sales_tax_code_label
+ * @var string $employee
+ * @var string|null $automaticAccountNumber
+ * @var array $config
+ * @var bool $opening_offered
+ * @var string $opening_today
+ * @var array<int, string>|null $priceListOptions
+ * @var int $priceListSelected
+ * @var bool $canAssignPriceList
+ * @var bool $creditLimitShown
+ * @var bool $creditPeriodShown
+ * @var bool $creditEditable
+ * @var string $creditLimit
+ * @var int $creditDays
+ * @var array<int, string> $classificationOptions
+ * @var array<string, string> $statusOptions
+ * @var array<string, string> $typeOptions
+ * @var array<string, string> $billingOptions
+ * @var array<int, string> $employeeOptions
+ * @var array<string, mixed> $masterData
  * @var array{types: list<array{code: string, label: string}>, party: array<string, string>, vat_invalid: bool}|null $eInvoice
- * @var list<object>                                                                                                 $contacts
- * @var array{enabled: bool, account: object|null, customerId: int}|null                                             $portal
+ * @var list<object> $contacts
+ * @var array{enabled: bool, account: object|null, customerId: int}|null $portal
  */
-$masterData ??= null;
-$eInvoice ??= null;
-$priceListOptions ??= null;
-$creditLimitShown ??= false;
+
+$masterData        ??= null;
+$eInvoice          ??= null;
+$priceListOptions  ??= null;
+$creditLimitShown  ??= false;
 $creditPeriodShown ??= false;
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 
-<?= form_open("{$controller_name}/save/{$person_info->person_id}", ['id' => 'customer_form', 'class' => 'app-form']) ?>
+<?= form_open("$controller_name/save/$person_info->person_id", ['id' => 'customer_form', 'class' => 'app-form']) ?>
 
     <ul class="nav nav-tabs nav-justified" role="tablist">
         <li class="nav-item" role="presentation">
@@ -47,17 +48,17 @@ $creditPeriodShown ??= false;
         <li class="nav-item" role="presentation">
             <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="customer_contacts" href="#customer_contacts"><?= lang('Customers.contacts') ?></a>
         </li>
-        <?php if (! empty($portal)) { ?>
+        <?php if (!empty($portal)) { ?>
             <li class="nav-item" role="presentation">
                 <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="customer_portal" href="#customer_portal"><?= lang('Portal.manage_tab') ?></a>
             </li>
         <?php } ?>
-        <?php if (! empty($stats)) { ?>
+        <?php if (!empty($stats)) { ?>
             <li class="nav-item" role="presentation">
                 <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="customer_stats_info" href="#customer_stats_info"><?= lang('Customers.stats_info') ?></a>
             </li>
         <?php } ?>
-        <?php if (! empty($mailchimp_info) && ! empty($mailchimp_activity)) { ?>
+        <?php if (!empty($mailchimp_info) && !empty($mailchimp_activity)) { ?>
             <li class="nav-item" role="presentation">
                 <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="customer_mailchimp_info" href="#customer_mailchimp_info"><?= lang('Customers.mailchimp_info') ?></a>
             </li>
@@ -72,7 +73,7 @@ $creditPeriodShown ??= false;
                 <div class="field field-check">
                     <?= form_label(lang('Customers.consent'), 'consent', ['class' => 'form-label text-danger required']) ?>
                     <div class="field-control">
-                        <?= form_checkbox('consent', 1, $person_info->consent === '' ? ! $config['enforce_privacy'] : (bool) $person_info->consent, 'id="consent"') ?>
+                        <?= form_checkbox('consent', 1, $person_info->consent == '' ? !$config['enforce_privacy'] : (bool)$person_info->consent, 'id="consent"') ?>
                     </div>
                 </div>
 
@@ -87,7 +88,7 @@ $creditPeriodShown ??= false;
                                 'name'  => 'company_name',
                                 'id'    => 'customer_company_name',
                                 'class' => 'form-control form-control-sm',
-                                'value' => $person_info->company_name,
+                                'value' => $person_info->company_name
                             ]) ?>
                         </div>
 
@@ -97,7 +98,7 @@ $creditPeriodShown ??= false;
                                 'name'  => 'account_number',
                                 'id'    => 'account_number',
                                 'class' => 'form-control form-control-sm',
-                                'value' => $person_info->account_number,
+                                'value' => $person_info->account_number
                             ]) ?>
                             <?php if (! empty($automaticAccountNumber)) { ?>
                                 <div class="form-text"><?= lang('Customers.account_number_automatic', [esc($automaticAccountNumber)]) ?></div>
@@ -110,7 +111,7 @@ $creditPeriodShown ??= false;
                                 'name'  => 'tax_id',
                                 'id'    => 'tax_id',
                                 'class' => 'form-control form-control-sm',
-                                'value' => $person_info->tax_id,
+                                'value' => $person_info->tax_id
                             ]) ?>
                         </div>
 
@@ -121,7 +122,7 @@ $creditPeriodShown ??= false;
                                     'name'  => 'sales_tax_code_name',
                                     'id'    => 'sales_tax_code_name',
                                     'class' => 'form-control form-control-sm',
-                                    'value' => $sales_tax_code_label,
+                                    'value' => $sales_tax_code_label
                                 ]) ?>
                                 <?= form_hidden('sales_tax_code_id', $person_info->sales_tax_code_id) ?>
                             </div>
@@ -140,7 +141,7 @@ $creditPeriodShown ??= false;
                                     'id'       => 'available_points',
                                     'class'    => 'form-control form-control-sm',
                                     'value'    => $person_info->points,
-                                    'disabled' => '',
+                                    'disabled' => ''
                                 ]) ?>
                             </div>
                         <?php endif; ?>
@@ -154,7 +155,7 @@ $creditPeriodShown ??= false;
                                         'type'    => 'radio',
                                         'id'      => 'discount_type_percent',
                                         'value'   => 0,
-                                        'checked' => $person_info->discount_type === PERCENT,
+                                        'checked' => $person_info->discount_type == PERCENT
                                     ]) ?> <?= lang('Customers.discount_percent') ?>
                                 </label>
                                 <label class="choice">
@@ -163,7 +164,7 @@ $creditPeriodShown ??= false;
                                         'type'    => 'radio',
                                         'id'      => 'discount_type_fixed',
                                         'value'   => 1,
-                                        'checked' => $person_info->discount_type === FIXED,
+                                        'checked' => $person_info->discount_type == FIXED
                                     ]) ?> <?= lang('Customers.discount_fixed') ?>
                                 </label>
                             </div>
@@ -176,14 +177,14 @@ $creditPeriodShown ??= false;
                                 'id'      => 'discount',
                                 'class'   => 'form-control form-control-sm',
                                 'onClick' => 'this.select();',
-                                'value'   => $person_info->discount_type === FIXED ? to_currency_no_money($person_info->discount) : to_decimals($person_info->discount),
+                                'value'   => $person_info->discount_type === FIXED ? to_currency_no_money($person_info->discount) : to_decimals($person_info->discount)
                             ]) ?>
                         </div>
 
                         <div class="field field-check">
                             <?= form_label(lang('Customers.taxable'), 'taxable', ['class' => 'form-label']) ?>
                             <div class="field-control">
-                                <?= form_checkbox('taxable', 1, $person_info->taxable === 1, 'id="taxable"') ?>
+                                <?= form_checkbox('taxable', 1, $person_info->taxable == 1, 'id="taxable"') ?>
                             </div>
                         </div>
                     </div>
@@ -368,7 +369,7 @@ $creditPeriodShown ??= false;
                                 'id'       => 'datetime',
                                 'class'    => 'form-control form-control-sm',
                                 'value'    => to_datetime(strtotime($person_info->date)),
-                                'readonly' => 'true',
+                                'readonly' => 'true'
                             ]) ?>
                         </div>
                     </div>
@@ -380,7 +381,7 @@ $creditPeriodShown ??= false;
                             'id'       => 'employee',
                             'class'    => 'form-control form-control-sm',
                             'value'    => $employee,
-                            'readonly' => 'true',
+                            'readonly' => 'true'
                         ]) ?>
                     </div>
                 </div>
@@ -395,20 +396,20 @@ $creditPeriodShown ??= false;
             </fieldset>
         </div>
 
-        <?php if (! empty($portal)) { ?>
+        <?php if (!empty($portal)) { ?>
             <div class="tab-pane fade" id="customer_portal" role="tabpanel">
                 <?= view('customer_portal/panel', $portal) ?>
             </div>
         <?php } ?>
 
-        <?php if (! empty($stats)) { ?>
+        <?php if (!empty($stats)) { ?>
             <div class="tab-pane" id="customer_stats_info" role="tabpanel">
                 <fieldset class="form-grid">
                     <div class="field">
                         <?= form_label(lang('Customers.total'), 'total', ['class' => 'form-label']) ?>
                         <div class="field-control">
                             <div class="input-group input-group-sm">
-                                <?php if (! is_right_side_currency_symbol()): ?>
+                                <?php if (!is_right_side_currency_symbol()): ?>
                                     <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                                 <?php endif; ?>
                                 <?= form_input([
@@ -416,7 +417,7 @@ $creditPeriodShown ??= false;
                                     'id'       => 'total',
                                     'class'    => 'form-control form-control-sm',
                                     'value'    => to_currency_no_money($stats->total),
-                                    'disabled' => '',
+                                    'disabled' => ''
                                 ]) ?>
                                 <?php if (is_right_side_currency_symbol()): ?>
                                     <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -429,7 +430,7 @@ $creditPeriodShown ??= false;
                         <?= form_label(lang('Customers.max'), 'max', ['class' => 'form-label']) ?>
                         <div class="field-control">
                             <div class="input-group input-group-sm">
-                                <?php if (! is_right_side_currency_symbol()): ?>
+                                <?php if (!is_right_side_currency_symbol()): ?>
                                     <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                                 <?php endif; ?>
                                 <?= form_input([
@@ -437,7 +438,7 @@ $creditPeriodShown ??= false;
                                     'id'       => 'max',
                                     'class'    => 'form-control form-control-sm',
                                     'value'    => to_currency_no_money($stats->max),
-                                    'disabled' => '',
+                                    'disabled' => ''
                                 ]) ?>
                                 <?php if (is_right_side_currency_symbol()): ?>
                                     <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -450,7 +451,7 @@ $creditPeriodShown ??= false;
                         <?= form_label(lang('Customers.min'), 'min', ['class' => 'form-label']) ?>
                         <div class="field-control">
                             <div class="input-group input-group-sm">
-                                <?php if (! is_right_side_currency_symbol()): ?>
+                                <?php if (!is_right_side_currency_symbol()): ?>
                                     <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                                 <?php endif; ?>
                                 <?= form_input([
@@ -458,7 +459,7 @@ $creditPeriodShown ??= false;
                                     'id'       => 'min',
                                     'class'    => 'form-control form-control-sm',
                                     'value'    => to_currency_no_money($stats->min),
-                                    'disabled' => '',
+                                    'disabled' => ''
                                 ]) ?>
                                 <?php if (is_right_side_currency_symbol()): ?>
                                     <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -471,7 +472,7 @@ $creditPeriodShown ??= false;
                         <?= form_label(lang('Customers.average'), 'average', ['class' => 'form-label']) ?>
                         <div class="field-control">
                             <div class="input-group input-group-sm">
-                                <?php if (! is_right_side_currency_symbol()): ?>
+                                <?php if (!is_right_side_currency_symbol()): ?>
                                     <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                                 <?php endif; ?>
                                 <?= form_input([
@@ -479,7 +480,7 @@ $creditPeriodShown ??= false;
                                     'id'       => 'average',
                                     'class'    => 'form-control form-control-sm',
                                     'value'    => to_currency_no_money($stats->average),
-                                    'disabled' => '',
+                                    'disabled' => ''
                                 ]) ?>
                                 <?php if (is_right_side_currency_symbol()): ?>
                                     <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -498,7 +499,7 @@ $creditPeriodShown ??= false;
                                     'id'       => 'quantity',
                                     'class'    => 'form-control form-control-sm',
                                     'value'    => to_quantity_decimals($stats->quantity),
-                                    'disabled' => '',
+                                    'disabled' => ''
                                 ]) ?>
                             </div>
                         </div>
@@ -513,7 +514,7 @@ $creditPeriodShown ??= false;
                                     'id'       => 'avg_discount',
                                     'class'    => 'form-control form-control-sm',
                                     'value'    => to_decimals($stats->avg_discount),
-                                    'disabled' => '',
+                                    'disabled' => ''
                                 ]) ?>
                                 <span class="input-group-text"><b>%</b></span>
                             </div>
@@ -523,7 +524,7 @@ $creditPeriodShown ??= false;
             </div>
         <?php } ?>
 
-        <?php if (! empty($mailchimp_info) && ! empty($mailchimp_activity)) { ?>
+        <?php if (!empty($mailchimp_info) && !empty($mailchimp_activity)) { ?>
             <div class="tab-pane" id="customer_mailchimp_info" role="tabpanel">
                 <fieldset class="form-grid">
                     <div class="field">
@@ -535,10 +536,10 @@ $creditPeriodShown ??= false;
                                     'subscribed'   => 'subscribed',
                                     'unsubscribed' => 'unsubscribed',
                                     'cleaned'      => 'cleaned',
-                                    'pending'      => 'pending',
+                                    'pending'      => 'pending'
                                 ],
                                 $mailchimp_info['status'],
-                                ['id' => 'mailchimp_status', 'class' => 'form-select form-select-sm'],
+                                ['id' => 'mailchimp_status', 'class' => 'form-select form-select-sm']
                             ) ?>
                         </div>
                     </div>
@@ -546,7 +547,7 @@ $creditPeriodShown ??= false;
                     <div class="field">
                         <?= form_label(lang('Customers.mailchimp_vip'), 'mailchimp_vip', ['class' => 'form-label']) ?>
                         <div class="field-control">
-                            <?= form_checkbox('mailchimp_vip', 1, $mailchimp_info['vip'] === 1) ?>
+                            <?= form_checkbox('mailchimp_vip', 1, $mailchimp_info['vip'] == 1) ?>
                         </div>
                     </div>
 
@@ -557,7 +558,7 @@ $creditPeriodShown ??= false;
                                 'name'     => 'mailchimp_member_rating',
                                 'class'    => 'form-control form-control-sm',
                                 'value'    => $mailchimp_info['member_rating'],
-                                'disabled' => '',
+                                'disabled' => ''
                             ]) ?>
                         </div>
                     </div>
@@ -569,7 +570,7 @@ $creditPeriodShown ??= false;
                                 'name'     => 'mailchimp_activity_total',
                                 'class'    => 'form-control form-control-sm',
                                 'value'    => $mailchimp_activity['total'],
-                                'disabled' => '',
+                                'disabled' => ''
                             ]) ?>
                         </div>
                     </div>
@@ -581,7 +582,7 @@ $creditPeriodShown ??= false;
                                 'name'     => 'mailchimp_activity_lastopen',
                                 'class'    => 'form-control form-control-sm',
                                 'value'    => $mailchimp_activity['lastopen'],
-                                'disabled' => '',
+                                'disabled' => ''
                             ]) ?>
                         </div>
                     </div>
@@ -593,7 +594,7 @@ $creditPeriodShown ??= false;
                                 'name'     => 'mailchimp_activity_open',
                                 'class'    => 'form-control form-control-sm',
                                 'value'    => $mailchimp_activity['open'],
-                                'disabled' => '',
+                                'disabled' => ''
                             ]) ?>
                         </div>
                     </div>
@@ -605,7 +606,7 @@ $creditPeriodShown ??= false;
                                 'name'     => 'mailchimp_activity_click',
                                 'class'    => 'form-control form-control-sm',
                                 'value'    => $mailchimp_activity['click'],
-                                'disabled' => '',
+                                'disabled' => ''
                             ]) ?>
                         </div>
                     </div>
@@ -617,7 +618,7 @@ $creditPeriodShown ??= false;
                                 'name'     => 'mailchimp_activity_unopen',
                                 'class'    => 'form-control form-control-sm',
                                 'value'    => $mailchimp_activity['unopen'],
-                                'disabled' => '',
+                                'disabled' => ''
                             ]) ?>
                         </div>
                     </div>
@@ -629,7 +630,7 @@ $creditPeriodShown ??= false;
                                 'name'     => 'mailchimp_email_client',
                                 'class'    => 'form-control form-control-sm',
                                 'value'    => $mailchimp_info['email_client'],
-                                'disabled' => '',
+                                'disabled' => ''
                             ]) ?>
                         </div>
                     </div>
@@ -691,7 +692,7 @@ $creditPeriodShown ??= false;
                 consent: 'required',
                 email: {
                     remote: {
-                        url: "<?= "{$controller_name}/checkEmail" ?>",
+                        url: "<?= "$controller_name/checkEmail" ?>",
                         type: 'POST',
                         data: {
                             'person_id': "<?= $person_info->person_id ?>"
@@ -701,7 +702,7 @@ $creditPeriodShown ??= false;
                 },
                 account_number: {
                     remote: {
-                        url: "<?= "{$controller_name}/checkAccountNumber" ?>",
+                        url: "<?= "$controller_name/checkAccountNumber" ?>",
                         type: 'POST',
                         data: {
                             'person_id': "<?= $person_info->person_id ?>"

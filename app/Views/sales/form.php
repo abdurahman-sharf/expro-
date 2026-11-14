@@ -1,41 +1,39 @@
 <?php
 /**
- * @var array                                                  $sale_info
- * @var bool                                                   $balance_due
- * @var array                                                  $new_payment_options
- * @var string                                                 $payment_type_new
- * @var float                                                  $payment_amount_new
- * @var array                                                  $payments
- * @var array                                                  $payment_amounts
- * @var array                                                  $payment_options
- * @var array                                                  $refund_options
- * @var string                                                 $selected_customer_name
- * @var int                                                    $selected_customer_id
- * @var string                                                 $selected_employee_name
- * @var int                                                    $selected_employee_id
- * @var string                                                 $controller_name
- * @var array                                                  $config
- * @var list<object>                                           $journals
- * @var bool                                                   $accounting_on
- * @var bool                                                   $issued_lock
- * @var InvoiceFigures|null                                    $receivable
- * @var string|null                                            $credit
- * @var list<object>|null                                      $applications
- * @var array<int, string>                                     $advance_numbers
- * @var string|null                                            $credit_note_help
- * @var array<string, string>                                  $payment_statuses
- * @var array<int, string>                                     $treasury_options
- * @var array<int, string>                                     $new_treasury_options
- * @var array<int, string>                                     $paymentNumbers
- * @var list<int>                                              $receiptIds
- * @var string|null                                            $creditNoteNumber
- * @var string|null                                            $refundInvoiceNumber
+ * @var array $sale_info
+ * @var bool $balance_due
+ * @var array $new_payment_options
+ * @var string $payment_type_new
+ * @var float $payment_amount_new
+ * @var array $payments
+ * @var array $payment_amounts
+ * @var array $payment_options
+ * @var array $refund_options
+ * @var string $selected_customer_name
+ * @var int $selected_customer_id
+ * @var string $selected_employee_name
+ * @var int $selected_employee_id
+ * @var string $controller_name
+ * @var array $config
+ * @var list<object> $journals
+ * @var bool $accounting_on
+ * @var bool $issued_lock
+ * @var App\Libraries\Accounting\InvoiceFigures|null $receivable
+ * @var string|null $credit
+ * @var list<object>|null $applications
+ * @var array<int, string> $advance_numbers
+ * @var string|null $credit_note_help
+ * @var array<string, string> $payment_statuses
+ * @var array<int, string> $treasury_options
+ * @var array<int, string> $new_treasury_options
+ * @var array<int, string> $paymentNumbers
+ * @var list<int> $receiptIds
+ * @var string|null $creditNoteNumber
+ * @var string|null $refundInvoiceNumber
  * @var array{date: string, terms: int|null, due: string}|null $invoice_timing
  */
 
 use App\Libraries\Accounting\CreditSource;
-use App\Libraries\Accounting\InvoiceFigures;
-
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
@@ -46,7 +44,7 @@ use App\Libraries\Accounting\InvoiceFigures;
 
         <div class="row mb-3">
             <?= form_label(lang('Sales.receipt_number'), 'receipt_number', ['class' => 'col-form-label col-3']) ?>
-            <?= anchor('sales/receipt/' . $sale_info['sale_id'], 'POS ' . $sale_info['sale_id'], ['target' => '_blank', 'class' => 'col-form-label col-8', 'style' => 'text-align: left']) ?>
+            <?= anchor('sales/receipt/' . $sale_info['sale_id'], 'POS ' . $sale_info['sale_id'], ['target' => '_blank', 'class' => 'col-form-label col-8', "style" => "text-align: left"]) ?>
         </div>
 
         <?php if (! empty($creditNoteNumber)): ?>
@@ -98,7 +96,7 @@ use App\Libraries\Accounting\InvoiceFigures;
             <div class="row mb-3">
                 <?= form_label(lang('Sales.invoice_number'), 'invoice_number', ['class' => 'col-form-label col-3']) ?>
                 <div class="col-8">
-                    <?php if (! empty($sale_info['invoice_number']) && isset($sale_info['customer_id']) && ! empty($sale_info['email'])): ?>
+                    <?php if (!empty($sale_info["invoice_number"]) && isset($sale_info['customer_id']) && !empty($sale_info['email'])): ?>
                         <?= form_input(['name' => 'invoice_number', 'size' => 10, 'value' => $sale_info['invoice_number'], 'id' => 'invoice_number', 'class' => 'form-control form-control-sm']) ?>
                         <a id="send_invoice" href="javascript:void(0);"><?= lang('Sales.send_invoice') ?></a>
                     <?php else: ?>
@@ -116,10 +114,10 @@ use App\Libraries\Accounting\InvoiceFigures;
                 </div>
                 <div class="col-4">
                     <div class="input-group input-group-sm">
-                        <?php if (! is_right_side_currency_symbol()): ?>
+                        <?php if (!is_right_side_currency_symbol()): ?>
                             <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                         <?php endif; ?>
-                        <?= form_input(['name' => 'payment_amount_new', 'value' => $payment_amount_new, 'id' => 'payment_amount_new', 'class' => 'form-control form-control-sm', 'aria-label' => lang('Sales.amount_tendered')]) // TODO: potentially we need to add type to be float/decimal/numeric to reduce improper data entry?>
+                        <?= form_input(['name' => 'payment_amount_new', 'value' => $payment_amount_new, 'id' => 'payment_amount_new', 'class' => 'form-control form-control-sm', 'aria-label' => lang('Sales.amount_tendered')]) // TODO: potentially we need to add type to be float/decimal/numeric to reduce improper data entry ?>
                         <?php if (is_right_side_currency_symbol()): ?>
                             <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                         <?php endif; ?>
@@ -144,27 +142,26 @@ use App\Libraries\Accounting\InvoiceFigures;
 
         <?php
         $i = 0;
-
-foreach ($payments as $row) {
-    ?>
+        foreach ($payments as $row) {
+        ?>
             <div class="row mb-3">
-                <?= form_label(lang('Sales.payment') . (isset($paymentNumbers[(int) $row->payment_id]) ? ' ' . esc($paymentNumbers[(int) $row->payment_id]) : ''), "payment_types_{$i}", ['class' => 'col-form-label col-3']) ?>
+                <?= form_label(lang('Sales.payment') . (isset($paymentNumbers[(int) $row->payment_id]) ? ' ' . esc($paymentNumbers[(int) $row->payment_id]) : ''), "payment_types_$i", ['class' => 'col-form-label col-3']) ?>
                 <div class="col-4">
-                    <?php // No editing of Gift Card payments as it's a complex change?>
-                    <?= form_hidden("payment_id_{$i}", $row->payment_id) ?>
-                    <?= form_hidden("reference_code_{$i}", $row->reference_code ?? '') ?>
-                    <?php if (! empty(strstr($row->payment_type, lang('Sales.giftcard')))): ?>
-                        <?= form_input(['name' => "payment_type_{$i}", 'value' => $row->payment_type, 'id' => "payment_type_{$i}", 'class' => 'form-control form-control-sm', 'readonly' => 'true']) ?>
+                    <?php // No editing of Gift Card payments as it's a complex change ?>
+                    <?= form_hidden("payment_id_$i", $row->payment_id) ?>
+                    <?= form_hidden("reference_code_$i", $row->reference_code ?? '') ?>
+                    <?php if (!empty(strstr($row->payment_type, lang('Sales.giftcard')))): ?>
+                        <?= form_input(['name' => "payment_type_$i", 'value' => $row->payment_type, 'id' => "payment_type_$i", 'class' => 'form-control form-control-sm', 'readonly' => 'true']) ?>
                     <?php else: ?>
-                        <?= form_dropdown("payment_type_{$i}", $payment_options, $row->payment_type, ['id' => "payment_types_{$i}", 'class' => 'form-select']) ?>
+                        <?= form_dropdown("payment_type_$i", $payment_options, $row->payment_type, ['id' => "payment_types_$i", 'class' => 'form-select']) ?>
                     <?php endif; ?>
                 </div>
                 <div class="col-4">
                     <div class="input-group input-group-sm">
-                        <?php if (! is_right_side_currency_symbol()): ?>
+                        <?php if (!is_right_side_currency_symbol()): ?>
                             <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                         <?php endif; ?>
-                        <?= form_input(['name' => "payment_amount_{$i}", 'value' => to_currency_no_money($row->payment_amount), 'id' => "payment_amount_{$i}", 'class' => 'form-control form-control-sm', 'readonly' => 'true', 'aria-label' => lang('Sales.amount_tendered')])    // TODO: add type attribute?>
+                        <?= form_input(['name' => "payment_amount_$i", 'value' => to_currency_no_money($row->payment_amount), 'id' => "payment_amount_$i", 'class' => 'form-control form-control-sm', 'readonly' => 'true', 'aria-label' => lang('Sales.amount_tendered')])    // TODO: add type attribute ?>
                         <?php if (is_right_side_currency_symbol()): ?>
                             <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                         <?php endif; ?>
@@ -181,21 +178,21 @@ foreach ($payments as $row) {
             <?php endif; ?>
 
             <div class="row mb-3">
-                <?= form_label(lang('Sales.refund'), "refund_types_{$i}", ['class' => 'col-form-label col-3']) ?>
+                <?= form_label(lang('Sales.refund'), "refund_types_$i", ['class' => 'col-form-label col-3']) ?>
                 <div class="col-4">
-                    <?php // No editing of Gift Card payments as it's a complex change?>
-                    <?php if (! empty(strstr($row->payment_type, lang('Sales.giftcard')))): ?>
-                        <?= form_input(['name' => "refund_type_{$i}", 'value' => lang('Sales.cash'), 'id' => "refund_type_{$i}", 'class' => 'form-control form-control-sm', 'readonly' => 'true']) ?>
+                    <?php // No editing of Gift Card payments as it's a complex change ?>
+                    <?php if (!empty(strstr($row->payment_type, lang('Sales.giftcard')))): ?>
+                        <?= form_input(['name' => "refund_type_$i", 'value' => lang('Sales.cash'), 'id' => "refund_type_$i", 'class' => 'form-control form-control-sm', 'readonly' => 'true']) ?>
                     <?php else: ?>
-                        <?= form_dropdown("refund_type_{$i}", $refund_options, lang('Sales.cash'), ['id' => "refund_types_{$i}", 'class' => 'form-select']) ?>
+                        <?= form_dropdown("refund_type_$i", $refund_options, lang('Sales.cash'), ['id' => "refund_types_$i", 'class' => 'form-select']) ?>
                     <?php endif; ?>
                 </div>
                 <div class="col-4">
                     <div class="input-group input-group-sm">
-                        <?php if (! is_right_side_currency_symbol()): ?>
+                        <?php if (!is_right_side_currency_symbol()): ?>
                             <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                         <?php endif; ?>
-                        <?= form_input(['name' => "refund_amount_{$i}", 'value' => to_currency_no_money($row->cash_refund), 'id' => "refund_amount_{$i}", 'class' => 'form-control form-control-sm', 'readonly' => 'true', 'aria-label' => lang('Sales.refund')]) ?>
+                        <?= form_input(['name' => "refund_amount_$i", 'value' => to_currency_no_money($row->cash_refund), 'id' => "refund_amount_$i", 'class' => 'form-control form-control-sm', 'readonly' => 'true', 'aria-label' => lang('Sales.refund')]) ?>
                         <?php if (is_right_side_currency_symbol()): ?>
                             <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                         <?php endif; ?>
@@ -205,26 +202,26 @@ foreach ($payments as $row) {
 
             <?php if (! empty($accounting_on)): ?>
                 <div class="row mb-3">
-                    <?= form_label(lang('Sales.payment_status') . ' #' . esc($paymentNumbers[(int) $row->payment_id] ?? (string) (int) $row->payment_id), "payment_status_{$i}", ['class' => 'col-form-label col-3']) ?>
+                    <?= form_label(lang('Sales.payment_status') . ' #' . esc($paymentNumbers[(int) $row->payment_id] ?? (string) (int) $row->payment_id), "payment_status_$i", ['class' => 'col-form-label col-3']) ?>
                     <div class="col-8">
-                        <?= form_dropdown("payment_status_{$i}", $payment_statuses, $row->payment_status ?? 'completed', ['id' => "payment_status_{$i}", 'class' => 'form-select form-select-sm']) ?>
+                        <?= form_dropdown("payment_status_$i", $payment_statuses, $row->payment_status ?? 'completed', ['id' => "payment_status_$i", 'class' => 'form-select form-select-sm']) ?>
                     </div>
                 </div>
             <?php endif; ?>
 
             <?php if ($treasury_options !== [] && ! empty($row->uses_treasury)): ?>
                 <div class="row mb-3">
-                    <?= form_label(lang('Sales.treasury') . ' #' . esc($paymentNumbers[(int) $row->payment_id] ?? (string) (int) $row->payment_id), "treasury_id_{$i}", ['class' => 'col-form-label col-3']) ?>
+                    <?= form_label(lang('Sales.treasury') . ' #' . esc($paymentNumbers[(int) $row->payment_id] ?? (string) (int) $row->payment_id), "treasury_id_$i", ['class' => 'col-form-label col-3']) ?>
                     <div class="col-8">
-                        <?= form_dropdown("treasury_id_{$i}", array_map('esc', $treasury_options), (string) ($row->treasury_id ?? 0), ['id' => "treasury_id_{$i}", 'class' => 'form-select form-select-sm']) ?>
+                        <?= form_dropdown("treasury_id_$i", array_map('esc', $treasury_options), (string) ($row->treasury_id ?? 0), ['id' => "treasury_id_$i", 'class' => 'form-select form-select-sm']) ?>
                     </div>
                 </div>
             <?php endif; ?>
         <?php
-        $i++;
-}
-echo form_hidden('number_of_payments', (string) $i);
-?>
+            ++$i;
+        }
+        echo form_hidden('number_of_payments', strval($i));
+        ?>
 
         <?php if (! empty($receivable)): ?>
             <div class="row mb-3" id="receivable_figures">
@@ -250,7 +247,7 @@ echo form_hidden('number_of_payments', (string) $i);
                         <ul class="list-unstyled small mt-2 mb-0" id="credit_applications">
                             <?php foreach ($applications as $application): ?>
                                 <?php
-                        $sourceId             = (int) $application->source_id;
+                                $sourceId     = (int) $application->source_id;
                                 $sourceNumber = $application->source_type === CreditSource::CUSTOMER_ADVANCE ? ($advance_numbers[$sourceId] ?? (string) $sourceId) : (string) $sourceId;
                                 ?>
                                 <li>
@@ -353,10 +350,10 @@ echo form_hidden('number_of_payments', (string) $i);
 
 <script type="text/javascript">
     $(document).ready(function() {
-        <?php if (! empty($sale_info['email'])): ?>
+        <?php if (!empty($sale_info['email'])): ?>
             $('#send_invoice').click(function(event) {
                 if (confirm("<?= lang('Sales.invoice_confirm') . ' ' . $sale_info['email'] ?>")) {
-                    $.get("<?= esc("{$controller_name}/sendPdf/" . $sale_info['sale_id']) ?>",
+                    $.get("<?= esc("$controller_name/sendPdf/" . $sale_info['sale_id']) ?>",
                         function(response) {
                             dialog_support.hide();
                             $.notify({
@@ -472,7 +469,7 @@ echo form_hidden('number_of_payments', (string) $i);
             rules: {
                 invoice_number: {
                     remote: {
-                        url: "<?= esc("{$controller_name}/checkInvoiceNumber") ?>",
+                        url: "<?= esc("$controller_name/checkInvoiceNumber") ?>",
                         type: 'POST',
                         data: {
                             'sale_id': <?= $sale_info['sale_id'] ?>,

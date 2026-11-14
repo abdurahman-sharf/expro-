@@ -1,6 +1,6 @@
 <?php
 /**
- * @var int    $branch_id
+ * @var int $branch_id
  * @var string $start_date
  */
 ?>

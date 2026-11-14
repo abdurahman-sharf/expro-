@@ -4,16 +4,18 @@ namespace App\Events;
 
 use App\Libraries\MY_Migration;
 use App\Models\Appconfig;
+use CodeIgniter\Session\Handlers\DatabaseHandler;
+use CodeIgniter\Session\Handlers\FileHandler;
 use CodeIgniter\Session\Session;
 use Config\OSPOS;
 use Config\Services;
 
 /**
- * @property Appconfig appconfig;
- * @property MY_Migration migration;
- * @property Session session;
- * @property mixed $config
+ * @property my_migration migration;
+ * @property session session;
+ * @property appconfig appconfig;
  * @property mixed $migration_config
+ * @property mixed $config
  */
 class Load_config
 {
@@ -22,13 +24,13 @@ class Load_config
     public function load_config(): void
     {
         $migration_config = config('Migrations');
-        $migration        = new MY_Migration($migration_config);
+        $migration = new MY_Migration($migration_config);
 
         $this->session = session();
 
         $config = config(OSPOS::class);
 
-        if (! $migration->isLatest()) {
+        if (!$migration->isLatest()) {
             $this->session->destroy();
         }
 
@@ -47,14 +49,13 @@ class Load_config
         $languageCode = $config->settings['language_code'] ?? null;
 
         if (empty($config->settings) || $languageCode === null) {
-            $config->settings['language']      = 'english';
+            $config->settings['language'] = 'english';
             $config->settings['language_code'] = 'en';
-
             return;
         }
 
-        if (! $this->languageExists($languageCode)) {
-            $config->settings['language']      = 'english';
+        if (!$this->languageExists($languageCode)) {
+            $config->settings['language'] = 'english';
             $config->settings['language_code'] = 'en';
         }
     }

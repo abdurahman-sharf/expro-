@@ -10,9 +10,8 @@
 
             <?php
             $counter = 0;
-
-foreach ($licenses as $license) {
-    ?>
+            foreach ($licenses as $license) {
+            ?>
                 <div class="row mb-3">
                     <?= form_label($license['title'], 'license', ['class' => 'col-form-label col-3 col-md-2']) ?>
                     <div class="col-9 col-xl-8">
@@ -23,7 +22,7 @@ foreach ($licenses as $license) {
                             'style'    => 'resize: vertical',
                             'rows'     => '14',
                             'readonly' => '',
-                            'value'    => $license['text'],
+                            'value'    => $license['text']
                         ]) ?>
                     </div>
                 </div>

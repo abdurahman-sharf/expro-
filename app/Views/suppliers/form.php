@@ -1,8 +1,8 @@
 <?php
 /**
- * @var string       $controller_name
- * @var object       $person_info
- * @var array        $categories
+ * @var string $controller_name
+ * @var object $person_info
+ * @var array $categories
  * @var list<object> $contacts
  */
 ?>
@@ -10,7 +10,7 @@
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 <ul id="error_message_box" class="error_message_box"></ul>
 
-<?= form_open("{$controller_name}/save/{$person_info->person_id}", ['id' => 'supplier_form', 'class' => 'app-form']) ?>
+<?= form_open("$controller_name/save/$person_info->person_id", ['id' => 'supplier_form', 'class' => 'app-form']) ?>
     <fieldset id="supplier_basic_info">
 
         <div class="form-grid">
@@ -20,7 +20,7 @@
                     'name'  => 'company_name',
                     'id'    => 'company_name_input',
                     'class' => 'form-control form-control-sm',
-                    'value' => html_entity_decode($person_info->company_name),
+                    'value' => html_entity_decode($person_info->company_name)
                 ]) ?>
             </div>
 
@@ -35,7 +35,7 @@
                     'name'  => 'agency_name',
                     'id'    => 'agency_name_input',
                     'class' => 'form-control form-control-sm',
-                    'value' => $person_info->agency_name,
+                    'value' => $person_info->agency_name
                 ]) ?>
             </div>
         </div>
@@ -51,7 +51,7 @@
                         'name'  => 'account_number',
                         'id'    => 'account_number',
                         'class' => 'form-control form-control-sm',
-                        'value' => $person_info->account_number,
+                        'value' => $person_info->account_number
                     ]) ?>
                 </div>
 
@@ -61,7 +61,7 @@
                         'name'  => 'tax_id',
                         'id'    => 'tax_id',
                         'class' => 'form-control form-control-sm',
-                        'value' => $person_info->tax_id,
+                        'value' => $person_info->tax_id
                     ]) ?>
                 </div>
 
@@ -73,7 +73,7 @@
                         'class'     => 'form-control form-control-sm',
                         'maxlength' => 2,
                         'dir'       => 'ltr',
-                        'value'     => $person_info->country_code ?? '',
+                        'value'     => $person_info->country_code ?? ''
                     ]) ?>
                     <div class="form-text"><?= lang('Customers.country_code_help') ?></div>
                 </div>
@@ -86,7 +86,7 @@
                         'class'     => 'form-control form-control-sm',
                         'maxlength' => 64,
                         'dir'       => 'ltr',
-                        'value'     => $person_info->commercial_registry ?? '',
+                        'value'     => $person_info->commercial_registry ?? ''
                     ]) ?>
                 </div>
             </div>

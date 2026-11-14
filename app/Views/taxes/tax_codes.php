@@ -19,7 +19,7 @@
                 'name'  => 'submit_tax_codes',
                 'id'    => 'submit_tax_codes',
                 'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end',
+                'class' => 'btn btn-primary btn-sm float-end'
             ]) ?>
 
         </fieldset>
@@ -29,7 +29,7 @@
 <script type="text/javascript">
     // Validation and Submit Handling
     $(document).ready(function() {
-        let tax_code_count = <?= count($tax_codes) ?>;
+        let tax_code_count = <?= sizeof($tax_codes) ?>;
         if (tax_code_count == 0) {
             tax_code_count = 1;
         }
@@ -102,7 +102,7 @@
                         }, {
                             type: response.success ? 'success' : 'danger'
                         });
-                        $("#tax_codes").load('<?= 'taxes/ajax_tax_codes' ?>', init_add_remove_tax_codes);
+                        $("#tax_codes").load('<?= "taxes/ajax_tax_codes" ?>', init_add_remove_tax_codes);
                     },
                     dataType: 'json'
                 });
@@ -115,9 +115,8 @@
 
         <?php
         $i = 0;
-
-foreach ($tax_codes as $tax_code => $tax_code_data) {
-    ?>
+        foreach ($tax_codes as $tax_code => $tax_code_data) {
+        ?>
             $('<?= '#tax_code_' . ++$i ?>').rules("add", {
                 requireTaxCode: true,
                 check4TaxCodeDups: true,

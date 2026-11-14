@@ -19,7 +19,7 @@
                         'name'    => 'dinner_table_enable',
                         'value'   => 'dinner_table_enable',
                         'id'      => 'dinner_table_enable',
-                        'checked' => $config['dinner_table_enable'] === 1,
+                        'checked' => $config['dinner_table_enable'] == 1
                     ]) ?>
                 </div>
             </div>
@@ -33,7 +33,7 @@
                     'name'  => 'submit_table',
                     'id'    => 'submit_table',
                     'value' => lang('Common.submit'),
-                    'class' => 'btn btn-primary',
+                    'class' => 'btn btn-primary'
                 ]) ?>
             </div>
 
@@ -58,7 +58,7 @@
 
         $("#dinner_table_enable").change(enable_disable_dinner_table_enable);
 
-        let table_count = <?= count($dinner_tables) ?>;
+        let table_count = <?= sizeof($dinner_tables) ?>;
 
         const hide_show_remove = function() {
             if ($("input[name*='dinner_tables']:enabled").length > 1) {
@@ -120,7 +120,7 @@
                         }, {
                             type: response.success ? 'success' : 'danger'
                         });
-                        $("#dinner_tables").load('<?= 'config/dinnerTables' ?>', init_add_remove_tables);
+                        $("#dinner_tables").load('<?= "config/dinnerTables" ?>', init_add_remove_tables);
                     },
                     dataType: 'json'
                 });
@@ -132,8 +132,8 @@
                 <?php
                 $i = 0;
 
-foreach ($dinner_tables as $dinner_table => $table) {
-    ?>
+                foreach ($dinner_tables as $dinner_table => $table) {
+                ?>
                     <?= 'dinner_table_' . ++$i ?>: {
                         required: true,
                         dinner_table: true,
@@ -144,10 +144,10 @@ foreach ($dinner_tables as $dinner_table => $table) {
 
             messages: {
                 <?php
-    $i = 0;
+                $i = 0;
 
-foreach ($dinner_tables as $dinner_table => $table) {
-    ?>
+                foreach ($dinner_tables as $dinner_table => $table) {
+                ?>
                     <?= 'dinner_table_' . ++$i ?>: "<?= lang('Config.dinner_table_required') ?>",
                 <?php } ?>
             }

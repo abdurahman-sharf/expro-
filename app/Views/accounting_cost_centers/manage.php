@@ -1,9 +1,10 @@
 <?php
 /**
  * @var string $table_headers
- * @var bool   $can_manage
- * @var array  $config
+ * @var bool $can_manage
+ * @var array $config
  */
+
 $messages = [
     'activate'   => lang('Accounting_cost_centers.confirm_activate'),
     'deactivate' => lang('Accounting_cost_centers.confirm_deactivate'),

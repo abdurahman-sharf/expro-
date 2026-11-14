@@ -1,49 +1,45 @@
 <?php
-
-use App\Libraries\Accounting\InvoiceDiscount;
-use App\Libraries\Accounting\PurchaseFigures;
-
 /**
- * @var array                                                  $receiving_info
- * @var string                                                 $selected_supplier_name
- * @var int                                                    $selected_supplier_id
- * @var array                                                  $employees
- * @var string                                                 $controller_name
- * @var bool                                                   $can_assign_employee
- * @var bool                                                   $locked
- * @var list<object>                                           $journals
- * @var bool                                                   $takes_payments
- * @var list<object>                                           $payments
- * @var array<string, string>                                  $payment_statuses
- * @var array<string, string>                                  $payment_options
- * @var array<string, string>                                  $row_payment_options
- * @var array<int, string>                                     $treasury_options
- * @var array<int, string>                                     $new_treasury_options
- * @var PurchaseFigures|null                                   $payable
- * @var string                                                 $credit
- * @var list<object>                                           $applications
- * @var bool                                                   $can_debit_note
- * @var array<int, string>                                     $paymentNumbers
- * @var array<int, string>                                     $paymentDates
- * @var list<int>                                              $receiptIds
- * @var string                                                 $today
- * @var string|null                                            $documentLabel
- * @var string|null                                            $documentNumber
- * @var InvoiceDiscount                                        $invoiceDiscount
- * @var string                                                 $invoiceDiscountShare
+ * @var array $receiving_info
+ * @var string $selected_supplier_name
+ * @var int $selected_supplier_id
+ * @var array $employees
+ * @var string $controller_name
+ * @var bool $can_assign_employee
+ * @var bool $locked
+ * @var list<object> $journals
+ * @var bool $takes_payments
+ * @var list<object> $payments
+ * @var array<string, string> $payment_statuses
+ * @var array<string, string> $payment_options
+ * @var array<string, string> $row_payment_options
+ * @var array<int, string> $treasury_options
+ * @var array<int, string> $new_treasury_options
+ * @var App\Libraries\Accounting\PurchaseFigures|null $payable
+ * @var string $credit
+ * @var list<object> $applications
+ * @var bool $can_debit_note
+ * @var array<int, string> $paymentNumbers
+ * @var array<int, string> $paymentDates
+ * @var list<int> $receiptIds
+ * @var string $today
+ * @var string|null $documentLabel
+ * @var string|null $documentNumber
+ * @var App\Libraries\Accounting\InvoiceDiscount $invoiceDiscount
+ * @var string $invoiceDiscountShare
  * @var array{date: string, terms: int|null, due: string}|null $invoice_timing
- * @var bool                                                   $lines_editable
- * @var bool                                                   $lines_has_returns
- * @var list<array<string, mixed>>                             $lines
- * @var bool                                                   $lines_allowed
- * @var bool                                                   $can_edit_tax
+ * @var bool $lines_editable
+ * @var bool $lines_has_returns
+ * @var list<array<string, mixed>> $lines
+ * @var bool $lines_allowed
+ * @var bool $can_edit_tax
  */
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 <ul id="error_message_box" class="error_message_box"></ul>
 
-<?= form_open('receivings/save/' . $receiving_info['receiving_id'], ['id' => 'receivings_edit_form', 'class' => 'app-form']) ?>
+<?= form_open("receivings/save/" . $receiving_info['receiving_id'], ['id' => 'receivings_edit_form', 'class' => 'app-form']) ?>
     <fieldset id="receiving_basic_info">
 
         <?php if ($locked): ?>
@@ -52,7 +48,7 @@ use App\Libraries\Accounting\PurchaseFigures;
 
         <div class="row mb-3">
             <span class="col-form-label col-3"><?= lang('Receivings.receipt_number') ?></span>
-            <?= anchor('receivings/receipt/' . $receiving_info['receiving_id'], 'RECV ' . $receiving_info['receiving_id'], ['target' => '_blank', 'class' => 'col-form-label col-8', 'style' => 'text-align: left']) ?>
+            <?= anchor('receivings/receipt/' . $receiving_info['receiving_id'], 'RECV ' . $receiving_info['receiving_id'], ['target' => '_blank', 'class' => 'col-form-label col-8', "style" => "text-align: left"]) ?>
         </div>
 
         <?php if (! empty($documentNumber)): ?>
@@ -70,7 +66,7 @@ use App\Libraries\Accounting\PurchaseFigures;
                     'value'    => to_datetime(strtotime($receiving_info['receiving_time'])),
                     'id'       => 'datetime',
                     'class'    => 'datetime form-control form-control-sm',
-                    'readonly' => 'readonly',
+                    'readonly' => 'readonly'
                 ]) ?>
             </div>
         </div>

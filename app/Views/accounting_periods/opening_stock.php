@@ -1,12 +1,13 @@
 <?php
 /**
  * @var list<array{location_id: int, name: string, items: int, units: string, value: string, status: string, status_label: string, posted: bool, settleable: bool, messages: list<string>}> $stock
- * @var list<string>                                                                                                                                                                        $deleted_stock
- * @var int                                                                                                                                                                                 $branch_id
- * @var bool                                                                                                                                                                                $can_manage
- * @var string                                                                                                                                                                              $start_date
- * @var bool                                                                                                                                                                                $has_start
+ * @var list<string> $deleted_stock
+ * @var int $branch_id
+ * @var bool $can_manage
+ * @var string $start_date
+ * @var bool $has_start
  */
+
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 $badge     = static fn (string $status): string => match ($status) {
     'postable'         => 'text-bg-primary',

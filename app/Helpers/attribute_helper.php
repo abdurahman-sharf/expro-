@@ -7,13 +7,12 @@
  * Defaults to 'attribute_value' for TEXT, DROPDOWN and CHECKBOX attribute types.
  *
  * @param string $input The attribute type constant (DATE, DECIMAL, etc.)
- *
  * @return string The database column name for storing this attribute type
  */
 function getAttributeDataType(string $input): string
 {
     $columnMap = [
-        DATE    => 'attribute_date',
+        DATE => 'attribute_date',
         DECIMAL => 'attribute_decimal',
     ];
 
@@ -22,12 +21,15 @@ function getAttributeDataType(string $input): string
 
 /**
  * Validates that the provided data type is an allowed attribute value type.
+ *
+ * @param string $dataType
+ * @return void
  */
 function validateAttributeValueType(string $dataType): void
 {
     $attributeValueTypes = ['attribute_value', 'attribute_decimal', 'attribute_date'];
 
-    if (! in_array($dataType, $attributeValueTypes, true)) {
+    if (!in_array($dataType, $attributeValueTypes, true)) {
         throw new InvalidArgumentException('Invalid data type');
     }
 }

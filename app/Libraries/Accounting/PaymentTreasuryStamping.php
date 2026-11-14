@@ -19,7 +19,7 @@ final class PaymentTreasuryStamping
     use RunsInTransaction;
 
     private const TABLES = [
-        'sales_payments'      => SalePostingBuilder::SOURCE_PAYMENT,
+        'sales_payments'     => SalePostingBuilder::SOURCE_PAYMENT,
         'receivings_payments' => ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT,
     ];
 

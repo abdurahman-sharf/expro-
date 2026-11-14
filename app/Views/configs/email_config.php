@@ -1,7 +1,7 @@
 <?php
 /**
  * @var array $config
- * @var bool  $smtp_pass_set
+ * @var bool $smtp_pass_set
  */
 ?>
 
@@ -20,10 +20,10 @@
                         [
                             'mail'     => 'Mail',
                             'sendmail' => 'Sendmail',
-                            'smtp'     => 'SMTP',
+                            'smtp'     => 'SMTP'
                         ],
                         $config['protocol'],
-                        'class="form-select form-select-sm" id="protocol"',
+                        'class="form-select form-select-sm" id="protocol"'
                     ) ?>
                 </div>
             </div>
@@ -35,7 +35,7 @@
                         'name'  => 'mailpath',
                         'id'    => 'mailpath',
                         'class' => 'form-control form-control-sm',
-                        'value' => $config['mailpath'],
+                        'value' => $config['mailpath']
                     ]) ?>
                 </div>
             </div>
@@ -47,7 +47,7 @@
                         'name'  => 'smtp_host',
                         'id'    => 'smtp_host',
                         'class' => 'form-control form-control-sm',
-                        'value' => $config['smtp_host'],
+                        'value' => $config['smtp_host']
                     ]) ?>
                 </div>
             </div>
@@ -60,7 +60,7 @@
                         'name'  => 'smtp_port',
                         'id'    => 'smtp_port',
                         'class' => 'form-control form-control-sm',
-                        'value' => $config['smtp_port'],
+                        'value' => $config['smtp_port']
                     ]) ?>
                 </div>
             </div>
@@ -73,10 +73,10 @@
                         [
                             ''    => 'None',
                             'tls' => 'TLS',
-                            'ssl' => 'SSL',
+                            'ssl' => 'SSL'
                         ],
                         $config['smtp_crypto'],
-                        'class="form-select form-select-sm" id="smtp_crypto"',
+                        'class="form-select form-select-sm" id="smtp_crypto"'
                     ) ?>
                 </div>
             </div>
@@ -89,7 +89,7 @@
                         'name'  => 'smtp_timeout',
                         'id'    => 'smtp_timeout',
                         'class' => 'form-control form-control-sm',
-                        'value' => $config['smtp_timeout'],
+                        'value' => $config['smtp_timeout']
                     ]) ?>
                 </div>
             </div>
@@ -105,7 +105,7 @@
                             'name'  => 'smtp_user',
                             'id'    => 'smtp_user',
                             'class' => 'form-control form-control-sm',
-                            'value' => $config['smtp_user'],
+                            'value' => $config['smtp_user']
                         ]) ?>
                     </div>
                 </div>
@@ -122,7 +122,7 @@
                                name="smtp_pass"
                                id="smtp_pass"
                                class="form-control form-control-sm"
-                               placeholder="<?= ! empty($smtp_pass_set) ? lang('Config.email_smtp_pass_set') : esc(lang('Config.email_smtp_pass')) ?>"
+                               placeholder="<?= !empty($smtp_pass_set) ? lang('Config.email_smtp_pass_set') : esc(lang('Config.email_smtp_pass')) ?>"
                                autocomplete="off">
                     </div>
                 </div>
@@ -133,7 +133,7 @@
                     'name'  => 'submit_email',
                     'id'    => 'submit_email',
                     'value' => lang('Common.submit'),
-                    'class' => 'btn btn-primary',
+                    'class' => 'btn btn-primary'
                 ]) ?>
             </div>
 

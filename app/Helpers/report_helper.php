@@ -5,6 +5,12 @@ use App\Libraries\Accounting\FamilyReports\FamilyReportCatalog;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Organization\BranchGuard;
 
+/**
+ * @param string $report_name
+ * @param string $report_prefix
+ * @param string $lang_key
+ * @return array
+ */
 function get_report_link(string $report_name, string $report_prefix = '', string $lang_key = ''): array
 {
     $path = 'reports/';
@@ -29,11 +35,14 @@ function get_report_link(string $report_name, string $report_prefix = '', string
 }
 
 /**
- * @param list<string> $restrict_views
+ * @param string $permission_id
+ * @param string[] $restrict_views
+ *
+ * @return bool
  */
 function can_show_report(string $permission_id, array $restrict_views = []): bool
 {
-    if (! str_contains($permission_id, 'reports_')) {
+    if (!str_contains($permission_id, 'reports_')) {
         return false;
     }
 

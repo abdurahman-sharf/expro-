@@ -1,11 +1,12 @@
 <?php
 /**
- * @var string   $table_headers
- * @var bool     $can_manage
+ * @var string $table_headers
+ * @var bool $can_manage
  * @var int|null $days_left
- * @var bool     $auto_create
- * @var array    $config
+ * @var bool $auto_create
+ * @var array $config
  */
+
 $messages  = ['delete' => lang('Accounting_periods.confirm_delete')];
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>

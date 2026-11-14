@@ -11,7 +11,7 @@ $alignEnd            = $rtl ? 'al-l' : 'al-r';
 $alignStart          = $rtl ? 'al-r' : 'al-l';
 $logo                = documentLogoSource($config, $context);
 $barcode             = documentBarcodeSource((string) ($sale['barcode'] ?? ''));
-$cart                = array_filter($sale['cart'] ?? [], static fn (array $item): bool => $item['print_option'] === PRINT_YES);
+$cart                = array_filter($sale['cart'] ?? [], static fn (array $item): bool => $item['print_option'] == PRINT_YES);
 $payments            = $profile['showPayments'] ? ($sale['payments'] ?? []) : [];
 $onlyCheck           = false;
 $showGiftcardBalance = false;
@@ -130,7 +130,7 @@ $notes = array_filter([
                     <td class="doc-col-num"><?= documentIsolate(to_quantity_decimals($figure($item['quantity']))) ?></td>
                     <?php if ($profile['showPrices']): ?>
                         <td class="doc-col-amount <?= $alignEnd ?>"><?= documentIsolate(to_currency($figure($item['price']))) ?></td>
-                        <td class="doc-col-num"><?= documentIsolate($item['discount_type'] === FIXED ? to_currency($figure($item['discount'])) : to_decimals($item['discount']) . '%') ?></td>
+                        <td class="doc-col-num"><?= documentIsolate($item['discount_type'] == FIXED ? to_currency($figure($item['discount'])) : to_decimals($item['discount']) . '%') ?></td>
                         <?php if ($profile['showUnitDiscount']): ?><td class="doc-col-amount <?= $alignEnd ?>"><?= documentIsolate(to_currency($figure($item['discounted_total'] / $item['quantity']))) ?></td><?php endif; ?>
                         <td class="doc-col-amount doc-strong <?= $alignEnd ?>"><?= documentIsolate(to_currency($figure($item['discounted_total']))) ?></td>
                     <?php endif; ?>

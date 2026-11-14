@@ -1,6 +1,6 @@
 <?php
 /**
- * @var array  $tax_jurisdictions
+ * @var array $tax_jurisdictions
  * @var string $tax_type_options
  */
 ?>
@@ -20,7 +20,7 @@
                 'name'  => 'submit_tax_jurisdictions',
                 'id'    => 'submit_tax_jurisdictions',
                 'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end',
+                'class' => 'btn btn-primary btn-sm float-end'
             ]) ?>
 
         </fieldset>
@@ -30,7 +30,7 @@
 <script type="text/javascript">
     // Validation and Submit Handling
     $(document).ready(function() {
-        let tax_jurisdictions_count = <?= count($tax_jurisdictions) ?>;
+        let tax_jurisdictions_count = <?= sizeof($tax_jurisdictions) ?>;
         if (tax_jurisdictions_count == 0) {
             tax_jurisdictions_count = 1;
         }
@@ -106,7 +106,7 @@
                         }, {
                             type: response.success ? 'success' : 'danger'
                         });
-                        $("#tax_jurisdictions").load('<?= esc('taxes/ajax_tax_jurisdictions') ?>', init_add_remove_tax_jurisdiction);
+                        $("#tax_jurisdictions").load('<?= esc("taxes/ajax_tax_jurisdictions") ?>', init_add_remove_tax_jurisdiction);
                     },
                     dataType: 'json'
                 });
@@ -119,9 +119,8 @@
 
         <?php
         $i = 0;
-
-foreach ($tax_jurisdictions as $tax_jurisdiction => $tax_jurisdiction_data) {
-    ?>
+        foreach ($tax_jurisdictions as $tax_jurisdiction => $tax_jurisdiction_data) {
+        ?>
             $('<?= '#jurisdiction_name_' . ++$i ?>').rules("add", {
                 requireTaxJurisdiction: true,
                 check4TaxJurisdictionDups: true,

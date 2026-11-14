@@ -17,7 +17,7 @@ return [
     'closed_amount_giftcard'     => '',
     'closed_amount_total'        => 'Total',
     'closed_date'                => 'Date de fermeture',
-    'confirm_delete'             => "Êtes-vous certain de vouloir supprimer l'encaissement sélectionné\u{202f} ?",
+    'confirm_delete'             => 'Êtes-vous certain de vouloir supprimer l\'encaissement sélectionné  ?',
     'confirm_restore'            => 'Êtes-vous certain de vouloir restaurer le(s)encaissement(s) sélectionné(s)?',
     'confirm_submit'             => '',
     'date_number'                => 'La date doit être numérique',

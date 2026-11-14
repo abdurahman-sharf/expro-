@@ -86,7 +86,7 @@ $summaryRow = static fn (string $label, string $value, string $style = ''): stri
             <th style="width: 20%; padding: 6px 8px; text-align: <?= $end ?>; background-color: #042359; color: #ffffff; <?= $font ?> font-size: 12px;"><?= lang('Sales.total') ?></th>
         </tr>
         <?php foreach ($cart as $item): ?>
-            <?php if ($item['print_option'] === PRINT_YES): ?>
+            <?php if ($item['print_option'] == PRINT_YES): ?>
                 <tr>
                     <td style="<?= $cell ?> text-align: <?= $start ?>;">
                         <?= esc(ucfirst(trim($item['name'] . ' ' . ($item['attribute_values'] ?? '')))) ?>
@@ -103,7 +103,7 @@ $summaryRow = static fn (string $label, string $value, string $style = ''): stri
                 </tr>
                 <?php if ($item['discount'] > 0): ?>
                     <tr>
-                        <td colspan="3" style="<?= $cell ?> text-align: <?= $start ?>; font-size: 11px; color: #56657f;"><?= lang('Sales.discount') ?> <?= documentIsolate($item['discount_type'] === FIXED ? to_currency($item['discount']) : to_decimals($item['discount']) . '%') ?></td>
+                        <td colspan="3" style="<?= $cell ?> text-align: <?= $start ?>; font-size: 11px; color: #56657f;"><?= lang('Sales.discount') ?> <?= documentIsolate($item['discount_type'] == FIXED ? to_currency($item['discount']) : to_decimals($item['discount']) . '%') ?></td>
                         <td style="<?= $cell ?> text-align: <?= $end ?>; font-size: 11px;"><?= documentIsolate(to_currency($item['discounted_total'])) ?></td>
                     </tr>
                 <?php endif; ?>

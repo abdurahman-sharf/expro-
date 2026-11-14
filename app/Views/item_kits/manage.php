@@ -2,7 +2,7 @@
 /**
  * @var string $controller_name
  * @var string $table_headers
- * @var array  $config
+ * @var array $config
  */
 ?>
 
@@ -30,7 +30,7 @@
 </script>
 
 <div id="title_bar" class="btn-toolbar">
-    <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc("{$controller_name}/view") ?>" title="<?= lang(ucfirst($controller_name) . '.new') ?>">
+    <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc("$controller_name/view") ?>" title="<?= lang(ucfirst($controller_name) . '.new') ?>">
         <span class="bi bi-tags" aria-hidden="true">&nbsp;</span><?= lang(ucfirst($controller_name) . '.new') ?>
     </button>
 </div>
@@ -41,7 +41,7 @@
             <span class="bi bi-trash" aria-hidden="true">&nbsp;</span><?= lang('Common.delete') ?>
         </button>
 
-        <button id="generate_barcodes" class="btn btn-outline-secondary btn-sm" data-href="<?= esc("{$controller_name}/generateBarcodes") ?>">
+        <button id="generate_barcodes" class="btn btn-outline-secondary btn-sm" data-href="<?= esc("$controller_name/generateBarcodes") ?>">
             <span class="bi bi-upc-scan" aria-hidden="true">&nbsp;</span><?= lang('Items.generate_barcodes') ?>
         </button>
     </div>

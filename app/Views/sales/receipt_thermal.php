@@ -72,7 +72,7 @@ foreach ($payments as $payment) {
                 <?php endif; ?>
                 <?php if ($item['discount'] > 0): ?>
                     <div class="rt-calc rt-discount">
-                        <span><?= lang('Sales.discount') ?> <?= documentIsolate($item['discount_type'] === FIXED ? to_currency($item['discount']) : to_decimals($item['discount']) . '%') ?></span>
+                        <span><?= lang('Sales.discount') ?> <?= documentIsolate($item['discount_type'] == FIXED ? to_currency($item['discount']) : to_decimals($item['discount']) . '%') ?></span>
                         <span><?= documentIsolate(to_currency($item['discounted_total'])) ?></span>
                     </div>
                 <?php endif; ?>

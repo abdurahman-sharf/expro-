@@ -448,6 +448,7 @@ enum AccountingError: string
     case CreditInForeignPurchase      = 'credit_in_foreign_purchase';
     case TransferRateOutOfRange       = 'transfer_rate_out_of_range';
 
+
     case StockDocumentOff             = 'stock_document_off';
     case StockPermitNotFound          = 'stock_permit_not_found';
     case StockPermitCancelled         = 'stock_permit_cancelled';
@@ -473,9 +474,9 @@ enum AccountingError: string
     case StockRequestStatusInvalid    = 'stock_request_status_invalid';
     case StockRequestLocationsInvalid = 'stock_request_locations_invalid';
     case StockRequestLinesInvalid     = 'stock_request_lines_invalid';
-    case ReportTooLarge               = 'report_too_large';
-    case StatementAmountInvalid       = 'statement_amount_invalid';
-    case ExportTooLarge               = 'export_too_large';
+    case ReportTooLarge                   = 'report_too_large';
+    case StatementAmountInvalid           = 'statement_amount_invalid';
+    case ExportTooLarge                   = 'export_too_large';
 
     case StockLocationNotFound      = 'stock_location_not_found';
     case StockLocationHoldsStock    = 'stock_location_holds_stock';
@@ -502,10 +503,10 @@ enum AccountingError: string
     case CustomerEmailRequired         = 'customer_email_required';
     case PartyFieldTooLong             = 'party_field_too_long';
 
-    case ItemStatusInvalid        = 'item_status_invalid';
-    case ItemBrandInvalid         = 'item_brand_invalid';
-    case ItemFieldTooLong         = 'item_field_too_long';
-    case ItemInOpenDocuments      = 'item_in_open_documents';
+    case ItemStatusInvalid   = 'item_status_invalid';
+    case ItemBrandInvalid    = 'item_brand_invalid';
+    case ItemFieldTooLong    = 'item_field_too_long';
+    case ItemInOpenDocuments = 'item_in_open_documents';
     case UnitsOff                 = 'stock_units_off';
     case UnitTemplateNotFound     = 'unit_template_not_found';
     case UnitTemplateInvalid      = 'unit_template_invalid';
@@ -583,32 +584,32 @@ enum AccountingError: string
     case AssetRevaluationRefused   = 'asset_revaluation_refused';
     case AssetBranchInactive       = 'asset_branch_inactive';
     case AssetNotInBooks           = 'asset_not_in_books';
-    case AiDisabled                = 'ai_disabled';
-    case AiApproverRequired        = 'ai_approver_required';
-    case AiProposalNotFound        = 'ai_proposal_not_found';
-    case AiProposalDecided         = 'ai_proposal_decided';
-    case AiProposalExpired         = 'ai_proposal_expired';
-    case AiProposalStale           = 'ai_proposal_stale';
-    case AiProposalInvalid         = 'ai_proposal_invalid';
-    case AiProposalDuplicate       = 'ai_proposal_duplicate';
-    case AiControlAccount          = 'ai_control_account';
-    case AiFindingNotFound         = 'ai_finding_not_found';
-    case AiFindingDecided          = 'ai_finding_decided';
-    case AiDecisionInvalid         = 'ai_decision_invalid';
-    case AiSettingInvalid          = 'ai_setting_invalid';
-    case ContactNameRequired       = 'contact_name_required';
-    case ContactEmailInvalid       = 'contact_email_invalid';
-    case ContactPhoneInvalid       = 'contact_phone_invalid';
-    case ContactFieldTooLong       = 'contact_field_too_long';
-    case ContactsTooMany           = 'contacts_too_many';
-    case ContactUnknown            = 'contact_unknown';
-    case ContactsNotSaved          = 'contacts_not_saved';
-    case PortalUsernameInvalid     = 'portal_username_invalid';
-    case PortalUsernameTaken       = 'portal_username_taken';
-    case PortalCustomerUnknown     = 'portal_customer_unknown';
-    case PortalAccountExists       = 'portal_account_exists';
-    case PortalAccountUnknown      = 'portal_account_unknown';
-    case PortalPasswordInvalid     = 'portal_password_invalid';
-    case PortalPasswordWrong       = 'portal_password_wrong';
-    case PortalLocked              = 'portal_locked';
+    case AiDisabled          = 'ai_disabled';
+    case AiApproverRequired  = 'ai_approver_required';
+    case AiProposalNotFound  = 'ai_proposal_not_found';
+    case AiProposalDecided   = 'ai_proposal_decided';
+    case AiProposalExpired   = 'ai_proposal_expired';
+    case AiProposalStale     = 'ai_proposal_stale';
+    case AiProposalInvalid   = 'ai_proposal_invalid';
+    case AiProposalDuplicate = 'ai_proposal_duplicate';
+    case AiControlAccount    = 'ai_control_account';
+    case AiFindingNotFound   = 'ai_finding_not_found';
+    case AiFindingDecided    = 'ai_finding_decided';
+    case AiDecisionInvalid   = 'ai_decision_invalid';
+    case AiSettingInvalid    = 'ai_setting_invalid';
+    case ContactNameRequired      = 'contact_name_required';
+    case ContactEmailInvalid      = 'contact_email_invalid';
+    case ContactPhoneInvalid      = 'contact_phone_invalid';
+    case ContactFieldTooLong      = 'contact_field_too_long';
+    case ContactsTooMany          = 'contacts_too_many';
+    case ContactUnknown           = 'contact_unknown';
+    case ContactsNotSaved         = 'contacts_not_saved';
+    case PortalUsernameInvalid    = 'portal_username_invalid';
+    case PortalUsernameTaken      = 'portal_username_taken';
+    case PortalCustomerUnknown    = 'portal_customer_unknown';
+    case PortalAccountExists      = 'portal_account_exists';
+    case PortalAccountUnknown     = 'portal_account_unknown';
+    case PortalPasswordInvalid    = 'portal_password_invalid';
+    case PortalPasswordWrong      = 'portal_password_wrong';
+    case PortalLocked             = 'portal_locked';
 }

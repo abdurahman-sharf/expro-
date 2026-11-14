@@ -1,13 +1,14 @@
 <?php
 /**
- * @var string   $table_headers
+ * @var string $table_headers
  * @var int|null $parent_id
- * @var bool     $can_manage
- * @var bool     $scope_notice
- * @var array    $tree
- * @var array    $panel
- * @var array    $config
+ * @var bool $can_manage
+ * @var bool $scope_notice
+ * @var array $tree
+ * @var array $panel
+ * @var array $config
  */
+
 $messages = [
     'activate'   => lang('Accounting_chart.confirm_activate'),
     'deactivate' => lang('Accounting_chart.confirm_deactivate'),

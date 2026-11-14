@@ -1,7 +1,7 @@
 <?php
 /**
- * @var int    $branch_id
- * @var int    $location_id
+ * @var int $branch_id
+ * @var int $location_id
  * @var string $location_name
  * @var string $start_date
  */

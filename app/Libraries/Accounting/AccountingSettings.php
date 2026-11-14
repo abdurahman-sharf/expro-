@@ -310,21 +310,21 @@ final class AccountingSettings
 
         foreach ($changes as $key => $value) {
             $values[match ($key) {
-                'base_currency'                 => self::BASE_CURRENCY_KEY,
-                'start_date'                    => self::START_DATE_KEY,
-                'auto_fiscal_year'              => self::AUTO_YEAR_KEY,
-                'line_description_required'     => self::LINE_TEXT_KEY,
-                'expense_account_required'      => self::EXPENSE_ACCOUNT_KEY,
-                'revenue_account_required'      => self::REVENUE_ACCOUNT_KEY,
-                'customer_opening'              => self::CUSTOMER_OPENING_KEY,
-                'backfill_enabled'              => self::BACKFILL_KEY,
-                'sales_adjustment'              => self::SALES_ADJUSTMENT_KEY,
-                'sales_shipping'                => self::SALES_SHIPPING_KEY,
-                'shipping_tax_percent'          => self::SHIPPING_TAX_KEY,
-                'debit_note'                    => self::DEBIT_NOTE_KEY,
+                'base_currency'             => self::BASE_CURRENCY_KEY,
+                'start_date'                => self::START_DATE_KEY,
+                'auto_fiscal_year'          => self::AUTO_YEAR_KEY,
+                'line_description_required' => self::LINE_TEXT_KEY,
+                'expense_account_required'  => self::EXPENSE_ACCOUNT_KEY,
+                'revenue_account_required'  => self::REVENUE_ACCOUNT_KEY,
+                'customer_opening'          => self::CUSTOMER_OPENING_KEY,
+                'backfill_enabled'          => self::BACKFILL_KEY,
+                'sales_adjustment'          => self::SALES_ADJUSTMENT_KEY,
+                'sales_shipping'            => self::SALES_SHIPPING_KEY,
+                'shipping_tax_percent'      => self::SHIPPING_TAX_KEY,
+                'debit_note'                => self::DEBIT_NOTE_KEY,
                 'journal_description_sales'     => self::SALES_TEMPLATE_KEY,
                 'journal_description_purchases' => self::BUYING_TEMPLATE_KEY,
-                'picker_threshold'              => self::PICKER_KEY,
+                'picker_threshold'          => self::PICKER_KEY,
             }] = is_bool($value) ? ($value ? '1' : '0') : $value;
         }
 

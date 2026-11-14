@@ -2,7 +2,6 @@
 
 namespace app\Libraries;
 
-use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\InvoiceDiscountProblem;
 use App\Libraries\Accounting\InvoiceDiscountShares;
@@ -10,6 +9,7 @@ use App\Libraries\Accounting\ItemPurchaseTax;
 use App\Libraries\Accounting\ReceivingAmounts;
 use App\Libraries\Accounting\ReceivingLine;
 use App\Libraries\Accounting\ReceivingType;
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\ReturnDiscountShares;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Stock\ItemStockProfile;
@@ -36,6 +36,7 @@ use Config\OSPOS;
 class Receiving_lib
 {
     private ?AccountingException $unitFailure = null;
+
     private Attribute $attribute;
     private Item $item;
     private Item_kit_items $item_kit_items;
@@ -233,8 +234,8 @@ class Receiving_lib
 
     public function is_print_after_sale(): bool
     {
-        return $this->session->get('recv_print_after_sale') === 'true'
-            || $this->session->get('recv_print_after_sale') === '1';
+        return $this->session->get('recv_print_after_sale') == 'true'
+            || $this->session->get('recv_print_after_sale') == '1';
     }
 
     public function set_print_after_sale(bool $print_after_sale): void
@@ -277,7 +278,7 @@ class Receiving_lib
      * @param bool        $orderLine  A line of a purchase order: the item is the one with this id and never one whose barcode reads like it, and the line
      *                                stands by itself at its own price even when the register holds a line of the same item.
      */
-    public function add_item(string $itemId, float|int $quantity = 1, ?int $itemLocation = null, float $discount = 0, int $discountType = 0, ?float $price = null, ?string $description = null, ?string $serialNumber = null, ?float $receivingQuantity = null, ?int $receivingId = null, bool $includeDeleted = false, ?string $taxPercent = null, bool $orderLine = false): bool
+    public function add_item(string $itemId, int|float $quantity = 1, ?int $itemLocation = null, float $discount = 0, int $discountType = 0, ?float $price = null, ?string $description = null, ?string $serialNumber = null, ?float $receivingQuantity = null, ?int $receivingId = null, bool $includeDeleted = false, ?string $taxPercent = null, bool $orderLine = false): bool
     {
         $config   = config(OSPOS::class)->settings;
         $itemInfo = $orderLine ? $this->undeletedItem((int) $itemId) : $this->item->get_info_by_id_or_number($itemId, $includeDeleted);
@@ -298,7 +299,7 @@ class Receiving_lib
                 $maxKey = $item['line'];
             }
 
-            if (! $orderLine && $item['item_id'] === $itemId && $item['item_location'] === $itemLocation) {
+            if (! $orderLine && $item['item_id'] == $itemId && $item['item_location'] == $itemLocation) {
                 $itemAlreadyInSale = true;
                 $updateKey         = $item['line'];
             }
@@ -307,13 +308,13 @@ class Receiving_lib
         $insertKey = $maxKey + 1;
         $itemInfo  = $this->item->get_info((int) $itemId);
 
-        $price = $price !== null ? $price : $itemInfo->cost_price;
+        $price = $price != null ? $price : $itemInfo->cost_price;
 
         if ($config['multi_pack_enabled']) {
             $itemInfo->name .= NAME_SEPARATOR . $itemInfo->pack_name;
         }
 
-        if ($itemInfo->receiving_quantity === 0 || $itemInfo->receiving_quantity === 1) {
+        if ($itemInfo->receiving_quantity == 0 || $itemInfo->receiving_quantity == 1) {
             $receivingQuantityChoices = [1 => 'x1'];
         } else {
             $receivingQuantityChoices = [
@@ -336,8 +337,8 @@ class Receiving_lib
                 'stock_name'                 => $this->stock_location->get_location_name($itemLocation),
                 'line'                       => $insertKey,
                 'name'                       => $itemInfo->name,
-                'description'                => $description !== null ? $description : $itemInfo->description,
-                'serialnumber'               => $serialNumber !== null ? $serialNumber : '',
+                'description'                => $description != null ? $description : $itemInfo->description,
+                'serialnumber'               => $serialNumber != null ? $serialNumber : '',
                 'attribute_values'           => $attributeLinks->attribute_values,
                 'attribute_dtvalues'         => $attributeLinks->attribute_dtvalues,
                 'allow_alt_description'      => $itemInfo->allow_alt_description,
@@ -358,7 +359,7 @@ class Receiving_lib
         if ($itemAlreadyInSale) {
             $items[$updateKey]['quantity'] += $quantity;
             $items[$updateKey]['total'] = $this->get_item_total($items[$updateKey]['quantity'], $price, $discount, $discountType, $items[$updateKey]['receiving_quantity']);
-            $items[$updateKey]          = (new UnitCart())->refresh($items[$updateKey]);
+            $items[$updateKey] = (new UnitCart())->refresh($items[$updateKey]);
         } else {
             $items += $item;
         }
@@ -751,10 +752,10 @@ class Receiving_lib
         $total             = bcmul($extended_quantity, $price);
         $discount_amount   = bcmul($extended_quantity, $discount);
 
-        if ($discount_type === PERCENT) {    // TODO: === ?
+        if ($discount_type == PERCENT) {    // TODO: === ?
             $discount_fraction = bcdiv($discount, 100);
             $discount_amount   = bcmul($total, $discount_fraction);
-        } elseif ($discount_type === FIXED_LINE) {
+        } elseif ($discount_type == FIXED_LINE) {
             $discount_amount = bccomp($extended_quantity, '0', 3) < 0 ? bcmul($discount, '-1') : (string) $discount;
         }
 
@@ -910,9 +911,9 @@ class Receiving_lib
         $origin = $this->get_return_origin();
 
         return match (true) {
-            $type === ReceivingType::Receive                    => InvoiceDiscountShares::forPurchase($lines, $this->getInvoiceDiscount()),
+            $type === ReceivingType::Receive                     => InvoiceDiscountShares::forPurchase($lines, $this->getInvoiceDiscount()),
             $type === ReceivingType::Return && $origin !== null => (new ReturnDiscountShares())->forReturn($origin, $lines),
-            default                                             => array_fill(0, count($lines), '0.0000'),
+            default                                              => array_fill(0, count($lines), '0.0000'),
         };
     }
 }

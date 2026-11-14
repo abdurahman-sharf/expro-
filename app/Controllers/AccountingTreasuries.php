@@ -4,13 +4,13 @@ namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
-use App\Libraries\Accounting\Bank\BankDirectory;
-use App\Libraries\Accounting\Bank\BankMatches;
 use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\Currency;
+use App\Libraries\Accounting\Money;
+use App\Libraries\Accounting\Bank\BankDirectory;
+use App\Libraries\Accounting\Bank\BankMatches;
 use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\InterBranchPosition;
-use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\TreasuryPosition;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
@@ -97,25 +97,25 @@ class AccountingTreasuries extends AccountingController
         }
 
         return view('accounting_treasuries/statement', [
-            'treasury'        => $treasury,
-            'balance'         => $position->balance,
+            'treasury'      => $treasury,
+            'balance'       => $position->balance,
             'foreign_balance' => $this->foreignBalanceCell($position),
-            'rows'            => $page['rows'],
-            'matched'         => $treasury->kind === TreasuryService::BANK && $this->can(AccountingGuard::BANK_RECONCILE) ? (new BankMatches())->flagged(array_map(static fn (array $row): int => (int) $row['line_id'], $page['rows'])) : [],
-            'total_rows'      => $page['total'],
-            'page'            => $page['page'],
-            'pages'           => $page['pages'],
-            'before'          => $page['before'],
-            'filters'         => $filters,
-            'order'           => $order,
-            'error'           => $error,
-            'csvUrl'          => base_url('accounting_treasuries/statement/' . $treasuryId . '/csv') . $this->statementQuery(),
-            'pageUrl'         => fn (int $target): string => base_url('accounting_treasuries/statement/' . $treasuryId) . $this->statementQuery(['page' => $target]),
-            'crossings'       => array_reverse($movements['crossings']),
-            'lowest'          => $movements['lowest'],
-            'journal_links'   => $this->can('accounting_journals'),
-            'amount'          => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'            => fn (string $value): string => $this->formatDate($value),
+            'rows'          => $page['rows'],
+            'matched'       => $treasury->kind === TreasuryService::BANK && $this->can(AccountingGuard::BANK_RECONCILE) ? (new BankMatches())->flagged(array_map(static fn (array $row): int => (int) $row['line_id'], $page['rows'])) : [],
+            'total_rows'    => $page['total'],
+            'page'          => $page['page'],
+            'pages'         => $page['pages'],
+            'before'        => $page['before'],
+            'filters'       => $filters,
+            'order'         => $order,
+            'error'         => $error,
+            'csvUrl'        => base_url('accounting_treasuries/statement/' . $treasuryId . '/csv') . $this->statementQuery(),
+            'pageUrl'       => fn (int $target): string => base_url('accounting_treasuries/statement/' . $treasuryId) . $this->statementQuery(['page' => $target]),
+            'crossings'     => array_reverse($movements['crossings']),
+            'lowest'        => $movements['lowest'],
+            'journal_links' => $this->can('accounting_journals'),
+            'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'          => fn (string $value): string => $this->formatDate($value),
         ]);
     }
 
@@ -206,7 +206,7 @@ class AccountingTreasuries extends AccountingController
                 TreasuryScopes::DEPOSIT  => $this->scopes->scopeOf((int) $treasury->treasury_id, TreasuryScopes::DEPOSIT),
                 TreasuryScopes::WITHDRAW => $this->scopes->scopeOf((int) $treasury->treasury_id, TreasuryScopes::WITHDRAW),
             ],
-            'currencies'     => array_values(array_filter((new Currencies())->all(true), static fn (Currency $currency): bool => ! (new Currencies())->isBase($currency->code))),
+            'currencies'     => array_values(array_filter((new Currencies())->all(true), fn (Currency $currency): bool => ! (new Currencies())->isBase($currency->code))),
             'currency_fixed' => $treasury !== null && ((int) $treasury->is_main === 1 || $this->treasuries->hasHistory((int) $treasury->treasury_id)),
             'directory'      => BankDirectory::search(),
             'selectedBank'   => $treasury === null || $treasury->kind !== TreasuryService::BANK ? '' : (string) (($treasury->bank_code ?? '') !== '' ? $treasury->bank_code : (BankDirectory::codeOfName((string) $treasury->bank_name) ?? '')),
