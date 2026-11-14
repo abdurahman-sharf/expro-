@@ -31,7 +31,7 @@ if ($command !== 'run' || $target < 1) {
 
 $summary = $generator->run($target, static function (array $state, float $seconds, int $newDocs) use ($logFile): void {
     $line = sprintf(
-        "%s day=%s docs=%d purchases=%d expenses=%d payments=%d elapsed=%ds rate=%.1f/s mem=%.0fMB peak=%.0fMB load=%s\n",
+        "%s day=%s docs=%d purchases=%d expenses=%d payments=%d elapsed=%ds rate=%.1f/s cpu=%.1fs mem=%.0fMB peak=%.0fMB load=%s\n",
         gmdate('H:i:s'),
         $state['day'],
         $state['documents'],
@@ -40,6 +40,11 @@ $summary = $generator->run($target, static function (array $state, float $second
         $state['payments'],
         $seconds,
         $newDocs / max(1, $seconds),
+        (static function (): float {
+            $usage = getrusage();
+
+            return $usage['ru_utime.tv_sec'] + $usage['ru_utime.tv_usec'] / 1e6 + $usage['ru_stime.tv_sec'] + $usage['ru_stime.tv_usec'] / 1e6;
+        })(),
         memory_get_usage(true) / 1048576,
         memory_get_peak_usage(true) / 1048576,
         implode(' ', array_slice(sys_getloadavg(), 0, 1)),

@@ -346,5 +346,197 @@
  {
   "name": "family_journal_movements_30d",
   "path": "/accounting_reports/journal_movements?from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "export_trial_balance_csv",
+  "path": "/accounting_reports/csv?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_ledger_cash_csv",
+  "path": "/accounting_reports/ledger/csv?account={CASH}&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_journal_movements_csv",
+  "path": "/accounting_reports/journal_movements/csv?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_journal_movements_30d_csv",
+  "path": "/accounting_reports/journal_movements/csv?from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "export_revenue_csv",
+  "path": "/accounting_reports/revenue/csv?show=1&group=customer&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_item_profit_csv",
+  "path": "/accounting_reports/item_profit/csv?show=1&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_net_position_csv",
+  "path": "/accounting_reports/net_position/csv?show=1&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_receivables_aged_csv",
+  "path": "/accounting_receivables/aged_ledger/csv"
+ },
+ {
+  "name": "export_receivables_balances_csv",
+  "path": "/accounting_receivables/balances/csv"
+ },
+ {
+  "name": "export_payables_aged_csv",
+  "path": "/accounting_payables/aged_ledger/csv"
+ },
+ {
+  "name": "export_tax_csv",
+  "path": "/accounting_reports/tax/csv?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_inventory_valuation_csv",
+  "path": "/accounting_reports/inventory_valuation/csv"
+ },
+ {
+  "name": "export_income_statement_csv",
+  "path": "/accounting_statements/income_statement/csv?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_family_journals_csv",
+  "path": "/accounting_reports/journals/csv?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_family_stock_movements_csv",
+  "path": "/accounting_reports/stock_movements/csv?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_treasury_statement_1_csv",
+  "path": "/accounting_treasuries/statement/1/csv"
+ },
+ {
+  "name": "export_trial_balance_xlsx",
+  "path": "/accounting_reports/xlsx?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_ledger_cash_xlsx",
+  "path": "/accounting_reports/ledger/xlsx?account={CASH}&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_journal_movements_xlsx",
+  "path": "/accounting_reports/journal_movements/xlsx?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_journal_movements_30d_xlsx",
+  "path": "/accounting_reports/journal_movements/xlsx?from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "export_revenue_xlsx",
+  "path": "/accounting_reports/revenue/xlsx?show=1&group=customer&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_item_profit_xlsx",
+  "path": "/accounting_reports/item_profit/xlsx?show=1&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_net_position_xlsx",
+  "path": "/accounting_reports/net_position/xlsx?show=1&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_receivables_aged_xlsx",
+  "path": "/accounting_receivables/aged_ledger/xlsx"
+ },
+ {
+  "name": "export_receivables_balances_xlsx",
+  "path": "/accounting_receivables/balances/xlsx"
+ },
+ {
+  "name": "export_payables_aged_xlsx",
+  "path": "/accounting_payables/aged_ledger/xlsx"
+ },
+ {
+  "name": "export_tax_xlsx",
+  "path": "/accounting_reports/tax/xlsx?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_inventory_valuation_xlsx",
+  "path": "/accounting_reports/inventory_valuation/xlsx"
+ },
+ {
+  "name": "export_income_statement_xlsx",
+  "path": "/accounting_statements/income_statement/xlsx?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_family_journals_xlsx",
+  "path": "/accounting_reports/journals/xlsx?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_family_stock_movements_xlsx",
+  "path": "/accounting_reports/stock_movements/xlsx?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_treasury_statement_1_xlsx",
+  "path": "/accounting_treasuries/statement/1/xlsx"
+ },
+ {
+  "name": "export_trial_balance_pdf",
+  "path": "/accounting_reports/pdf?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_ledger_cash_pdf",
+  "path": "/accounting_reports/ledger/pdf?account={CASH}&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_journal_movements_pdf",
+  "path": "/accounting_reports/journal_movements/pdf?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_journal_movements_30d_pdf",
+  "path": "/accounting_reports/journal_movements/pdf?from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "export_revenue_pdf",
+  "path": "/accounting_reports/revenue/pdf?show=1&group=customer&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_item_profit_pdf",
+  "path": "/accounting_reports/item_profit/pdf?show=1&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_net_position_pdf",
+  "path": "/accounting_reports/net_position/pdf?show=1&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_receivables_aged_pdf",
+  "path": "/accounting_receivables/aged_ledger/pdf"
+ },
+ {
+  "name": "export_receivables_balances_pdf",
+  "path": "/accounting_receivables/balances/pdf"
+ },
+ {
+  "name": "export_payables_aged_pdf",
+  "path": "/accounting_payables/aged_ledger/pdf"
+ },
+ {
+  "name": "export_tax_pdf",
+  "path": "/accounting_reports/tax/pdf?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_inventory_valuation_pdf",
+  "path": "/accounting_reports/inventory_valuation/pdf"
+ },
+ {
+  "name": "export_income_statement_pdf",
+  "path": "/accounting_statements/income_statement/pdf?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_family_journals_pdf",
+  "path": "/accounting_reports/journals/pdf?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_family_stock_movements_pdf",
+  "path": "/accounting_reports/stock_movements/pdf?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "export_treasury_statement_1_pdf",
+  "path": "/accounting_treasuries/statement/1/pdf"
  }
 ]

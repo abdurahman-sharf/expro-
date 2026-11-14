@@ -19,6 +19,15 @@ if (! str_starts_with($database, 'ospos_test_')) {
     exit(2);
 }
 
+foreach (['CI_ENVIRONMENT', 'ALLOWED_HOSTNAMES'] as $name) {
+    $value = getenv($name);
+
+    if ($value !== false) {
+        $_ENV[$name]    = $value;
+        $_SERVER[$name] = $value;
+    }
+}
+
 error_reporting(E_ALL & ~E_DEPRECATED);
 ini_set('display_errors', '1');
 
