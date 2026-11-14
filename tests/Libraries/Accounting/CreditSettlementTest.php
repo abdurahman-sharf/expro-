@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\Currencies;
@@ -416,47 +417,125 @@ class CreditSettlementTest extends CIUnitTestCase
         $currencies->rates()->add(['currency_code' => 'USD', 'rate' => $rate, 'effective_date' => $this->daysAgo(30)]);
     }
 
-    public function testSettle_SpendsAnAdvanceInTheBaseOnAnInvoiceInDollarsByItsAmountInTheBase(): void
+    public function testSettle_RefusesByNameToSpendAnAdvanceInTheBaseOnAnInvoiceInDollars(): void
     {
         $this->dollarsAt('3.75');
         $this->sales->useCurrency('USD');
 
         $invoice = $this->invoiceOf('100.00');
-        $advance = (new CustomerAdvances())->receive($this->customerId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $this->advanceTaker());
+        $number  = (string) $this->accountingDb()->table('sales')->select('invoice_number')->where('sale_id', $invoice)->get()->getRow()->invoice_number;
 
-        $this->assertSame([CreditSource::CUSTOMER_ADVANCE . ':' . $advance . '->' . $invoice . ':100.00'], $this->applications());
-        $this->assertSame('275.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
-        $this->assertSame('275.00', $this->balance($this->customerAccount()));
-        $this->assertTies();
-    }
-
-    public function testSettle_PaysACreditNoteOfAnInvoiceInDollarsIntoItAtTheRateOfTheInvoice(): void
-    {
-        $this->dollarsAt('3.75');
-        $this->sales->useCurrency('USD');
-
-        $invoice = $this->invoiceOf('100.00');
-        (new Currencies())->rates()->add(['currency_code' => 'USD', 'rate' => '3.00', 'effective_date' => date('Y-m-d')]);
-        $note = $this->creditNoteOf($invoice, '40.00');
-
-        $this->assertSame(['credit_note:' . $note . '->' . $invoice . ':150.00'], $this->applications());
-        $this->assertSame('225.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
-        $this->assertTies();
-    }
-
-    public function testSettle_TakesBackTheAdvanceSpentOnAnInvoiceInDollarsWhenTheAdvanceIsCancelled(): void
-    {
-        $this->dollarsAt('3.75');
-        $this->sales->useCurrency('USD');
-
-        $invoice = $this->invoiceOf('100.00');
-        $taker   = $this->advanceTaker();
-        $advance = (new CustomerAdvances())->receive($this->customerId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $taker);
-
-        (new CustomerAdvances())->cancel($advance, 'taken by mistake', $taker);
+        try {
+            (new CustomerAdvances())->receive($this->customerId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $this->advanceTaker());
+            $this->fail('The advance was taken although it would have been spent on an invoice in dollars.');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::CreditInForeignCurrency, $refusal->error);
+            $this->assertSame('USD', $refusal->context['code']);
+            $this->assertSame($number !== '' ? $number : 'POS ' . $invoice, $refusal->context['name']);
+            $this->assertStringContainsString('USD', AccountingMessage::of($refusal));
+        }
 
         $this->assertSame([], $this->applications());
+        $this->assertSame(0, $this->accountingDb()->table('customer_advances')->countAllResults(), 'the advance went with the refusal');
         $this->assertSame('375.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('375.00', $this->balance($this->customerAccount()));
+        $this->assertTies();
+    }
+
+    public function testSettle_RefusesByNameAnInvoiceInDollarsForACustomerWhoHoldsAdvanceCredit(): void
+    {
+        $this->dollarsAt('3.75');
+
+        $advance = (new CustomerAdvances())->receive($this->customerId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $this->advanceTaker());
+        $this->sales->useCurrency('USD');
+        $sales  = $this->countRows('sales');
+        $before = $this->countJournals();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->invoiceOf('100.00'));
+
+        $failure = $this->sales->accountingFailure();
+
+        $this->assertInstanceOf(AccountingException::class, $failure);
+        $this->assertSame(AccountingError::CreditInForeignCurrency, $failure->error);
+        $this->assertSame([$sales, $before], [$this->countRows('sales'), $this->countJournals()]);
+        $this->assertSame([], $this->applications());
+        $this->assertSame('100.00', bcadd($this->position()->credit(), '0', 2), 'the advance is still free ' . $advance);
+        $this->assertTies();
+    }
+
+    public function testSettle_SettlesAnInvoiceInDollarsPaidInFullAtOnceByItsPaymentWithoutTouchingTheCredit(): void
+    {
+        $this->dollarsAt('3.75');
+
+        (new CustomerAdvances())->receive($this->customerId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $this->advanceTaker());
+        $this->sales->useCurrency('USD');
+
+        $invoice = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '100.00')]);
+
+        $this->assertGreaterThan(0, $invoice);
+        $this->assertSame([], $this->applications());
+        $this->assertSame('0.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('100.00', bcadd($this->position()->credit(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_RefusesByNameACreditNoteOfAnInvoiceInTheBaseWhenAnOlderInvoiceInDollarsIsOpen(): void
+    {
+        $this->dollarsAt('3.75');
+        $this->grantInvoiceDate();
+
+        $base = $this->invoiceOf('100.00');
+        $this->sales->useCurrency('USD');
+        $dollars = $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10));
+        $this->sales->useCurrency(null);
+
+        $this->assertGreaterThan(0, $dollars);
+
+        $returns = $this->countRows('sales');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->creditNoteOf($base, '40.00'));
+        $this->assertSame(AccountingError::CreditInForeignCurrency, $this->sales->accountingFailure()->error);
+        $this->assertSame($returns, $this->countRows('sales'));
+        $this->assertSame([], $this->applications());
+        $this->assertSame('375.00', bcadd($this->position()->invoice($dollars)->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_RefusesByNameACreditNoteInDollarsAtAnotherRateOnAnInvoiceInDollars(): void
+    {
+        $this->dollarsAt('3.75');
+        $this->grantInvoiceDate();
+
+        $this->sales->useCurrency('USD');
+        $first = $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10));
+        (new Currencies())->rates()->add(['currency_code' => 'USD', 'rate' => '3.60', 'effective_date' => $this->daysAgo(3)]);
+        $this->sales->useCurrency('USD');
+        $second = $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: date('Y-m-d'));
+
+        $this->assertSame(['3.75000000', '3.60000000'], [$this->saleRow($first)->currency_rate, $this->saleRow($second)->currency_rate]);
+
+        $returns = $this->countRows('sales');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->creditNoteOf($second, '40.00'));
+        $this->assertSame(AccountingError::CreditInForeignCurrency, $this->sales->accountingFailure()->error);
+        $this->assertSame($returns, $this->countRows('sales'));
+        $this->assertSame([], $this->applications());
+        $this->assertTies();
+    }
+
+    public function testSettle_AppliesTheCreditNoteOfAnInvoiceInDollarsToAnOlderInvoiceInTheBase(): void
+    {
+        $this->dollarsAt('3.75');
+        $this->grantInvoiceDate();
+
+        $base = $this->save([$this->line($this->item('0', false), 0, '1', '500')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(20));
+        $this->sales->useCurrency('USD');
+        $dollars = $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [$this->payment(lang('Sales.cash'), '100.00')], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10));
+        $this->sales->useCurrency(null);
+        $note = $this->creditNoteOf($dollars, '40.00');
+
+        $this->assertGreaterThan(0, $note);
+        $this->assertSame(['credit_note:' . $note . '->' . $base . ':150.00'], $this->applications());
         $this->assertTies();
     }
 

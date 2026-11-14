@@ -17,6 +17,11 @@ use Config\Database;
  *
  * The caller holds the lock of the customer (CustomerLock) and is inside a transaction, so the
  * ledger it reads is the ledger as the last change left it.
+ *
+ * Credit is kept in the base currency, and an invoice in another currency is settled by payments in its
+ * own currency, each with the exchange difference it causes. Credit applied to such an invoice would settle
+ * it with no difference, so it is refused by name, except a credit note of the same currency taken at the
+ * same rate, which is the invoice's own figures in the other direction.
  */
 final class CreditSettlement
 {
@@ -146,10 +151,12 @@ final class CreditSettlement
     {
         $position = $this->ledger->position($customerId);
         $open     = [];
+        $figures  = [];
 
         foreach ($position->invoices as $invoice) {
             if (bccomp($invoice->open(), '0', SaleAmounts::SCALE) > 0) {
-                $open[$invoice->saleId] = $invoice->open();
+                $open[$invoice->saleId]    = $invoice->open();
+                $figures[$invoice->saleId] = $invoice;
             }
         }
 
@@ -171,9 +178,44 @@ final class CreditSettlement
                     continue;
                 }
 
+                $this->assertSameCurrency($customerId, $source, $figures[$invoiceId]);
+
                 $available = $this->give($customerId, $source, $invoiceId, $available, $open, $employeeId);
             }
         }
+    }
+
+    /**
+     * @throws AccountingException
+     */
+    private function assertSameCurrency(int $customerId, CreditSource $source, InvoiceFigures $invoice): void
+    {
+        if ($invoice->currencyCode === null) {
+            return;
+        }
+
+        $mirror = $source->type === CreditSource::CREDIT_NOTE
+            && $source->currencyCode === $invoice->currencyCode
+            && $source->currencyRate !== null
+            && $invoice->currencyRate !== null
+            && bccomp($source->currencyRate, $invoice->currencyRate, 8) === 0;
+
+        if ($mirror) {
+            return;
+        }
+
+        throw new AccountingException(
+            AccountingError::CreditInForeignCurrency,
+            'Credit cannot be applied to an invoice in a foreign currency.',
+            ['customer_id' => $customerId, 'invoice_id' => $invoice->saleId, 'code' => $invoice->currencyCode, 'name' => $this->numberOf($invoice->saleId)],
+        );
+    }
+
+    private function numberOf(int $saleId): string
+    {
+        $row = $this->db->table('sales')->select('invoice_number')->where('sale_id', $saleId)->get()->getRow();
+
+        return $row !== null && trim((string) $row->invoice_number) !== '' ? (string) $row->invoice_number : 'POS ' . $saleId;
     }
 
     /**

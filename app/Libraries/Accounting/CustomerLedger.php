@@ -40,11 +40,14 @@ final class CustomerLedger
         $returned = [];
         $credits  = [];
         $invoices = [];
+        $currency = [];
 
         foreach ($sales as $sale) {
             if ((int) $sale->sale_type !== SALE_TYPE_RETURN) {
                 continue;
             }
+
+            $currency[CreditSource::CREDIT_NOTE . ':' . $sale->sale_id] = self::currencyOf($sale);
 
             $amount = bcadd(bcsub('0', $sale->total, SaleAmounts::SCALE), $paid[(int) $sale->sale_id] ?? '0', SaleAmounts::SCALE);
             $origin = $sale->return_of_sale_id === null ? null : (int) $sale->return_of_sale_id;
@@ -80,6 +83,7 @@ final class CustomerLedger
             }
 
             $saleId           = (int) $sale->sale_id;
+            [$code, $rate]    = self::currencyOf($sale);
             $figures[$saleId] = new InvoiceFigures(
                 $saleId,
                 (string) $sale->doc_date,
@@ -90,6 +94,8 @@ final class CustomerLedger
                 $returned[$saleId] ?? '0.0000',
                 $sale->due_date === null ? (string) $sale->doc_date : (string) $sale->due_date,
                 $sale->payment_terms_days === null ? null : (int) $sale->payment_terms_days,
+                currencyCode: $code,
+                currencyRate: $rate,
             );
         }
 
@@ -114,7 +120,9 @@ final class CustomerLedger
         $sources  = [];
 
         foreach ($credits as [$type, $sourceId, $origin, $date, $amount]) {
-            $sources[] = new CreditSource($type, $sourceId, $origin, $date, $amount, $applied['from'][$type . ':' . $sourceId] ?? '0.0000', $refunded[$type . ':' . $sourceId] ?? '0.0000');
+            [$code, $rate] = $currency[$type . ':' . $sourceId] ?? [null, null];
+
+            $sources[] = new CreditSource($type, $sourceId, $origin, $date, $amount, $applied['from'][$type . ':' . $sourceId] ?? '0.0000', $refunded[$type . ':' . $sourceId] ?? '0.0000', $code, $rate);
         }
 
         // Credit is applied in this order: by the day an invoice is dated and, among invoices of one day,
@@ -124,6 +132,20 @@ final class CustomerLedger
         usort($invoices, static fn (InvoiceFigures $a, InvoiceFigures $b): int => [$a->date, $a->saleId] <=> [$b->date, $b->saleId]);
 
         return new CustomerPosition($customerId, $accountId, $this->accountBalance($accountId, $asOf), $invoices, $sources, $asOf);
+    }
+
+    /**
+     * The currency a sale was made in and the rate it was captured at, or nothing for a sale in the base currency.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    private static function currencyOf(object $sale): array
+    {
+        if ($sale->currency_code === null || $sale->currency_code === '') {
+            return [null, null];
+        }
+
+        return [(string) $sale->currency_code, $sale->currency_rate === null ? null : (string) $sale->currency_rate];
     }
 
     /**
@@ -238,7 +260,7 @@ final class CustomerLedger
         }
 
         return $this->db->query(
-            'SELECT s.sale_id, s.sale_type, s.sale_time, s.return_of_sale_id, s.due_date, s.payment_terms_days,
+            'SELECT s.sale_id, s.sale_type, s.sale_time, s.return_of_sale_id, s.due_date, s.payment_terms_days, s.currency_code, s.currency_rate,
                     COALESCE(s.invoice_date, DATE(s.sale_time)) AS doc_date,
                     (SELECT COALESCE(SUM(l.debit - l.credit), 0) FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' l WHERE l.journal_id = j.journal_id AND l.account_id = ?) AS total
              FROM ' . $this->db->prefixTable('sales') . ' s

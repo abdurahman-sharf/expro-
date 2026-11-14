@@ -29,6 +29,8 @@ final readonly class CreditSource
         public string $amount,
         public string $applied,
         public string $refunded = '0.0000',
+        public ?string $currencyCode = null,
+        public ?string $currencyRate = null,
     ) {
     }
 

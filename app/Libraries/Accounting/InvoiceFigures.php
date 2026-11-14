@@ -25,6 +25,8 @@ final readonly class InvoiceFigures
         public ?int $termsDays = null,
         public bool $opening = false,
         public bool $debitNote = false,
+        public ?string $currencyCode = null,
+        public ?string $currencyRate = null,
     ) {
     }
 

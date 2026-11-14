@@ -443,6 +443,7 @@ enum AccountingError: string
     case FxJournalLocked              = 'fx_journal_locked';
     case ForeignDecimalsUnsupported   = 'foreign_decimals_unsupported';
     case StoredValueInForeignCurrency = 'stored_value_in_foreign_currency';
+    case CreditInForeignCurrency      = 'credit_in_foreign_currency';
     case TransferRateOutOfRange       = 'transfer_rate_out_of_range';
 
 
