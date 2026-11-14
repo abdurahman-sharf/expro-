@@ -78,6 +78,7 @@ class ReportsControllerTest extends CIUnitTestCase
 
         $this->dropReportTables();
         $this->removeReportSales(self::REPORT_MONTH);
+        config(OSPOS::class)->update_settings();
 
         parent::tearDown();
     }
