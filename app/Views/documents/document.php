@@ -4,6 +4,9 @@
  * @var string $context
  * @var array  $sale
  */
+
+use App\Libraries\Documents\QrImage;
+
 $config              = $sale['config'] ?? documentConfig();
 $profile             = documentProfile($type, $sale);
 $rtl                 = isRtl();
@@ -207,10 +210,7 @@ $notes = array_filter([
     </table>
 
     <?php if ($qr !== null && $qr->payload !== null): ?>
-        <div class="doc-qr">
-            <div class="doc-qr-label"><?= lang('Documents.qr_label') ?></div>
-            <div class="doc-qr-text" dir="ltr"><?= esc($qr->payload) ?></div>
-        </div>
+        <?= view('documents/qr', ['qr' => $qr, 'context' => $context, 'preferredMm' => QrImage::SIZE_A4_MM]) ?>
     <?php elseif ($qr !== null && $qr->refusal !== null && $context === 'screen'): ?>
         <div class="alert alert-warning print_hide doc-qr-notice" role="alert"><?= esc(lang('Documents.error_' . $qr->refusal->value)) ?></div>
     <?php endif; ?>

@@ -53,7 +53,7 @@ return [
     'purchase_invoice'               => 'فاتورة شراء',
     'purchase_number'                => 'رقم فاتورة الشراء',
     'purpose'                        => 'وذلك مقابل',
-    'qr_label'                       => 'نص رمز الفاتورة الإلكترونية (QR)',
+    'qr_label'                       => 'رمز الفاتورة الإلكترونية (QR)',
     'receipt_voucher'                => 'سند قبض',
     'received_by'                    => 'المستلم',
     'received_from_label'            => 'استلمنا من السيد',

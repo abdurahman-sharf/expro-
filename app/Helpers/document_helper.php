@@ -2,6 +2,7 @@
 
 use App\Libraries\Documents\DocumentQr;
 use App\Libraries\Documents\DocumentTerms;
+use App\Libraries\Documents\QrImage;
 use App\Libraries\Documents\QrResult;
 use App\Libraries\Integrations\EntityTranslations;
 use App\Libraries\Integrations\TranslationKind;
@@ -205,6 +206,25 @@ function documentFigure(bool $absolute, mixed $amount): string
 function documentQr(string $type, array $sale, array $config): QrResult
 {
     return (new DocumentQr())->forDocument($type, $sale, $config);
+}
+
+/**
+ * The picture of the code of a document as the source of an image and the side it is printed at in
+ * millimetres, or null when the picture cannot be made and the document prints the text of the code.
+ *
+ * @return array{source: string, sizeMm: float}|null
+ */
+function documentQrImage(string $payload, float $preferredMm): ?array
+{
+    try {
+        $image = new QrImage();
+
+        return ['source' => $image->pngDataUri($payload), 'sizeMm' => $image->sizeMm($payload, $preferredMm)];
+    } catch (Throwable $exception) {
+        log_message('error', 'The picture of the code of a document cannot be made: ' . $exception->getMessage());
+
+        return null;
+    }
 }
 
 /**

@@ -26,6 +26,9 @@ use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Documents\CustomFields;
+use App\Libraries\Documents\DocumentQr;
+use App\Libraries\Documents\QrImage;
+use App\Libraries\Documents\SimplifiedInvoiceQr;
 use App\Libraries\HeaderCharges;
 use App\Libraries\Integrations\EntityTranslations;
 use App\Libraries\Integrations\IntegrationOptions;
@@ -8894,14 +8897,24 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         config(OSPOS::class)->settings = $before;
     }
 
+    private function qrTextOf(string $page): string
+    {
+        $this->assertSame(1, preg_match('/<div class="doc-qr-text(?: print_hide)?" dir="ltr">([A-Za-z0-9+\/=]+)<\/div>/', $page, $found), 'The page carries no code.');
+
+        return $found[1];
+    }
+
+    private function qrImageOf(string $page): ?string
+    {
+        return preg_match('/<img class="doc-qr-image" src="(data:image\/png;base64,[A-Za-z0-9+\/=]+)"/', $page, $found) === 1 ? $found[1] : null;
+    }
+
     /**
      * @return array<int, string> The fields of the code in the text of the page, by tag.
      */
     private function qrFieldsOf(string $page): array
     {
-        $this->assertSame(1, preg_match('/<div class="doc-qr-text" dir="ltr">([A-Za-z0-9+\/=]+)<\/div>/', $page, $found), 'The page carries no code.');
-
-        $bytes  = base64_decode($found[1], true);
+        $bytes  = base64_decode($this->qrTextOf($page), true);
         $fields = [];
 
         for ($offset = 0; $offset < strlen($bytes);) {
@@ -9153,6 +9166,8 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $fields = $this->qrFieldsOf($page->getBody());
         $tax    = '0';
 
+        $this->assertSame((new QrImage())->pngDataUri($this->qrTextOf($page->getBody())), $this->qrImageOf($page->getBody()));
+
         foreach ($data['taxes'] as $row) {
             $tax = bcadd($tax, (string) $row['sale_tax_amount'], 4);
         }
@@ -9177,6 +9192,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
 
         $page->assertDontSee(lang('Documents.qr_label'));
+        $this->assertStringNotContainsString('doc-qr-image', $page->getBody());
         $this->assertStringContainsString('doc-qr-notice', $page->getBody());
         $page->assertSee(lang('Documents.error_qr_vat_number_missing'));
     }
@@ -9194,7 +9210,8 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
 
         $this->assertStringNotContainsString('class="alert alert-warning print_hide doc-qr-notice"', $html);
-        $this->assertStringNotContainsString('class="doc-qr-text"', $html);
+        $this->assertStringNotContainsString('doc-qr-text', $html);
+        $this->assertStringNotContainsString('doc-qr-image', $html);
     }
 
     public function testRenderPdfHtml_CarriesNoCodeOnAQuoteEvenWithATaxNumber(): void
@@ -9211,7 +9228,140 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
 
         $this->assertStringNotContainsString('class="doc-qr"', $quote);
-        $this->assertStringContainsString('class="doc-qr-text"', $invoice);
+        $this->assertStringNotContainsString('doc-qr-image', $quote);
+        $this->assertStringNotContainsString('doc-qr-text', $quote);
+        $this->assertNotNull($this->qrImageOf($invoice));
+    }
+
+    public function testRenderPdfHtml_PrintsThePictureOfTheCodeAloneWhileThePageOnScreenAddsItsText(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '300000000000003']);
+
+        try {
+            $sale   = $this->savedSaleData($invoice['saleId']);
+            $pdf    = view('documents/pdf', ['type' => 'tax_invoice', 'sale' => $sale]);
+            $screen = view('documents/document', ['type' => 'tax_invoice', 'context' => 'screen', 'sale' => $sale]);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $this->assertStringNotContainsString('doc-qr-text', $pdf);
+        $this->assertNotNull($this->qrImageOf($pdf));
+        $this->assertSame($this->qrImageOf($screen), $this->qrImageOf($pdf));
+        $this->assertSame((new QrImage())->pngDataUri($this->qrTextOf($screen)), $this->qrImageOf($pdf));
+        $this->assertStringContainsString('doc-qr-text print_hide', $screen);
+    }
+
+    #[DataProvider('receiptTemplateProvider')]
+    public function testGetReceipt_CarriesNeitherTheCodeNorItsPictureOnAnyReceiptTemplate(string $template): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->withReceiptSettings(['receipt_template' => $template, 'company' => 'opes', 'tax_id' => '300000000000003'], function () use ($invoice): void {
+            $page = $this->get('/sales/receipt/' . $invoice['saleId']);
+
+            $page->assertStatus(200);
+            $this->assertStringNotContainsString('doc-qr', $page->getBody());
+            $this->assertStringNotContainsString('data:image/png', $page->getBody());
+            $page->assertDontSee(lang('Documents.qr_label'));
+        });
+    }
+
+    #[DataProvider('receiptTemplateProvider')]
+    public function testGetReceipt_CarriesNeitherTheCodeNorItsPictureOnTheReceiptOfAReturn(string $template): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $note = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->withReceiptSettings(['receipt_template' => $template, 'company' => 'opes', 'tax_id' => '300000000000003'], function () use ($note): void {
+            $page = $this->get('/sales/receipt/' . $note);
+
+            $page->assertStatus(200);
+            $this->assertStringNotContainsString('doc-qr', $page->getBody());
+            $this->assertStringNotContainsString('data:image/png', $page->getBody());
+        });
+    }
+
+    public function testReceiptEmail_CarriesNeitherTheCodeNorItsPicture(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '300000000000003']);
+
+        try {
+            $html = view('sales/receipt_email', $this->savedSaleData($invoice['saleId']) + ['pdf' => false]);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $this->assertStringNotContainsString('doc-qr', $html);
+        $this->assertStringNotContainsString('data:image/png', $html);
+        $this->assertStringNotContainsString(lang('Documents.qr_label'), $html);
+    }
+
+    public function testGetPdf_EmbedsTheCodeOfATaxInvoiceAsAnImageOfThePrintedSizeAndNothingWithoutTheTaxNumber(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '300000000000003']);
+
+        try {
+            $with = $this->get('/sales/pdf/' . $invoice['saleId'] . '/tax_invoice')->response()->getBody();
+            $this->withPrintSettings(['tax_id' => '']);
+            $without = $this->get('/sales/pdf/' . $invoice['saleId'] . '/tax_invoice')->response()->getBody();
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $this->assertStringStartsWith('%PDF-', $with);
+        $this->assertSame(1, preg_match_all('~/Subtype /Image\s+/Width (\d+)\s+/Height (\d+)~', $with, $images, PREG_SET_ORDER));
+        $this->assertSame($images[0][1], $images[0][2]);
+        $this->assertSame(0, preg_match_all('~/Subtype /Image~', $without));
+
+        $sidesMm = [];
+
+        foreach ($this->decodedStreamsOf($with) as $stream) {
+            if (preg_match('~([\d.]+) 0 0 ([\d.]+) [\d.]+ [\d.]+ cm\s*/I\d+ Do~', $stream, $placed) === 1) {
+                $sidesMm[] = round((float) $placed[1] / 72 * 25.4, 1);
+            }
+        }
+
+        $this->assertSame([QrImage::SIZE_A4_MM], $sidesMm);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function decodedStreamsOf(string $pdf): array
+    {
+        preg_match_all('~stream\r?\n(.*?)\r?\nendstream~s', $pdf, $found);
+
+        return array_map(static fn (string $stream): string => (string) (@gzuncompress($stream) ?: $stream), $found[1]);
+    }
+
+    public function testGetPdf_EmbedsTheCodeOfARefundInvoiceAsAnImageToo(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5);
+        $refund = $this->refundInvoiceOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '300000000000003']);
+
+        try {
+            $pdf  = $this->get('/sales/pdf/' . $refund . '/credit_note')->response()->getBody();
+            $html = view('documents/pdf', ['type' => 'credit_note', 'sale' => $this->savedSaleData($refund)]);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $this->assertStringContainsString(lang('Numbering.type_refund_invoice'), $html);
+        $this->assertNotNull($this->qrImageOf($html));
+        $this->assertSame(1, preg_match_all('~/Subtype /Image~', $pdf));
     }
 
     public function testPostComplete_CarriesTheSameCodeOnTheInvoicePrintedRightAfterTheSaleAsOnItsReprint(): void
@@ -9237,6 +9387,8 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame(number_format((float) $data['total'], 2, '.', ''), $fields[4]);
         $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $fields[3]);
         $this->assertSame($this->qrFieldsOf($again->getBody()), $fields);
+        $this->assertNotNull($this->qrImageOf($first->getBody()));
+        $this->assertSame($this->qrImageOf($again->getBody()), $this->qrImageOf($first->getBody()));
     }
 
     /**
@@ -9265,7 +9417,8 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
 
         $page->assertStatus(200);
-        $this->assertStringNotContainsString('class="doc-qr-text"', $page->getBody());
+        $this->assertStringNotContainsString('doc-qr-text', $page->getBody());
+        $this->assertStringNotContainsString('doc-qr-image', $page->getBody());
         $this->assertStringNotContainsString('doc-qr-notice', $page->getBody());
     }
 
@@ -9283,7 +9436,8 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
 
         $page->assertSee(lang('Documents.error_qr_foreign_currency'));
-        $this->assertStringNotContainsString('class="doc-qr-text"', $page->getBody());
+        $this->assertStringNotContainsString('doc-qr-text', $page->getBody());
+        $this->assertStringNotContainsString('doc-qr-image', $page->getBody());
     }
 
     public function testPostComplete_SaysWhyTheInvoiceOfAForeignCurrencyCarriesNoCodeRightAfterTheSale(): void
@@ -9302,7 +9456,8 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->assertSame('USD', $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow()->currency_code);
         $page->assertSee(lang('Documents.error_qr_foreign_currency'));
-        $this->assertStringNotContainsString('class="doc-qr-text"', $page->getBody());
+        $this->assertStringNotContainsString('doc-qr-text', $page->getBody());
+        $this->assertStringNotContainsString('doc-qr-image', $page->getBody());
     }
 
     public function testRenderPdfHtml_CarriesTheCodeOfACreditNoteWithTheAmountsItTakesBack(): void
@@ -9314,15 +9469,20 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '300000000000003']);
 
         try {
-            $html = view('documents/pdf', ['type' => 'credit_note', 'sale' => $this->savedSaleData($note)]);
+            $sale   = $this->savedSaleData($note);
+            $html   = view('documents/pdf', ['type' => 'credit_note', 'sale' => $sale]);
+            $screen = view('documents/document', ['type' => 'credit_note', 'context' => 'screen', 'sale' => $sale]);
         } finally {
             $this->restorePrintSettings($before);
         }
 
-        $fields = $this->qrFieldsOf($html);
+        $fields   = $this->qrFieldsOf($screen);
+        $expected = (new SimplifiedInvoiceQr())->encode('opes', '300000000000003', DocumentQr::timestamp($sale['sale_time_raw'], $sale['invoice_date_raw'] ?? null), '10.00', '0.00');
 
         $this->assertSame('10.00', $fields[4]);
         $this->assertSame('0.00', $fields[5]);
+        $this->assertSame($expected, $this->qrTextOf($screen));
+        $this->assertSame((new QrImage())->pngDataUri($expected), $this->qrImageOf($html));
     }
 
     public function testRenderPdfHtml_PrintsTheTermsOfTheFamilyAndEscapesThem(): void
@@ -9880,7 +10040,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
             $this->restorePrintSettings($before);
         }
 
-        foreach (['class="doc-qr"', 'class="doc-terms"', 'doc-extra-fields"', 'doc-item-extra"', 'doc-qr-notice'] as $block) {
+        foreach (['class="doc-qr"', 'doc-qr-image', 'doc-qr-text', 'class="doc-terms"', 'doc-extra-fields"', 'doc-item-extra"', 'doc-qr-notice'] as $block) {
             $this->assertStringNotContainsString($block, $html, $block);
         }
 
