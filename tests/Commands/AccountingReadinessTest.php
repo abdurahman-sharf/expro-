@@ -260,7 +260,7 @@ class AccountingReadinessTest extends CIUnitTestCase
         $this->assertSame(0, $report['exit_code']);
         $this->assertTrue($report['read_only']);
         $this->assertSame('post-migration', $report['phase']);
-        $this->assertCount(31, $report['checks']);
+        $this->assertCount(32, $report['checks']);
         $this->assertCount(8, $report['runbook']);
         $this->assertSame(array_sum($report['counts']), count($report['checks']));
     }

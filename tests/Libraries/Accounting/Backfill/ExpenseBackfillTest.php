@@ -65,6 +65,14 @@ final class ExpenseBackfillTest extends CIUnitTestCase
         parent::tearDown();
     }
 
+    public function testDocumentAmount_GivesTheAmountOfTheExpenseAndZeroForOneThatIsGone(): void
+    {
+        $expenseId = $this->legacyExpense('230', '30', '2026-03-12');
+
+        $this->assertSame('230.0000', $this->adapter()->documentAmount(new BackfillDocument(BackfillFamily::Expenses, $expenseId, '2026-03-12', 1)));
+        $this->assertSame('0.0000', $this->adapter()->documentAmount(new BackfillDocument(BackfillFamily::Expenses, 99999999, '2026-03-12', 1)));
+    }
+
     private function adapter(): ExpenseBackfill
     {
         return new ExpenseBackfill($this->accountingDb());

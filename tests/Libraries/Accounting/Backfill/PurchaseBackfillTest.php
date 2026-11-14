@@ -105,6 +105,16 @@ final class PurchaseBackfillTest extends CIUnitTestCase
         $this->assertSame($this->posted($live), $this->plannedLines($this->plan($legacy)));
     }
 
+    public function testDocumentAmount_GivesTheTotalOfAPurchaseAndZeroForOneThatIsGone(): void
+    {
+        $receivingId = $this->legacyPurchase('500');
+        $row         = $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->get()->getRow();
+        $day         = substr((string) $row->receiving_time, 0, 10);
+
+        $this->assertSame('500.0000', $this->adapter()->documentAmount(new BackfillDocument(BackfillFamily::Purchases, $receivingId, $day, (int) $row->branch_id)));
+        $this->assertSame('0.0000', $this->adapter()->documentAmount(new BackfillDocument(BackfillFamily::Purchases, 99999999, $day, 1)));
+    }
+
     public function testPlan_LeavesAReturnAndATransferToTheLivePosting(): void
     {
         $origin = $this->purchaseOf('500');

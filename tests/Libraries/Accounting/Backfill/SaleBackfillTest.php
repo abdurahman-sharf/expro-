@@ -347,6 +347,23 @@ final class SaleBackfillTest extends CIUnitTestCase
         $this->assertSame(BackfillRefusal::PeriodClosed, $this->refusalOf($saleId));
     }
 
+    public function testDocumentAmount_GivesTheTotalOfASaleAndLessThanNothingForAReturn(): void
+    {
+        [$invoice, $return] = $this->whileOff(function (): array {
+            $cycle   = $this->referenceInvoice();
+            $invoice = $this->dateSale($this->save($cycle['items'], $cycle['taxes']), '2026-03-10');
+
+            return [$invoice, $this->dateSale($this->save([$this->line($cycle['cream'], 0, '-1', '75', '40', '10')], [], [], SALE_TYPE_RETURN, -1, true, $invoice), '2026-03-11')];
+        });
+
+        $row = $this->saleRow($invoice);
+        $day = substr((string) $row->sale_time, 0, 10);
+
+        $this->assertSame('816.5000', $this->adapter()->documentAmount(new BackfillDocument(BackfillFamily::Sales, $invoice, $day, (int) $row->branch_id)));
+        $this->assertSame('-67.5000', $this->adapter()->documentAmount(new BackfillDocument(BackfillFamily::Sales, $return, $day, (int) $row->branch_id)));
+        $this->assertSame('0.0000', $this->adapter()->documentAmount(new BackfillDocument(BackfillFamily::Sales, 99999999, $day, 1)));
+    }
+
     public function testCandidates_ListsTheCompletedSalesInTheRangeThatNoJournalStandsFor(): void
     {
         $legacy = $this->legacyInvoice('2026-03-10');

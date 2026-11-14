@@ -48,6 +48,8 @@ final class BackfillService
     public const CHUNK_DEFAULT = 200;
     public const CHUNK_MAX     = 1000;
     public const STEP_CHUNKS   = 20;
+    public const STEP_CHECKED  = 100;
+    public const STEP_POSTED   = 50;
     public const NAME_MAX      = 120;
     private const CREATE_WAIT  = 5;
 
@@ -242,7 +244,7 @@ final class BackfillService
 
             if ($batch->status === BackfillStatus::Verifying) {
                 $this->adapters = [];
-                $batch          = $this->verify($batch, $employeeId, $checking);
+                $batch          = $this->verify($batch, $employeeId, $checking, $stepwise);
 
                 if ($batch->status === BackfillStatus::Verifying) {
                     return $batch;
@@ -583,17 +585,18 @@ final class BackfillService
      *
      * @throws AccountingException
      */
-    private function verify(BackfillBatch $batch, ?int $employeeId, BackfillBudget $budget): BackfillBatch
+    private function verify(BackfillBatch $batch, ?int $employeeId, BackfillBudget $budget, bool $stepwise): BackfillBatch
     {
         $scope   = $batch->scope();
         $family  = $batch->cursorFamily ?? $batch->families[0];
         $afterId = $batch->cursorId;
+        $size    = $stepwise ? min($batch->chunkSize, self::STEP_CHECKED) : $batch->chunkSize;
 
         try {
             while (true) {
                 $adapter   = $this->adapter($family);
-                $documents = $adapter->candidates($scope, $afterId, $batch->chunkSize, $batch->id);
-                $kept      = $this->batches->itemsAfterDocument($batch->id, $family, $afterId, $batch->chunkSize);
+                $documents = $adapter->candidates($scope, $afterId, $size, $batch->id);
+                $kept      = $this->batches->itemsAfterDocument($batch->id, $family, $afterId, $size);
 
                 if ($documents === [] && $kept === []) {
                     $next = $this->after($batch, $family);
@@ -670,8 +673,10 @@ final class BackfillService
      */
     private function post(BackfillBatch $batch, ?int $employeeId, BackfillBudget $budget, bool $stepwise): BackfillBatch
     {
+        $size = $stepwise ? min($batch->chunkSize, self::STEP_POSTED) : $batch->chunkSize;
+
         while (true) {
-            $items = $this->batches->itemsAfter($batch->id, $batch->cursorId, $batch->chunkSize);
+            $items = $this->batches->itemsAfter($batch->id, $batch->cursorId, $size);
 
             if ($items === []) {
                 break;

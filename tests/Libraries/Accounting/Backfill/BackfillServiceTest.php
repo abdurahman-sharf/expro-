@@ -8,6 +8,7 @@ use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\TaxReport;
 use App\Libraries\Accounting\Backfill\BackfillBatch;
+use App\Libraries\Accounting\Backfill\BackfillBudget;
 use App\Libraries\Accounting\Backfill\BackfillService;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
@@ -1090,6 +1091,27 @@ final class BackfillServiceTest extends CIUnitTestCase
         $this->assertSame($this->backfillManager, $batch->decidedBy);
     }
 
+    public function testApproveStep_CapsTheDocumentsOfAStepWhateverChunkTheBatchWasMadeWith(): void
+    {
+        $this->expensesOfDays(5);
+
+        for ($index = 0; $index < BackfillService::STEP_POSTED + 10; $index++) {
+            $this->legacyExpense('10', '0', '2026-04-01');
+        }
+
+        $batch = $this->previewed(['chunk_size' => BackfillService::CHUNK_MAX]);
+
+        $this->assertSame(BackfillService::STEP_POSTED + 15, $batch->readyCount);
+
+        do {
+            $step = $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1);
+        } while ($step->status === BackfillStatus::Verifying);
+
+        $this->assertSame(BackfillStatus::Approving, $step->status);
+        $this->assertSame(BackfillService::STEP_POSTED, $step->approvedCount, 'A step posts no more documents than the cap, although the chunk of the batch holds them all.');
+        $this->assertSame(BackfillService::STEP_POSTED, $this->accountingDb()->table('accounting_journals')->where('backfill_batch_id', $batch->id)->where('status', 'posted')->countAllResults());
+    }
+
     public function testApproveStep_StopsAfterTheSecondsItWasGivenWhateverNumberOfChunksItWasAllowed(): void
     {
         $this->expensesOfDays(4);
@@ -1508,7 +1530,7 @@ final class BackfillServiceTest extends CIUnitTestCase
 
         $this->assertSame(BackfillStatus::Approving, $current->status);
         $this->assertSame(2, $current->approvedCount);
-        $this->assertRefusedWith(AccountingError::BackfillBusy, fn () => $method->invoke($this->backfill, $stale, $this->backfillManager, null));
+        $this->assertRefusedWith(AccountingError::BackfillBusy, fn () => $method->invoke($this->backfill, $stale, $this->backfillManager, new BackfillBudget(), false));
     }
 
     public function testApprove_PutsThePostedTaxOfThePastDocumentsInTheTaxReportThatCountedNothingBefore(): void
