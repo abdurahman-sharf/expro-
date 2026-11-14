@@ -72,10 +72,12 @@ class QrImageTest extends CIUnitTestCase
         $payload = $this->payload();
         $modules = $this->image->modules($payload);
         $picture = imagecreatefromstring($this->image->png($payload));
-        $across  = count($modules) + 2 * QrImage::QUIET_ZONE;
-        $pixels  = imagesx($picture) / $across;
 
         $this->assertNotFalse($picture);
+
+        $across = count($modules) + 2 * QrImage::QUIET_ZONE;
+        $pixels = imagesx($picture) / $across;
+
         $this->assertSame(imagesx($picture), imagesy($picture));
         $this->assertSame(0.0, fmod($pixels, 1));
         $this->assertSame(2, imagecolorstotal($picture));

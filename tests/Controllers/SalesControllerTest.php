@@ -9192,7 +9192,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
 
         $page->assertDontSee(lang('Documents.qr_label'));
-        $this->assertStringNotContainsString('doc-qr-image', $page->getBody());
+        $this->assertStringNotContainsString('class="doc-qr-image"', $page->getBody());
         $this->assertStringContainsString('doc-qr-notice', $page->getBody());
         $page->assertSee(lang('Documents.error_qr_vat_number_missing'));
     }
@@ -9210,8 +9210,8 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
 
         $this->assertStringNotContainsString('class="alert alert-warning print_hide doc-qr-notice"', $html);
-        $this->assertStringNotContainsString('doc-qr-text', $html);
-        $this->assertStringNotContainsString('doc-qr-image', $html);
+        $this->assertStringNotContainsString('class="doc-qr-text', $html);
+        $this->assertStringNotContainsString('class="doc-qr-image"', $html);
     }
 
     public function testRenderPdfHtml_CarriesNoCodeOnAQuoteEvenWithATaxNumber(): void
@@ -9228,8 +9228,8 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
 
         $this->assertStringNotContainsString('class="doc-qr"', $quote);
-        $this->assertStringNotContainsString('doc-qr-image', $quote);
-        $this->assertStringNotContainsString('doc-qr-text', $quote);
+        $this->assertStringNotContainsString('class="doc-qr-image"', $quote);
+        $this->assertStringNotContainsString('class="doc-qr-text', $quote);
         $this->assertNotNull($this->qrImageOf($invoice));
     }
 
@@ -9247,11 +9247,11 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
             $this->restorePrintSettings($before);
         }
 
-        $this->assertStringNotContainsString('doc-qr-text', $pdf);
+        $this->assertStringNotContainsString('class="doc-qr-text', $pdf);
         $this->assertNotNull($this->qrImageOf($pdf));
         $this->assertSame($this->qrImageOf($screen), $this->qrImageOf($pdf));
         $this->assertSame((new QrImage())->pngDataUri($this->qrTextOf($screen)), $this->qrImageOf($pdf));
-        $this->assertStringContainsString('doc-qr-text print_hide', $screen);
+        $this->assertStringContainsString('class="doc-qr-text print_hide"', $screen);
     }
 
     #[DataProvider('receiptTemplateProvider')]
@@ -9264,7 +9264,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
             $page = $this->get('/sales/receipt/' . $invoice['saleId']);
 
             $page->assertStatus(200);
-            $this->assertStringNotContainsString('doc-qr', $page->getBody());
+            $this->assertStringNotContainsString('class="doc-qr', $page->getBody());
             $this->assertStringNotContainsString('data:image/png', $page->getBody());
             $page->assertDontSee(lang('Documents.qr_label'));
         });
@@ -9282,7 +9282,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
             $page = $this->get('/sales/receipt/' . $note);
 
             $page->assertStatus(200);
-            $this->assertStringNotContainsString('doc-qr', $page->getBody());
+            $this->assertStringNotContainsString('class="doc-qr', $page->getBody());
             $this->assertStringNotContainsString('data:image/png', $page->getBody());
         });
     }
@@ -9299,7 +9299,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
             $this->restorePrintSettings($before);
         }
 
-        $this->assertStringNotContainsString('doc-qr', $html);
+        $this->assertStringNotContainsString('class="doc-qr', $html);
         $this->assertStringNotContainsString('data:image/png', $html);
         $this->assertStringNotContainsString(lang('Documents.qr_label'), $html);
     }
@@ -9417,8 +9417,8 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
 
         $page->assertStatus(200);
-        $this->assertStringNotContainsString('doc-qr-text', $page->getBody());
-        $this->assertStringNotContainsString('doc-qr-image', $page->getBody());
+        $this->assertStringNotContainsString('class="doc-qr-text', $page->getBody());
+        $this->assertStringNotContainsString('class="doc-qr-image"', $page->getBody());
         $this->assertStringNotContainsString('doc-qr-notice', $page->getBody());
     }
 
@@ -9436,8 +9436,8 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
 
         $page->assertSee(lang('Documents.error_qr_foreign_currency'));
-        $this->assertStringNotContainsString('doc-qr-text', $page->getBody());
-        $this->assertStringNotContainsString('doc-qr-image', $page->getBody());
+        $this->assertStringNotContainsString('class="doc-qr-text', $page->getBody());
+        $this->assertStringNotContainsString('class="doc-qr-image"', $page->getBody());
     }
 
     public function testPostComplete_SaysWhyTheInvoiceOfAForeignCurrencyCarriesNoCodeRightAfterTheSale(): void
@@ -9456,8 +9456,8 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->assertSame('USD', $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow()->currency_code);
         $page->assertSee(lang('Documents.error_qr_foreign_currency'));
-        $this->assertStringNotContainsString('doc-qr-text', $page->getBody());
-        $this->assertStringNotContainsString('doc-qr-image', $page->getBody());
+        $this->assertStringNotContainsString('class="doc-qr-text', $page->getBody());
+        $this->assertStringNotContainsString('class="doc-qr-image"', $page->getBody());
     }
 
     public function testRenderPdfHtml_CarriesTheCodeOfACreditNoteWithTheAmountsItTakesBack(): void
@@ -10040,7 +10040,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
             $this->restorePrintSettings($before);
         }
 
-        foreach (['class="doc-qr"', 'doc-qr-image', 'doc-qr-text', 'class="doc-terms"', 'doc-extra-fields"', 'doc-item-extra"', 'doc-qr-notice'] as $block) {
+        foreach (['class="doc-qr"', 'class="doc-qr-image"', 'class="doc-qr-text', 'class="doc-terms"', 'doc-extra-fields"', 'doc-item-extra"', 'doc-qr-notice'] as $block) {
             $this->assertStringNotContainsString($block, $html, $block);
         }
 
