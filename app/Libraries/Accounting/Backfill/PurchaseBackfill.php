@@ -5,6 +5,7 @@ namespace App\Libraries\Accounting\Backfill;
 use App\Libraries\Accounting\CrossBranchPayments;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\ReceivingAmounts;
 use App\Libraries\Accounting\ReceivingLoader;
 use App\Libraries\Accounting\ReceivingPostingBuilder;
 use App\Libraries\Accounting\ReceivingType;
@@ -136,6 +137,19 @@ final class PurchaseBackfill extends BackfillAdapter
         } catch (PostingException $failure) {
             return $this->refusedByPosting($failure, $source);
         }
+    }
+
+    public function documentAmount(BackfillDocument $document): string
+    {
+        $purchase = $this->loader->load($document->id);
+
+        if ($purchase === null) {
+            return '0.0000';
+        }
+
+        $total = ReceivingAmounts::totals($purchase->lines, $purchase->currency?->decimals ?? 2)['total'];
+
+        return $purchase->type === ReceivingType::Return ? bcsub('0', $total, ReceivingAmounts::SCALE) : $total;
     }
 
     protected function documentKey(): array

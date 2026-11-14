@@ -468,6 +468,46 @@ class AccountingSettingsTest extends CIUnitTestCase
         $this->assertFalse($this->settings->autoFiscalYear());
     }
 
+    public function testUpdate_RejectsTheCurrencyAndTheStartDateWhileAnyJournalExistsEvenADraft(): void
+    {
+        $this->reinstallChart();
+        $this->setConfigValue('accounting_base_currency', 'SAR');
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+        (new JournalService())->saveDraft($this->journalInput());
+
+        $this->assertTrue($this->settings->isLocked());
+        $this->assertUpdateFails(AccountingError::SettingsLocked, ['base_currency' => 'USD']);
+        $this->assertUpdateFails(AccountingError::SettingsLocked, ['start_date' => '2026-02-01']);
+        $this->assertSame('SAR', $this->settings->baseCurrency());
+        $this->assertSame('2026-01-01', $this->settings->startDate());
+    }
+
+    public function testUpdate_RejectsTheCurrencyAndTheStartDateWhileAPreviewJournalExists(): void
+    {
+        $this->reinstallChart();
+        $this->setConfigValue('accounting_base_currency', 'SAR');
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+        $journalId = (new JournalService())->saveDraft($this->journalInput());
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->update(['status' => 'preview']);
+
+        $this->assertUpdateFails(AccountingError::SettingsLocked, ['base_currency' => 'USD']);
+        $this->assertUpdateFails(AccountingError::SettingsLocked, ['start_date' => '2026-02-01']);
+    }
+
+    public function testUpdate_AllowsTheCurrencyAndTheStartDateWhileNoJournalExists(): void
+    {
+        $this->clearJournals();
+        $this->setConfigValue('accounting_base_currency', 'SAR');
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+
+        $this->assertFalse($this->settings->isLocked());
+
+        $this->settings->update(['base_currency' => 'USD', 'start_date' => '2026-02-01'], $this->manager());
+
+        $this->assertSame('USD', $this->settings->baseCurrency());
+        $this->assertSame('2026-02-01', $this->settings->startDate());
+    }
+
     public function testUpdate_RejectsAStartDateOutsideEveryFiscalYear(): void
     {
         $this->clearJournals();

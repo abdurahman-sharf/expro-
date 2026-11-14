@@ -2,9 +2,12 @@
 
 namespace App\Commands;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingNotReadyException;
 use App\Libraries\Accounting\AccountingSettings;
-use App\Models\Appconfig;
+use App\Libraries\Accounting\FiscalYearService;
+use App\Libraries\Organization\BranchException;
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
 use Config\Database;
@@ -18,44 +21,56 @@ class AccountingEnable extends BaseCommand
     protected $group       = 'Accounting';
     protected $name        = 'accounting:enable';
     protected $usage       = 'accounting:enable [--currency SAR] [--start-date YYYY-MM-DD] [--fiscal-year-end YYYY-MM-DD]';
-    protected $description = 'Sets the base currency and start date, creates the first fiscal year when none exists, and enables accounting once its settings are complete.';
+    protected $description = 'Sets the base currency and start date, creates the first fiscal year when none exists, enables accounting once its settings are complete, and creates the fiscal years from the start date through the year after the current one. The base currency and the start date cannot change once the books hold a journal.';
     protected $options     = [
         '--currency'        => 'Three-letter base currency code.',
         '--start-date'      => 'First day accounting covers.',
         '--fiscal-year-end' => 'Last day of the first fiscal year. Defaults to the end of the start date\'s year.',
     ];
 
-    public function run(array $params): void
+    public function run(array $params): int
     {
-        $config = model(Appconfig::class);
-
         $currency = $this->optionValue($params, 'currency');
         $start    = $this->optionValue($params, 'start-date');
         $end      = $this->optionValue($params, 'fiscal-year-end');
+        $input    = [];
 
         if (is_string($currency)) {
             if (preg_match('/^[A-Z]{3}$/', $currency) !== 1) {
                 CLI::error('The currency must be three capital letters.');
 
-                return;
+                return EXIT_ERROR;
             }
 
-            $config->save(['accounting_base_currency' => $currency]);
+            $input['base_currency'] = $currency;
         }
 
         if (is_string($start)) {
             if (! $this->isDate($start)) {
                 CLI::error('The start date must be a valid YYYY-MM-DD date.');
 
-                return;
+                return EXIT_ERROR;
             }
 
-            $config->save(['accounting_start_date' => $start]);
-            $this->createFirstFiscalYear($start, is_string($end) ? $end : null);
+            $input['start_date'] = $start;
+        }
+
+        $settings = new AccountingSettings();
+
+        try {
+            $settings->update($input);
+        } catch (AccountingException|BranchException $failure) {
+            CLI::error(AccountingMessage::of($failure));
+
+            return EXIT_ERROR;
+        }
+
+        if (is_string($start) && ! $this->createFirstFiscalYear($start, is_string($end) ? $end : null)) {
+            return EXIT_ERROR;
         }
 
         try {
-            (new AccountingSettings())->enable();
+            $settings->enable();
         } catch (AccountingNotReadyException $exception) {
             CLI::error('Accounting cannot be enabled yet:');
 
@@ -63,10 +78,16 @@ class AccountingEnable extends BaseCommand
                 CLI::write(' - ' . $issue->code->value . ($issue->subject === null ? '' : " ({$issue->subject})"));
             }
 
-            return;
+            return EXIT_ERROR;
+        }
+
+        foreach ((new FiscalYearService())->createThrough(((int) date('Y') + 1) . '-12-31') as $year) {
+            CLI::write("Created the fiscal year {$year['start']} to {$year['end']}.");
         }
 
         CLI::write('Accounting is enabled.', 'green');
+
+        return EXIT_SUCCESS;
     }
 
     /**
@@ -92,12 +113,12 @@ class AccountingEnable extends BaseCommand
         return $value;
     }
 
-    private function createFirstFiscalYear(string $start, ?string $end): void
+    private function createFirstFiscalYear(string $start, ?string $end): bool
     {
         $db = Database::connect();
 
         if ($db->table('accounting_fiscal_years')->countAllResults() > 0) {
-            return;
+            return true;
         }
 
         $end ??= substr($start, 0, 4) . '-12-31';
@@ -105,7 +126,7 @@ class AccountingEnable extends BaseCommand
         if (! $this->isDate($end) || $end < $start) {
             CLI::error('The fiscal year end must be a valid date on or after the start date.');
 
-            return;
+            return false;
         }
 
         $db->table('accounting_fiscal_years')->insert([
@@ -115,6 +136,8 @@ class AccountingEnable extends BaseCommand
         ]);
 
         CLI::write("Created the fiscal year {$start} to {$end}.");
+
+        return true;
     }
 
     private function isDate(string $value): bool

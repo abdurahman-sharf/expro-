@@ -180,12 +180,52 @@ final class BackfillBatches
     }
 
     /**
+     * The documents of a batch of one family after a document, by id, as many as asked for: what a chunk of the
+     * check of an approval reads to set beside the documents it finds now.
+     *
+     * @return list<object>
+     */
+    public function itemsAfterDocument(int $batchId, BackfillFamily $family, int $afterDocumentId, int $limit): array
+    {
+        return $this->db->table('accounting_backfill_items')
+            ->select('document_id, outcome, reason, digest')
+            ->where('batch_id', $batchId)
+            ->where('family', $family->value)
+            ->where('document_id >', $afterDocumentId)
+            ->orderBy('document_id', 'ASC')
+            ->limit(max(1, $limit))
+            ->get()
+            ->getResult();
+    }
+
+    /**
+     * How many documents of a batch whose approval is checking them the check has been through: those of the
+     * families before the one at its cursor and those of that family up to the cursor.
+     */
+    public function verifiedCount(BackfillBatch $batch): int
+    {
+        $count = 0;
+
+        foreach ($batch->families as $family) {
+            $builder = $this->db->table('accounting_backfill_items')->where(['batch_id' => $batch->id, 'family' => $family->value]);
+
+            if ($family === $batch->cursorFamily) {
+                return $count + $builder->where('document_id <=', $batch->cursorId)->countAllResults();
+            }
+
+            $count += $builder->countAllResults();
+        }
+
+        return $count;
+    }
+
+    /**
      * @return array{documents: int, ready: int, refused: int, journals: int, debit: string}
      */
     public function figures(int $batchId): array
     {
         $row = $this->db->table('accounting_backfill_items')
-            ->select("COUNT(*) AS documents, COALESCE(SUM(outcome = 'ready'), 0) AS ready, COALESCE(SUM(outcome = 'refused'), 0) AS refused, COALESCE(SUM(journal_count), 0) AS journals, COALESCE(SUM(total_debit), 0) AS debit", false)
+            ->select("COUNT(*) AS documents, COALESCE(SUM(outcome = 'ready'), 0) AS ready, COALESCE(SUM(outcome = 'refused'), 0) AS refused, COALESCE(SUM(journal_count), 0) AS journals, COALESCE(SUM(CASE WHEN outcome = 'ready' THEN total_debit ELSE 0 END), 0) AS debit", false)
             ->where('batch_id', $batchId)
             ->get()
             ->getRow();
@@ -249,6 +289,70 @@ final class BackfillBatches
         }
 
         return $reasons;
+    }
+
+    /**
+     * The refused documents of a batch grouped by what refused them, with what they come to: the refusal of
+     * the posting, which is many different reasons, is told apart by the reason it gave. A refused document
+     * is worth what the document says, a return less than nothing, so the net of a class is what the books
+     * miss of it and the gross is the size of what is left out.
+     *
+     * @return list<array{reason: string, kind: string, documents: int, net: string, gross: string}>
+     */
+    public function refusalClasses(int $batchId): array
+    {
+        $rows = $this->db->table('accounting_backfill_items')
+            ->select("reason, CASE WHEN reason = 'posting_refused' THEN COALESCE(detail, '') ELSE '' END AS kind, COUNT(*) AS documents, COALESCE(SUM(total_debit), 0) AS net, COALESCE(SUM(ABS(total_debit)), 0) AS gross", false)
+            ->where('batch_id', $batchId)
+            ->where('outcome', 'refused')
+            ->groupBy('reason, kind')
+            ->orderBy('documents', 'DESC')
+            ->orderBy('reason', 'ASC')
+            ->get()
+            ->getResult();
+
+        return array_map(static fn (object $row): array => [
+            'reason'    => (string) $row->reason,
+            'kind'      => (string) $row->kind,
+            'documents' => (int) $row->documents,
+            'net'       => bcadd((string) $row->net, '0', 4),
+            'gross'     => bcadd((string) $row->gross, '0', 4),
+        ], $rows);
+    }
+
+    /**
+     * Every refused document of a batch, in the order they were looked at, for a file the owner corrects them from.
+     *
+     * @return list<object>
+     */
+    public function refusedItems(int $batchId): array
+    {
+        return $this->db->table('accounting_backfill_items i')
+            ->select('i.family, i.document_id, i.document_date, br.code AS branch_code, i.reason, i.detail, i.total_debit')
+            ->join('branches br', 'br.branch_id = i.branch_id', 'left')
+            ->where('i.batch_id', $batchId)
+            ->where('i.outcome', 'refused')
+            ->orderBy('i.item_id', 'ASC')
+            ->get()
+            ->getResult();
+    }
+
+    /**
+     * The documents of a batch that fall outside every fiscal year, and the days of the first and the last of them.
+     *
+     * @return array{documents: int, from: string, to: string}|null Null when none does.
+     */
+    public function outsideFiscalYears(int $batchId): ?array
+    {
+        $row = $this->db->table('accounting_backfill_items')
+            ->select('COUNT(*) AS documents, MIN(document_date) AS first_day, MAX(document_date) AS last_day', false)
+            ->where('batch_id', $batchId)
+            ->where('outcome', 'refused')
+            ->where('reason', BackfillRefusal::OutsideFiscalYear->value)
+            ->get()
+            ->getRow();
+
+        return (int) $row->documents === 0 ? null : ['documents' => (int) $row->documents, 'from' => (string) $row->first_day, 'to' => (string) $row->last_day];
     }
 
     /**

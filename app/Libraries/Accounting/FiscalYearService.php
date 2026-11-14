@@ -22,6 +22,7 @@ final class FiscalYearService
 
     public const MAX_DAYS           = 400;
     public const AUTO_CREATE_YEARS  = 2;
+    public const THROUGH_MAX        = 100;
     public const NOTICE_DAYS_BEFORE = 60;
     private const WEEK_YEAR_DAYS    = 364;
     private const NAME_MAX          = 100;
@@ -275,6 +276,71 @@ final class FiscalYearService
         }
 
         return $this->covering($date) !== null;
+    }
+
+    /**
+     * The years that follow the last one until one covers the date, as createThrough makes them, with
+     * nothing written. None when a year covers the date already or when there is no year to follow.
+     *
+     * @return list<array{name: string, start: string, end: string}>
+     *
+     * @throws AccountingException
+     */
+    public function missingThrough(string $date): array
+    {
+        if (! $this->isDate($date)) {
+            throw new AccountingException(AccountingError::InvalidDate, 'The date must be a valid Y-m-d date.');
+        }
+
+        $years    = [];
+        $previous = $this->last();
+
+        while ($previous !== null && $previous->end_date < $date && count($years) < self::THROUGH_MAX) {
+            $start    = $this->day($previous->end_date, 1);
+            $end      = $this->yearEndFor($start, $previous);
+            $years[]  = ['name' => $this->nameFor($start, $end), 'start' => $start, 'end' => $end];
+            $previous = (object) ['start_date' => $start, 'end_date' => $end];
+        }
+
+        return $years;
+    }
+
+    /**
+     * Creates the years that follow the last one until one covers the date, whatever the setting for creating
+     * years by themselves says: it is how the books are given the years their documents fall in. A person
+     * needs the permission and every branch, and the system, which turns accounting on, needs neither.
+     *
+     * @return list<array{name: string, start: string, end: string}> The years created, none when nothing was missing.
+     *
+     * @throws AccountingException|BranchException
+     */
+    public function createThrough(string $date, ?int $employeeId = null): array
+    {
+        if ($employeeId !== null) {
+            $this->requireManage($employeeId);
+        }
+
+        return $this->transactional(function () use ($date, $employeeId): array {
+            $this->locks->holdCompany();
+
+            $created = [];
+
+            foreach ($this->missingThrough($date) as $year) {
+                $this->db->query(
+                    'INSERT IGNORE INTO ' . $this->db->prefixTable('accounting_fiscal_years') . ' (company_id, name, start_date, end_date, description, status, created_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    [CompanyContext::id(), $year['name'], $year['start'], $year['end'], null, 'open', $employeeId],
+                );
+
+                if ($this->db->affectedRows() === 1) {
+                    $this->audit->write('fiscal_year', (int) $this->db->insertID(), 'created', $employeeId, $employeeId === null ? JournalOrigin::System : JournalOrigin::User, ['name' => $year['name'], 'start' => $year['start'], 'end' => $year['end'], 'automatic' => $employeeId === null]);
+
+                    $created[] = $year;
+                }
+            }
+
+            return $created;
+        });
     }
 
     private function requireManage(?int $employeeId): void

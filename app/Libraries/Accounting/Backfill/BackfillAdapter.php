@@ -57,6 +57,18 @@ abstract class BackfillAdapter
     }
 
     /**
+     * The day of the latest document of the scope that no journal stands for, or null when there is none.
+     */
+    final public function latest(BackfillScope $scope, int $batchId = 0): ?string
+    {
+        [$sql, $params] = $this->candidateQuery($scope, 0, $batchId);
+
+        $row = $this->db->query("SELECT MAX(document_date) AS latest FROM ({$sql}) q", $params)->getRow();
+
+        return $row === null || $row->latest === null ? null : (string) $row->latest;
+    }
+
+    /**
      * The query that finds the documents, with the columns id, document_date and branch_id and no order and no limit.
      *
      * @return array{0: string, 1: list<int|string>}
@@ -64,6 +76,18 @@ abstract class BackfillAdapter
     abstract protected function candidateQuery(BackfillScope $scope, int $afterId, int $batchId): array;
 
     abstract public function plan(BackfillDocument $document, ?int $employeeId, int $batchId): BackfillPlan;
+
+    /**
+     * What the document is worth, which a screen shows beside a document the books refuse: a return is
+     * negative. It is read from the document as it stands, whatever the plan found, and it is zero for a
+     * document that cannot be read.
+     *
+     * @return numeric-string
+     */
+    public function documentAmount(BackfillDocument $document): string
+    {
+        return '0.0000';
+    }
 
     /**
      * @return array{0: string, 1: string} The table of the documents and its key.

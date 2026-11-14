@@ -121,6 +121,13 @@ enum AccountingError: string
     case CustomerOpeningReversed        = 'customer_opening_reversed';
     case CustomerOpeningSideInvalid     = 'customer_opening_side_invalid';
 
+    case OpeningImportBusy        = 'opening_import_busy';
+    case OpeningImportChanged     = 'opening_import_changed';
+    case OpeningImportEmpty       = 'opening_import_empty';
+    case OpeningImportFileInvalid = 'opening_import_file_invalid';
+    case OpeningImportFileTooBig  = 'opening_import_file_too_big';
+    case OpeningImportHasErrors   = 'opening_import_has_errors';
+
     case RoutingInvalid            = 'routing_invalid';
     case RoutingKeyUnknown         = 'routing_key_unknown';
     case RoutingAccountRequired    = 'routing_account_required';

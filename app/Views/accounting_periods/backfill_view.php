@@ -2,7 +2,9 @@
 /**
  * @var BackfillBatch                                                                 $batch
  * @var array{documents: int, ready: int, refused: int, journals: int, debit: string} $figures
- * @var array<string, int>                                                            $reasons
+ * @var list<array{reason: string, kind: string, documents: int, net: string, gross: string}> $classes
+ * @var array{documents: int, from: string, to: string, first: string, last: string, missing: int}|null $outsideYears
+ * @var bool                                                                          $canCreateYears
  * @var array{total: int, rows: list<object>}                                         $items
  * @var array{total: int, rows: list<object>}                                         $journals
  * @var array<int, list<object>>                                                      $lines
@@ -22,17 +24,13 @@
 
 use App\Libraries\Accounting\Backfill\BackfillBatch;
 use App\Libraries\Accounting\Backfill\BackfillFamily;
+use App\Libraries\Accounting\Backfill\BackfillRefusalText;
 use App\Libraries\Accounting\Backfill\BackfillStatus;
 
 $collecting = $batch->status === BackfillStatus::Collecting;
-$approvable = in_array($batch->status, [BackfillStatus::Preview, BackfillStatus::Approving], true) && $batch->fingerprint !== null && $batch->readyCount > 0;
-$cancelable = in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview, BackfillStatus::Approving], true);
-$reasonText = static function (string $reason): string {
-    $key  = 'Accounting_backfill.refusal_' . $reason;
-    $line = lang($key);
-
-    return $line === $key ? $reason : $line;
-};
+$approvable = in_array($batch->status, [BackfillStatus::Preview, BackfillStatus::Verifying, BackfillStatus::Approving], true) && $batch->fingerprint !== null && $batch->readyCount > 0;
+$cancelable = in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview, BackfillStatus::Verifying, BackfillStatus::Approving], true);
+$reasonText = static fn (string $reason): string => BackfillRefusalText::reason($reason);
 $pager = static function (int $total, int $page, int $size, string $param, Closure $url, array $query): string {
     $pages = max(1, (int) ceil($total / $size));
 
@@ -79,7 +77,7 @@ $pager = static function (int $total, int $page, int $size, string $param, Closu
         <?php endif; ?>
     </dl>
 
-    <?php if ($batch->status === BackfillStatus::Preview || $batch->status === BackfillStatus::Approving): ?>
+    <?php if (in_array($batch->status, [BackfillStatus::Preview, BackfillStatus::Verifying, BackfillStatus::Approving], true)): ?>
         <?php foreach ($blockers as $blocker): ?>
             <?php [$code, $subject] = array_pad(explode(':', $blocker, 2), 2, ''); ?>
             <p class="alert alert-warning backfill-blocker" role="alert"><?= esc(lang('Accounting_backfill.blocker_' . $code, [$subject])) ?></p>
@@ -104,14 +102,62 @@ $pager = static function (int $total, int $page, int $size, string $param, Closu
         <?php endif; ?>
     </div>
 
-    <?php if ($reasons !== []): ?>
+    <?php if ($outsideYears !== null): ?>
+        <section class="alert alert-warning" id="backfill_outside_years" role="alert">
+            <p class="mb-2"><?= esc(lang('Accounting_backfill.outside_years_notice', [(string) $outsideYears['documents'], $date($outsideYears['from']), $date($outsideYears['to']), $outsideYears['first'], $outsideYears['last']])) ?></p>
+            <?php if ($outsideYears['missing'] === 0): ?>
+                <p class="mb-0"><?= lang('Accounting_backfill.outside_years_exist') ?></p>
+            <?php else: ?>
+                <?php if ($canCreateYears): ?>
+                    <?= form_open('accounting_periods/backfill/create_years/' . $batch->id, ['id' => 'backfill_years_form', 'class' => 'd-inline print_hide']) ?>
+                        <button type="submit" class="btn btn-warning btn-sm" id="backfill_create_years"><span class="bi bi-calendar-plus" aria-hidden="true">&nbsp;</span><?= lang('Accounting_backfill.outside_years_create') ?></button>
+                    <?= form_close() ?>
+                <?php else: ?>
+                    <p class="mb-1"><?= lang('Accounting_backfill.outside_years_permission') ?></p>
+                <?php endif; ?>
+                <p class="mb-0 mt-2 small"><?= lang('Accounting_backfill.outside_years_command') ?> <code dir="ltr">php spark accounting:enable</code></p>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
+
+    <?php if ($classes !== []): ?>
         <section class="mt-3" id="backfill_reasons" aria-label="<?= esc(lang('Accounting_backfill.reasons'), 'attr') ?>">
             <h2 class="h5"><?= lang('Accounting_backfill.reasons') ?></h2>
-            <ul class="mb-0">
-                <?php foreach ($reasons as $reason => $count): ?>
-                    <li><?= esc($reasonText($reason)) ?>: <?= $count ?></li>
-                <?php endforeach; ?>
-            </ul>
+            <p class="text-body-secondary small"><?= lang('Accounting_backfill.classes_intro') ?></p>
+            <div class="table-responsive">
+                <table class="table table-sm" id="backfill_classes_table">
+                    <thead>
+                        <tr>
+                            <th scope="col"><?= lang('Accounting_backfill.classes_class') ?></th>
+                            <th scope="col" class="text-end"><?= lang('Accounting_backfill.documents') ?></th>
+                            <th scope="col" class="text-end"><?= lang('Accounting_backfill.classes_net') ?></th>
+                            <th scope="col" class="text-end"><?= lang('Accounting_backfill.classes_gross') ?></th>
+                            <th scope="col"><?= lang('Accounting_backfill.classes_todo') ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($classes as $class): ?>
+                            <tr>
+                                <td><?= esc($reasonText($class['reason'])) ?><?= $class['kind'] === '' ? '' : ' <span class="text-body-secondary">(' . esc(BackfillRefusalText::kind($class['reason'], $class['kind'])) . ')</span>' ?></td>
+                                <td class="text-end"><?= $class['documents'] ?></td>
+                                <td class="text-end"><?= $amount($class['net']) ?></td>
+                                <td class="text-end"><?= $amount($class['gross']) ?></td>
+                                <td><?= esc(BackfillRefusalText::help($class['reason'], $class['kind'])) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-active">
+                            <th scope="row"><?= lang('Accounting_backfill.classes_total') ?></th>
+                            <td class="text-end"><?= array_sum(array_column($classes, 'documents')) ?></td>
+                            <td class="text-end"><?= $amount(array_reduce($classes, static fn (string $sum, array $class): string => bcadd($sum, $class['net'], 4), '0.0000')) ?></td>
+                            <td class="text-end"><?= $amount(array_reduce($classes, static fn (string $sum, array $class): string => bcadd($sum, $class['gross'], 4), '0.0000')) ?></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <p class="print_hide"><a class="btn btn-outline-secondary btn-sm" id="backfill_export_refused" href="<?= esc(base_url('accounting_periods/backfill/refused/' . $batch->id), 'attr') ?>"><span class="bi bi-download" aria-hidden="true">&nbsp;</span><?= lang('Accounting_backfill.export_refused') ?></a></p>
         </section>
     <?php endif; ?>
 
@@ -229,7 +275,7 @@ $pager = static function (int $total, int $page, int $size, string $param, Closu
 
 <script type="text/javascript">
     $(document).ready(function() {
-        $('#backfill_preview_form').on('submit', function(event) {
+        $('#backfill_preview_form, #backfill_years_form').on('submit', function(event) {
             event.preventDefault();
             $(this).ajaxSubmit({
                 dataType: 'json',

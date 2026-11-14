@@ -111,6 +111,13 @@ final class CashupBackfill extends BackfillAdapter
         }
     }
 
+    public function documentAmount(BackfillDocument $document): string
+    {
+        $row = $this->db->table('cash_up')->select('closed_amount_cash + closed_amount_due + closed_amount_card + closed_amount_check AS counted', false)->where('cashup_id', $document->id)->get()->getRow();
+
+        return $row === null ? '0.0000' : bcadd((string) $row->counted, '0', 4);
+    }
+
     protected function documentKey(): array
     {
         return ['cash_up', 'cashup_id'];

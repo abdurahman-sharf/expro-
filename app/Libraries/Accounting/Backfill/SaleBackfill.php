@@ -5,6 +5,7 @@ namespace App\Libraries\Accounting\Backfill;
 use App\Libraries\Accounting\CrossBranchPayments;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\SaleLoader;
 use App\Libraries\Accounting\SalePostingBuilder;
 use App\Libraries\Accounting\UndeliveredReturns;
@@ -128,6 +129,19 @@ final class SaleBackfill extends BackfillAdapter
         } catch (PostingException $failure) {
             return $this->refusedByPosting($failure, $source);
         }
+    }
+
+    public function documentAmount(BackfillDocument $document): string
+    {
+        $sale = $this->loader->load($document->id);
+
+        if ($sale === null) {
+            return '0.0000';
+        }
+
+        $total = SaleAmounts::figures($sale, totals_decimals())['total'];
+
+        return $sale->isReturn() ? bcsub('0', $total, SaleAmounts::SCALE) : $total;
     }
 
     protected function documentKey(): array

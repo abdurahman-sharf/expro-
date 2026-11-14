@@ -426,6 +426,108 @@ class FiscalYearServiceTest extends CIUnitTestCase
         $this->assertSame(['2026', '2027'], $this->names());
     }
 
+    public function testCreateThrough_CreatesEveryYearThatFollowsTheLastUntilOneCoversTheDate(): void
+    {
+        $this->year('2024', '2024-01-01', '2024-12-31');
+
+        $created = $this->service->createThrough('2027-12-31');
+
+        $this->assertSame(['2025', '2026', '2027'], array_column($created, 'name'));
+        $this->assertSame(['2024', '2025', '2026', '2027'], $this->names());
+        $this->assertSame('2027-12-31', $this->service->covering('2027-12-31')->end_date);
+    }
+
+    public function testCreateThrough_KeepsTheLengthOfAYearThatDoesNotFollowTheCalendar(): void
+    {
+        $this->year('2024/2025', '2024-07-01', '2025-06-30');
+
+        $created = $this->service->createThrough('2026-09-01');
+
+        $this->assertSame([['2025/2026', '2025-07-01', '2026-06-30'], ['2026/2027', '2026-07-01', '2027-06-30']], array_map(static fn (array $year): array => [$year['name'], $year['start'], $year['end']], $created));
+    }
+
+    public function testCreateThrough_DoesNothingWhenAYearAlreadyCoversTheDate(): void
+    {
+        $this->year('2026', '2026-01-01', '2026-12-31');
+
+        $this->assertSame([], $this->service->createThrough('2026-06-30'));
+        $this->assertSame(['2026'], $this->names());
+    }
+
+    public function testCreateThrough_DoesNothingWhileNoYearExistsBecauseTheFirstOneIsChosenByTheOwner(): void
+    {
+        $this->assertSame([], $this->service->createThrough('2027-12-31'));
+        $this->assertSame([], $this->names());
+    }
+
+    public function testCreateThrough_IsSafeToRunAgain(): void
+    {
+        $this->year('2024', '2024-01-01', '2024-12-31');
+
+        $this->service->createThrough('2026-12-31');
+
+        $this->assertSame([], $this->service->createThrough('2026-12-31'));
+        $this->assertSame(['2024', '2025', '2026'], $this->names());
+    }
+
+    public function testCreateThrough_CreatesTheYearsEvenWhenTheAutomaticCreationIsOff(): void
+    {
+        $this->setConfigValue('accounting_auto_fiscal_year', '0');
+        $this->year('2025', '2025-01-01', '2025-12-31');
+
+        $this->service->createThrough('2026-12-31');
+
+        $this->assertSame(['2025', '2026'], $this->names());
+    }
+
+    public function testCreateThrough_WritesAnAuditRowForEachYearItCreates(): void
+    {
+        $this->year('2025', '2025-01-01', '2025-12-31');
+        $this->accountingDb()->table('accounting_audit_log')->truncate();
+
+        $this->service->createThrough('2027-12-31', $this->manager());
+
+        $rows = $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'fiscal_year')->orderBy('audit_id')->get()->getResult();
+
+        $this->assertCount(2, $rows);
+        $this->assertSame('created', $rows[0]->action);
+        $this->assertStringContainsString('"2026"', (string) $rows[0]->details);
+        $this->assertStringContainsString('"2027"', (string) $rows[1]->details);
+    }
+
+    public function testCreateThrough_RequiresThePermissionAndEveryBranchOfTheEmployee(): void
+    {
+        $this->year('2025', '2025-01-01', '2025-12-31');
+
+        $this->assertFailsWith(AccountingError::PermissionDenied, fn () => $this->service->createThrough('2027-12-31', $this->employeeWithGrants([])));
+
+        try {
+            $this->service->createThrough('2027-12-31', $this->manager([1]));
+            $this->fail('A person limited to a branch changed the fiscal years of the company.');
+        } catch (BranchException $exception) {
+            $this->assertSame(BranchError::CompanyScopeNeeded, $exception->error);
+        }
+
+        $this->assertSame(['2025'], $this->names());
+    }
+
+    public function testCreateThrough_RejectsADateThatIsNotADate(): void
+    {
+        $this->year('2025', '2025-01-01', '2025-12-31');
+
+        $this->assertFailsWith(AccountingError::InvalidDate, fn () => $this->service->createThrough('soon'));
+    }
+
+    public function testMissingThrough_ListsTheYearsCreateThroughWouldCreateAndCreatesNone(): void
+    {
+        $this->year('2024', '2024-01-01', '2024-12-31');
+
+        $missing = $this->service->missingThrough('2026-03-01');
+
+        $this->assertSame([['2025', '2025-01-01', '2025-12-31'], ['2026', '2026-01-01', '2026-12-31']], array_map(static fn (array $year): array => [$year['name'], $year['start'], $year['end']], $missing));
+        $this->assertSame(['2024'], $this->names());
+    }
+
     public function testAll_CountsPostedJournalsAndMarksWhereEachYearStands(): void
     {
         $thisYear = (int) date('Y');

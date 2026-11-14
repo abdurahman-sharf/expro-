@@ -6,8 +6,11 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\Backfill\BackfillBatch;
 use App\Libraries\Accounting\Backfill\BackfillFamily;
+use App\Libraries\Accounting\Backfill\BackfillRefusalText;
 use App\Libraries\Accounting\Backfill\BackfillService;
 use App\Libraries\Accounting\Backfill\BackfillStatus;
+use App\Libraries\Accounting\ExportsCsv;
+use App\Libraries\Accounting\FiscalYearService;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchService;
 use Closure;
@@ -16,16 +19,21 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 class AccountingBackfill extends AccountingController
 {
-    private const PAGE_SIZE = 50;
-    private const PAGE_MAX  = 100000;
+    use ExportsCsv;
+
+    private const PAGE_SIZE       = 50;
+    private const PAGE_MAX        = 100000;
+    private const APPROVE_SECONDS = 10.0;
 
     private BackfillService $backfill;
+    private FiscalYearService $years;
 
     public function __construct()
     {
         parent::__construct('accounting_periods');
 
         $this->backfill = new BackfillService(null, null, $this->branchGuard());
+        $this->years    = new FiscalYearService(null, null, $this->branchGuard());
     }
 
     public function getIndex(): string
@@ -93,7 +101,9 @@ class AccountingBackfill extends AccountingController
         return view('accounting_periods/backfill_view', [
             'batch'         => $batch,
             'figures'       => $repo->figures($batch->id),
-            'reasons'       => $repo->reasons($batch->id),
+            'classes'       => $repo->refusalClasses($batch->id),
+            'outsideYears'  => $this->outsideYears($batch),
+            'canCreateYears' => $this->can(AccountingGuard::PERIODS_MANAGE) && $this->branchGuard()->isUnrestricted($this->employeeId()),
             'items'         => $items,
             'journals'      => $journal,
             'lines'         => $lines,
@@ -124,11 +134,69 @@ class AccountingBackfill extends AccountingController
         });
     }
 
+    public function postCreateYears(int $batchId): ResponseInterface
+    {
+        $batch = $this->visibleBatch($batchId);
+
+        return $this->attempt(function () use ($batch): array {
+            $outside = $this->backfill->repository()->outsideFiscalYears($batch->id);
+
+            if ($outside === null) {
+                return ['success' => false, 'message' => lang('Accounting_backfill.outside_years_none'), 'id' => NEW_ENTRY];
+            }
+
+            $created = $this->years->createThrough($outside['to'], $this->employeeId());
+            $message = lang('Accounting_backfill.outside_years_created', [(string) count($created)]);
+
+            session()->setFlashdata('accounting_notice', $message);
+
+            return ['success' => true, 'message' => $message, 'id' => $batch->id, 'redirect' => $this->viewUrl($batch->id)];
+        });
+    }
+
+    public function getRefused(int $batchId): ResponseInterface
+    {
+        $batch  = $this->visibleBatch($batchId);
+        $handle = fopen('php://temp', 'r+b');
+
+        $this->csvRow($handle, [
+            lang('Accounting_backfill.family'),
+            lang('Accounting_backfill.source'),
+            lang('Accounting_backfill.date'),
+            lang('Accounting_backfill.branch'),
+            lang('Accounting_backfill.reason'),
+            lang('Accounting_backfill.detail'),
+            lang('Accounting_backfill.amount'),
+            lang('Accounting_backfill.classes_todo'),
+        ]);
+
+        foreach ($this->backfill->repository()->refusedItems($batch->id) as $item) {
+            $reason = (string) $item->reason;
+            $detail = $item->detail === null ? '' : (string) $item->detail;
+
+            $this->csvRow($handle, [
+                lang('Accounting_backfill.family_' . $item->family),
+                (string) (int) $item->document_id,
+                (string) $item->document_date,
+                (string) $item->branch_code,
+                BackfillRefusalText::reason($reason),
+                $detail,
+                bcadd((string) $item->total_debit, '0', 4),
+                BackfillRefusalText::help($reason, $detail),
+            ]);
+        }
+
+        return $this->response
+            ->setContentType('text/csv', 'UTF-8')
+            ->setHeader('Content-Disposition', 'attachment; filename="backfill-' . $batch->id . '-refused.csv"')
+            ->setBody("\xEF\xBB\xBF" . $this->csvText($handle));
+    }
+
     public function getApproveForm(int $batchId): string
     {
         $batch = $this->visibleBatch($batchId);
 
-        if (! in_array($batch->status, [BackfillStatus::Preview, BackfillStatus::Approving], true) || $batch->fingerprint === null) {
+        if (! in_array($batch->status, [BackfillStatus::Preview, BackfillStatus::Verifying, BackfillStatus::Approving], true) || $batch->fingerprint === null) {
             throw PageNotFoundException::forPageNotFound();
         }
 
@@ -148,12 +216,29 @@ class AccountingBackfill extends AccountingController
                 return ['success' => false, 'message' => lang('Accounting_backfill.confirm_required'), 'id' => NEW_ENTRY];
             }
 
-            $this->backfill->approve($batchId, $this->postedText('fingerprint'), $this->employeeId());
+            $asked = $this->request->getPost('steps');
+            $steps = is_string($asked) && ctype_digit($asked) ? min(max(1, (int) $asked), BackfillService::STEP_CHUNKS) : BackfillService::STEP_CHUNKS;
 
-            $message = lang('Accounting_backfill.approved');
-            session()->setFlashdata('accounting_notice', $message);
+            $batch    = $this->backfill->approveStep($batchId, $this->postedText('fingerprint'), $this->employeeId(), $steps, self::APPROVE_SECONDS);
+            $progress = $this->backfill->progress($batch);
 
-            return ['success' => true, 'message' => $message, 'id' => $batchId, 'redirect' => $this->viewUrl($batchId)];
+            if ($progress->isFinished()) {
+                $message = lang('Accounting_backfill.approved');
+                session()->setFlashdata('accounting_notice', $message);
+
+                return ['success' => true, 'continue' => false, 'message' => $message, 'id' => $batchId, 'redirect' => $this->viewUrl($batchId)];
+            }
+
+            return [
+                'success'  => true,
+                'continue' => true,
+                'message'  => lang('Accounting_backfill.approve_progress_' . $progress->phase, [(string) $progress->done, (string) $progress->total]),
+                'id'       => $batchId,
+                'phase'    => $progress->phase,
+                'done'     => $progress->done,
+                'total'    => $progress->total,
+                'redirect' => $this->viewUrl($batchId),
+            ];
         });
     }
 
@@ -161,7 +246,7 @@ class AccountingBackfill extends AccountingController
     {
         $batch = $this->visibleBatch($batchId);
 
-        if (! in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview, BackfillStatus::Approving], true)) {
+        if (! in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview, BackfillStatus::Verifying, BackfillStatus::Approving], true)) {
             throw PageNotFoundException::forPageNotFound();
         }
 
@@ -233,6 +318,26 @@ class AccountingBackfill extends AccountingController
     private function viewUrl(int $batchId, array $query = []): string
     {
         return base_url('accounting_periods/backfill/view/' . $batchId) . ($query === [] ? '' : '?' . http_build_query($query));
+    }
+
+    /**
+     * @return array{documents: int, from: string, to: string, first: string, last: string, missing: int}|null
+     */
+    private function outsideYears(BackfillBatch $batch): ?array
+    {
+        $outside = $this->backfill->repository()->outsideFiscalYears($batch->id);
+
+        if ($outside === null) {
+            return null;
+        }
+
+        try {
+            $missing = $this->years->missingThrough($outside['to']);
+        } catch (AccountingException) {
+            $missing = [];
+        }
+
+        return $outside + ['first' => $missing[0]['name'] ?? '', 'last' => $missing === [] ? '' : $missing[array_key_last($missing)]['name'], 'missing' => count($missing)];
     }
 
     /**
