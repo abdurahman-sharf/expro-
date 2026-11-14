@@ -2,6 +2,7 @@
 
 namespace Tests\Support;
 
+use App\Libraries\Accounting\EntityAccountService;
 use CodeIgniter\Test\TestResponse;
 use Config\Services;
 use DOMDocument;
@@ -9,8 +10,8 @@ use DOMXPath;
 
 /**
  * What a test of the screens of the operational reports needs: someone who may read them, the cells of the
- * table of a screen and the rows of its file. A class that uses it also uses FeatureTestTrait,
- * AccountingFixtureTrait and EmployeeFixtureTrait.
+ * table of a screen and the rows of its file, and what the filter of the customer looks like. A class that uses it
+ * also uses FeatureTestTrait, AccountingFixtureTrait and EmployeeFixtureTrait.
  */
 trait OperationalReportFixtureTrait
 {
@@ -181,5 +182,73 @@ trait OperationalReportFixtureTrait
         fclose($handle);
 
         return $rows;
+    }
+
+    /**
+     * A customer with an account in the books, as the filter of a report lists them.
+     */
+    protected function bookedCustomer(string $firstName, string $lastName, ?string $company = null): int
+    {
+        $customerId = $this->insertCustomer($firstName, $lastName, $company);
+
+        (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $customerId, $company ?? trim($firstName . ' ' . $lastName));
+
+        return $customerId;
+    }
+
+    protected function setPickerThreshold(?int $threshold): void
+    {
+        if ($threshold === null) {
+            $this->accountingDb()->table('app_config')->where('key', 'accounting_picker_threshold')->delete();
+
+            return;
+        }
+
+        $this->setConfigValue('accounting_picker_threshold', (string) $threshold);
+    }
+
+    /**
+     * Says the screen filters by customer in a box that searches, which the lookup answers, in place of a list.
+     */
+    protected function assertCustomerFilterSearches(string $url): void
+    {
+        $this->bookedCustomer('Filter', 'First');
+        $this->bookedCustomer('Filter', 'Second');
+        $this->setPickerThreshold(1);
+        $this->reader();
+
+        try {
+            $response = $this->fetch($url);
+            $page     = $this->pageOf($response);
+            $body     = (string) $response->response()->getBody();
+
+            $this->assertSame(1, $page->query("//input[@type='text'][@id='f_customer_text']")->length, "{$url} offers a search box for the customer");
+            $this->assertSame(1, $page->query("//input[@type='hidden'][@id='f_customer'][@name='customer']")->length, "{$url} sends the number of the customer");
+            $this->assertSame(0, $page->query("//select[@name='customer']")->length, "{$url} no longer lists the customers");
+            $this->assertStringContainsString('accounting_lookup\/search', $body);
+            $this->assertStringContainsString('"mode":"ledger"', $body);
+            $this->assertStringContainsString('"selector":"#f_customer_text"', $body);
+        } finally {
+            $this->setPickerThreshold(null);
+        }
+    }
+
+    /**
+     * Says the screen lists the customers in a select box while there are no more than the threshold.
+     */
+    protected function assertCustomerFilterLists(string $url): void
+    {
+        $customerId = $this->bookedCustomer('Filter', 'Listed');
+        $this->setPickerThreshold(100000);
+        $this->reader();
+
+        try {
+            $page = $this->pageOf($this->fetch($url));
+
+            $this->assertSame(1, $page->query("//select[@id='f_customer']/option[@value='{$customerId}']")->length, "{$url} lists the customer");
+            $this->assertSame(0, $page->query("//input[@id='f_customer_text']")->length, "{$url} offers no search box");
+        } finally {
+            $this->setPickerThreshold(null);
+        }
     }
 }

@@ -64,6 +64,16 @@ class AccountingProfitReportsControllerTest extends CIUnitTestCase
         $this->save([$this->line($item, 0, '-2', '100', '40')], [], [], SALE_TYPE_RETURN, $this->customerId, true, $sale);
     }
 
+    public function testGetIndex_FiltersByCustomerInASearchBoxAboveThePickerThreshold(): void
+    {
+        $this->assertCustomerFilterSearches(self::PROFIT);
+    }
+
+    public function testGetItems_FiltersByCustomerInASearchBoxAboveThePickerThreshold(): void
+    {
+        $this->assertCustomerFilterSearches(self::ITEMS);
+    }
+
     public function testGetIndex_ShowsNoTableUntilRunAndThenTheProfitWithTheCostTiedToTheBooks(): void
     {
         $this->sell();

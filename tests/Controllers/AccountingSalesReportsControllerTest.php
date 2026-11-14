@@ -3,6 +3,7 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\Currencies;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\OperationalReports\DateFilter;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -63,6 +64,103 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $paid = $this->invoiceOf('115', $this->customerId, [$this->payment(lang('Sales.cash'), '100')]);
         $this->invoiceOf('230', $this->anotherCustomer());
         $this->creditNoteOf($paid, '57.50', $this->customerId);
+    }
+
+    public function testGetRevenue_FiltersByCustomerInASearchBoxAboveThePickerThreshold(): void
+    {
+        $this->assertCustomerFilterSearches(self::REVENUE);
+    }
+
+    public function testGetClients_FiltersByCustomerInASearchBoxAboveThePickerThreshold(): void
+    {
+        $this->assertCustomerFilterSearches(self::CLIENTS);
+    }
+
+    public function testGetRevenue_ListsTheCustomersOfTheLedgerWhileTheyAreNoMoreThanThePickerThreshold(): void
+    {
+        $this->assertCustomerFilterLists(self::REVENUE);
+        $this->assertCustomerFilterLists(self::CLIENTS);
+    }
+
+    public function testGetRevenue_ListsEveryCustomerOfTheLedgerBelowTheThresholdAndNotOnlyTheFirstFiveHundred(): void
+    {
+        $ids = [];
+
+        for ($index = 1; $index <= 520; $index++) {
+            $ids[$index] = $this->insertCustomer('Listed', sprintf('Buyer %04d', $index));
+        }
+
+        (new EntityAccountService())->fill();
+        $this->setPickerThreshold(1000);
+        $this->reader();
+
+        try {
+            $page = $this->pageOf($this->fetch(self::REVENUE));
+
+            foreach ([1, 500, 501, 520] as $position) {
+                $this->assertSame(1, $page->query("//select[@id='f_customer']/option[@value='{$ids[$position]}']")->length, "Customer {$position} is in the list");
+            }
+        } finally {
+            $this->setPickerThreshold(null);
+        }
+    }
+
+    public function testGetRevenue_NamesTheCustomerChosenInTheSearchBoxAndKeepsItsNumber(): void
+    {
+        $this->bookedCustomer('Filter', 'Other');
+        $chosen = $this->bookedCustomer('Filter', 'Chosen Buyer');
+        $this->setPickerThreshold(1);
+        $this->reader();
+
+        try {
+            $page = $this->pageOf($this->fetch(self::REVENUE . '?show=1&group=customer&customer=' . $chosen));
+
+            $this->assertSame('Filter Chosen Buyer', $page->query("//input[@id='f_customer_text']/@value")->item(0)?->nodeValue);
+            $this->assertSame((string) $chosen, $page->query("//input[@id='f_customer']/@value")->item(0)?->nodeValue);
+
+            $none = $this->pageOf($this->fetch(self::REVENUE));
+
+            $this->assertSame('', $none->query("//input[@id='f_customer_text']/@value")->item(0)?->nodeValue, 'Nobody is chosen until someone is');
+            $this->assertSame('', $none->query("//input[@id='f_customer']/@value")->item(0)?->nodeValue);
+        } finally {
+            $this->setPickerThreshold(null);
+        }
+    }
+
+    public function testGetRevenue_EscapesTheNameOfTheChosenCustomerInTheBoxAndTheScript(): void
+    {
+        $this->bookedCustomer('Filter', 'Other');
+        $chosen = $this->bookedCustomer('Filter', 'Quoted', 'Quote"s <b>Shop</b>');
+        $this->setPickerThreshold(1);
+        $this->reader();
+
+        try {
+            $body = (string) $this->fetch(self::REVENUE . '?show=1&group=customer&customer=' . $chosen)->response()->getBody();
+
+            $this->assertStringNotContainsString('<script>alert', $body);
+            $this->assertStringNotContainsString('<b>Shop</b>', $body);
+            $this->assertStringContainsString('value="Quote&quot;s&#x20;&lt;b&gt;Shop&lt;&#x2F;b&gt;"', $body);
+            $this->assertStringContainsString('"label":"Quote\\u0022s \\u003Cb\\u003EShop\\u003C\\/b\\u003E"', $body);
+        } finally {
+            $this->setPickerThreshold(null);
+        }
+    }
+
+    public function testGetRevenue_OffersNoSearchBoxToSomeoneWhoMayNotFilterByCustomer(): void
+    {
+        $this->bookedCustomer('Filter', 'First');
+        $this->bookedCustomer('Filter', 'Second');
+        $this->setPickerThreshold(1);
+        $this->reader(['accounting_reports', 'reports_sales']);
+
+        try {
+            $response = $this->fetch(self::REVENUE . '?group=day');
+
+            $response->assertStatus(200);
+            $this->assertSame(0, $this->pageOf($response)->query("//*[@id='f_customer' or @id='f_customer_text']")->length);
+        } finally {
+            $this->setPickerThreshold(null);
+        }
     }
 
     public function testGetRevenue_ShowsNoTableUntilTheReportIsRun(): void

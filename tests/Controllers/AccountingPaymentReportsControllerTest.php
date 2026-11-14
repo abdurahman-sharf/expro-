@@ -69,6 +69,16 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
         $this->save([$this->line($this->item('0', false), 0, '1', '40')], [], [[...$this->payment(lang('Sales.check'), '40'), 'treasury_id' => $this->drawer, 'reference_code' => 'CHQ-7']], SALE_TYPE_INVOICE, $this->anotherCustomer());
     }
 
+    public function testGetIndex_FiltersByCustomerInASearchBoxAboveThePickerThreshold(): void
+    {
+        $this->assertCustomerFilterSearches(self::PAYMENTS);
+    }
+
+    public function testGetAdvances_FiltersByCustomerInASearchBoxAboveThePickerThreshold(): void
+    {
+        $this->assertCustomerFilterSearches(self::ADVANCES);
+    }
+
     public function testGetIndex_ShowsNoTableUntilTheReportIsRun(): void
     {
         $this->reader();

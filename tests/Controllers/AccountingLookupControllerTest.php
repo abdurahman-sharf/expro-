@@ -139,6 +139,35 @@ final class AccountingLookupControllerTest extends CIUnitTestCase
         $this->get('/accounting_lookup/search?kind=customer&mode=every&term=Lookup')->assertStatus(403);
     }
 
+    public function testGetSearch_ServesTheCustomersOfTheLedgerToTheHolderOfTheCustomerReportsAndToNoOtherReportReader(): void
+    {
+        $customer = $this->insertCustomer('Ledger', 'Searchable');
+        $deleted  = $this->insertCustomer('Ledger', 'Searchable Departed');
+        $this->insertCustomer('Ledger', 'Searchable Unbooked');
+        (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $customer, 'Ledger Searchable');
+        (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $deleted, 'Ledger Searchable Departed');
+        $this->accountingDb()->table('customers')->where('person_id', $deleted)->update(['deleted' => 1]);
+
+        $this->actAs($this->employeeWithGrants(['accounting_reports', 'reports_customers']));
+
+        $found = $this->search(['kind' => 'customer', 'mode' => 'ledger', 'term' => 'Ledger Searchable']);
+
+        $this->assertEqualsCanonicalizing([$customer, $deleted], array_column($found['results'], 'id'));
+
+        $this->actAs($this->employeeWithGrants(['accounting_reports', 'reports_sales']));
+
+        $this->get('/accounting_lookup/search?kind=customer&mode=ledger&term=Ledger')->assertStatus(403);
+    }
+
+    public function testGetSearch_RejectsTheLedgerModeForAKindThatIsNotACustomer(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_journals', 'accounting_payables', 'accounting_receivables']));
+
+        $this->get('/accounting_lookup/search?kind=supplier&mode=ledger')->assertStatus(400);
+        $this->get('/accounting_lookup/search?kind=account&mode=ledger')->assertStatus(400);
+        $this->get('/accounting_lookup/search?kind=customer&mode=ledger')->assertStatus(200);
+    }
+
     public function testGetSearch_LeavesOutTheStockAccountOfALocationInABranchTheEmployeeDoesNotWorkIn(): void
     {
         $second  = $this->createBranch('LK2', 'Lookup branch');
