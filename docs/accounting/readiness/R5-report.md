@@ -173,7 +173,7 @@
 | `dd9c371` | R5-F4 وR5-F5 وR5-F6 |
 | `2482fde` | R5-F8 |
 
-نتائج الاختبارات التي شغّلتُها: `LocaleHelperTest` و`Token_libTest` و`LanguageFilesTest` (3810) و`BuiltAssetsTest` خضراء؛ `SalesControllerTest --filter "Receipt|testGetInvoice|testGetPrint|testGetPdf"` **114 اختبارًا (814 توكيدًا) أخضر** بعد تعديل القوالب؛ وتشغيل ثانٍ بمرشح `Pdf|Quote|CreditNote|RefundInvoice|ShowsTheDiscount|Charges` **198 اختبارًا (1464 توكيدًا) أخضر** (`EV/phpunit_sales_receipt.log` و`EV/phpunit_sales2.log`). ولأن تعديل `to_decimals` عام، شغّلتُ أيضًا 11 ملفًا من الملفات التي تستعمل `to_currency` (`DocumentHelperTest` و`ReportsControllerTest` وتقارير الضرائب وكشوف الحسابات والأرباح والخسائر والتدفقات النقدية والعملات وتحويلات الخزائن وتقرير دفعات المشتريات وتقييم المخزون والإشعارات المدينة، 453 اختبارًا) كلها **خضراء** (`EV/phpunit_regress_a.log` و`EV/phpunit_regress_b.log`). **لم أشغّل الحزمة كاملة.**
+نتائج الاختبارات التي شغّلتُها: `LocaleHelperTest` و`Token_libTest` و`LanguageFilesTest` (3810) و`BuiltAssetsTest` خضراء؛ `SalesControllerTest --filter "Receipt|testGetInvoice|testGetPrint|testGetPdf"` **114 اختبارًا (814 توكيدًا) أخضر** بعد تعديل القوالب؛ وتشغيل ثانٍ بمرشح `Pdf|Quote|CreditNote|RefundInvoice|ShowsTheDiscount|Charges` **198 اختبارًا (1464 توكيدًا) أخضر** (`EV/phpunit_sales_receipt.log` و`EV/phpunit_sales2.log`). ولأن تعديل `to_decimals` عام، شغّلتُ أيضًا 11 ملفًا من الملفات التي تستعمل `to_currency` (`DocumentHelperTest` و`ReportsControllerTest` وتقارير الضرائب وكشوف الحسابات والأرباح والخسائر والتدفقات النقدية والعملات وتحويلات الخزائن وتقرير دفعات المشتريات وتقييم المخزون والإشعارات المدينة، 444 اختبارًا) كلها **خضراء** (`EV/phpunit_regress_a.log` و`EV/phpunit_regress_b.log`). **لم أشغّل الحزمة كاملة.**
 
 ## 11. ما لم أستطع التحقق منه
 
