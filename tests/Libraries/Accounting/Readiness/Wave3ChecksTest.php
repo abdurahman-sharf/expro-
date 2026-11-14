@@ -11,6 +11,8 @@ use App\Libraries\Accounting\SupplierAdvances;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use DateTimeImmutable;
+use DateTimeZone;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -38,9 +40,13 @@ final class Wave3ChecksTest extends CIUnitTestCase
     protected $refresh     = false;
     protected $namespace   = null;
 
+    private const CAP_ROWS = 'w93 rows beyond the cap';
+
     private Wave3Checks $checks;
     private SupplierAdvances $advances;
     private int $clerk;
+    private string $processZone;
+    private ?string $shopSetting;
 
     public static function setUpBeforeClass(): void
     {
@@ -58,6 +64,12 @@ final class Wave3ChecksTest extends CIUnitTestCase
         $this->checks   = new Wave3Checks($db, new MigrationChecks($db));
         $this->advances = new SupplierAdvances();
         $this->clerk    = $this->employeeWithGrants([AccountingGuard::PAYABLES_MANAGE]);
+
+        $this->processZone = date_default_timezone_get();
+        $stored            = $db->table('app_config')->select('value')->where('key', 'timezone')->get()->getRow();
+        $this->shopSetting = $stored === null ? null : (string) $stored->value;
+
+        $db->table('app_config')->where('key', 'timezone')->delete();
     }
 
     protected function tearDown(): void
@@ -72,6 +84,14 @@ final class Wave3ChecksTest extends CIUnitTestCase
             $db->query('ALTER TABLE ospos_sales RENAME COLUMN return_document_hold TO return_document');
         }
 
+        date_default_timezone_set($this->processZone);
+        $db->table('app_config')->where('key', 'timezone')->delete();
+
+        if ($this->shopSetting !== null) {
+            $this->setConfigValue('timezone', $this->shopSetting);
+        }
+
+        $db->table('sales')->where('comment', self::CAP_ROWS)->delete();
         $db->query('SET FOREIGN_KEY_CHECKS = 0');
         $db->table('supplier_credit_applications')->truncate();
         $db->table('supplier_advances')->truncate();
@@ -97,6 +117,27 @@ final class Wave3ChecksTest extends CIUnitTestCase
     private function tomorrow(): string
     {
         return date('Y-m-d', strtotime('+1 day'));
+    }
+
+    private function shopWorksIn(string $zone): void
+    {
+        $this->setConfigValue('timezone', $zone);
+    }
+
+    private function dayIn(string $zone, string $modifier = 'now'): string
+    {
+        return (new DateTimeImmutable('now', new DateTimeZone($zone)))->modify($modifier)->format('Y-m-d');
+    }
+
+    private function salesWithDocument(int $count, int $saleType): void
+    {
+        $rows = [];
+
+        for ($row = 0; $row < $count; $row++) {
+            $rows[] = ['comment' => self::CAP_ROWS, 'employee_id' => $this->clerk, 'sale_type' => $saleType, 'return_document' => 'refund_invoice'];
+        }
+
+        $this->accountingDb()->table('sales')->insertBatch($rows);
     }
 
     public function testRun_GivesTheTwoChecksWithTheirReferences(): void
@@ -236,6 +277,102 @@ final class Wave3ChecksTest extends CIUnitTestCase
         ]);
 
         $this->assertSame(CheckStatus::Pass, $this->check('supplier_opening_dates')->status);
+    }
+
+    public function testSupplierOpening_TakesTodayInTheZoneOfTheShopWhenTheCommandLineIsADayBehind(): void
+    {
+        $this->shopWorksIn('Pacific/Kiritimati');
+        date_default_timezone_set('Pacific/Pago_Pago');
+        $receivingId = $this->advances->openingBalance($this->supplierId, SupplierAdvances::WE_OWE, '1000.00', '2026-01-01', '', $this->clerk);
+        $advanceId   = $this->advances->openingBalance($this->supplierId, SupplierAdvances::THEY_OWE, '250.00', '2026-01-01', '', $this->clerk);
+        $today       = $this->dayIn('Pacific/Kiritimati');
+
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->update(['receiving_time' => $today . ' 23:59:59']);
+        $this->accountingDb()->table('supplier_advances')->where('advance_id', $advanceId)->update(['advance_date' => $today]);
+
+        $result = $this->check('supplier_opening_dates');
+
+        $this->assertGreaterThan($this->dayIn('Pacific/Pago_Pago'), $today, 'The shop is ahead of the command line by a day or two.');
+        $this->assertSame(CheckStatus::Pass, $result->status);
+        $this->assertSame(0, $result->data['owed_to_supplier']);
+        $this->assertSame(0, $result->data['owed_by_supplier']);
+    }
+
+    public function testSupplierOpening_ReviewsADayThatHasNotCameInTheZoneOfTheShopWhenTheCommandLineIsAheadOfIt(): void
+    {
+        $this->shopWorksIn('Pacific/Pago_Pago');
+        date_default_timezone_set('Pacific/Kiritimati');
+        $receivingId = $this->advances->openingBalance($this->supplierId, SupplierAdvances::WE_OWE, '1000.00', '2026-01-01', '', $this->clerk);
+        $advanceId   = $this->advances->openingBalance($this->supplierId, SupplierAdvances::THEY_OWE, '250.00', '2026-01-01', '', $this->clerk);
+        $tomorrow    = $this->dayIn('Pacific/Pago_Pago', '+1 day');
+
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->update(['receiving_time' => $tomorrow . ' 00:00:00']);
+        $this->accountingDb()->table('supplier_advances')->where('advance_id', $advanceId)->update(['advance_date' => $tomorrow]);
+
+        $result = $this->check('supplier_opening_dates');
+
+        $this->assertLessThan($this->dayIn('Pacific/Kiritimati'), $this->dayIn('Pacific/Pago_Pago'), 'The command line is ahead of the shop by a day or two.');
+        $this->assertSame(CheckStatus::Review, $result->status);
+        $this->assertSame(1, $result->data['owed_to_supplier']);
+        $this->assertSame(1, $result->data['owed_by_supplier']);
+    }
+
+    public function testSupplierOpening_TakesTodayInTheZoneOfTheCommandLineWhenTheSettingNamesNoZonePhpKnows(): void
+    {
+        $this->shopWorksIn('Mars/Olympus');
+        date_default_timezone_set('Pacific/Kiritimati');
+        $advanceId = $this->advances->openingBalance($this->supplierId, SupplierAdvances::THEY_OWE, '250.00', '2026-01-01', '', $this->clerk);
+
+        $this->accountingDb()->table('supplier_advances')->where('advance_id', $advanceId)->update(['advance_date' => $this->dayIn('Pacific/Kiritimati')]);
+
+        $this->assertSame(CheckStatus::Pass, $this->check('supplier_opening_dates')->status);
+
+        $this->accountingDb()->table('supplier_advances')->where('advance_id', $advanceId)->update(['advance_date' => $this->dayIn('Pacific/Kiritimati', '+1 day')]);
+
+        $this->assertSame(CheckStatus::Review, $this->check('supplier_opening_dates')->status);
+    }
+
+    public function testSupplierOpening_ListsOnlyTheFirstFiftyOpeningBalancesAndCountsThemAll(): void
+    {
+        $rows = [];
+
+        for ($row = 0; $row < 51; $row++) {
+            $rows[] = ['company_id' => 1, 'branch_id' => 1, 'supplier_id' => $this->supplierId, 'kind' => SupplierAdvances::OPENING, 'amount' => '1.00', 'advance_date' => $this->tomorrow()];
+        }
+
+        $this->accountingDb()->table('supplier_advances')->insertBatch($rows);
+
+        $result = $this->check('supplier_opening_dates');
+
+        $this->assertSame(CheckStatus::Review, $result->status);
+        $this->assertSame(51, $result->data['owed_by_supplier']);
+        $this->assertStringStartsWith('51 opening balance(s) of suppliers are dated after today', $result->summary);
+        $this->assertCount(50, $result->findings);
+    }
+
+    public function testReturnDocument_ListsOnlyTheFirstFiftySalesThatAreNotReturnsAndCountsThemAll(): void
+    {
+        $this->salesWithDocument(51, SALE_TYPE_INVOICE);
+
+        $result = $this->check('return_document');
+
+        $this->assertSame(CheckStatus::Fail, $result->status);
+        $this->assertSame(51, $result->data['not_returns']);
+        $this->assertStringStartsWith('51 sale(s) that are not returns carry the document of a return', $result->summary);
+        $this->assertCount(50, $result->findings);
+    }
+
+    public function testReturnDocument_ListsOnlyTheFirstFiftyRefundInvoicesAndCountsThemAll(): void
+    {
+        $this->salesWithDocument(51, SALE_TYPE_RETURN);
+
+        $result = $this->check('return_document');
+
+        $this->assertSame(CheckStatus::Review, $result->status);
+        $this->assertSame(51, $result->data['with_document']);
+        $this->assertSame(0, $result->data['dated_before_the_migration']);
+        $this->assertStringStartsWith('51 return(s) were issued as a refund invoice since the migration ran', $result->summary);
+        $this->assertCount(50, $result->findings);
     }
 
     public function testSupplierOpening_IsSkippedBeforeTheMigrationOfTheSupplierAdvances(): void

@@ -245,20 +245,71 @@ final class ReadinessComparisonTest extends CIUnitTestCase
     public function testCompare_NotesTwoDifferentDatabasesAndAFirstReportTakenAfterTheMigrations(): void
     {
         $first  = $this->report([$this->check('a')], ['database' => 'copy', 'phase' => 'post-migration']);
-        $second = $this->report([$this->check('a')], ['database' => 'live', 'phase' => 'pre-migration', 'generated_at' => '2026-11-14 03:00:00']);
+        $second = $this->report([$this->check('a')], ['database' => 'live', 'phase' => 'post-migration', 'generated_at' => '2026-11-14 03:00:00']);
 
-        $notes = implode("\n", ReadinessComparison::compare($first, $second)->notes);
+        $result = ReadinessComparison::compare($first, $second);
+        $notes  = implode("\n", $result->notes);
 
         $this->assertStringContainsString('different databases (copy and live)', $notes);
         $this->assertStringContainsString('The first report says post-migration', $notes);
-        $this->assertStringContainsString('The second report still says pre-migration', $notes);
+        $this->assertSame([], $result->blockers);
+        $this->assertFalse($result->flagged(), 'A rehearsal on a copy against the live database is a note and not a blocker.');
     }
 
-    public function testCompare_NotesTwoFilesThatAreOneReport(): void
+    public function testCompare_BlocksASecondReportThatStillSaysPreMigrationWhateverTheChecksSay(): void
     {
-        $report = $this->report([$this->check('a')]);
+        $first  = $this->report([$this->check('a', 'pass', ['x' => 1])]);
+        $second = $this->report([$this->check('a', 'pass', ['x' => 1])], ['generated_at' => '2026-11-14 03:00:00', 'phase' => 'pre-migration']);
 
-        $this->assertStringContainsString('they are one report', implode("\n", ReadinessComparison::compare($report, $report)->notes));
+        $result = ReadinessComparison::compare($first, $second);
+
+        $this->assertSame([], $result->flaggedChecks());
+        $this->assertTrue($result->flagged());
+        $this->assertCount(1, $result->blockers);
+        $this->assertStringContainsString('The second report still says pre-migration', $result->blockers[0]);
+        $this->assertSame($result->blockers, $result->toArray()['blockers']);
+    }
+
+    public function testCompare_BlocksTwoFilesThatAreOneReport(): void
+    {
+        $report = $this->report([$this->check('a')], ['phase' => 'post-migration']);
+
+        $result = ReadinessComparison::compare($report, $report);
+
+        $this->assertTrue($result->flagged());
+        $this->assertStringContainsString('they are one report', implode("\n", $result->blockers));
+    }
+
+    public function testCompare_DoesNotBlockTwoReportsOfTheSameDatabaseTakenAtDifferentMoments(): void
+    {
+        $first  = $this->report([$this->check('a')], ['phase' => 'post-migration']);
+        $second = $this->report([$this->check('a')], ['phase' => 'post-migration', 'generated_at' => '2026-11-14 01:00:01']);
+
+        $this->assertSame([], ReadinessComparison::compare($first, $second)->blockers);
+    }
+
+    public function testCompare_DoesNotBlockTheSameMomentOfTwoDifferentDatabases(): void
+    {
+        $first  = $this->report([$this->check('a')], ['phase' => 'post-migration', 'database' => 'copy']);
+        $second = $this->report([$this->check('a')], ['phase' => 'post-migration', 'database' => 'live']);
+
+        $this->assertSame([], ReadinessComparison::compare($first, $second)->blockers);
+    }
+
+    public function testCompare_FlagsARecordedMigrationThatNoFileNamesEvenInTheCheckOfTheMigrations(): void
+    {
+        $before = $this->check('migrations', 'review', ['files' => 117, 'pending' => [['version' => '1']], 'unknown' => []]);
+        $after  = $this->check('migrations', 'review', ['files' => 117, 'pending' => [], 'unknown' => ['20990101000000']]);
+
+        $result  = $this->compared([$before], [$after]);
+        $flagged = $result->flaggedChecks();
+
+        $this->assertCount(1, $flagged);
+        $this->assertSame('data.unknown.0', $flagged[0]->changes[0]['path']);
+        $this->assertSame(ReadinessComparison::ABSENT, $flagged[0]->changes[0]['before']);
+        $this->assertSame('20990101000000', $flagged[0]->changes[0]['after']);
+        $this->assertContains('data.pending.0.version', array_column($flagged[0]->expected, 'path'), 'The pending list stays expected.');
+        $this->assertNotContains('data.unknown.0', array_column($flagged[0]->expected, 'path'));
     }
 
     public function testCompare_ListsEveryCheckOfEitherReportInTheOrderOfTheSecond(): void

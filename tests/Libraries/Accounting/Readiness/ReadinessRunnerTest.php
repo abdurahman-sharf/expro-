@@ -108,9 +108,11 @@ class ReadinessRunnerTest extends CIUnitTestCase
         $section  = substr($document, (int) strpos($document, '## 2.'), (int) strpos($document, '## 3.') - (int) strpos($document, '## 2.'));
         $checks   = (new ReadinessRunner())->run()->checks;
 
-        foreach (array_unique(array_map(static fn (CheckResult $check): string => $check->ref, $checks)) as $ref) {
-            $this->assertStringContainsString("| `{$ref}`", $section, "The check {$ref} has no row in the table of section 2 of the runbook document.");
+        foreach (array_count_values(array_map(static fn (CheckResult $check): string => $check->ref, $checks)) as $ref => $checksOfTheRef) {
+            $this->assertSame($checksOfTheRef, substr_count($section, "| `{$ref}`"), "The {$checksOfTheRef} check(s) with the reference {$ref} need as many rows in the table of section 2 of the runbook document.");
         }
+
+        $this->assertSame(count($checks), preg_match_all('/^\| `[A-Z0-9-]+`/m', $section), 'The table of section 2 has one row for each check of the report.');
 
         $this->assertArrayHasKey(count($checks), $words, 'The number of checks changed: write it in words here and in section 1 of the runbook document.');
         $this->assertStringContainsString('**' . $words[count($checks)] . '**', $document);

@@ -4,13 +4,16 @@ namespace App\Libraries\Accounting\Readiness;
 
 use App\Libraries\Accounting\SupplierAdvances;
 use CodeIgniter\Database\BaseConnection;
+use DateTimeImmutable;
 
 /**
  * The data facts that the reports of WP9 and WP13 asked the owner to look up by hand after the
  * migrations: no return of sale carries a refund invoice that was not issued with the new code, and no
  * opening balance of a supplier is dated after today. (The third fact, that no party's aging total moved,
  * is kept in the data of TIE-CUSTOMERS and TIE-SUPPLIERS and compared by accounting:readiness_compare.)
- * Each is read, and nothing is changed here.
+ * Each is read, and nothing is changed here. "Today" is the day in the zone of the shop (the locale
+ * settings, the zone the screens run in) and not in the zone of the command line, because the screen that
+ * takes an opening balance compares its date with the day of the shop.
  */
 final class Wave3Checks extends CheckGroup
 {
@@ -26,7 +29,7 @@ final class Wave3Checks extends CheckGroup
     {
         return [
             $this->check('return_document', 'WP9-RETURN-DOCUMENT', 'No return of sale carries a refund invoice the migration did not leave', ['sales.return_document', 'sales.return_of_sale_id'], fn (): CheckResult => $this->returnDocument()),
-            $this->check('supplier_opening_dates', 'WP13-SUPPLIER-OPENING', 'No opening balance of a supplier is dated after today', ['receivings.receiving_type', 'supplier_advances.kind', 'supplier_advances.advance_date'], fn (): CheckResult => $this->supplierOpening()),
+            $this->check('supplier_opening_dates', 'WP13-SUPPLIER-OPENING', 'No opening balance of a supplier is dated after today', ['app_config', 'receivings.receiving_type', 'supplier_advances.kind', 'supplier_advances.advance_date'], fn (): CheckResult => $this->supplierOpening()),
         ];
     }
 
@@ -73,11 +76,11 @@ final class Wave3Checks extends CheckGroup
 
     private function supplierOpening(): CheckResult
     {
-        $today     = date('Y-m-d');
+        $today     = $this->shopToday();
         $purchases = $this->db->table('receivings')
             ->select('receiving_id, supplier_id, receiving_time')
             ->where('receiving_type', SupplierAdvances::OPENING_TYPE)
-            ->where('receiving_time >=', date('Y-m-d', strtotime($today . ' +1 day')) . ' 00:00:00')
+            ->where('receiving_time >=', (new DateTimeImmutable($today))->modify('+1 day')->format('Y-m-d') . ' 00:00:00')
             ->orderBy('receiving_id', 'ASC')
             ->get()
             ->getResult();

@@ -163,6 +163,26 @@ class ReadinessRunbookTest extends CIUnitTestCase
         $this->assertStringContainsString('app.appTimezone', $notes);
     }
 
+    public function testSteps_WarnsThatANewServerZoneMovesTheSavedTimesOfADatabaseWithHistory(): void
+    {
+        $notes = implode("\n", ReadinessRunbook::steps([])[1]['notes']);
+
+        $this->assertStringContainsString('On a database that holds no sale or purchase yet, align it', $notes);
+        $this->assertStringContainsString('On a database that already holds history, do not change the zone of the database server on its own', $notes);
+        $this->assertStringContainsString('sales.sale_time, receivings.receiving_time and sales_payments.payment_time are TIMESTAMP columns', $notes);
+        $this->assertStringContainsString('convert the saved times (CONVERT_TZ) on the rehearsal copy first', $notes);
+        $this->assertStringContainsString('the first hours of the shop day carry the day before', $notes);
+    }
+
+    public function testSteps_SaysThatOptionsComeAfterTheTwoFileNamesAndThatABlockedComparisonIsFlagged(): void
+    {
+        $notes = implode("\n", ReadinessRunbook::steps([])[4]['notes']);
+
+        $this->assertStringContainsString('Put the two file names before the options', $notes);
+        $this->assertStringContainsString('an option placed first takes the next file name for its value', $notes);
+        $this->assertStringContainsString('A second report that still says pre-migration, and two files that are one report, are flagged too (exit 1)', $notes);
+    }
+
     public function testSteps_ComparesTheTwoReportsWithTheComparisonCommandRightAfterTheSecondOne(): void
     {
         $commands = ReadinessRunbook::steps([])[4]['commands'];
@@ -194,7 +214,7 @@ class ReadinessRunbookTest extends CIUnitTestCase
     {
         $document = (string) file_get_contents(ROOTPATH . 'docs/accounting/readiness-runbook.md');
 
-        foreach (['W93-CLOCK', 'app.appTimezone', 'default-time-zone', 'sales_payments.payment_time', 'MYSQL_DB_NAME', 'readiness-rehearsal.json', 'accounting:readiness_compare', 'data.aging_totals', 'accounting:depreciate', 'accounting:ai_scan', 'MySQL 5.7'] as $token) {
+        foreach (['W93-CLOCK', 'app.appTimezone', 'default-time-zone', 'sales_payments.payment_time', 'MYSQL_DB_NAME', 'readiness-rehearsal.json', 'accounting:readiness_compare', 'data.aging_totals', 'accounting:depreciate', 'accounting:ai_scan', 'MySQL 5.7', 'CONVERT_TZ', 'TIMESTAMP', 'sales.sale_time', 'readiness-after.json --json --no-header', 'data.unknown'] as $token) {
             $this->assertStringContainsString($token, $document, "The runbook document says nothing of {$token}, which the printed runbook does.");
         }
     }

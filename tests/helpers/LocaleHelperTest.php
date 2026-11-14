@@ -224,11 +224,17 @@ class LocaleHelperTest extends CIUnitTestCase
         $this->assertContains($zone, timezone_identifiers_list());
     }
 
-    public function testGetTimezones_KeepsOneEntryForEveryZone(): void
+    public function testGetTimezones_WritesEveryZoneOnceInTheList(): void
     {
-        $zones = get_timezones();
+        $function = new ReflectionFunction('get_timezones');
+        $lines    = array_slice((array) file((string) $function->getFileName()), $function->getStartLine() - 1, $function->getEndLine() - $function->getStartLine() + 1);
+        $zones    = get_timezones();
 
-        $this->assertSame(array_keys($zones), array_values(array_unique(array_keys($zones))));
+        preg_match_all("/^\\s*'([^']+)'\\s*=>/m", implode('', $lines), $written);
+
+        $this->assertNotSame([], $written[1]);
+        $this->assertSame(array_values(array_unique($written[1])), $written[1], 'A zone written twice keeps only its last label and hides the other.');
+        $this->assertSame(array_keys($zones), $written[1]);
         $this->assertCount(count($zones), array_unique($zones), 'No two zones carry the same label.');
     }
 }

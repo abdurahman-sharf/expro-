@@ -177,12 +177,61 @@ final class AccountingReadinessCompareTest extends CIUnitTestCase
     public function testRun_PrintsNotesAboutTheTwoReports(): void
     {
         $before = $this->file($this->report([$this->check('a')], 'post-migration'));
-        $after  = $this->file($this->report([$this->check('a')], 'pre-migration', '2026-11-14 02:00:00'));
+        $after  = $this->file($this->report([$this->check('a')], 'post-migration', '2026-11-14 02:00:00'));
 
-        [, $output] = $this->compare([$before, $after]);
+        [$exit, $output] = $this->compare([$before, $after]);
 
+        $this->assertSame(0, $exit);
         $this->assertStringContainsString('NOTE     The first report says post-migration', $output);
-        $this->assertStringContainsString('NOTE     The second report still says pre-migration', $output);
+        $this->assertStringContainsString('RESULT: NO DIFFERENCE FLAGGED', $output);
+        $this->assertStringContainsString('Read the NOTE line(s) above', $output);
+    }
+
+    public function testRun_ExitsOneAndGivesNoAllClearForASecondReportThatStillSaysPreMigration(): void
+    {
+        $before = $this->file($this->report([$this->customerTies('100.0000')]));
+        $after  = $this->file($this->report([$this->customerTies('100.0000')], 'pre-migration', '2026-11-14 02:00:00'));
+
+        [$exit, $output] = $this->compare([$before, $after]);
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('BLOCKED  The second report still says pre-migration', $output);
+        $this->assertStringContainsString('RESULT: THIS COMPARISON PROVES NOTHING (1 reason(s) above)', $output);
+        $this->assertStringNotContainsString('NO DIFFERENCE FLAGGED', $output);
+    }
+
+    public function testRun_ExitsOneAndGivesNoAllClearForTheSameReportNamedTwice(): void
+    {
+        $report = $this->file($this->report([$this->customerTies('100.0000')], 'post-migration'));
+
+        [$exit, $output] = $this->compare([$report, $report]);
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('BLOCKED  The two reports carry the same database and the same moment', $output);
+        $this->assertStringNotContainsString('NO DIFFERENCE FLAGGED', $output);
+    }
+
+    public function testRun_PrintsBothResultLinesWhenTheSecondReportIsPreMigrationAndAValueChanged(): void
+    {
+        $before = $this->file($this->report([$this->customerTies('100.0000')]));
+        $after  = $this->file($this->report([$this->customerTies('120.0000')], 'pre-migration', '2026-11-14 02:00:00'));
+
+        [$exit, $output] = $this->compare([$before, $after]);
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('RESULT: THIS COMPARISON PROVES NOTHING', $output);
+        $this->assertStringContainsString('RESULT: DIFFERENCES FLAGGED in 1 of 1 check(s)', $output);
+    }
+
+    public function testRun_AcceptsARehearsalCopyAgainstTheLiveDatabaseAsANoteAndNotAsAFailure(): void
+    {
+        $copy = $this->file([...$this->report([$this->customerTies('100.0000')], 'post-migration'), 'database' => 'scratch']);
+        $live = $this->file($this->report([$this->customerTies('100.0000')], 'post-migration', '2026-11-14 02:00:00'));
+
+        [$exit, $output] = $this->compare([$copy, $live]);
+
+        $this->assertSame(0, $exit);
+        $this->assertStringContainsString('NOTE     The reports name different databases (scratch and ospos)', $output);
     }
 
     public function testRun_PrintsOneJsonDocumentWithNothingElse(): void
@@ -200,6 +249,33 @@ final class AccountingReadinessCompareTest extends CIUnitTestCase
         $this->assertSame('pre-migration', $document['before']['phase']);
         $this->assertSame('post-migration', $document['after']['phase']);
         $this->assertSame('data.aging_totals.12', $document['differences'][0]['changes'][0]['path']);
+        $this->assertSame([], $document['blockers']);
+    }
+
+    public function testRun_PrintsTheBlockersInTheJsonAndFlagsThem(): void
+    {
+        $before = $this->file($this->report([$this->customerTies('100.0000')]));
+        $after  = $this->file($this->report([$this->customerTies('100.0000')], 'pre-migration', '2026-11-14 02:00:00'));
+
+        [$exit, $output] = $this->compare([$before, $after, 'json' => null]);
+
+        $document = $this->decoded($output);
+
+        $this->assertSame(1, $exit);
+        $this->assertTrue($document['flagged']);
+        $this->assertSame(0, $document['flagged_checks']);
+        $this->assertStringContainsString('still says pre-migration', $document['blockers'][0]);
+    }
+
+    public function testRun_TakesTheOptionsAfterTheTwoFileNames(): void
+    {
+        $before = $this->file($this->report([$this->customerTies('100.0000')]));
+        $after  = $this->file($this->report([$this->customerTies('120.0000')], 'post-migration', '2026-11-14 02:00:00'));
+
+        [$exit, $output] = $this->compare([$before, $after, 'json' => null, 'no-header' => null, 'limit' => '3']);
+
+        $this->assertSame(1, $exit);
+        $this->assertTrue($this->decoded($output)['flagged']);
     }
 
     public function testRun_PrintsOnlyTheFirstChangedValuesOfACheckUnlessAskedForAll(): void
@@ -236,6 +312,9 @@ final class AccountingReadinessCompareTest extends CIUnitTestCase
                 'a file of no checks' => [[$noChecks, $good], '/has no list of checks/'],
                 'a bad limit'         => [[$good, $good, 'limit' => 'many'], '/The limit must be a whole number/'],
                 'a limit of none'     => [[$good, $good, 'limit' => null], '/The limit must be a whole number/'],
+                'json before files'   => [['json' => $good, $good], '/--json took ".+" for its value, and that file name is lost: put the two file names first/'],
+                'no-header first'     => [['json' => null, 'no-header' => $good, $good], '/--no-header took ".+" for its value/'],
+                'a swallowed third'   => [['json' => $good, $good, $good], '/--json took ".+" for its value/'],
             ] as $case => [$params, $message]
         ) {
             $this->resetStreamFilterBuffer();
@@ -293,6 +372,8 @@ final class AccountingReadinessCompareTest extends CIUnitTestCase
 
         $first  = (new ReadinessRunner())->run()->toArray();
         $second = (new ReadinessRunner())->run()->toArray();
+
+        $second['generated_at'] = date('Y-m-d H:i:s', strtotime($first['generated_at'] . ' +1 second'));
 
         [$exit, $output] = $this->compare([$this->file($first), $this->file($second)]);
 

@@ -18,6 +18,18 @@ final class ComparisonResultTest extends CIUnitTestCase
         $this->assertSame([$changed], (new ComparisonResult([$quiet, $changed], []))->flaggedChecks());
     }
 
+    public function testFlagged_IsTrueForABlockerWhenNoCheckIsFlagged(): void
+    {
+        $quiet = new CheckDifference('a', 'A', 'a', 'pass', 'pass');
+
+        $result = new ComparisonResult([$quiet], [], ['cannot show anything']);
+
+        $this->assertTrue($result->flagged());
+        $this->assertSame([], $result->flaggedChecks());
+        $this->assertSame(['cannot show anything'], $result->toArray()['blockers']);
+        $this->assertSame(0, $result->toArray()['flagged_checks']);
+    }
+
     public function testToArray_CountsTheChecksAndListsOnlyTheOnesThatDiffer(): void
     {
         $quiet   = new CheckDifference('a', 'A', 'a', 'pass', 'pass');

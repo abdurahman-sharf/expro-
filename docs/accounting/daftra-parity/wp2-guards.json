@@ -1296,8 +1296,8 @@
  {
   "name": "G133 the document of the runbook keeps the backup before the migrations",
   "file": "docs/accounting/readiness-runbook.md",
-  "find": "```\nmysqldump --single-transaction --routines --triggers -u USER -p DATABASE > backup-before-release.sql\n```",
-  "replace": "```\ntrue\n```",
+  "find": "```\nmysqldump --single-transaction --routines --triggers -u USER -p DATABASE > backup-before-release.sql\n",
+  "replace": "```\ntrue\n",
   "tests": [
    "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php"
   ]
@@ -1305,8 +1305,8 @@
  {
   "name": "G134 the document of the runbook keeps the saved JSON free of the banner of spark",
   "file": "docs/accounting/readiness-runbook.md",
-  "find": "```\nphp spark accounting:readiness\nphp spark accounting:readiness --json --no-header > readiness-before.json\n```",
-  "replace": "```\nphp spark accounting:readiness\nphp spark accounting:readiness --json > readiness-before.json\n```",
+  "find": "```\nphp spark accounting:readiness\nphp spark accounting:readiness --json --no-header > readiness-before.json\n",
+  "replace": "```\nphp spark accounting:readiness\nphp spark accounting:readiness --json > readiness-before.json\n",
   "tests": [
    "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php"
   ]

@@ -12,11 +12,12 @@ use InvalidArgumentException;
 class AccountingReadinessCompare extends BaseCommand
 {
     private const DEFAULT_LIMIT = 20;
+    private const FLAG_OPTIONS  = ['json', 'no-header'];
 
     protected $group       = 'Accounting';
     protected $name        = 'accounting:readiness_compare';
-    protected $usage       = 'accounting:readiness_compare BEFORE.json AFTER.json [--json] [--limit N]';
-    protected $description = 'Compares the report taken before the migrations with the one taken after (both from accounting:readiness --json --no-header) and flags every value of a check\'s data that changed, a check that turned to FAIL or ERROR, and a purchase discount count that the migration did not match. Reads two files and no database. Exits 0 when nothing is flagged, 1 when something is, and 7 for a file or an option it refuses.';
+    protected $usage       = 'accounting:readiness_compare BEFORE.json AFTER.json [--json] [--no-header] [--limit N]';
+    protected $description = 'Compares the report taken before the migrations with the one taken after (both from accounting:readiness --json --no-header) and flags every value of a check\'s data that changed, a check that turned to FAIL or ERROR, and a purchase discount count that the migration did not match. Reads two files and no database. Put the two file names before the options. Exits 0 when nothing is flagged, 1 when something is, and 7 for a file or an option it refuses. A second report that still says pre-migration, and two files that are one report, count as flagged: they cannot show what the migrations changed.';
     protected $options     = [
         '--json'  => 'Print the comparison as JSON and nothing else (add spark\'s own --no-header, or its banner comes first).',
         '--limit' => 'How many changed values to print for each check (default 20, 0 for all). The JSON has all of them.',
@@ -30,6 +31,14 @@ class AccountingReadinessCompare extends BaseCommand
         $files = array_values(array_filter($params, static fn (mixed $key): bool => is_int($key), ARRAY_FILTER_USE_KEY));
         $limit = $this->limit($params);
 
+        foreach (self::FLAG_OPTIONS as $flag) {
+            if (($params[$flag] ?? null) !== null) {
+                CLI::error(sprintf('--%s took "%s" for its value, and that file name is lost: put the two file names first and the options after them (accounting:readiness_compare readiness-before.json readiness-after.json --json --no-header).', $flag, $params[$flag]));
+
+                return EXIT_USER_INPUT;
+            }
+        }
+
         if ($limit === null) {
             CLI::error('The limit must be a whole number, 0 for all.');
 
@@ -37,7 +46,7 @@ class AccountingReadinessCompare extends BaseCommand
         }
 
         if (count($files) !== 2) {
-            CLI::error('Name the report taken before the migrations and the one taken after: accounting:readiness_compare readiness-before.json readiness-after.json');
+            CLI::error('Name the report taken before the migrations and the one taken after, then the options: accounting:readiness_compare readiness-before.json readiness-after.json');
 
             return EXIT_USER_INPUT;
         }
@@ -103,6 +112,10 @@ class AccountingReadinessCompare extends BaseCommand
         CLI::write($this->line('After', $afterFile, $after));
         CLI::newLine();
 
+        foreach ($result->blockers as $blocker) {
+            CLI::write('BLOCKED  ' . $blocker, 'red');
+        }
+
         foreach ($result->notes as $note) {
             CLI::write('NOTE     ' . $note, 'yellow');
         }
@@ -116,12 +129,19 @@ class AccountingReadinessCompare extends BaseCommand
         $flagged = $result->flaggedChecks();
 
         CLI::newLine();
-        CLI::write(
-            $flagged === []
-                ? sprintf('RESULT: NO DIFFERENCE FLAGGED. %d check(s) compared; nothing that a migration is not expected to change differs.', count($result->differences))
-                : sprintf('RESULT: DIFFERENCES FLAGGED in %d of %d check(s). Look at each before going on: a migration may move an amount between buckets but not change what a party owes.', count($flagged), count($result->differences)),
-            $flagged === [] ? 'green' : 'red',
-        );
+
+        if ($result->blockers !== []) {
+            CLI::write(sprintf('RESULT: THIS COMPARISON PROVES NOTHING (%d reason(s) above). Take the reports again before going on.', count($result->blockers)), 'red');
+        }
+
+        if ($flagged !== []) {
+            CLI::write(sprintf('RESULT: DIFFERENCES FLAGGED in %d of %d check(s). Look at each before going on: a migration may move an amount between buckets but not change what a party owes.', count($flagged), count($result->differences)), 'red');
+        } elseif ($result->blockers === []) {
+            CLI::write(
+                sprintf('RESULT: NO DIFFERENCE FLAGGED. %d check(s) compared; nothing that a migration is not expected to change differs.', count($result->differences)) . ($result->notes === [] ? '' : ' Read the NOTE line(s) above: they say what this comparison cannot show.'),
+                $result->notes === [] ? 'green' : 'yellow',
+            );
+        }
     }
 
     /**

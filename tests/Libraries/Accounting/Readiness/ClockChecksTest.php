@@ -124,6 +124,17 @@ final class ClockChecksTest extends CIUnitTestCase
         $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->update(['payment_time' => $stamp]);
     }
 
+    private function paymentsCopiedFrom(int $paymentId, int $count): void
+    {
+        $row = (array) $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow();
+
+        unset($row['payment_id']);
+
+        for ($copy = 1; $copy < $count; $copy++) {
+            $this->accountingDb()->table('sales_payments')->insert($row);
+        }
+    }
+
     private function dayOfTheShop(string $zone, string $modifier = 'now'): string
     {
         return (new DateTimeImmutable('now', new DateTimeZone($zone)))->modify($modifier)->format('Y-m-d');
@@ -178,6 +189,31 @@ final class ClockChecksTest extends CIUnitTestCase
         $this->assertStringContainsString('the shop works in Asia/Riyadh (+03:00, from the locale settings)', $result->findings[0]);
         $this->assertStringContainsString('sales_payments.payment_time is stamped by the database', $result->findings[1]);
         $this->assertStringContainsString('default-time-zone', $result->findings[2]);
+        $this->assertStringStartsWith('To align them on a database that holds no sale or purchase yet', $result->findings[2]);
+    }
+
+    public function testRun_WarnsThatTheZoneOfTheDatabaseServerMovesTheTimeOfEverySavedRowOnADatabaseWithHistory(): void
+    {
+        $this->databaseWorksAt('+00:00');
+        $this->shopWorksIn('Asia/Riyadh');
+        date_default_timezone_set('Asia/Riyadh');
+
+        $warning = $this->check()->findings[3];
+
+        $this->assertStringStartsWith('On a database that already holds history, do not change the zone of the database server on its own', $warning);
+        $this->assertStringContainsString('sales.sale_time, receivings.receiving_time and sales_payments.payment_time are TIMESTAMP columns', $warning);
+        $this->assertStringContainsString('a new server zone moves the time every saved row shows', $warning);
+        $this->assertStringContainsString('CONVERT_TZ', $warning);
+        $this->assertStringContainsString('the first hours of the shop day carry the day before', $warning);
+    }
+
+    public function testRun_SaysNothingOfTheHistoryOfTheDatabaseWhenTheClocksAgree(): void
+    {
+        $this->databaseWorksAt($this->offsetOf('Asia/Riyadh'));
+        $this->shopWorksIn('Asia/Riyadh');
+        date_default_timezone_set('Asia/Riyadh');
+
+        $this->assertStringNotContainsString('CONVERT_TZ', implode("\n", $this->check()->findings));
     }
 
     public function testRun_ReviewsADatabaseThatIsAheadOfTheShopWhenNoPaymentIsStampedAhead(): void
@@ -328,6 +364,7 @@ final class ClockChecksTest extends CIUnitTestCase
         $this->assertTrue($result->data['shop_zone_from_settings']);
         $this->assertSame(0, $result->data['difference_minutes']);
         $this->assertStringContainsString('accounting:generate_recurring and accounting:depreciate ignore it', implode("\n", $result->findings));
+        $this->assertSame('The zone Etc/GMT-11 of the shop is a name PHP accepts but does not list as a current zone: the commands ignore it and run in Etc/GMT-11.', $result->summary);
     }
 
     public function testRun_ReviewsAZoneOfTheSettingsScreenThatPhpDoesNotKnow(): void
@@ -405,6 +442,72 @@ final class ClockChecksTest extends CIUnitTestCase
         $this->assertSame(CheckStatus::Pass, $result->status);
         $this->assertSame('Asia/Riyadh', $result->data['shop_zone_setting']);
         $this->assertTrue($result->data['shop_zone_from_settings']);
+    }
+
+    public function testRun_ReviewsAPaymentStampedOnTheDayBeforeItsSaleWhenTheClocksAgree(): void
+    {
+        $this->databaseWorksAt('+00:00');
+        $this->shopWorksIn('UTC');
+        date_default_timezone_set('UTC');
+        $this->stampPayment($this->paidSale(), $this->dayOfTheShop('UTC', '-1 day') . ' 22:00:00');
+
+        $result = $this->check();
+
+        $this->assertSame(CheckStatus::Review, $result->status);
+        $this->assertSame(0, $result->data['difference_minutes']);
+        $this->assertSame(0, $result->data['payments_dated_ahead']);
+        $this->assertSame(1, $result->data['payments_before_sale']);
+        $this->assertStringStartsWith('The clocks agree now, but payments are stamped on days that do not fit their sale', $result->summary);
+    }
+
+    public function testRun_CountsAPaymentStampedAtTheFirstSecondOfTheNextDayOfTheShop(): void
+    {
+        $this->databaseWorksAt('+00:00');
+        $this->shopWorksIn('UTC');
+        date_default_timezone_set('UTC');
+        $this->stampPayment($this->paidSale(), $this->dayOfTheShop('UTC', '+1 day') . ' 00:00:00');
+
+        $result = $this->check();
+
+        $this->assertSame(1, $result->data['payments_dated_ahead']);
+        $this->assertSame(CheckStatus::Review, $result->status);
+    }
+
+    public function testRun_ListsOnlyTheFirstTwentyPaymentsStampedAheadAndCountsThemAll(): void
+    {
+        $this->databaseWorksAt('+03:00');
+        $this->shopWorksIn('UTC');
+        date_default_timezone_set('UTC');
+        $paymentId = $this->paidSale();
+        $this->paymentsCopiedFrom($paymentId, 25);
+        $this->accountingDb()->table('sales_payments')->where('payment_id >=', $paymentId)->update(['payment_time' => $this->dayOfTheShop('UTC', '+1 day') . ' 02:00:00']);
+
+        $result = $this->check();
+        $listed = array_filter($result->findings, static fn (string $finding): bool => str_starts_with($finding, 'payment #'));
+
+        $this->assertSame(CheckStatus::Fail, $result->status);
+        $this->assertSame(25, $result->data['payments_dated_ahead']);
+        $this->assertStringStartsWith('25 payment(s) on sales are stamped on a day that has not come', $result->summary);
+        $this->assertCount(20, $listed);
+        $this->assertStringStartsWith("payment #{$paymentId} on sale #", reset($listed));
+    }
+
+    public function testRun_ListsOnlyTheFirstTwentyPaymentsBeforeTheirSaleAndCountsThemAll(): void
+    {
+        $this->databaseWorksAt('+00:00');
+        $this->shopWorksIn('UTC');
+        date_default_timezone_set('UTC');
+        $paymentId = $this->paidSale();
+        $this->paymentsCopiedFrom($paymentId, 25);
+        $this->accountingDb()->table('sales_payments')->where('payment_id >=', $paymentId)->update(['payment_time' => $this->dayOfTheShop('UTC', '-1 day') . ' 22:00:00']);
+
+        $result = $this->check();
+        $listed = array_filter($result->findings, static fn (string $finding): bool => str_starts_with($finding, 'payment #'));
+
+        $this->assertSame(CheckStatus::Review, $result->status);
+        $this->assertSame(25, $result->data['payments_before_sale']);
+        $this->assertCount(20, $listed);
+        $this->assertStringContainsString(' on a day before sale #', reset($listed));
     }
 
     public function testRun_IsSkippedWhenTheDatabaseDoesNotReportTheOffsetOfItsClock(): void

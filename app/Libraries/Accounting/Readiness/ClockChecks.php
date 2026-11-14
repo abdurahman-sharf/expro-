@@ -4,7 +4,6 @@ namespace App\Libraries\Accounting\Readiness;
 
 use DateTimeImmutable;
 use DateTimeZone;
-use Throwable;
 
 /**
  * Whether the clock of the database and the clock of the application name the same day. The invoice and
@@ -36,7 +35,7 @@ final class ClockChecks extends CheckGroup
 
         $now             = new DateTimeImmutable('now', new DateTimeZone('UTC'));
         $processZone     = date_default_timezone_get();
-        $setting         = $this->zoneSetting();
+        $setting         = $this->shopZoneSetting();
         $known           = $setting !== '' && $this->isZone($setting);
         $shopZone        = $known ? $setting : $processZone;
         $databaseOffset  = (int) $database->offset_seconds;
@@ -82,7 +81,8 @@ final class ClockChecks extends CheckGroup
                 $this->hours(abs($difference)),
             );
             $findings[] = 'Where the dates come from: the date of an invoice, of a purchase and of a supplier payment, and every date the application computes, come from the application clock; the day of a payment on a sale (and so the date of its journal) comes from the database clock, because sales_payments.payment_time is stamped by the database.';
-            $findings[] = 'To align them: set the default time zone of the database server to the zone of the shop (default-time-zone in the server configuration, or SET GLOBAL time_zone), or set the zone of the shop in the locale settings to the one of the database; then run this report again.';
+            $findings[] = 'To align them on a database that holds no sale or purchase yet: set the default time zone of the database server to the zone of the shop (default-time-zone in the server configuration, or SET GLOBAL time_zone), or set the zone of the shop in the locale settings to the one of the database; then run this report again.';
+            $findings[] = 'On a database that already holds history, do not change the zone of the database server on its own: sales.sale_time, receivings.receiving_time and sales_payments.payment_time are TIMESTAMP columns, which the database keeps in UTC and shows in the zone of the session, so a new server zone moves the time every saved row shows (a sale saved late in the evening shows as the next day, and an edit or a repost of it dates its journal on the shifted day, perhaps in another period). Convert the saved times (CONVERT_TZ) on the rehearsal copy first and have the accountant check them. Setting the zone of the shop to the one of the database leaves the saved rows alone, but from then on a document takes its day from the clock of the database, so the first hours of the shop day carry the day before.';
         }
 
         if ($processOffset !== $shopOffset) {
@@ -108,7 +108,7 @@ final class ClockChecks extends CheckGroup
         if ($difference !== 0 && $future['count'] > 0) {
             return CheckResult::fail(
                 $future['count'] . ' payment(s) on sales are stamped on a day that has not come in the zone of the shop, and their journals carry that day: the clock of the database is ahead of the shop.',
-                array_slice($findings, 0, self::LISTED),
+                $findings,
                 $data,
             );
         }
@@ -118,31 +118,14 @@ final class ClockChecks extends CheckGroup
                 $difference !== 0                                     => sprintf('The database clock and the shop clock differ by %s: they name different days for part of every day.', $this->hours(abs($difference))),
                 $future['count'] > 0 || $beforeTheirSale['count'] > 0 => 'The clocks agree now, but payments are stamped on days that do not fit their sale or the calendar of the shop.',
                 $setting !== '' && ! $known                           => "The locale settings name a zone that PHP does not know ({$setting}): the shop works in {$processZone}.",
+                $known && ! $data['shop_zone_listed']                 => sprintf('The zone %s of the shop is a name PHP accepts but does not list as a current zone: the commands ignore it and run in %s.', $shopZone, $processZone),
                 default                                               => sprintf('The command line does not work in the zone of the shop (%s): it works in %s.', $shopZone, $processZone),
             };
 
-            return CheckResult::review($summary, array_slice($findings, 0, self::LISTED), $data);
+            return CheckResult::review($summary, $findings, $data);
         }
 
         return CheckResult::pass(sprintf('The database and the shop both work in %s (%s): they name the same day.', $shopZone, $data['shop_offset']), [], $data);
-    }
-
-    private function zoneSetting(): string
-    {
-        $row = $this->db->table('app_config')->select('value')->where('key', 'timezone')->get()->getRow();
-
-        return trim((string) ($row->value ?? ''));
-    }
-
-    private function isZone(string $zone): bool
-    {
-        try {
-            new DateTimeZone($zone);
-        } catch (Throwable) {
-            return false;
-        }
-
-        return true;
     }
 
     /**

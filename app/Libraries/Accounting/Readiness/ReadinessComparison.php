@@ -10,10 +10,12 @@ use JsonException;
  * accounting:readiness --json. A value of any check's data that differs is flagged, because a migration
  * may move what it moves but must not change what a party owes, what the books hold or what the checks
  * counted. Two things are expected to differ and are listed without being flagged: what the migrations
- * themselves change (the pending migrations), and the purchase lines the discount scan named before the
- * migration, which must equal the ones the migration marked (the runbook says so, and a difference there
- * is flagged). A check that was skipped in one report cannot be compared, and one that was checked before
- * and is skipped after is flagged.
+ * themselves change (the pending migrations; a recorded version that no file names is not one of them and
+ * is flagged), and the purchase lines the discount scan named before the migration, which must equal the
+ * ones the migration marked (the runbook says so, and a difference there is flagged). A check that was
+ * skipped in one report cannot be compared, and one that was checked before and is skipped after is flagged.
+ * Two reports that are one report, or a second one that still says pre-migration, cannot show what the
+ * migrations changed: those are blockers, and the comparison is flagged however equal the checks are.
  */
 final class ReadinessComparison
 {
@@ -63,6 +65,7 @@ final class ReadinessComparison
         return new ComparisonResult(
             array_map(static fn (string $id): CheckDifference => self::difference($id, $first[$id] ?? null, $second[$id] ?? null), $ids),
             self::notes($before, $after),
+            self::blockers($before, $after),
         );
     }
 
@@ -96,19 +99,32 @@ final class ReadinessComparison
             $notes[] = sprintf('The reports name different databases (%s and %s): a rehearsal on a copy compared with the live database proves only that the two agree.', $before['database'] ?? '?', $after['database'] ?? '?');
         }
 
-        if (($before['generated_at'] ?? null) !== null && ($before['generated_at'] ?? null) === ($after['generated_at'] ?? null) && ($before['database'] ?? null) === ($after['database'] ?? null)) {
-            $notes[] = 'The two reports carry the same database and the same moment: they are one report, and nothing can differ.';
-        }
-
         if (($before['phase'] ?? null) === ReadinessResult::POST_MIGRATION) {
             $notes[] = 'The first report says post-migration: it was taken after the migrations, so the comparison shows nothing that the migrations did.';
         }
 
-        if (($after['phase'] ?? null) === ReadinessResult::PRE_MIGRATION) {
-            $notes[] = 'The second report still says pre-migration: migrations are pending in the database it was taken from.';
+        return $notes;
+    }
+
+    /**
+     * @param array<string, mixed> $before
+     * @param array<string, mixed> $after
+     *
+     * @return list<string>
+     */
+    private static function blockers(array $before, array $after): array
+    {
+        $blockers = [];
+
+        if (($before['generated_at'] ?? null) !== null && ($before['generated_at'] ?? null) === ($after['generated_at'] ?? null) && ($before['database'] ?? null) === ($after['database'] ?? null)) {
+            $blockers[] = 'The two reports carry the same database and the same moment: they are one report, and nothing can differ.';
         }
 
-        return $notes;
+        if (($after['phase'] ?? null) === ReadinessResult::PRE_MIGRATION) {
+            $blockers[] = 'The second report still says pre-migration: migrations are pending in the database it was taken from, so it cannot show what they changed. Run the migrations, take the report again and compare that one.';
+        }
+
+        return $blockers;
     }
 
     /**
@@ -166,7 +182,7 @@ final class ReadinessComparison
 
             $change = ['path' => $path, 'before' => $has['before'] ? $first[$path] : self::ABSENT, 'after' => $has['after'] ? $second[$path] : self::ABSENT];
 
-            if ($id === self::MIGRATIONS) {
+            if ($id === self::MIGRATIONS && ! str_starts_with($path, 'data.unknown')) {
                 $expected[] = [...$change, 'why' => 'the migrations run between the two reports'];
             } elseif ($scanned) {
                 $expected[] = [...$change, 'why' => 'counted before the migration ran, and the migration marked them: compared above'];

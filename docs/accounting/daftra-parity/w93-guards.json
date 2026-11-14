@@ -110,7 +110,7 @@
   {
     "name": "W93-13 an opening balance owed to a supplier dated tomorrow is listed and one dated today is not (the first moment of tomorrow becomes today)",
     "file": "app/Libraries/Accounting/Readiness/Wave3Checks.php",
-    "find": "date('Y-m-d', strtotime($today . ' +1 day'))",
+    "find": "(new DateTimeImmutable($today))->modify('+1 day')->format('Y-m-d')",
     "replace": "$today",
     "tests": [
       "tests/Libraries/Accounting/Readiness/Wave3ChecksTest.php"
@@ -289,7 +289,7 @@
   },
   {
     "name": "W93-33 the setting of the zone is read without the spaces around it",
-    "file": "app/Libraries/Accounting/Readiness/ClockChecks.php",
+    "file": "app/Libraries/Accounting/Readiness/CheckGroup.php",
     "find": "return trim((string) ($row->value ?? ''));",
     "replace": "return (string) ($row->value ?? '');",
     "tests": [
@@ -317,8 +317,8 @@
   {
     "name": "W93-36 a check of the data facts that writes a row is caught (a probe row is written into the settings)",
     "file": "app/Libraries/Accounting/Readiness/Wave3Checks.php",
-    "find": "        $today     = date('Y-m-d');",
-    "replace": "        $this->db->table('app_config')->replace(['key' => 'w93_probe', 'value' => (string) hrtime(true)]);\n        $today     = date('Y-m-d');",
+    "find": "        $today     = $this->shopToday();",
+    "replace": "        $this->db->table('app_config')->replace(['key' => 'w93_probe', 'value' => (string) hrtime(true)]);\n        $today     = $this->shopToday();",
     "tests": [
       "tests/Libraries/Accounting/Readiness/Wave3ChecksTest.php"
     ]
@@ -443,7 +443,7 @@
   {
     "name": "W93-48 what the migrations change is expected and not flagged (the migrations check is compared like any other)",
     "file": "app/Libraries/Accounting/Readiness/ReadinessComparison.php",
-    "find": "            if ($id === self::MIGRATIONS) {",
+    "find": "            if ($id === self::MIGRATIONS && ! str_starts_with($path, 'data.unknown')) {",
     "replace": "            if (false) {",
     "tests": [
       "tests/Libraries/Accounting/Readiness/ReadinessComparisonTest.php",
@@ -630,8 +630,8 @@
   {
     "name": "W93-65 the result is flagged when a check is flagged (never flagged)",
     "file": "app/Libraries/Accounting/Readiness/ComparisonResult.php",
-    "find": "return $this->flaggedChecks() !== [];",
-    "replace": "return false;",
+    "find": "|| $this->flaggedChecks() !== [];",
+    "replace": "|| false;",
     "tests": [
       "tests/Libraries/Accounting/Readiness/ReadinessComparisonTest.php",
       "tests/Libraries/Accounting/Readiness/ComparisonResultTest.php",
@@ -882,6 +882,298 @@
     "replace": "->where('DATE(p.payment_time) <= DATE(s.sale_time)', null, false)\n            ->orderBy('p.payment_id', 'ASC')",
     "tests": [
       "tests/Libraries/Accounting/Readiness/ClockChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-92 the warning that a new server zone moves the time of every saved row is dropped from the clock check (the statement becomes a dead assignment)",
+    "file": "app/Libraries/Accounting/Readiness/ClockChecks.php",
+    "find": "$findings[] = 'On a database that already holds history, do not change",
+    "replace": "$unused = 'On a database that already holds history, do not change",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ClockChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-93 the warning names no TIMESTAMP column (the explanation of why the saved rows move is replaced)",
+    "file": "app/Libraries/Accounting/Readiness/ClockChecks.php",
+    "find": "sales.sale_time, receivings.receiving_time and sales_payments.payment_time are TIMESTAMP columns",
+    "replace": "the time columns are stored",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ClockChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-94 the first remedy of the clock check no longer says it is for a database that holds nothing yet",
+    "file": "app/Libraries/Accounting/Readiness/ClockChecks.php",
+    "find": "To align them on a database that holds no sale or purchase yet: set",
+    "replace": "To align them: set",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ClockChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-95 the printed runbook drops the CONVERT_TZ step of the history warning",
+    "file": "app/Libraries/Accounting/Readiness/ReadinessRunbook.php",
+    "find": "convert the saved times (CONVERT_TZ) on the rehearsal copy first",
+    "replace": "convert the saved times on the rehearsal copy first",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php"
+    ]
+  },
+  {
+    "name": "W93-96 the runbook document drops the CONVERT_TZ step of the history warning",
+    "file": "docs/accounting/readiness-runbook.md",
+    "find": "حوّل الأوقات المحفوظة بـ`CONVERT_TZ` على نسخة البروفة أولًا",
+    "replace": "حوّل الأوقات المحفوظة على نسخة البروفة أولًا",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php"
+    ]
+  },
+  {
+    "name": "W93-97 a shop zone that PHP accepts and does not list gets the summary of the command line (the arm of the summary is removed)",
+    "file": "app/Libraries/Accounting/Readiness/ClockChecks.php",
+    "find": "                $known && ! $data['shop_zone_listed']                 => sprintf('The zone %s of the shop is a name PHP accepts but does not list as a current zone: the commands ignore it and run in %s.', $shopZone, $processZone),\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ClockChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-98 payments before their sale do not count for the summary when the clocks agree (the operand is dropped)",
+    "file": "app/Libraries/Accounting/Readiness/ClockChecks.php",
+    "find": "$future['count'] > 0 || $beforeTheirSale['count'] > 0 =>",
+    "replace": "$future['count'] > 0 =>",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ClockChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-99 every payment stamped ahead is listed (the limit of the listing is dropped)",
+    "file": "app/Libraries/Accounting/Readiness/ClockChecks.php",
+    "find": "->where('payment_time >=', $firstMoment)\n            ->orderBy('payment_id', 'ASC')\n            ->limit(self::LISTED)",
+    "replace": "->where('payment_time >=', $firstMoment)\n            ->orderBy('payment_id', 'ASC')",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ClockChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-100 every payment before its sale is listed (the limit of the listing is dropped)",
+    "file": "app/Libraries/Accounting/Readiness/ClockChecks.php",
+    "find": "->orderBy('p.payment_id', 'ASC')\n            ->limit(self::LISTED)",
+    "replace": "->orderBy('p.payment_id', 'ASC')",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ClockChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-101 a payment stamped at the first second of the next day of the shop is not counted (>= becomes >)",
+    "file": "app/Libraries/Accounting/Readiness/ClockChecks.php",
+    "find": "$count = (int) $this->db->table('sales_payments')->where('payment_time >=', $firstMoment)->countAllResults();",
+    "replace": "$count = (int) $this->db->table('sales_payments')->where('payment_time >', $firstMoment)->countAllResults();",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ClockChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-102 the listing of sales that are not returns is no longer cut at the cap",
+    "file": "app/Libraries/Accounting/Readiness/Wave3Checks.php",
+    "find": "$notReturns), 0, self::LISTED),",
+    "replace": "$notReturns), 0, 1000),",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/Wave3ChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-103 the listing of refund invoices is no longer cut at the cap",
+    "file": "app/Libraries/Accounting/Readiness/Wave3Checks.php",
+    "find": "and 0 on a database that was migrated and not used yet.', array_slice($findings, 0, self::LISTED), $data);",
+    "replace": "and 0 on a database that was migrated and not used yet.', $findings, $data);",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/Wave3ChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-104 the listing of supplier opening balances is no longer cut at the cap",
+    "file": "app/Libraries/Accounting/Readiness/Wave3Checks.php",
+    "find": "review them with the accountant.', array_slice($findings, 0, self::LISTED), $data);",
+    "replace": "review them with the accountant.', $findings, $data);",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/Wave3ChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-105 the cap of the listings of the wave 3 checks changes (50 becomes 51)",
+    "file": "app/Libraries/Accounting/Readiness/Wave3Checks.php",
+    "find": "private const LISTED                  = 50;",
+    "replace": "private const LISTED                  = 51;",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/Wave3ChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-106 the cap of the payments listed by the clock check changes (20 becomes 21)",
+    "file": "app/Libraries/Accounting/Readiness/ClockChecks.php",
+    "find": "private const LISTED = 20;",
+    "replace": "private const LISTED = 21;",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ClockChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-107 the opening balance of a supplier is compared with the day of the command line and not the day of the shop",
+    "file": "app/Libraries/Accounting/Readiness/Wave3Checks.php",
+    "find": "$today     = $this->shopToday();",
+    "replace": "$today     = date('Y-m-d');",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/Wave3ChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-108 the day of the shop ignores the zone of the locale settings",
+    "file": "app/Libraries/Accounting/Readiness/CheckGroup.php",
+    "find": "$zone    = $setting !== '' && $this->isZone($setting) ? $setting : date_default_timezone_get();",
+    "replace": "$zone    = date_default_timezone_get();",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/Wave3ChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-109 the day of the shop trusts a zone of the settings that PHP does not know",
+    "file": "app/Libraries/Accounting/Readiness/CheckGroup.php",
+    "find": "$setting !== '' && $this->isZone($setting) ? $setting",
+    "replace": "$setting !== '' ? $setting",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/Wave3ChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-110 a second report that still says pre-migration is no longer a blocker",
+    "file": "app/Libraries/Accounting/Readiness/ReadinessComparison.php",
+    "find": "if (($after['phase'] ?? null) === ReadinessResult::PRE_MIGRATION) {\n            $blockers[]",
+    "replace": "if (false) {\n            $blockers[]",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ReadinessComparisonTest.php",
+      "tests/Libraries/Accounting/Readiness/ComparisonResultTest.php",
+      "tests/Commands/AccountingReadinessCompareTest.php"
+    ]
+  },
+  {
+    "name": "W93-111 two files that are one report are no longer a blocker",
+    "file": "app/Libraries/Accounting/Readiness/ReadinessComparison.php",
+    "find": "&& ($before['database'] ?? null) === ($after['database'] ?? null)) {\n            $blockers[]",
+    "replace": "&& false) {\n            $blockers[]",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ReadinessComparisonTest.php",
+      "tests/Libraries/Accounting/Readiness/ComparisonResultTest.php",
+      "tests/Commands/AccountingReadinessCompareTest.php"
+    ]
+  },
+  {
+    "name": "W93-112 the same moment of two different databases is blocked as one report (the database operand is dropped)",
+    "file": "app/Libraries/Accounting/Readiness/ReadinessComparison.php",
+    "find": "($before['generated_at'] ?? null) === ($after['generated_at'] ?? null) && ($before['database'] ?? null) === ($after['database'] ?? null)) {\n            $blockers[]",
+    "replace": "($before['generated_at'] ?? null) === ($after['generated_at'] ?? null)) {\n            $blockers[]",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ReadinessComparisonTest.php",
+      "tests/Libraries/Accounting/Readiness/ComparisonResultTest.php"
+    ]
+  },
+  {
+    "name": "W93-113 two reports of one database taken at different moments are blocked as one report (the moment operand is dropped)",
+    "file": "app/Libraries/Accounting/Readiness/ReadinessComparison.php",
+    "find": "if (($before['generated_at'] ?? null) !== null && ($before['generated_at'] ?? null) === ($after['generated_at'] ?? null) && ",
+    "replace": "if (($before['generated_at'] ?? null) !== null && ",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ReadinessComparisonTest.php",
+      "tests/Libraries/Accounting/Readiness/ComparisonResultTest.php"
+    ]
+  },
+  {
+    "name": "W93-114 a blocker does not make the comparison flagged",
+    "file": "app/Libraries/Accounting/Readiness/ComparisonResult.php",
+    "find": "return $this->blockers !== [] || $this->flaggedChecks() !== [];",
+    "replace": "return $this->flaggedChecks() !== [];",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ReadinessComparisonTest.php",
+      "tests/Libraries/Accounting/Readiness/ComparisonResultTest.php",
+      "tests/Commands/AccountingReadinessCompareTest.php"
+    ]
+  },
+  {
+    "name": "W93-115 a recorded migration that no file names is expected like the pending ones",
+    "file": "app/Libraries/Accounting/Readiness/ReadinessComparison.php",
+    "find": "if ($id === self::MIGRATIONS && ! str_starts_with($path, 'data.unknown')) {",
+    "replace": "if ($id === self::MIGRATIONS) {",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ReadinessComparisonTest.php",
+      "tests/Libraries/Accounting/Readiness/ComparisonResultTest.php"
+    ]
+  },
+  {
+    "name": "W93-116 the command gives the all-clear line when blockers exist",
+    "file": "app/Commands/AccountingReadinessCompare.php",
+    "find": "} elseif ($result->blockers === []) {",
+    "replace": "} else {",
+    "tests": [
+      "tests/Commands/AccountingReadinessCompareTest.php"
+    ]
+  },
+  {
+    "name": "W93-117 the all-clear line no longer asks to read the notes",
+    "file": "app/Commands/AccountingReadinessCompare.php",
+    "find": "($result->notes === [] ? '' : ' Read the NOTE line(s) above: they say what this comparison cannot show.')",
+    "replace": "''",
+    "tests": [
+      "tests/Commands/AccountingReadinessCompareTest.php"
+    ]
+  },
+  {
+    "name": "W93-118 the command accepts a flag that swallowed a file name",
+    "file": "app/Commands/AccountingReadinessCompare.php",
+    "find": "if (($params[$flag] ?? null) !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Commands/AccountingReadinessCompareTest.php"
+    ]
+  },
+  {
+    "name": "W93-119 the command no longer prints the blockers",
+    "file": "app/Commands/AccountingReadinessCompare.php",
+    "find": "CLI::write('BLOCKED  ' . $blocker, 'red');",
+    "replace": "",
+    "tests": [
+      "tests/Commands/AccountingReadinessCompareTest.php"
+    ]
+  },
+  {
+    "name": "W93-120 the table of section 2 of the runbook document loses the row of the bank details check (its reference is renamed)",
+    "file": "docs/accounting/readiness-runbook.md",
+    "find": "| `E40-BANK-DETAILS` (البيانات)",
+    "replace": "| `E40-BANK-DETAILS-X` (البيانات)",
+    "tests": [
+      "--filter",
+      "testRun_NamesEveryCheckOfTheReportInTheRunbookDocument",
+      "tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php"
+    ]
+  },
+  {
+    "name": "W93-121 the table of section 2 of the runbook document loses the row of the opening balances check (its reference is renamed)",
+    "file": "docs/accounting/readiness-runbook.md",
+    "find": "| `E26-ACTIVATION` (الأرصدة الافتتاحية)",
+    "replace": "| `E26-ACTIVATION-X` (الأرصدة الافتتاحية)",
+    "tests": [
+      "--filter",
+      "testRun_NamesEveryCheckOfTheReportInTheRunbookDocument",
+      "tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php"
+    ]
+  },
+  {
+    "name": "W93-122 a zone is written twice in the list of zones (the second entry of Riyadh is added)",
+    "file": "app/Helpers/locale_helper.php",
+    "find": "        'Asia/Riyadh'                    => '(GMT+03:00) Riyadh',\n",
+    "replace": "        'Asia/Riyadh'                    => '(GMT+03:00) Riyadh',\n        'Asia/Riyadh'                    => '(GMT+03:00) Riyadh again',\n",
+    "tests": [
+      "tests/helpers/LocaleHelperTest.php"
     ]
   }
 ]
