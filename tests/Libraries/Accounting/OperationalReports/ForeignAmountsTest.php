@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting\OperationalReports;
 
+use App\Libraries\Accounting\ForeignDocument;
 use App\Libraries\Accounting\OperationalReports\DocumentKind;
 use App\Libraries\Accounting\OperationalReports\ForeignAmounts;
 use App\Libraries\Accounting\OperationalReports\ReportDocument;
@@ -18,15 +19,15 @@ final class ForeignAmountsTest extends CIUnitTestCase
 {
     private function document(int $id, ?string $currencyCode): ReportDocument
     {
-        return new ReportDocument($id, DocumentKind::Invoice, '2026-10-01', 1, 'MAIN', null, '', null, '', (string) $id, '10.0000', '0.0000', '0.0000', '0.0000', '0.0000', '10.0000', '10.0000', '0.0000', '10.0000', currencyCode: $currencyCode);
+        return new ReportDocument($id, DocumentKind::Invoice, '2026-10-01', 1, 'MAIN', null, '', null, '', 'POS ' . $id, '10.0000', '0.0000', '0.0000', '0.0000', '0.0000', '10.0000', '10.0000', '0.0000', '10.0000', currencyCode: $currencyCode);
     }
 
-    public function testCodesOf_ListsEachForeignCurrencyOnceAndNeverTheBase(): void
+    public function testDocumentsOf_NamesEachForeignDocumentOnceAndNeverOneInTheBase(): void
     {
-        $documents = [$this->document(1, null), $this->document(2, 'USD'), $this->document(3, 'EUR'), $this->document(4, 'USD')];
+        $documents = [$this->document(1, null), $this->document(2, 'USD'), $this->document(3, 'EUR'), $this->document(2, 'USD')];
 
-        $this->assertSame(['EUR', 'USD'], ForeignAmounts::codesOf($documents));
-        $this->assertSame([], ForeignAmounts::codesOf([$this->document(1, null)]));
+        $this->assertSame(['POS 2 (USD)', 'POS 3 (EUR)'], array_map(static fn (ForeignDocument $document): string => $document->label(), ForeignAmounts::documentsOf($documents)));
+        $this->assertSame([], ForeignAmounts::documentsOf([$this->document(1, null)]));
     }
 
     public function testGuard_LeavesTheChecksOfADocumentInTheBaseCurrencyAsTheyAre(): void
@@ -46,7 +47,7 @@ final class ForeignAmountsTest extends CIUnitTestCase
         foreach ($guarded as $tie) {
             $this->assertTrue($tie->isRefused());
             $this->assertSame('Accounting_operational_reports.tie_foreign_currency', $tie->refusal);
-            $this->assertSame(['USD'], $tie->refusalArguments);
+            $this->assertSame(['POS 2 (USD)'], $tie->refusalArguments);
         }
     }
 }

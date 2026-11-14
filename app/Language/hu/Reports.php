@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => '',
     'expenses_total_amount'                   => '',
     'expenses_total_tax_amount'               => '',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'Grafikus riport',
     'group_finance'                           => '',
     'group_sales'                             => '',

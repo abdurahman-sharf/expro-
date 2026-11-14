@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'VAT',
     'expenses_total_amount'                   => 'Totaal Bedrag',
     'expenses_total_tax_amount'               => 'Totaal VAT',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'Grafische Rapporten',
     'group_finance'                           => '',
     'group_sales'                             => '',

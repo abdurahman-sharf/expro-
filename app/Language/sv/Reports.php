@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'Skatt',
     'expenses_total_amount'                   => 'Totalsumma',
     'expenses_total_tax_amount'               => 'Summa skatt',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'Grafiska rapporter',
     'group_finance'                           => '',
     'group_sales'                             => '',

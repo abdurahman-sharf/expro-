@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'Податок',
     'expenses_total_amount'                   => 'Загальна сума',
     'expenses_total_tax_amount'               => 'Загальна сума податку',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'Графічні звіти',
     'group_finance'                           => '',
     'group_sales'                             => '',

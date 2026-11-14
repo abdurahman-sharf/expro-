@@ -69,7 +69,7 @@ final class PurchasesReportTest extends FamilyReportTestCase
 
         $this->assertCount(1, $table->ties);
         $this->assertTrue($table->ties[0]->isRefused());
-        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['USD']), $table->ties[0]->refusal);
+        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['RECV ' . $facts['other'] . ' (USD)']), $table->ties[0]->refusal);
         $this->assertSame(lang('Accounting_family_reports.tie_net_purchases'), $table->ties[0]->label);
     }
 

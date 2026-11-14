@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'الضريبة',
     'expenses_total_amount'                   => 'المبلغ الإجمالي',
     'expenses_total_tax_amount'               => 'الضريبة الإجمالية',
+    'foreign_documents_label'                 => 'في هذه الأيام مستندات بعملة أجنبية ({0}). مبالغ هذه المستندات بتلك العملة وتُجمع مع المبالغ بالعملة الأساسية دون تحويل، فاقرأ المجاميع على هذا الأساس.',
     'graphical_reports'                       => 'تقارير رسومية',
     'group_finance'                           => 'الضرائب والمصاريف',
     'group_sales'                             => 'المبيعات والعملاء',

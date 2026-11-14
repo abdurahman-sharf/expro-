@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\Currencies;
+use App\Libraries\Accounting\FamilyReports\SupplierPaymentRows;
 use App\Libraries\Accounting\FamilyReports\SupplierPaymentsReport;
 use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\TreasuryService;
@@ -87,7 +88,11 @@ final class SupplierPaymentsReportTest extends FamilyReportTestCase
 
         $this->assertCount(1, $table->ties);
         $this->assertTrue($table->ties[0]->isRefused());
-        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['USD']), $table->ties[0]->refusal);
+
+        $foreign = array_values(array_filter((new SupplierPaymentRows())->read($this->everyBranch(), $this->input($this->thisDay())->period()), static fn (object $row): bool => $row->currency_code === 'USD'));
+
+        $this->assertCount(1, $foreign);
+        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', [$foreign[0]->number . ' (USD)']), $table->ties[0]->refusal);
     }
 
     public function testBuild_DoesNotListACancelledPaymentNorTheCreditAppliedFromTheBalance(): void

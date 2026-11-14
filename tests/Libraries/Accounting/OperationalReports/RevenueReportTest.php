@@ -124,7 +124,7 @@ class RevenueReportTest extends CIUnitTestCase
 
         foreach ($table->ties as $tie) {
             $this->assertTrue($tie->isRefused(), $tie->labelKey);
-            $this->assertSame(['USD'], $tie->refusalArguments);
+            $this->assertSame(['POS ' . $ids['second'] . ' (USD)'], $tie->refusalArguments);
         }
 
         $this->assertSame(

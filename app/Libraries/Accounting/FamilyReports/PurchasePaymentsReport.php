@@ -72,7 +72,7 @@ final class PurchasePaymentsReport implements FamilyReport
                 $account  = bcadd($account, $position->accountBalance, SaleAmounts::SCALE);
             }
 
-            $ties    = ForeignAmounts::guard([new TieCheck($this->text('tie_remaining_account'), bcsub($open, $credit, SaleAmounts::SCALE), $account)], ForeignAmounts::codesOf($docs));
+            $ties    = ForeignAmounts::guard([new TieCheck($this->text('tie_remaining_account'), bcsub($open, $credit, SaleAmounts::SCALE), $account)], ForeignAmounts::documentsOf($docs));
             $notes[] = $this->text('credit_held', to_currency_no_money($credit));
         } else {
             $notes[] = $this->text('note_remaining_not_compared');

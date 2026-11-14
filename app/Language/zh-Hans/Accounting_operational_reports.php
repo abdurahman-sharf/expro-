@@ -148,6 +148,7 @@ return [
     'preset_month_to_date'  => '',
     'preset_none'           => '',
     'preset_year_to_date'   => '',
+    'profit_foreign_docs'   => '',
     'profit_title'          => '',
     'return_type'           => '',
     'revenue_title'         => '',

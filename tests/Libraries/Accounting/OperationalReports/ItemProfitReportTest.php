@@ -135,4 +135,59 @@ class ItemProfitReportTest extends CIUnitTestCase
         $this->assertSame('0.00', $table->total['profit_share']);
         $this->assertSame('0.00', $table->total['profit_to_cost']);
     }
+
+    private function untilTomorrow(ItemGroup $group = ItemGroup::Item, ?int $customerId = null): ReportTable
+    {
+        return (new ItemProfitReport())->build(ReportScope::resolve(null, null), $group, '2020-01-01', date('Y-m-d', strtotime('+1 day')), $customerId);
+    }
+
+    public function testBuild_RefusesByNameWhenAnInvoiceInDollarsHasGoodsThatMoved(): void
+    {
+        $this->enableDollars();
+        $invoice = $this->foreignInvoice('100', [], '40.00', '2');
+
+        $this->assertGreaterThan(0, $invoice);
+
+        foreach ([ItemGroup::Item, ItemGroup::Category, ItemGroup::Customer, ItemGroup::User] as $group) {
+            $table = $this->untilTomorrow($group);
+
+            $this->assertTrue($table->isRefused(), $group->value);
+            $this->assertSame('Accounting_operational_reports.profit_foreign_docs', $table->refusal);
+            $this->assertSame(['POS ' . $invoice . ' (USD)'], $table->refusalArguments);
+            $this->assertSame([], $table->blocks);
+            $this->assertSame([], $table->ties);
+        }
+    }
+
+    public function testBuild_ReportsTheSameWhenNoDocumentIsInAForeignCurrency(): void
+    {
+        $this->enableDollars();
+
+        $table = $this->untilTomorrow();
+
+        $this->assertFalse($table->isRefused());
+        $this->assertTrue($table->ties());
+        $this->assertSame(['1050.0000', '420.0000', '630.0000'], [$table->total['net_value'], $table->total['cost'], $table->total['profit']]);
+    }
+
+    public function testBuild_DoesNotRefuseWhenTheDocumentInDollarsIsOfServicesThatNeverMove(): void
+    {
+        $this->enableDollars();
+        $this->assertGreaterThan(0, $this->foreignInvoice('100'));
+
+        $this->assertFalse($this->untilTomorrow()->isRefused());
+    }
+
+    public function testBuild_ReportsTheCustomersWhoseDocumentsAreAllInTheBaseWhenAnotherCustomerHasOneInDollars(): void
+    {
+        $this->enableDollars();
+        $other = $this->anotherCustomer('Hind', 'Saad');
+        $this->grantInvoiceDate();
+
+        $this->sales->useCurrency('USD');
+        $this->assertGreaterThan(0, $this->save([$this->line($this->itemA, 0, '1', '100', '40')], [], [], SALE_TYPE_INVOICE, $other, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10)));
+
+        $this->assertFalse($this->untilTomorrow(ItemGroup::Item, $this->customerId)->isRefused());
+        $this->assertTrue($this->untilTomorrow(ItemGroup::Item, $other)->isRefused());
+    }
 }

@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => '稅',
     'expenses_total_amount'                   => '總金額',
     'expenses_total_tax_amount'               => '總稅款',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => '圖表',
     'group_finance'                           => '',
     'group_sales'                             => '',

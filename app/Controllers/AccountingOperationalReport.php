@@ -167,6 +167,10 @@ abstract class AccountingOperationalReport extends AccountingController
 
     protected function csvResponse(string $name, ReportTable $table, string $titleKey): ResponseInterface
     {
+        if ($table->isRefused()) {
+            return $this->refused(lang((string) $table->refusal, $table->refusalArguments));
+        }
+
         return $this->response
             ->setContentType('text/csv', 'UTF-8')
             ->setHeader('Content-Disposition', 'attachment; filename="' . $name . '_' . ($table->from ?? 'start') . '_' . $table->to . '.csv"')

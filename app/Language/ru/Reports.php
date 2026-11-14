@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'Налог',
     'expenses_total_amount'                   => 'Общая сумма',
     'expenses_total_tax_amount'               => 'Общая сумма налога',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'Графические отчеты',
     'group_finance'                           => '',
     'group_sales'                             => '',

@@ -2,25 +2,47 @@
 
 namespace App\Libraries\Accounting\OperationalReports;
 
+use App\Libraries\Accounting\ForeignDocument;
+use App\Libraries\Accounting\ForeignDocuments;
+use App\Libraries\Accounting\ReportScope;
+
 /**
  * The documents of a sales report read from the stored sale are in the currency of the document, while
  * the journals the checks are set against are in the base currency. A check over documents in a foreign
- * currency would add dollars to riyals, so it is refused by name instead of reporting a difference.
+ * currency would add dollars to riyals, so it is refused by name instead of reporting a difference, and
+ * the refusal names the documents.
  */
 final class ForeignAmounts
 {
     /**
-     * @param list<ReportDocument> $documents
+     * @param list<ProfitRow|ReportDocument> $documents
      *
-     * @return list<string> The currencies other than the base that the documents are in, once each.
+     * @return list<ForeignDocument> The documents in a currency other than the base, each once.
      */
-    public static function codesOf(array $documents): array
+    public static function documentsOf(array $documents): array
     {
-        $codes = array_unique(array_filter(array_map(static fn (ReportDocument $document): ?string => $document->currencyCode, $documents)));
+        $foreign = [];
 
-        sort($codes);
+        foreach ($documents as $document) {
+            if ($document->currencyCode !== null && $document->currencyCode !== '') {
+                $foreign[] = new ForeignDocument($document->number, $document->currencyCode);
+            }
+        }
 
-        return $codes;
+        return ForeignDocuments::unique($foreign);
+    }
+
+    /**
+     * The report that is not made when a figure of it would add the price of goods in a foreign currency
+     * to their cost in the base currency, or null when none of the documents is in one.
+     *
+     * @param list<ProfitRow> $rows
+     */
+    public static function refuseProfit(array $rows, ReportScope $scope, ?string $from, string $to): ?ReportTable
+    {
+        $foreign = self::documentsOf($rows);
+
+        return $foreign === [] ? null : ReportTable::refused($scope, $from, $to, 'Accounting_operational_reports.profit_foreign_docs', [ForeignDocuments::describe($foreign)]);
     }
 
     /**
@@ -31,12 +53,12 @@ final class ForeignAmounts
      */
     public static function guard(array $ties, array $documents): array
     {
-        $codes = self::codesOf($documents);
+        $foreign = self::documentsOf($documents);
 
-        if ($codes === []) {
+        if ($foreign === []) {
             return $ties;
         }
 
-        return array_map(static fn (TieCheck $tie): TieCheck => TieCheck::refused($tie->labelKey, 'Accounting_operational_reports.tie_foreign_currency', [implode(', ', $codes)]), $ties);
+        return array_map(static fn (TieCheck $tie): TieCheck => TieCheck::refused($tie->labelKey, 'Accounting_operational_reports.tie_foreign_currency', [ForeignDocuments::describe($foreign)]), $ties);
     }
 }

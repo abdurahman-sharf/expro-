@@ -114,18 +114,20 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         (new Currencies())->setActive('USD', true);
         $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->limit(1)->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
 
-        $ties = $this->tieRows($this->fetch(self::REVENUE . '?show=1&group=customer'));
+        $saleId  = (int) $this->accountingDb()->table('sales')->selectMax('sale_id')->get()->getRow()->sale_id;
+        $refusal = lang('Accounting_operational_reports.tie_foreign_currency', ['POS ' . $saleId . ' (USD)']);
+        $ties    = $this->tieRows($this->fetch(self::REVENUE . '?show=1&group=customer'));
 
         $this->assertCount(3, $ties);
 
         foreach ($ties as $row) {
-            $this->assertStringContainsString(lang('Accounting_operational_reports.tie_foreign_currency', ['USD']), $row);
+            $this->assertStringContainsString($refusal, $row);
             $this->assertStringNotContainsString(lang('Accounting_operational_reports.differs'), $row);
         }
 
         $csv = $this->fetch(self::REVENUE . '/csv?group=customer')->response()->getBody();
 
-        $this->assertStringContainsString(lang('Accounting_operational_reports.tie_foreign_currency', ['USD']), $csv);
+        $this->assertStringContainsString($refusal, $csv);
         $this->assertStringNotContainsString(lang('Accounting_operational_reports.differs'), $csv);
     }
 

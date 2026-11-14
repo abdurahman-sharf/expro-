@@ -29,7 +29,13 @@ final class ItemProfitReport
     public function build(ReportScope $scope, ItemGroup $group, ?string $from, string $to, ?int $customerId = null, ?int $employeeId = null, ?int $itemId = null, string $category = ''): ReportTable
     {
         $profits = $this->movements->read($scope, $from, $to, $customerId, $employeeId, $itemId, $category);
-        $groups  = [];
+        $refused = ForeignAmounts::refuseProfit($profits, $scope, $from, $to);
+
+        if ($refused !== null) {
+            return $refused;
+        }
+
+        $groups = [];
 
         foreach ($profits as $row) {
             $key = match ($group) {

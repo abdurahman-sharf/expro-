@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'باج',
     'expenses_total_amount'                   => 'کۆی گشتی بڕە پارە',
     'expenses_total_tax_amount'               => 'کۆی گشتی باج',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'ڕاپۆرتە گرافیکیەکان',
     'group_finance'                           => '',
     'group_sales'                             => '',

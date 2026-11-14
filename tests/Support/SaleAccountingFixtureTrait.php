@@ -5,6 +5,7 @@ namespace Tests\Support;
 use App\Libraries\HeaderCharges;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\CreditSettlement;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerPosition;
 use App\Libraries\Accounting\EntityAccountService;
@@ -433,6 +434,37 @@ trait SaleAccountingFixtureTrait
         $service = $this->item('0', false);
 
         return $this->save([$this->line($service, 0, '1', $total)], [], $payments, SALE_TYPE_INVOICE, $customerId ?? -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $date, paymentTerms: $terms);
+    }
+
+    /**
+     * Turns the dollar on: 3.75 riyals from thirty days ago and 3.60 from five days ago.
+     */
+    protected function enableDollars(): Currencies
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => $this->daysAgo(30)]);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.60', 'effective_date' => $this->daysAgo(5)]);
+
+        return $currencies;
+    }
+
+    /**
+     * An invoice in dollars, dated ten days ago when the dollar was at 3.75, of a service for the price or, when
+     * a cost is given, of stock that costs it a unit in the base currency. The books of a payment in dollars
+     * are taken at the rate of the day of the payment, 3.60.
+     *
+     * @param list<array<string, mixed>> $payments
+     */
+    protected function foreignInvoice(string $price = '100', array $payments = [], ?string $cost = null, string $quantity = '1', int $daysAgo = 10): int
+    {
+        $this->grantInvoiceDate();
+
+        $item = $this->item($cost ?? '0', $cost !== null);
+
+        $this->sales->useCurrency('USD');
+
+        return $this->save([$this->line($item, 0, $quantity, $price, $cost ?? '0')], [], $payments, SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo($daysAgo));
     }
 
     /**

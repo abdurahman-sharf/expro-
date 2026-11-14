@@ -2,6 +2,8 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\ForeignDocumentReader;
+use App\Libraries\Accounting\ForeignDocuments;
 use App\Libraries\Organization\BranchGuard;
 use App\Models\Attribute;
 use App\Models\Customer;
@@ -263,7 +265,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'        => lang('Reports.expenses_categories_summary_report'),
-            'subtitle'     => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'     => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date], ''),
             'headers'      => $this->summary_expenses_categories->getDataColumns(),
             'data'         => $tabular_data,
             'summary_data' => $summary
@@ -791,7 +793,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'          => lang('Reports.expenses_categories_summary_report'),
-            'subtitle'       => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'       => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date], ''),
             'chart_type'     => 'reports/graphs/pie',
             'labels_1'       => $labels,
             'series_data_1'  => $series,
@@ -2113,7 +2115,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'                => lang('Reports.detailed_receivings_report'),
-            'subtitle'             => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'             => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date], 'receivings'),
             'headers'              => $headers,
             'editable'             => 'receivings',
             'summary_data'         => $summary_data,
@@ -2235,19 +2237,32 @@ class Reports extends Secure_Controller
     }
 
     /**
-     * Returns subtitle for the reports
+     * Returns subtitle for the reports, with a second line that says so when the days hold documents in a
+     * currency other than the base: the reports add up their amounts as they were typed.
+     *
+     * @param string $documents The documents the report adds up, sales or receivings, or none for a report of expenses.
      */
-    private function _get_subtitle_report(array $inputs): string    // TODO: Hungarian Notation
+    private function _get_subtitle_report(array $inputs, string $documents = 'sales'): string    // TODO: Hungarian Notation
     {
         $subtitle = '';
+        $withTime = ! empty($this->config['date_or_time_format']);
 
-        if (empty($this->config['date_or_time_format'])) {
+        if (! $withTime) {
             $subtitle .= date($this->config['dateformat'], strtotime($inputs['start_date'])) . ' - ' . date($this->config['dateformat'], strtotime($inputs['end_date']));
         } else {
             $subtitle .= date($this->config['dateformat'] . ' ' . $this->config['timeformat'], strtotime(rawurldecode($inputs['start_date']))) . ' - ' . date($this->config['dateformat'] . ' ' . $this->config['timeformat'], strtotime(rawurldecode($inputs['end_date'])));
         }
 
-        return $subtitle;
+        if ($documents === '') {
+            return $subtitle;
+        }
+
+        $from    = $withTime ? rawurldecode($inputs['start_date']) : $inputs['start_date'];
+        $to      = $withTime ? rawurldecode($inputs['end_date']) : $inputs['end_date'];
+        $reader  = new ForeignDocumentReader();
+        $foreign = $documents === 'receivings' ? $reader->receivings($from, $to, $withTime) : $reader->sales($from, $to, $withTime);
+
+        return $foreign === [] ? $subtitle : $subtitle . "\n" . lang('Reports.foreign_documents_label', [ForeignDocuments::describe($foreign)]);
     }
 
     /**

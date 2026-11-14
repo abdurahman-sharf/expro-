@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'Steuer',
     'expenses_total_amount'                   => 'Gesamtbetrag',
     'expenses_total_tax_amount'               => 'Gesamtsteuer',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'Grafische Berichte',
     'group_finance'                           => '',
     'group_sales'                             => '',

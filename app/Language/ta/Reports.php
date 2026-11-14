@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'வரி',
     'expenses_total_amount'                   => 'மொத்த தொகை',
     'expenses_total_tax_amount'               => 'மொத்த வரி',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'வரைகலை அறிக்கைகள்',
     'group_finance'                           => '',
     'group_sales'                             => '',

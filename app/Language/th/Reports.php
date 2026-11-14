@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'ภาษี',
     'expenses_total_amount'                   => 'ยอดรวมทั้งหมด',
     'expenses_total_tax_amount'               => 'ภาษีทั้งหมด',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'รายงายแบบกราฟ',
     'group_finance'                           => '',
     'group_sales'                             => '',

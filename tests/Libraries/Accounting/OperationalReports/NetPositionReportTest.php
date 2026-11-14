@@ -254,7 +254,11 @@ class NetPositionReportTest extends CIUnitTestCase
 
         foreach ($table->ties as $tie) {
             $this->assertTrue($tie->isRefused());
-            $this->assertSame(['USD'], $tie->refusalArguments);
+            $this->assertCount(1, $tie->refusalArguments);
+
+            foreach ([$ids['paid'], $ids['returned'], $ids['orphan']] as $id) {
+                $this->assertStringContainsString('POS ' . $id . ' (USD)', $tie->refusalArguments[0]);
+            }
         }
     }
 

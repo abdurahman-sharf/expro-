@@ -181,7 +181,7 @@ class ItemSalesReportTest extends CIUnitTestCase
 
         $this->assertCount(1, $table->ties);
         $this->assertTrue($table->ties[0]->isRefused());
-        $this->assertSame(['USD'], $table->ties[0]->refusalArguments);
+        $this->assertSame(['POS ' . $saleId . ' (USD)'], $table->ties[0]->refusalArguments);
     }
 
     public function testBuild_TiesTheLinesToTheJournalsWithoutTheHeaderChargesWithinACent(): void
