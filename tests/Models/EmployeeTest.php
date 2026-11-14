@@ -791,4 +791,59 @@ class EmployeeTest extends CIUnitTestCase
 
         $this->assertSame([], $failures);
     }
+    public function testMayChangeSecurityOf_AcceptsTheOwnAccountWhateverTheEmployeeHolds(): void
+    {
+        $person = $this->createEmployee(grants: $this->homeGrants(['sales', 'customers']));
+
+        $this->assertTrue(model(Employee::class)->mayChangeSecurityOf($person, $person));
+    }
+
+    public function testMayChangeSecurityOf_AcceptsAnAdministratorForAnyEmployee(): void
+    {
+        $target = $this->createEmployee(grants: $this->homeGrants(['sales', 'config', 'giftcards']));
+
+        $this->assertTrue(model(Employee::class)->mayChangeSecurityOf($target, 1));
+    }
+
+    public function testMayChangeSecurityOf_RejectsAnAdministratorTargetForAnEmployeeWhoIsNotOne(): void
+    {
+        $actor = $this->createEmployee(grants: $this->homeGrants(['employees']));
+
+        $this->assertFalse(model(Employee::class)->mayChangeSecurityOf(1, $actor));
+    }
+
+    public function testMayChangeSecurityOf_AcceptsATargetWhoHoldsNothingTheActorLacks(): void
+    {
+        $actor  = $this->createEmployee(grants: $this->homeGrants(['employees', 'sales', 'customers']));
+        $target = $this->createEmployee(grants: $this->homeGrants(['customers']));
+
+        $this->assertTrue(model(Employee::class)->mayChangeSecurityOf($target, $actor));
+    }
+
+    public function testMayChangeSecurityOf_AcceptsATargetWhoHoldsNothingAtAll(): void
+    {
+        $actor  = $this->createEmployee(grants: $this->homeGrants(['employees']));
+        $target = $this->createEmployee();
+
+        $this->assertTrue(model(Employee::class)->mayChangeSecurityOf($target, $actor));
+    }
+
+    public function testMayChangeSecurityOf_RejectsATargetWhoHoldsOnePermissionTheActorLacks(): void
+    {
+        $actor  = $this->createEmployee(grants: $this->homeGrants(['employees', 'sales']));
+        $target = $this->createEmployee(grants: $this->homeGrants(['sales', 'customers']));
+
+        $this->assertFalse(model(Employee::class)->mayChangeSecurityOf($target, $actor));
+    }
+
+    public function testMayChangeSecurityOf_CountsWhatTheRolesOfBothGive(): void
+    {
+        $role   = $this->createRole(['sales'], 'all', true, 'Cashiers ' . uniqid());
+        $actor  = $this->employeeWithRoles([$role], ['employees']);
+        $target = $this->createEmployee(grants: $this->homeGrants(['sales']));
+        $model  = model(Employee::class);
+
+        $this->assertTrue($model->mayChangeSecurityOf($target, $actor));
+        $this->assertFalse($model->mayChangeSecurityOf($this->employeeWithRoles([$role]), $this->createEmployee(grants: $this->homeGrants(['employees']))));
+    }
 }

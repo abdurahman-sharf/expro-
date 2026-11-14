@@ -6,6 +6,7 @@
  * @var array $all_subpermissions
  * @var list<string> $sensitive_permissions
  * @var bool $is_admin
+ * @var bool $security_locked
  * @var int $employee_id
  * @var array{scope: array{all: bool, branch_ids: list<int>, default_branch_id: ?int}, branches: list<object>, can_all: bool, locked: bool, hidden: bool}|null $branch_tab
  * @var array{roles: list<object>, held: list<int>, can_manage: bool, record_scope: string, locations: list<object>, default_location_id: ?int, role_permissions: array<string, list<string>>}|null $roles_tab
@@ -50,6 +51,9 @@
 
         <div class="tab-pane fade" id="employee_login_info" role="tabpanel">
             <fieldset>
+                <?php if ($security_locked) { ?>
+                    <p class="perm-desc text-warning-emphasis" role="note"><span class="bi bi-shield-lock" aria-hidden="true"></span> <?= esc(lang('Employees.security_locked_note')) ?></p>
+                <?php } ?>
                 <div class="form-grid">
                     <div class="field span-all">
                         <?= form_label(lang('Employees.username'), 'username', ['class' => 'form-label text-danger required']) ?>
@@ -61,7 +65,7 @@
                                 'class'        => 'form-control form-control-sm',
                                 'value'        => $person_info->username,
                                 'autocomplete' => 'off'
-                            ]) ?>
+                            ] + ($security_locked ? ['readonly' => 'readonly'] : [])) ?>
                         </div>
                     </div>
 
@@ -76,7 +80,7 @@
                                 'id'           => 'password',
                                 'class'        => 'form-control form-control-sm',
                                 'autocomplete' => 'new-password'
-                            ]) ?>
+                            ] + ($security_locked ? ['disabled' => 'disabled'] : [])) ?>
                         </div>
                     </div>
 
@@ -89,7 +93,7 @@
                                 'id'           => 'repeat_password',
                                 'class'        => 'form-control form-control-sm',
                                 'autocomplete' => 'new-password'
-                            ]) ?>
+                            ] + ($security_locked ? ['disabled' => 'disabled'] : [])) ?>
                         </div>
                     </div>
 
@@ -122,6 +126,9 @@
             <fieldset>
                 <div class="perm-intro">
                     <p class="perm-desc"><?= lang('Employees.permission_desc') ?></p>
+                    <?php if ($security_locked) { ?>
+                        <p class="perm-desc text-warning-emphasis" role="note"><span class="bi bi-shield-lock" aria-hidden="true"></span> <?= esc(lang('Employees.security_locked_note')) ?></p>
+                    <?php } ?>
                     <p class="perm-desc text-warning-emphasis" role="note"><span class="bi bi-shield-lock" aria-hidden="true"></span> <?= lang('Employees.sensitive_note') ?></p>
                     <div class="form-check form-switch">
                         <input type="checkbox" class="form-check-input" role="switch" id="permission_select_all">
@@ -144,7 +151,9 @@
                                     'role'    => 'switch'
                                 ];
 
-                                if (in_array($module->module_id, $sensitive_permissions, true) && ! $is_admin) {
+                                if ($security_locked) {
+                                    $moduleAttributes += ['disabled' => 'disabled', 'data-locked' => '1', 'title' => lang('Employees.security_locked_note')];
+                                } elseif (in_array($module->module_id, $sensitive_permissions, true) && ! $is_admin) {
                                     $moduleAttributes += ['disabled' => 'disabled', 'data-locked' => '1', 'title' => lang('Employees.sensitive_locked')];
                                 }
                                 ?>
@@ -185,7 +194,7 @@
                                         <?php
                                         $permission = $subpermission['permission'];
                                         $sensitive  = in_array($permission->permission_id, $sensitive_permissions, true);
-                                        $locked     = $sensitive && ! $is_admin;
+                                        $locked     = $security_locked || ($sensitive && ! $is_admin);
                                         $attributes = [
                                             'name'    => "grant_$permission->permission_id",
                                             'id'      => "grant_$permission->permission_id",
@@ -195,7 +204,7 @@
                                         ];
 
                                         if ($locked) {
-                                            $attributes += ['disabled' => 'disabled', 'data-locked' => '1', 'title' => lang('Employees.sensitive_locked')];
+                                            $attributes += ['disabled' => 'disabled', 'data-locked' => '1', 'title' => lang($security_locked ? 'Employees.security_locked_note' : 'Employees.sensitive_locked')];
                                         }
                                         ?>
                                         <li class="form-check">

@@ -680,4 +680,30 @@ class Employee extends Person
 
         return true;
     }
+
+    /**
+     * Whether the actor may change the username, the password, the permissions and the roles of the
+     * target, or delete them: an administrator may, anyone may for their own account, and anyone else
+     * only when they hold every permission the target holds, their own and those their roles give.
+     */
+    public function mayChangeSecurityOf(int $targetPersonId, int $actorPersonId): bool
+    {
+        if ($targetPersonId === $actorPersonId || $this->isAdmin($actorPersonId)) {
+            return true;
+        }
+
+        if ($this->isAdmin($targetPersonId)) {
+            return false;
+        }
+
+        return array_diff($this->effectivePermissionIds($targetPersonId), $this->effectivePermissionIds($actorPersonId)) === [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function effectivePermissionIds(int $personId): array
+    {
+        return array_values(array_unique(array_map('strtolower', array_column($this->get_employee_grants($personId), 'permission_id'))));
+    }
 }

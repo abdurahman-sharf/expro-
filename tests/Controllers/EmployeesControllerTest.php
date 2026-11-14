@@ -647,9 +647,8 @@ class EmployeesControllerTest extends CIUnitTestCase
 
     public function testPostDelete_RefusesTheLastEmployeeWithEveryBranch(): void
     {
-        $actor  = $this->createNonAdminEmployee();
         $holder = $this->createEmployee(grants: [['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--']]);
-        $this->loginAsNonAdmin($actor);
+        $this->loginAsAdmin();
 
         $this->whileOnlyHolders([$holder], function () use ($holder): void {
             $result = json_decode($this->post('/employees/delete', ['ids' => [(string) $holder]])->getJSON(), true);
@@ -664,10 +663,9 @@ class EmployeesControllerTest extends CIUnitTestCase
 
     public function testPostDelete_DeletesAnEmployeeWithEveryBranchWhileAnotherKeepsIt(): void
     {
-        $actor  = $this->createNonAdminEmployee();
         $first  = $this->createEmployee(grants: [['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--']]);
         $second = $this->createEmployee(grants: [['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--']]);
-        $this->loginAsNonAdmin($actor);
+        $this->loginAsAdmin();
 
         $this->whileOnlyHolders([$first, $second], function () use ($first): void {
             $result = json_decode($this->post('/employees/delete', ['ids' => [(string) $first]])->getJSON(), true);
@@ -772,7 +770,7 @@ class EmployeesControllerTest extends CIUnitTestCase
         $target = $this->createNonAdminEmployee();
         $this->loginAsNonAdmin($editor);
 
-        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('nojtext' . uniqid(), [
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), [
             'grant_employees'                 => 'employees',
             'grant_accounting_journals'       => 'accounting_journals',
             'grant_acc_journals_edit_details' => AccountingGuard::JOURNALS_EDIT,
@@ -819,7 +817,7 @@ class EmployeesControllerTest extends CIUnitTestCase
         $target = $this->createNonAdminEmployee();
         $this->loginAsNonAdmin($editor);
 
-        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('nogrant' . uniqid(), [
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), [
             'grant_employees'          => 'employees',
             'grant_accounting_periods' => 'accounting_periods',
             'grant_acc_periods_close'  => AccountingGuard::PERIODS_CLOSE,
@@ -836,7 +834,7 @@ class EmployeesControllerTest extends CIUnitTestCase
         $target = $this->sensitiveHolder(AccountingGuard::OPENING_MANAGE);
         $this->loginAsNonAdmin($editor);
 
-        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('keepsens' . uniqid(), ['grant_employees' => 'employees']))->getJSON(), true);
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), ['grant_employees' => 'employees']))->getJSON(), true);
 
         $this->assertTrue($result['success']);
         $this->assertTrue(model(Employee::class)->has_grant(AccountingGuard::OPENING_MANAGE, $target));
@@ -850,7 +848,7 @@ class EmployeesControllerTest extends CIUnitTestCase
         $this->loginAsNonAdmin($editor);
         putenv('DISALLOW_GRANT_CHANGE=true');
 
-        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('lockedsens' . uniqid(), ['grant_employees' => 'employees']))->getJSON(), true);
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), ['grant_employees' => 'employees']))->getJSON(), true);
 
         $this->assertTrue($result['success']);
         $this->assertTrue(model(Employee::class)->has_grant(AccountingGuard::OPENING_MANAGE, $target));
@@ -985,7 +983,7 @@ class EmployeesControllerTest extends CIUnitTestCase
             $target = $this->createNonAdminEmployee();
             $this->loginAsNonAdmin($editor);
 
-            $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('nomoney' . uniqid(), [
+            $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), [
                 'grant_employees'        => 'employees',
                 'grant_' . $moduleId     => $moduleId,
                 'grant_' . $permissionId => $permissionId,
@@ -1009,7 +1007,7 @@ class EmployeesControllerTest extends CIUnitTestCase
         ]);
         $this->loginAsNonAdmin($editor);
 
-        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('keepmoney' . uniqid(), ['grant_employees' => 'employees']))->getJSON(), true);
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), ['grant_employees' => 'employees']))->getJSON(), true);
 
         $this->assertTrue($result['success']);
 
@@ -1055,7 +1053,7 @@ class EmployeesControllerTest extends CIUnitTestCase
         $target = $this->createNonAdminEmployee();
         $this->loginAsNonAdmin($editor);
 
-        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('noai' . uniqid(), [
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), [
             'grant_employees'                      => 'employees',
             'grant_' . AccountingGuard::AI_USE     => AccountingGuard::AI_USE,
             'grant_' . AccountingGuard::AI_APPROVE => AccountingGuard::AI_APPROVE,
@@ -1077,7 +1075,7 @@ class EmployeesControllerTest extends CIUnitTestCase
         ]);
         $this->loginAsNonAdmin($editor);
 
-        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('keepai' . uniqid(), ['grant_employees' => 'employees']))->getJSON(), true);
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), ['grant_employees' => 'employees']))->getJSON(), true);
 
         $this->assertTrue($result['success']);
         $this->assertTrue(model(Employee::class)->has_grant(AccountingGuard::AI_USE, $target));
@@ -1200,7 +1198,7 @@ class EmployeesControllerTest extends CIUnitTestCase
 
         $this->loginAsNonAdmin($this->sensitiveHolder());
 
-        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('norole' . uniqid(), [
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), [
             'grant_employees' => 'employees',
             'roles_present'   => '1',
             'role_ids'        => [(string) $role],
@@ -1232,7 +1230,7 @@ class EmployeesControllerTest extends CIUnitTestCase
     public function testPostSave_RefusesARoleWhosePermissionsTheEditorWhoManagesRolesDoesNotHold(): void
     {
         $role    = $this->createRole(['sales', 'items'], 'all', true, 'Wide ' . uniqid());
-        $target  = $this->createNonAdminEmployee();
+        $target  = $this->employeeHolding(['employees']);
         $manager = $this->rolesManager(['employees', 'sales']);
 
         $this->loginAsNonAdmin($manager);
@@ -1319,12 +1317,12 @@ class EmployeesControllerTest extends CIUnitTestCase
 
         $this->loginAsNonAdmin($this->sensitiveHolder());
 
-        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('depot' . uniqid(), ['grant_employees' => 'employees', 'default_location_present' => '1', 'default_location_id' => (string) $location]))->getJSON(), true);
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), ['grant_employees' => 'employees', 'default_location_present' => '1', 'default_location_id' => (string) $location]))->getJSON(), true);
 
         $this->assertTrue($result['success']);
         $this->assertSame($location, (new DefaultLocations())->of($target));
 
-        $this->post('/employees/save/' . $target, $this->formFor('depot2' . uniqid(), ['grant_employees' => 'employees', 'default_location_present' => '1', 'default_location_id' => '0']));
+        $this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), ['grant_employees' => 'employees', 'default_location_present' => '1', 'default_location_id' => '0']));
 
         $this->assertNull((new DefaultLocations())->of($target));
     }
@@ -1335,7 +1333,7 @@ class EmployeesControllerTest extends CIUnitTestCase
 
         $this->loginAsNonAdmin($this->sensitiveHolder());
 
-        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('nodepot' . uniqid(), ['grant_employees' => 'employees', 'default_location_present' => '1', 'default_location_id' => '999999']))->getJSON(), true);
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), ['grant_employees' => 'employees', 'default_location_present' => '1', 'default_location_id' => '999999']))->getJSON(), true);
 
         $this->assertFalse($result['success']);
         $this->assertSame(lang('Roles.error_location_not_found'), $result['message']);
@@ -1391,7 +1389,7 @@ class EmployeesControllerTest extends CIUnitTestCase
         $target = $this->createNonAdminEmployee();
         $this->loginAsNonAdmin($editor);
 
-        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('noapikeys' . uniqid(), [
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), [
             'grant_employees'       => 'employees',
             'grant_integrations'    => 'integrations',
             'grant_api_keys_manage' => AccountingGuard::API_KEYS_MANAGE,
@@ -1408,5 +1406,222 @@ class EmployeesControllerTest extends CIUnitTestCase
 
         $this->get('/employees/view/-1')->assertSee('grant_api_keys_manage');
         $this->assertContains(AccountingGuard::API_KEYS_MANAGE, AccountingGuard::SENSITIVE);
+    }
+    /**
+     * @param list<string> $permissions
+     */
+    private function employeeHolding(array $permissions, ?string $username = null): int
+    {
+        return $this->createEmployee(username: $username, grants: array_map(
+            static fn (string $permissionId): array => ['permission_id' => $permissionId, 'menu_group' => 'home'],
+            $permissions,
+        ));
+    }
+
+    private function accountant(): int
+    {
+        return $this->employeeHolding(['employees', 'home', 'office', 'accounting_periods', AccountingGuard::PERIODS_CLOSE, AccountingGuard::PERIODS_MANAGE]);
+    }
+
+    private function storedPasswordHash(int $personId): string
+    {
+        return (string) $this->db->table('employees')->where('person_id', $personId)->get()->getRow()->password;
+    }
+
+    private function usernameOf(int $personId): string
+    {
+        return (string) $this->db->table('employees')->where('person_id', $personId)->get()->getRow()->username;
+    }
+
+    /**
+     * @return array{success: bool, message: string, id: mixed}
+     */
+    private function saveAs(int $actor, int $target, array $extra): array
+    {
+        $this->loginAsNonAdmin($actor);
+
+        return json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), $extra))->getJSON(), true);
+    }
+
+    public function testPostSave_RefusesToResetThePasswordOfAnEmployeeWhoHoldsWhatTheEditorDoesNot(): void
+    {
+        $editor     = $this->employeeHolding(['employees', 'home', 'office', 'accounting_periods']);
+        $accountant = $this->accountant();
+        $before     = $this->storedPasswordHash($accountant);
+
+        $result = $this->saveAs($editor, $accountant, ['password' => 'takeover-pass-1']);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Employees.error_security_beyond_permissions'), $result['message']);
+        $this->assertSame($before, $this->storedPasswordHash($accountant));
+        $this->assertTrue(password_verify('password123', $this->storedPasswordHash($accountant)));
+    }
+
+    public function testPostSave_RefusesToRenameAnEmployeeWhoHoldsWhatTheEditorDoesNot(): void
+    {
+        $editor     = $this->employeeHolding(['employees', 'home', 'office', 'accounting_periods']);
+        $accountant = $this->accountant();
+        $username   = $this->usernameOf($accountant);
+
+        $this->loginAsNonAdmin($editor);
+        $result = json_decode($this->post('/employees/save/' . $accountant, $this->formFor('renamed' . uniqid()))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Employees.error_security_beyond_permissions'), $result['message']);
+        $this->assertSame($username, $this->usernameOf($accountant));
+    }
+
+    public function testPostSave_LeavesTheGrantsOfAnEmployeeWhoHoldsWhatTheEditorDoesNotAsTheyAre(): void
+    {
+        $editor     = $this->employeeHolding(['employees', 'home', 'office', 'accounting_periods', 'customers']);
+        $accountant = $this->accountant();
+
+        $result = $this->saveAs($editor, $accountant, ['grant_employees' => 'employees', 'grant_customers' => 'customers']);
+
+        $this->assertTrue($result['success']);
+        $employeeModel = model(Employee::class);
+
+        foreach (['employees', 'home', 'office', 'accounting_periods', AccountingGuard::PERIODS_CLOSE, AccountingGuard::PERIODS_MANAGE] as $permissionId) {
+            $this->assertTrue($employeeModel->has_grant($permissionId, $accountant), $permissionId);
+        }
+
+        $this->assertFalse($employeeModel->has_grant('customers', $accountant));
+        $this->assertSame([], $this->auditedPermissions($accountant, 'permission_revoked'));
+    }
+
+    public function testPostSave_LeavesTheRolesOfAnEmployeeWhoHoldsWhatTheEditorDoesNotAsTheyAre(): void
+    {
+        $role       = $this->createRole(['sales'], 'all', true, 'Cashiers ' . uniqid());
+        $accountant = $this->employeeWithRoles([$role], ['employees']);
+        $editor     = $this->rolesManager(['employees', 'home', 'office']);
+
+        $result = $this->saveAs($editor, $accountant, ['grant_employees' => 'employees', 'roles_present' => '1', 'record_scope' => 'all']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([$role], (new RoleService())->roleIdsOf($accountant));
+    }
+
+    public function testPostSave_ResetsThePasswordOfAnEmployeeWhoseEveryPermissionTheEditorHolds(): void
+    {
+        $editor = $this->employeeHolding(['employees', 'home', 'office', 'customers', 'sales']);
+        $target = $this->employeeHolding(['home', 'customers']);
+
+        $result = $this->saveAs($editor, $target, ['password' => 'fresh-password-1']);
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertTrue(password_verify('fresh-password-1', $this->storedPasswordHash($target)));
+    }
+
+    public function testPostSave_CountsThePermissionsTheRolesOfTheEditorGiveAsHeld(): void
+    {
+        $role   = $this->createRole(['sales'], 'all', true, 'Cashiers ' . uniqid());
+        $editor = $this->employeeWithRoles([$role], ['employees', 'home', 'office']);
+        $target = $this->employeeHolding(['home', 'sales']);
+
+        $result = $this->saveAs($editor, $target, ['password' => 'fresh-password-2']);
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertTrue(password_verify('fresh-password-2', $this->storedPasswordHash($target)));
+    }
+
+    public function testPostSave_CountsThePermissionsTheRolesOfTheTargetGiveAsHeldByHim(): void
+    {
+        $role   = $this->createRole(['sales'], 'all', true, 'Cashiers ' . uniqid());
+        $editor = $this->employeeHolding(['employees', 'home', 'office']);
+        $target = $this->employeeWithRoles([$role], ['home']);
+        $before = $this->storedPasswordHash($target);
+
+        $result = $this->saveAs($editor, $target, ['password' => 'fresh-password-3']);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame($before, $this->storedPasswordHash($target));
+    }
+
+    public function testPostSave_LetsAnAdministratorResetThePasswordOfAnEmployeeWhoHoldsSensitivePermissions(): void
+    {
+        $accountant = $this->accountant();
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/' . $accountant, $this->formFor($this->usernameOf($accountant), ['password' => 'admin-reset-pass']))->getJSON(), true);
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertTrue(password_verify('admin-reset-pass', $this->storedPasswordHash($accountant)));
+    }
+
+    public function testPostSave_LetsAnEmployeeChangeTheirOwnPasswordWhateverTheyHold(): void
+    {
+        $accountant = $this->accountant();
+
+        $result = $this->saveAs($accountant, $accountant, ['password' => 'my-own-new-pass']);
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertTrue(password_verify('my-own-new-pass', $this->storedPasswordHash($accountant)));
+    }
+
+    public function testPostSave_RefusesToGrantAPermissionTheEditorDoesNotHoldToANewEmployee(): void
+    {
+        $editor = $this->employeeHolding(['employees', 'home', 'office', 'customers']);
+        $this->loginAsNonAdmin($editor);
+
+        $username = 'created' . uniqid();
+        $result   = json_decode($this->post('/employees/save/-1', $this->formFor($username, ['password' => 'created-pass-1', 'grant_customers' => 'customers', 'grant_config' => 'config', 'grant_giftcards' => 'giftcards']))->getJSON(), true);
+
+        $this->assertTrue($result['success'], $result['message']);
+        $employeeModel = model(Employee::class);
+        $this->assertTrue($employeeModel->has_grant('customers', (int) $result['id']));
+        $this->assertFalse($employeeModel->has_grant('config', (int) $result['id']));
+        $this->assertFalse($employeeModel->has_grant('giftcards', (int) $result['id']));
+    }
+
+    public function testPostSave_RefusesToGiveARoleWhosePermissionsTheEditorDoesNotHoldToANewEmployee(): void
+    {
+        $role   = $this->createRole(['config'], 'all', true, 'Configurators ' . uniqid());
+        $editor = $this->rolesManager(['employees', 'home', 'office']);
+        $this->loginAsNonAdmin($editor);
+
+        $result = json_decode($this->post('/employees/save/-1', $this->formFor('rolenew' . uniqid(), ['password' => 'created-pass-2', 'grant_employees' => 'employees', 'roles_present' => '1', 'role_ids' => [(string) $role], 'record_scope' => 'all']))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Roles.error_cannot_grant', ['config']), $result['message']);
+    }
+
+    public function testPostDelete_RefusesToDeleteAnEmployeeWhoHoldsWhatTheEditorDoesNot(): void
+    {
+        $editor     = $this->employeeHolding(['employees', 'home', 'office', 'accounting_periods']);
+        $accountant = $this->accountant();
+        $this->loginAsNonAdmin($editor);
+
+        $result = json_decode($this->post('/employees/delete', ['ids' => [(string) $accountant]])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Employees.error_security_beyond_permissions'), $result['message']);
+        $this->assertSame('0', (string) $this->db->table('employees')->where('person_id', $accountant)->get()->getRow()->deleted);
+    }
+
+    public function testPostDelete_DeletesAnEmployeeWhoseEveryPermissionTheEditorHolds(): void
+    {
+        $editor = $this->employeeHolding(['employees', 'home', 'office', 'customers']);
+        $target = $this->employeeHolding(['customers']);
+        $this->loginAsNonAdmin($editor);
+
+        $result = json_decode($this->post('/employees/delete', ['ids' => [(string) $target]])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('1', (string) $this->db->table('employees')->where('person_id', $target)->get()->getRow()->deleted);
+    }
+
+    public function testGetView_LocksTheLoginAndThePermissionsOfAnEmployeeWhoHoldsWhatTheEditorDoesNot(): void
+    {
+        $editor     = $this->employeeHolding(['employees', 'home', 'office', 'accounting_periods']);
+        $accountant = $this->accountant();
+        $this->loginAsNonAdmin($editor);
+
+        $response = $this->get('/employees/view/' . $accountant);
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Employees.security_locked_note'));
+        $this->assertMatchesRegularExpression('/id="password"[^>]*\sdisabled/', $response->getBody());
+        $this->assertMatchesRegularExpression('/id="username"[^>]*\sreadonly/', $response->getBody());
+        $this->assertMatchesRegularExpression('/id="grant_customers"[^>]*\sdisabled/', $response->getBody());
     }
 }
