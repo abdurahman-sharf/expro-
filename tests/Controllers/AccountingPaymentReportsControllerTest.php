@@ -79,6 +79,16 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
         $this->assertCustomerFilterSearches(self::ADVANCES);
     }
 
+    public function testGetIndex_OffersASearchBoxThatTheLookupAnswersToTheReaderOfThePaymentsReportsAlone(): void
+    {
+        $this->assertCustomerFilterIsAnsweredToTheReaderOf(self::PAYMENTS, ['accounting_reports', 'reports_payments']);
+    }
+
+    public function testGetAdvances_OffersASearchBoxThatTheLookupAnswersToTheReaderOfThePaymentsReportsAlone(): void
+    {
+        $this->assertCustomerFilterIsAnsweredToTheReaderOf(self::ADVANCES, ['accounting_reports', 'reports_payments']);
+    }
+
     public function testGetIndex_ShowsNoTableUntilTheReportIsRun(): void
     {
         $this->reader();

@@ -234,6 +234,31 @@ trait OperationalReportFixtureTrait
     }
 
     /**
+     * Says the search box of the screen is one the reader of its permissions is answered by: the box is offered
+     * and the lookup it asks finds the customer typed, which a reader refused by the lookup would never see.
+     *
+     * @param list<string> $permissions
+     */
+    protected function assertCustomerFilterIsAnsweredToTheReaderOf(string $url, array $permissions): void
+    {
+        $served = $this->bookedCustomer('Filter', 'Served');
+        $this->bookedCustomer('Filter', 'Another');
+        $this->setPickerThreshold(1);
+        $this->reader($permissions);
+
+        try {
+            $this->assertSame(1, $this->pageOf($this->fetch($url))->query("//input[@type='text'][@id='f_customer_text']")->length, "{$url} offers a search box to " . implode(', ', $permissions));
+
+            $lookup = $this->fetch('/accounting_lookup/search?' . http_build_query(['kind' => 'customer', 'mode' => 'ledger', 'term' => 'Filter Served']));
+
+            $lookup->assertStatus(200);
+            $this->assertSame([$served], array_column(json_decode($lookup->getJSON(), true)['results'], 'id'), "{$url} finds the customer for " . implode(', ', $permissions));
+        } finally {
+            $this->setPickerThreshold(null);
+        }
+    }
+
+    /**
      * Says the screen lists the customers in a select box while there are no more than the threshold.
      */
     protected function assertCustomerFilterLists(string $url): void

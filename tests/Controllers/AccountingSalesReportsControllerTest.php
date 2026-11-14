@@ -76,6 +76,16 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->assertCustomerFilterSearches(self::CLIENTS);
     }
 
+    public function testGetClients_OffersASearchBoxThatTheLookupAnswersToTheReaderOfTheCustomerReportsAlone(): void
+    {
+        $this->assertCustomerFilterIsAnsweredToTheReaderOf(self::CLIENTS, ['accounting_reports', 'reports_customers']);
+    }
+
+    public function testGetRevenue_OffersASearchBoxThatTheLookupAnswersToTheReaderOfTheCustomerReportsAlone(): void
+    {
+        $this->assertCustomerFilterIsAnsweredToTheReaderOf(self::REVENUE . '?group=day', ['accounting_reports', 'reports_sales', 'reports_customers']);
+    }
+
     public function testGetRevenue_ListsTheCustomersOfTheLedgerWhileTheyAreNoMoreThanThePickerThreshold(): void
     {
         $this->assertCustomerFilterLists(self::REVENUE);

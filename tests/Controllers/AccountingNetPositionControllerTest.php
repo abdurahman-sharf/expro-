@@ -76,6 +76,16 @@ class AccountingNetPositionControllerTest extends CIUnitTestCase
         $this->assertCustomerFilterSearches(self::CROSS);
     }
 
+    public function testGetIndex_OffersASearchBoxThatTheLookupAnswersToTheReaderOfTheSalesReportsAlone(): void
+    {
+        $this->assertCustomerFilterIsAnsweredToTheReaderOf(self::NET, ['accounting_reports', 'reports_sales']);
+    }
+
+    public function testGetCross_OffersASearchBoxThatTheLookupAnswersToTheReaderOfTheSalesReportsAlone(): void
+    {
+        $this->assertCustomerFilterIsAnsweredToTheReaderOf(self::CROSS, ['accounting_reports', 'reports_sales']);
+    }
+
     public function testGetIndex_ShowsNoTableUntilRunAndThenTheNetAfterReturns(): void
     {
         $this->sell();
