@@ -101,6 +101,7 @@ return [
     'purchase_tax_2'                     => '',
     'purchase_tax_hint'                  => '',
     'purchase_tax_percent_invalid'       => '',
+    'purchase_taxes'                     => '',
     'qty_per_pack'                       => 'Menge pro Packung',
     'quantity'                           => 'Menge',
     'quantity_number'                    => 'Menge muss eine Zahl sein.',

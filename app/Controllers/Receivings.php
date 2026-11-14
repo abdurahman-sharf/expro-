@@ -951,13 +951,34 @@ class Receivings extends Secure_Controller
         return is_scalar($value) ? (string) $value : '';
     }
 
+    /**
+     * Two locations of different branches can carry the same name, so someone who works in more than one
+     * branch is told which branch each one belongs to.
+     *
+     * @param array<int|string, string> $locations The names by the number of the location.
+     *
+     * @return array<int|string, string>
+     */
+    private function locationsWithBranch(array $locations): array
+    {
+        if ($locations === [] || ! (new BranchGuard())->seesBranches((int) $this->session->get('person_id'))) {
+            return $locations;
+        }
+
+        foreach ($this->receiving->branchCodesOfLocations(array_keys($locations)) as $locationId => $code) {
+            $locations[$locationId] .= ' (' . $code . ')';
+        }
+
+        return $locations;
+    }
+
     private function _reload(array $data = []): string    // TODO: Hungarian notation
     {
         $data['cart']                 = $this->receiving_lib->get_cart();
         $data['unit_choices']         = $this->receiving_lib->unitChoices($data['cart']);
         $data['modes']                = ['receive' => lang('Receivings.receiving'), 'return' => lang('Receivings.return')];
         $data['mode']                 = $this->receiving_lib->get_mode();
-        $data['stock_locations']      = $this->stock_location->get_allowed_locations('receivings', true);
+        $data['stock_locations']      = $this->locationsWithBranch($this->stock_location->get_allowed_locations('receivings', true));
         $data['show_stock_locations'] = count($data['stock_locations']) > 1;
         if ($data['show_stock_locations']) {
             $data['modes']['requisition'] = lang('Receivings.requisition');

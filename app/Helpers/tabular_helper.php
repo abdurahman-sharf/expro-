@@ -8,6 +8,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Models\Attribute;
 use App\Models\Employee;
+use App\Models\Item;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\Session\Session;
@@ -464,6 +465,10 @@ function getItemsManageTableHeaders(): string
         $headers[] = ['tax_percents' => lang('Items.tax_percents'), 'sortable' => false];
     }
 
+    if (model(Item::class)->hasPurchaseTaxes()) {
+        $headers[] = ['purchase_taxes' => lang('Items.purchase_taxes'), 'sortable' => false];
+    }
+
     $headers[] = ['item_pic' => lang('Items.image'), 'sortable' => false];
 
     foreach ($definitionsWithTypes as $definitionId => $definitionInfo) {
@@ -474,6 +479,28 @@ function getItemsManageTableHeaders(): string
     $headers[] = ['stock' => '', 'escape' => false];
 
     return transform_headers($headers);
+}
+
+/**
+ * The purchase taxes an item carries, as the table of items shows and exports them: a rate left empty is not
+ * shown because it follows the sales tax, and a rate of 0 is shown because it means no tax on purchases.
+ */
+function itemPurchaseTaxesText(object $item): string
+{
+    $texts = [];
+
+    foreach ([1, 2] as $slot) {
+        $percent = $item->{"purchase_tax_{$slot}_percent"} ?? null;
+
+        if ($percent === null || $percent === '') {
+            continue;
+        }
+
+        $name    = trim((string) ($item->{"purchase_tax_{$slot}_name"} ?? ''));
+        $texts[] = ($name === '' ? '' : $name . ' ') . to_decimals((string) $percent, 'tax_decimals') . '%';
+    }
+
+    return implode(', ', $texts);
 }
 
 /**
@@ -511,18 +538,19 @@ function getItemDataRow(object $item, array $definitionNames, array $taxPercents
     }
 
     $columns = [
-        'items.item_id' => $item->item_id,
-        'item_number'   => $item->item_number,
-        'name'          => $item->name,
-        'category'      => $item->category,
-        'company_name'  => $item->company_name,    // TODO: This isn't in the items table. Should this be here?
-        'brand_name'    => (string) ($item->brand_name ?? ''),
-        'status_label'  => ItemStatus::tryFrom((int) ($item->status ?? 0))?->label() ?? '',
-        'cost_price'    => to_currency($item->cost_price),
-        'unit_price'    => to_currency($item->unit_price),
-        'quantity'      => to_quantity_decimals($item->quantity),
-        'tax_percents'  => !$taxPercents ? '-' : $taxPercents,
-        'item_pic'      => $image
+        'items.item_id'  => $item->item_id,
+        'item_number'    => $item->item_number,
+        'name'           => $item->name,
+        'category'       => $item->category,
+        'company_name'   => $item->company_name,    // TODO: This isn't in the items table. Should this be here?
+        'brand_name'     => (string) ($item->brand_name ?? ''),
+        'status_label'   => ItemStatus::tryFrom((int) ($item->status ?? 0))?->label() ?? '',
+        'cost_price'     => to_currency($item->cost_price),
+        'unit_price'     => to_currency($item->unit_price),
+        'quantity'       => to_quantity_decimals($item->quantity),
+        'tax_percents'   => !$taxPercents ? '-' : $taxPercents,
+        'purchase_taxes' => itemPurchaseTaxesText($item),
+        'item_pic'       => $image
     ];
 
     $icons = [

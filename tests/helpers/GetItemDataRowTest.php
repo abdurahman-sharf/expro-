@@ -29,6 +29,7 @@ class GetItemDataRowTest extends CIUnitTestCase
             'quantity_decimals'         => 0,
             'thousands_separator'       => 1,
             'currency_symbol'           => '$',
+            'tax_decimals'              => 2,
         ], $overrides);
 
         Factories::injectMock('config', OSPOS::class, $config);
@@ -103,5 +104,34 @@ class GetItemDataRowTest extends CIUnitTestCase
         $columns = getItemDataRow($item, [], []);
 
         $this->assertEquals('Base Item' . NAME_SEPARATOR . 'Pack of 6', $columns['name']);
+    }
+
+    public function testGetItemDataRow_ShowsThePurchaseTaxesOfTheItemByNameAndRate(): void
+    {
+        $item = $this->makeItem([
+            'purchase_tax_1_name'    => 'Import duty',
+            'purchase_tax_1_percent' => '5.000',
+            'purchase_tax_2_name'    => null,
+            'purchase_tax_2_percent' => '2.500',
+        ]);
+
+        $columns = getItemDataRow($item, [], []);
+
+        $this->assertSame('Import duty 5.00%, 2.50%', $columns['purchase_taxes']);
+    }
+
+    public function testGetItemDataRow_ShowsARateOfZeroBecauseItMeansNoTaxOnPurchases(): void
+    {
+        $item = $this->makeItem(['purchase_tax_1_name' => 'Exempt', 'purchase_tax_1_percent' => '0.000', 'purchase_tax_2_name' => null, 'purchase_tax_2_percent' => null]);
+
+        $this->assertSame('Exempt 0.00%', getItemDataRow($item, [], [])['purchase_taxes']);
+    }
+
+    public function testGetItemDataRow_LeavesThePurchaseTaxesEmptyWhenTheRatesFollowTheSalesTax(): void
+    {
+        $item = $this->makeItem(['purchase_tax_1_name' => 'Ignored name', 'purchase_tax_1_percent' => null, 'purchase_tax_2_name' => null, 'purchase_tax_2_percent' => '']);
+
+        $this->assertSame('', getItemDataRow($item, [], [])['purchase_taxes']);
+        $this->assertSame('', getItemDataRow($this->makeItem(), [], [])['purchase_taxes']);
     }
 }

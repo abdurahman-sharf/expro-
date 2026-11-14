@@ -585,6 +585,64 @@ class ReceivingsControllerTest extends CIUnitTestCase
         return ['receiving' => $receivingId, 'item' => $itemId, 'branch' => $branch, 'other' => $other];
     }
 
+    /**
+     * @return array<int, string> The text of each option of a location list on the register, by the number of the location.
+     */
+    private function locationOptions(string $html, string $selectId): array
+    {
+        $document = new DOMDocument();
+
+        libxml_use_internal_errors(true);
+        $document->loadHTML('<?xml encoding="UTF-8">' . $html);
+        libxml_clear_errors();
+
+        $options = [];
+
+        foreach ((new DOMXPath($document))->query("//select[@id='{$selectId}']/option") as $option) {
+            $options[(int) $option->getAttribute('value')] = trim($option->textContent);
+        }
+
+        return $options;
+    }
+
+    public function testGetIndex_NamesTheBranchOfEachLocationForSomeoneWhoWorksInMoreThanOneBranch(): void
+    {
+        $buyerId  = $this->buyer();
+        $branchId = $this->anotherBranch();
+        $other    = $this->depotIn($branchId, $buyerId);
+        $db       = $this->accountingDb();
+
+        $this->loginAs($buyerId, ['recv_mode' => 'requisition', 'recv_stock_source' => self::LOCATION_ID, 'recv_stock_destination' => $other]);
+
+        $body = $this->get('/receivings')->getBody();
+        $name = (string) $db->table('stock_locations')->where('location_id', $other)->get()->getRow()->location_name;
+        $home = (string) $db->table('stock_locations')->where('location_id', self::LOCATION_ID)->get()->getRow()->location_name;
+        $code = (string) $db->table('branches')->where('branch_id', $branchId)->get()->getRow()->code;
+        $mine = (string) $db->table('branches b')->join('stock_locations l', 'l.branch_id = b.branch_id')->where('l.location_id', self::LOCATION_ID)->get()->getRow()->code;
+
+        foreach (['register_stock_source', 'register_stock_destination'] as $selectId) {
+            $options = $this->locationOptions($body, $selectId);
+
+            $this->assertSame($name . ' (' . $code . ')', $options[$other], $selectId);
+            $this->assertSame($home . ' (' . $mine . ')', $options[self::LOCATION_ID], $selectId);
+        }
+    }
+
+    public function testGetIndex_LeavesTheLocationNamesAloneForSomeoneWhoWorksInOneBranch(): void
+    {
+        $buyerId = $this->buyer([1]);
+        $other   = $this->depotIn(1, $buyerId);
+        $db      = $this->accountingDb();
+
+        $this->loginAs($buyerId, ['recv_mode' => 'requisition', 'recv_stock_source' => self::LOCATION_ID, 'recv_stock_destination' => $other]);
+
+        $options = $this->locationOptions($this->get('/receivings')->getBody(), 'register_stock_source');
+
+        $this->assertSame((string) $db->table('stock_locations')->where('location_id', $other)->get()->getRow()->location_name, $options[$other]);
+        $this->assertStringNotContainsString('(', $options[$other]);
+        $this->assertStringNotContainsString('(', $options[self::LOCATION_ID]);
+    }
+
     public function testGetIndex_SaysThatARequisitionBetweenBranchesIsPostedInBothBranches(): void
     {
         $buyerId  = $this->buyer();

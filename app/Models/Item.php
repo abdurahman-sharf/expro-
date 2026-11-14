@@ -360,6 +360,20 @@ class Item extends Model
         $builder->orderBy("MAX($sortColumn)", $order);
     }
 
+    public function hasPurchaseTaxes(): bool
+    {
+        return $this->db->table('items')
+            ->select('item_id')
+            ->where('deleted', 0)
+            ->groupStart()
+            ->where('purchase_tax_1_percent IS NOT NULL', null, false)
+            ->orWhere('purchase_tax_2_percent IS NOT NULL', null, false)
+            ->groupEnd()
+            ->limit(1)
+            ->get()
+            ->getNumRows() > 0;
+    }
+
     /**
      * Perform a search on items
      *
@@ -566,6 +580,10 @@ class Item extends Model
         $builder->select('MAX(items.tax_category_id) AS tax_category_id');
         $builder->select('MAX(items.deleted) AS deleted');
         $builder->select('MAX(items.status) AS status');
+        $builder->select('MAX(items.purchase_tax_1_name) AS purchase_tax_1_name');
+        $builder->select('MAX(items.purchase_tax_1_percent) AS purchase_tax_1_percent');
+        $builder->select('MAX(items.purchase_tax_2_name) AS purchase_tax_2_name');
+        $builder->select('MAX(items.purchase_tax_2_percent) AS purchase_tax_2_percent');
         $builder->select('MAX(item_brands.name) AS brand_name');
 
         $builder->select('MAX(suppliers.person_id) AS person_id');

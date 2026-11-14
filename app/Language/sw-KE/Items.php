@@ -101,6 +101,7 @@ return [
     'purchase_tax_2'                     => '',
     'purchase_tax_hint'                  => '',
     'purchase_tax_percent_invalid'       => '',
+    'purchase_taxes'                     => '',
     'qty_per_pack'                       => 'Kiasi kwa kila pakiti',
     'quantity'                           => 'Kiasi',
     'quantity_number'                    => 'Kiasi lazima kiwe namba.',
