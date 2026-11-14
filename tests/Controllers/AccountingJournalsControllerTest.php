@@ -372,6 +372,18 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $response->assertDontSee('id="post_draft"');
     }
 
+    public function testGetReverseForm_EscapesTheNumberOfTheJournal(): void
+    {
+        $this->accountant();
+        $journalId = $this->postedJournalBy();
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->update(['number' => '<img src=x onerror=alert(1)>']);
+
+        $page = (string) $this->get('/accounting_journals/reverse_form/' . $journalId)->response()->getBody();
+
+        $this->assertStringNotContainsString('<img src=x', $page);
+        $this->assertStringContainsString('&lt;img src=x onerror=alert(1)&gt;', $page);
+    }
+
     public function testGetView_HidesTheReverseButtonOfAJournalOfATransferBetweenTreasuries(): void
     {
         $treasuries = new TreasuryService();

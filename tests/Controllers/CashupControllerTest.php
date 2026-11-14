@@ -436,6 +436,26 @@ class CashupControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('cash_up')->where('deleted', 1)->countAllResults());
     }
 
+    public function testGetView_EscapesTheNameOfEveryEmployeeInTheDropdowns(): void
+    {
+        $hostileId = $this->createEmployee(first_name: '<img src=x onerror=alert(1)>', last_name: '"><svg onload=alert(2)>');
+        $this->loginAs($this->createCashupEmployee());
+
+        try {
+            $page = (string) $this->get('/cashups/view')->response()->getBody();
+        } finally {
+            $db = Config::connect($this->DBGroup);
+            $db->table('grants')->where('person_id', $hostileId)->delete();
+            $db->table('employee_branches')->where('person_id', $hostileId)->delete();
+            $db->table('employees')->where('person_id', $hostileId)->delete();
+            $db->table('people')->where('person_id', $hostileId)->delete();
+        }
+
+        $this->assertStringNotContainsString('<img src=x', $page);
+        $this->assertStringNotContainsString('<svg onload', $page);
+        $this->assertStringContainsString('&lt;img src=x onerror=alert(1)&gt; &quot;&gt;&lt;svg onload=alert(2)&gt;', $page);
+    }
+
     public function testGetView_ShowsTheExpectedCashOfTheBranchWhenTheCashUpIsClosed(): void
     {
         $this->accountingCashier();

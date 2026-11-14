@@ -401,6 +401,28 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $response->assertStatus(200);
     }
 
+    public function testGetEdit_EscapesTheEmailOfTheCustomerInTheScriptOfTheInvoiceConfirmation(): void
+    {
+        $supervisorId = $this->createReportsSalesEmployee();
+        $saleId       = $this->createSale($supervisorId);
+        $customerId   = $this->insertCustomer('Test', 'Buyer');
+        $db           = $this->accountingDb();
+        $db->table('people')->where('person_id', $customerId)->update(['email' => '"</script><img src=x onerror=alert(1)>']);
+        $db->table('sales')->where('sale_id', $saleId)->update(['customer_id' => $customerId]);
+        $this->loginAs($supervisorId);
+
+        try {
+            $page = (string) $this->get('/sales/edit/' . $saleId)->response()->getBody();
+        } finally {
+            $db->table('sales')->where('sale_id', $saleId)->update(['customer_id' => null]);
+            $this->removeInsertedEntities();
+        }
+
+        $this->assertStringContainsString('send_invoice', $page);
+        $this->assertStringNotContainsString('</script><img', $page);
+        $this->assertStringNotContainsString('<img src=x', $page);
+    }
+
     public function testCashierWithoutGrantCannotChangePrice(): void
     {
         $cashierId = $this->createCashierWithoutChangePriceGrant();

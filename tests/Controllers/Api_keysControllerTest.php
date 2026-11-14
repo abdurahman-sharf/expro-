@@ -88,6 +88,22 @@ class Api_keysControllerTest extends CIUnitTestCase
         $response->assertSee('api_off');
     }
 
+    public function testGetIndex_EscapesTheNameOfEveryBranchInTheBranchChoices(): void
+    {
+        $this->manager();
+        $branchId = $this->createBranch('ZQ', '"\'></script><img src=x onerror=alert(1)>');
+
+        try {
+            $page = (string) $this->get('/api_keys')->response()->getBody();
+        } finally {
+            Database::connect()->table('branches')->where('branch_id', $branchId)->delete();
+        }
+
+        $this->assertStringNotContainsString('<img src=x', $page);
+        $this->assertStringNotContainsString('</script><img', $page);
+        $this->assertStringContainsString('ZQ - &quot;&#039;&gt;&lt;/script&gt;&lt;img src=x onerror=alert(1)&gt;', $this->selectOf($page, 'branch_id'));
+    }
+
     public function testGetIndex_OpensWhetherAccountingIsOnOrOff(): void
     {
         $this->manager();

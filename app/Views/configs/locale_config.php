@@ -1,4 +1,7 @@
 <?php
+
+use App\Libraries\SafeHtml;
+
 /**
  * @var string $currency_code
  * @var array $rounding_options
@@ -177,7 +180,7 @@
             </div>
 
             <div class="row mb-3 align-items-center">
-                <?= form_label(lang('Config.payment_reference_code_length_limits'), 'payment_reference_code_length', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <?= form_label(new SafeHtml(lang('Config.payment_reference_code_length_limits')), 'payment_reference_code_length', ['class' => 'col-form-label col-3 col-md-2']) ?>
                 <div class="col-9 col-md-6 col-lg-5 col-xl-4">
                     <div id="payment_reference_code_slider"></div>
                     <div class="row mt-2">

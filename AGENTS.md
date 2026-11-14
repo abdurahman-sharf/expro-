@@ -42,6 +42,7 @@ This document provides guidance for AI agents working on the Open Source Point o
 - Database migrations in `app/Database/Migrations/`
 - Use CodeIgniter 4 framework patterns and helpers
 - Sanitize user input; escape output using `esc()` helper
+- `form_dropdown()` and `form_label()` escape their text (`app/Helpers/form_helper.php`): pass the label as it is stored, never a hand-built HTML string; wrap trusted markup in `App\Libraries\SafeHtml`
 
 ## Localization
 
