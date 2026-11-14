@@ -194,6 +194,7 @@ return [
     'tie_sales_tax'         => '',
     'tie_sales_total'       => '',
     'ties'                  => '',
+    'too_many_documents'    => '',
     'treasury'              => '',
     'type'                  => '',
     'type_all'              => '',

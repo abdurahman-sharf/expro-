@@ -8,6 +8,7 @@ use App\Libraries\Accounting\InvoiceFigures;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Accounting\ReportSizeGuard;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingResolver;
@@ -19,6 +20,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
+use Generator;
 
 /**
  * The sales documents that stand in the books for the branches and the days of a report: the invoices,
@@ -31,11 +33,17 @@ use Config\Database;
  */
 final class ReportDocuments
 {
-    private const CHUNK = 400;
+    public const BYTES_PER_DOCUMENT = 2_800;
+    public const BYTES_WITH_LINES   = 9_000;
+    private const CHUNK             = 400;
 
     private BaseConnection $db;
 
-    public function __construct(?BaseConnection $db = null)
+    /**
+     * @param int      $chunk        How many documents are built at a time.
+     * @param int|null $maxDocuments How many documents a report may hold, when memory is not what says it.
+     */
+    public function __construct(?BaseConnection $db = null, private readonly int $chunk = self::CHUNK, private readonly ?int $maxDocuments = null)
     {
         $this->db = $db ?? Database::connect();
     }
@@ -146,6 +154,103 @@ final class ReportDocuments
      */
     private function sales(ReportScope $scope, ?string $from, ?string $to, array $kinds, ?int $customerId, ?int $employeeId, bool $withLines, ?array $saleIds = null, ?array $originIds = null): array
     {
+        return $this->documents($this->salesRows($scope, $from, $to, $kinds, $customerId, $employeeId, $saleIds, $originIds), $withLines);
+    }
+
+    /**
+     * @param list<DocumentKind> $kinds
+     *
+     * @return list<object>
+     */
+    private function salesRows(ReportScope $scope, ?string $from, ?string $to, array $kinds, ?int $customerId, ?int $employeeId, ?array $saleIds = null, ?array $originIds = null): array
+    {
+        [$source, $bindings] = $this->salesSource($scope, $from, $to, $kinds, $customerId, $employeeId, $saleIds, $originIds);
+
+        return $this->db->query(
+            'SELECT s.sale_id, s.sale_type, s.return_document, s.return_of_sale_id, s.customer_id, s.employee_id, s.invoice_number, s.due_date, s.payment_terms_days,
+                    j.journal_date AS doc_date, j.branch_id, b.code AS branch_code,
+                    ' . $this->ledgerFigures() . "
+             {$source}
+             ORDER BY j.journal_date ASC, s.sale_id ASC",
+            [$this->counterAccountId(), ...$bindings],
+        )->getResult();
+    }
+
+    /**
+     * The documents read() gives, a few hundred at a time and in the same order, so that a report that folds
+     * what it needs from each document holds none of them. The documents are those of the sales, with the debit
+     * notes read all at once when they are asked for.
+     *
+     * @param list<DocumentKind> $kinds Empty for the documents that make up the sales.
+     *
+     * @return Generator<int, list<ReportDocument>>
+     */
+    public function chunks(ReportScope $scope, ?string $from, string $to, array $kinds = [], ?int $customerId = null, ?int $employeeId = null, bool $withLines = false): Generator
+    {
+        $kinds = $kinds === [] ? DocumentKind::sales() : $kinds;
+
+        if ($scope->isEmpty()) {
+            return;
+        }
+
+        if (in_array(DocumentKind::DebitNote, $kinds, true)) {
+            yield $this->read($scope, $from, $to, $kinds, $customerId, $employeeId, $withLines);
+
+            return;
+        }
+
+        foreach (array_chunk($this->salesRows($scope, $from, $to, $kinds, $customerId, $employeeId), $this->chunk) as $rows) {
+            yield $this->documentsOf($rows, $withLines);
+        }
+    }
+
+    /**
+     * How many documents of the kinds are in the days, counted without reading them.
+     *
+     * @param list<DocumentKind> $kinds Empty for the documents that make up the sales.
+     */
+    public function count(ReportScope $scope, ?string $from, string $to, array $kinds = [], ?int $customerId = null, ?int $employeeId = null): int
+    {
+        if ($scope->isEmpty()) {
+            return 0;
+        }
+
+        $kinds     = $kinds === [] ? DocumentKind::sales() : $kinds;
+        $saleKinds = array_values(array_filter($kinds, static fn (DocumentKind $kind): bool => $kind !== DocumentKind::DebitNote));
+        $found     = 0;
+
+        if ($saleKinds !== []) {
+            [$source, $bindings] = $this->salesSource($scope, $from, $to, $saleKinds, $customerId, $employeeId, null, null);
+
+            $found += (int) $this->db->query("SELECT COUNT(*) AS found {$source}", $bindings)->getRow()->found;
+        }
+
+        return $found;
+    }
+
+    /**
+     * The refusal of a report that would hold more documents than this server has memory for, with how many
+     * the period holds and how many the server can hold, or nothing when the report fits.
+     *
+     * @param list<DocumentKind> $kinds Empty for the documents that make up the sales.
+     */
+    public function refusal(ReportScope $scope, ?string $from, string $to, array $kinds = [], ?int $customerId = null, ?int $employeeId = null, bool $withLines = false): ?ReportTable
+    {
+        $found = $this->count($scope, $from, $to, $kinds, $customerId, $employeeId);
+        $most  = $this->maxDocuments ?? ReportSizeGuard::memoryRows($withLines ? self::BYTES_WITH_LINES : self::BYTES_PER_DOCUMENT);
+
+        return $found <= $most ? null : ReportTable::refused($scope, $from, $to, 'Accounting_operational_reports.too_many_documents', [(string) $found, (string) $most]);
+    }
+
+    /**
+     * The tables and the conditions the documents of the sales are read from, and what they are bound to.
+     *
+     * @param list<DocumentKind> $kinds
+     *
+     * @return array{0: string, 1: list<mixed>}
+     */
+    private function salesSource(ReportScope $scope, ?string $from, ?string $to, array $kinds, ?int $customerId, ?int $employeeId, ?array $saleIds, ?array $originIds): array
+    {
         [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', null);
 
         $join         = ['j.source_type = ?', 'j.entry_type = ?', $standing];
@@ -181,19 +286,12 @@ final class ReportDocuments
             $bindings[] = $employeeId;
         }
 
-        $rows = $this->db->query(
-            'SELECT s.sale_id, s.sale_type, s.return_document, s.return_of_sale_id, s.customer_id, s.employee_id, s.invoice_number, s.due_date, s.payment_terms_days,
-                    j.journal_date AS doc_date, j.branch_id, b.code AS branch_code,
-                    ' . $this->ledgerFigures() . '
-             FROM ' . $this->db->prefixTable('sales') . ' s
+        $source = 'FROM ' . $this->db->prefixTable('sales') . ' s
              JOIN ' . $this->db->prefixTable('accounting_journals') . ' j ON j.source_id = s.sale_id AND ' . implode(' AND ', $join) . '
              JOIN ' . $this->db->prefixTable('branches') . ' b ON b.branch_id = j.branch_id
-             WHERE ' . implode(' AND ', $where) . '
-             ORDER BY j.journal_date ASC, s.sale_id ASC',
-            [$this->counterAccountId(), ...$joinBindings, ...$bindings],
-        )->getResult();
+             WHERE ' . implode(' AND ', $where);
 
-        return $this->documents($rows, $withLines);
+        return [$source, [...$joinBindings, ...$bindings]];
     }
 
     /**
@@ -233,7 +331,7 @@ final class ReportDocuments
     {
         $documents = [];
 
-        foreach (array_chunk($rows, self::CHUNK) as $chunk) {
+        foreach (array_chunk($rows, $this->chunk) as $chunk) {
             foreach ($this->documentsOf($chunk, $withLines) as $document) {
                 $documents[] = $document;
             }

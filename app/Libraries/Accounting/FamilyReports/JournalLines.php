@@ -115,9 +115,11 @@ final class JournalLines
         }
 
         $counts = [];
+        $owned  = [];
 
-        foreach ($this->narrowed($filters, null)->select('a.code AS account_code, COUNT(*) AS found', false)->groupBy('a.code')->get()->getResult() as $row) {
-            $counts[(string) $row->account_code] = (int) $row->found;
+        foreach ($this->narrowed($filters, null)->select('a.code AS account_code, a.account_id, COUNT(*) AS found', false)->groupBy('a.code, a.account_id')->get()->getResult() as $row) {
+            $counts[(string) $row->account_code]  = ($counts[(string) $row->account_code] ?? 0) + (int) $row->found;
+            $owned[(string) $row->account_code][] = (int) $row->account_id;
         }
 
         $order = array_fill_keys(array_keys($counts), true);
@@ -132,12 +134,12 @@ final class JournalLines
             $found = $counts[$code];
 
             if ($found > $this->chunk) {
-                yield from $this->byAccount($filters, $batch);
+                yield from $this->byAccount($filters, $batch, $owned);
 
                 $batch = [];
                 $held  = 0;
 
-                foreach ($this->chunks($filters, [$code], $found) as $lines) {
+                foreach ($this->chunks($filters, $owned[$code], $found) as $lines) {
                     yield [$code, $lines];
                 }
 
@@ -145,7 +147,7 @@ final class JournalLines
             }
 
             if ($held + $found > $this->chunk && $batch !== []) {
-                yield from $this->byAccount($filters, $batch);
+                yield from $this->byAccount($filters, $batch, $owned);
 
                 $batch = [];
                 $held  = 0;
@@ -155,7 +157,7 @@ final class JournalLines
             $held += $found;
         }
 
-        yield from $this->byAccount($filters, $batch);
+        yield from $this->byAccount($filters, $batch, $owned);
     }
 
     /**
@@ -320,12 +322,13 @@ final class JournalLines
     }
 
     /**
-     * @param list<mixed>  $filters
-     * @param list<string> $codes
+     * @param list<mixed>              $filters
+     * @param list<string>             $codes
+     * @param array<string, list<int>> $owned   The accounts that have each code.
      *
      * @return Generator<int, array{0: ?string, 1: list<object>}>
      */
-    private function byAccount(array $filters, array $codes): Generator
+    private function byAccount(array $filters, array $codes, array $owned): Generator
     {
         if ($codes === []) {
             return;
@@ -333,7 +336,7 @@ final class JournalLines
 
         $perCode = array_fill_keys($codes, []);
 
-        foreach ($this->fetch($filters, $codes) as $line) {
+        foreach ($this->fetch($filters, array_merge(...array_map(static fn (string $code): array => $owned[$code], $codes))) as $line) {
             $perCode[(string) $line->account_code][] = $line;
         }
 
@@ -344,17 +347,17 @@ final class JournalLines
 
     /**
      * @param list<mixed>            $filters
-     * @param list<string>|null      $codes
-     * @param array<string, int>|int $days    How many lines each day holds, or how many lines there are when the days are not known and are asked for if the lines are more than a chunk.
+     * @param list<int>|null         $accountIds
+     * @param array<string, int>|int $days       How many lines each day holds, or how many lines there are when the days are not known and are asked for if the lines are more than a chunk.
      *
      * @return Generator<int, list<object>>
      */
-    private function chunks(array $filters, ?array $codes, array|int $days): Generator
+    private function chunks(array $filters, ?array $accountIds, array|int $days): Generator
     {
         $found = is_array($days) ? array_sum($days) : $days;
 
         if ($found <= $this->chunk) {
-            yield $this->fetch($filters, $codes);
+            yield $this->fetch($filters, $accountIds);
 
             return;
         }
@@ -362,7 +365,7 @@ final class JournalLines
         if (! is_array($days)) {
             $days = [];
 
-            foreach ($this->narrowed($filters, $codes)->select('j.journal_date AS day, COUNT(*) AS found', false)->groupBy('j.journal_date')->orderBy('j.journal_date', 'ASC')->get()->getResult() as $row) {
+            foreach ($this->narrowed($filters, $accountIds)->select('j.journal_date AS day, COUNT(*) AS found', false)->groupBy('j.journal_date')->orderBy('j.journal_date', 'ASC')->get()->getResult() as $row) {
                 $days[(string) $row->day] = (int) $row->found;
             }
         }
@@ -376,19 +379,19 @@ final class JournalLines
 
             if ($count > $this->chunk) {
                 if ($first !== null) {
-                    yield $this->fetch($this->between($filters, $first, $last), $codes);
+                    yield $this->fetch($this->between($filters, $first, $last), $accountIds);
                 }
 
                 $first = null;
                 $held  = 0;
 
-                yield from $this->byJournal($this->between($filters, $day, $day), $codes);
+                yield from $this->byJournal($this->between($filters, $day, $day), $accountIds);
 
                 continue;
             }
 
             if ($held + $count > $this->chunk && $first !== null) {
-                yield $this->fetch($this->between($filters, $first, $last), $codes);
+                yield $this->fetch($this->between($filters, $first, $last), $accountIds);
 
                 $first = null;
                 $held  = 0;
@@ -400,7 +403,7 @@ final class JournalLines
         }
 
         if ($first !== null) {
-            yield $this->fetch($this->between($filters, $first, $last), $codes);
+            yield $this->fetch($this->between($filters, $first, $last), $accountIds);
         }
     }
 
@@ -409,13 +412,13 @@ final class JournalLines
      *
      * @return Generator<int, list<object>>
      */
-    private function byJournal(array $filters, ?array $codes): Generator
+    private function byJournal(array $filters, ?array $accountIds): Generator
     {
         $journalId = 0;
         $lineNo    = 0;
 
         while (true) {
-            $lines = $this->narrowed($filters, $codes)
+            $lines = $this->narrowed($filters, $accountIds)
                 ->select(self::LINE_COLUMNS)
                 ->where('(j.journal_id > ' . $journalId . ' OR (j.journal_id = ' . $journalId . ' AND l.line_no > ' . $lineNo . '))', null, false)
                 ->orderBy('j.journal_id', 'ASC')
@@ -436,14 +439,14 @@ final class JournalLines
     }
 
     /**
-     * @param list<mixed>       $filters
-     * @param list<string>|null $codes
+     * @param list<mixed>    $filters
+     * @param list<int>|null $accountIds
      *
      * @return list<object>
      */
-    private function fetch(array $filters, ?array $codes): array
+    private function fetch(array $filters, ?array $accountIds): array
     {
-        return $this->narrowed($filters, $codes)
+        return $this->narrowed($filters, $accountIds)
             ->select(self::LINE_COLUMNS)
             ->orderBy('j.journal_date', 'ASC')
             ->orderBy('j.journal_id', 'ASC')
@@ -453,15 +456,15 @@ final class JournalLines
     }
 
     /**
-     * @param list<mixed>       $filters
-     * @param list<string>|null $codes
+     * @param list<mixed>    $filters
+     * @param list<int>|null $accountIds
      */
-    private function narrowed(array $filters, ?array $codes): BaseBuilder
+    private function narrowed(array $filters, ?array $accountIds): BaseBuilder
     {
         $builder = $this->base(...$filters) ?? throw new LogicException('A scope without branches has no lines to read.');
 
-        if ($codes !== null) {
-            $builder->whereIn('a.code', $codes);
+        if ($accountIds !== null) {
+            $builder->whereIn('l.account_id', $accountIds);
         }
 
         return $builder;

@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Accounting\OperationalReports;
 
 use App\Libraries\Accounting\OperationalReports\CrossReferenceReport;
+use App\Libraries\Accounting\OperationalReports\ReportDocuments;
 use App\Libraries\Accounting\OperationalReports\DocumentKind;
 use App\Libraries\Accounting\OperationalReports\NetPositionReport;
 use App\Libraries\Accounting\OperationalReports\ReportTable;
@@ -192,5 +193,17 @@ class CrossReferenceReportTest extends CIUnitTestCase
         $this->assertTrue($table->ties[0]->ties());
         $this->assertFalse($table->ties[0]->isRefused());
         $this->assertSame(2, $table->documents);
+    }
+
+    public function testBuild_RefusesAPeriodOfMoreInvoicesThanTheServerCanHoldByNameWithTheCount(): void
+    {
+        $this->invoiceOf('100', $this->customerId);
+        $this->invoiceOf('50', $this->customerId);
+
+        $table = (new CrossReferenceReport(null, new ReportDocuments(null, 400, 1)))->build(ReportScope::resolve(null, null), false, true, '2020-01-01', date('Y-m-d'));
+
+        $this->assertTrue($table->isRefused());
+        $this->assertSame('1', $table->refusalArguments[1]);
+        $this->assertGreaterThanOrEqual(2, (int) $table->refusalArguments[0]);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting\OperationalReports;
 
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\ReportScope;
 use CodeIgniter\Database\BaseConnection;
 
@@ -28,7 +29,11 @@ final class ItemProfitReport
 
     public function build(ReportScope $scope, ItemGroup $group, ?string $from, string $to, ?int $customerId = null, ?int $employeeId = null, ?int $itemId = null, string $category = ''): ReportTable
     {
-        $profits = $this->movements->read($scope, $from, $to, $customerId, $employeeId, $itemId, $category);
+        try {
+            $profits = $this->movements->read($scope, $from, $to, $customerId, $employeeId, $itemId, $category);
+        } catch (AccountingException $refusal) {
+            return ReportTable::refused($scope, $from, $to, 'Accounting_operational_reports.too_many_documents', [(string) $refusal->context['count'], (string) $refusal->context['max']]);
+        }
         $refused = ForeignAmounts::refuseProfit($profits, $scope, $from, $to);
 
         if ($refused !== null) {

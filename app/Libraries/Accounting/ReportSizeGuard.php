@@ -54,7 +54,9 @@ final class ReportSizeGuard
      */
     public static function screenRows(int $bytesPerRow = 0, ?int $limit = null): int
     {
-        return $bytesPerRow === 0 ? self::SCAN_ROWS : min(self::SCAN_ROWS, self::memoryRows($bytesPerRow, $limit));
+        $scan = max(1, (int) env('reports.scanRows', self::SCAN_ROWS));
+
+        return $bytesPerRow === 0 ? $scan : min($scan, self::memoryRows($bytesPerRow, $limit));
     }
 
     /**

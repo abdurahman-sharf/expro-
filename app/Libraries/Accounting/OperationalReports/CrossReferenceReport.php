@@ -37,6 +37,12 @@ final class CrossReferenceReport
      */
     public function build(ReportScope $scope, bool $details, bool $byCustomer, ?string $from, string $to, ?int $customerId = null, ?DocumentKind $kind = null, array $states = [], string $order = 'date_desc'): ReportTable
     {
+        $refusal = $this->documents->refusal($scope, $from, $to, [DocumentKind::Invoice], $customerId);
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
         $invoices = array_values(array_filter(
             $this->documents->read($scope, $from, $to, [DocumentKind::Invoice], $customerId),
             static fn (ReportDocument $document): bool => $states === [] || in_array($document->paymentState()?->value ?? PaymentState::Unpaid->value, $states, true),

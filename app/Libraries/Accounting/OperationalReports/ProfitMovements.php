@@ -2,8 +2,10 @@
 
 namespace App\Libraries\Accounting\OperationalReports;
 
+use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Accounting\ReportSizeGuard;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\SalePostingBuilder;
 use CodeIgniter\Database\BaseConnection;
@@ -19,10 +21,13 @@ use Config\Database;
  */
 final class ProfitMovements
 {
+    public const BYTES_PER_ROW = 1_800;
+    private const CHUNK        = 400;
+
     private BaseConnection $db;
     private ReportDocuments $documents;
 
-    public function __construct(?BaseConnection $db = null, ?ReportDocuments $documents = null)
+    public function __construct(?BaseConnection $db = null, ?ReportDocuments $documents = null, private readonly ?int $maxRows = null, private readonly int $chunk = self::CHUNK)
     {
         $this->db        = $db ?? Database::connect();
         $this->documents = $documents ?? new ReportDocuments($this->db);
@@ -43,19 +48,24 @@ final class ProfitMovements
             return [];
         }
 
-        $documents = $this->documents->byIds($scope, array_map(static fn (object $movement): int => (int) $movement->sale_id, $movements), true);
-        $items     = $this->items(array_map(static fn (object $movement): int => (int) $movement->item_id, $movements));
-        $rows      = [];
+        ReportSizeGuard::require(count($movements), $this->maxRows ?? ReportSizeGuard::memoryRows(self::BYTES_PER_ROW), AccountingError::ReportRowsExceedMemory);
 
-        foreach ($movements as $movement) {
-            $document = $documents[(int) $movement->sale_id] ?? null;
-            $item     = $items[(int) $movement->item_id] ?? ['name' => '', 'number' => '', 'category' => ''];
+        $items = $this->items(array_map(static fn (object $movement): int => (int) $movement->item_id, $movements));
+        $rows  = [];
 
-            if ($document === null || ($customerId !== null && $document->customerId !== $customerId) || ($employeeId !== null && $document->employeeId !== $employeeId) || ($category !== '' && $item['category'] !== $category)) {
-                continue;
+        foreach (array_chunk($movements, $this->chunk) as $chunk) {
+            $documents = $this->documents->byIds($scope, array_map(static fn (object $movement): int => (int) $movement->sale_id, $chunk), true);
+
+            foreach ($chunk as $movement) {
+                $document = $documents[(int) $movement->sale_id] ?? null;
+                $item     = $items[(int) $movement->item_id] ?? ['name' => '', 'number' => '', 'category' => ''];
+
+                if ($document === null || ($customerId !== null && $document->customerId !== $customerId) || ($employeeId !== null && $document->employeeId !== $employeeId) || ($category !== '' && $item['category'] !== $category)) {
+                    continue;
+                }
+
+                $rows[] = $this->row($document, $movement, $item);
             }
-
-            $rows[] = $this->row($document, $movement, $item);
         }
 
         usort($rows, static fn (ProfitRow $a, ProfitRow $b): int => [$a->date, $a->saleId, $a->itemId] <=> [$b->date, $b->saleId, $b->itemId]);

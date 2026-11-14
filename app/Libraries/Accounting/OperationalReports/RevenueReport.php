@@ -36,6 +36,12 @@ final class RevenueReport
         $period = $group->period();
         $from ??= $allDates ? null : $period?->defaultFrom($to);
 
+        $refusal = $this->documents->refusal($scope, $from, $to, [], $customerId, $employeeId);
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
         $documents = array_values(array_filter(
             $this->documents->read($scope, $from, $to, [], $customerId, $employeeId),
             static fn (ReportDocument $document): bool => StatusFilter::admits($statuses, $document, $today),

@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting\OperationalReports;
 
+use App\Libraries\Accounting\ForeignDocument;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\SaleAmounts;
 use CodeIgniter\Database\BaseConnection;
@@ -37,49 +38,76 @@ final class ItemSalesReport
         $period = $group->period();
         $from ??= $allDates ? null : $period?->defaultFrom($to);
 
-        $documents = array_values(array_filter(
-            $this->documents->read($scope, $from, $to, $kind === null ? [] : [$kind], $customerId, $employeeId, true),
-            static fn (ReportDocument $document): bool => StatusFilter::admits($statuses, $document, $today),
-        ));
+        $kinds   = $kind === null ? [] : [$kind];
+        $refusal = $this->documents->refusal($scope, $from, $to, $kinds, $customerId, $employeeId, true);
 
-        $items    = $this->items($documents);
-        $decimals = totals_decimals();
-        $rows     = [];
+        if ($refusal !== null) {
+            return $refusal;
+        }
 
-        foreach ($documents as $document) {
-            foreach ($document->lines as $saleLine) {
-                $item = $items[$saleLine->itemId] ?? ['name' => '', 'number' => '', 'category' => ''];
+        $decimals  = totals_decimals();
+        $rows      = [];
+        $items     = [];
+        $ledger    = '0';
+        $read      = 0;
+        $documents = 0;
+        $last      = null;
+        $foreign   = [];
 
-                if ($itemId !== null && $saleLine->itemId !== $itemId) {
-                    continue;
+        foreach ($this->documents->chunks($scope, $from, $to, $kinds, $customerId, $employeeId, true) as $chunk) {
+            $admitted = array_values(array_filter($chunk, static fn (ReportDocument $document): bool => StatusFilter::admits($statuses, $document, $today)));
+            $items += $this->items($admitted, $items);
+
+            foreach ($admitted as $document) {
+                $read++;
+                $ledger = Amounts::add($ledger, Amounts::sub($document->ledgerTotal, $document->headerCharges));
+
+                if ($document->currencyCode !== null) {
+                    $foreign[] = new ForeignDocument($document->number, $document->currencyCode);
                 }
 
-                if ($category !== '' && $item['category'] !== $category) {
-                    continue;
-                }
+                foreach ($document->lines as $saleLine) {
+                    $item = $items[$saleLine->itemId] ?? ['name' => '', 'number' => '', 'category' => ''];
 
-                if ($locationId !== null && (! $saleLine->hasStock || $saleLine->locationId !== $locationId)) {
-                    continue;
-                }
+                    if ($itemId !== null && $saleLine->itemId !== $itemId) {
+                        continue;
+                    }
 
-                $line   = ReportLine::of($saleLine, $document->kind->sign(), $decimals);
-                $rows[] = [
-                    'document'    => $document,
-                    'item_id'     => (string) $saleLine->itemId,
-                    'item'        => $item['name'],
-                    'item_number' => $item['number'],
-                    'category'    => $item['category'] === '' ? lang('Accounting_operational_reports.undefined') : $item['category'],
-                    'date'        => $document->date,
-                    'user'        => $document->employeeName !== '' ? $document->employeeName : $this->nobody(),
-                    'number'      => $document->number,
-                    'customer'    => $document->customerName !== '' ? $document->customerName : $this->walkIn(),
-                    'unit_price'  => $line->unitPrice,
-                    'quantity'    => $line->quantity,
-                    'discount'    => $line->discount,
-                    'tax'         => $line->tax,
-                    'total'       => $line->total,
-                    'price_x_qty' => bcmul($line->unitPrice, $line->quantity, 8),
-                ];
+                    if ($category !== '' && $item['category'] !== $category) {
+                        continue;
+                    }
+
+                    if ($locationId !== null && (! $saleLine->hasStock || $saleLine->locationId !== $locationId)) {
+                        continue;
+                    }
+
+                    $line = ReportLine::of($saleLine, $document->kind->sign(), $decimals);
+
+                    if ($last !== $document->id) {
+                        $documents++;
+                        $last = $document->id;
+                    }
+
+                    $rows[] = [
+                        'document_id' => $document->id,
+                        'customer_id' => $document->customerId,
+                        'employee_id' => $document->employeeId,
+                        'item_id'     => (string) $saleLine->itemId,
+                        'item'        => $item['name'],
+                        'item_number' => $item['number'],
+                        'category'    => $item['category'] === '' ? lang('Accounting_operational_reports.undefined') : $item['category'],
+                        'date'        => $document->date,
+                        'user'        => $document->employeeName !== '' ? $document->employeeName : $this->nobody(),
+                        'number'      => $document->number,
+                        'customer'    => $document->customerName !== '' ? $document->customerName : $this->walkIn(),
+                        'unit_price'  => $line->unitPrice,
+                        'quantity'    => $line->quantity,
+                        'discount'    => $line->discount,
+                        'tax'         => $line->tax,
+                        'total'       => $line->total,
+                        'price_x_qty' => bcmul($line->unitPrice, $line->quantity, 8),
+                    ];
+                }
             }
         }
 
@@ -109,9 +137,9 @@ final class ItemSalesReport
             columns: $this->columns($group, $details, $scope),
             blocks: $details ? $blocks : [new ReportBlock([], $summary)],
             total: $total,
-            ties: $filtered ? [] : ForeignAmounts::guard([$this->tie($documents, $total['total'])], $documents),
+            ties: $filtered ? [] : ForeignAmounts::guardForeign([$this->tie($read, $ledger, $total['total'])], $foreign),
             notes: ['Accounting_operational_reports.note_items'],
-            documents: count(array_unique(array_map(static fn (array $row): int => $row['document']->id, $rows))),
+            documents: $documents,
         );
     }
 
@@ -119,27 +147,30 @@ final class ItemSalesReport
      * What the lines come to beside what the journals of their documents hold without the header
      * charges, which the lines do not carry. A document may round a cent apart from its lines.
      *
-     * @param list<ReportDocument> $documents
+     * @param numeric-string $ledger What the journals of the documents hold without the header charges.
      */
-    private function tie(array $documents, string $lines): TieCheck
+    private function tie(int $documents, string $ledger, string $lines): TieCheck
     {
-        $ledger = Amounts::sum(array_map(static fn (ReportDocument $document): string => Amounts::sub($document->ledgerTotal, $document->headerCharges), $documents));
-
-        return new TieCheck('Accounting_operational_reports.tie_items_total', $lines, $ledger, bcmul('0.01', (string) max(1, count($documents)), SaleAmounts::SCALE));
+        return new TieCheck('Accounting_operational_reports.tie_items_total', $lines, $ledger, bcmul('0.01', (string) max(1, $documents), SaleAmounts::SCALE));
     }
 
     /**
-     * @param list<ReportDocument> $documents
+     * The items on the lines of the documents that are not among the known ones.
+     *
+     * @param list<ReportDocument>                                              $documents
+     * @param array<int, array{name: string, number: string, category: string}> $known
      *
      * @return array<int, array{name: string, number: string, category: string}>
      */
-    private function items(array $documents): array
+    private function items(array $documents, array $known): array
     {
         $ids = [];
 
         foreach ($documents as $document) {
             foreach ($document->lines as $line) {
-                $ids[$line->itemId] = $line->itemId;
+                if (! isset($known[$line->itemId])) {
+                    $ids[$line->itemId] = $line->itemId;
+                }
             }
         }
 
@@ -184,8 +215,8 @@ final class ItemSalesReport
             $key = match ($group) {
                 ItemGroup::Item     => (string) $row['item_id'],
                 ItemGroup::Category => (string) $row['category'],
-                ItemGroup::Customer => (string) ($row['document']->customerId ?? 0),
-                default             => (string) ($row['document']->employeeId ?? 0),
+                ItemGroup::Customer => (string) ($row['customer_id'] ?? 0),
+                default             => (string) ($row['employee_id'] ?? 0),
             };
 
             $groups[$key][] = $row;
@@ -241,7 +272,7 @@ final class ItemSalesReport
      */
     private function cells(array $row): array
     {
-        return array_map('strval', array_diff_key($row, ['document' => 1, 'item_id' => 1, 'price_x_qty' => 1]));
+        return array_map('strval', array_diff_key($row, ['document_id' => 1, 'customer_id' => 1, 'employee_id' => 1, 'item_id' => 1, 'price_x_qty' => 1]));
     }
 
     /**

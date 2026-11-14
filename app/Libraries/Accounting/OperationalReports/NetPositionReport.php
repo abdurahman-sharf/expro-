@@ -41,6 +41,12 @@ final class NetPositionReport
      */
     public function build(ReportScope $scope, bool $details, ?string $from, string $to, bool $hideCredits = false, array $states = [], ?int $customerId = null): ReportTable
     {
+        $refusal = $this->documents->refusal($scope, $from, $to, [DocumentKind::Invoice], $customerId);
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
         $invoices = array_values(array_filter(
             $this->documents->read($scope, $from, $to, [DocumentKind::Invoice], $customerId),
             static fn (ReportDocument $document): bool => self::admits($states, $document),

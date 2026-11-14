@@ -30,6 +30,12 @@ final class ClientsSalesReport
 
     public function build(ReportScope $scope, ?DocumentKind $kind, bool $byCustomer, bool $details, ?string $from, string $to, ?int $customerId = null, string $order = 'date_desc'): ReportTable
     {
+        $refusal = $this->documents->refusal($scope, $from, $to, $kind === null ? [] : [$kind], $customerId);
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
         $documents = $this->documents->read($scope, $from, $to, $kind === null ? [] : [$kind], $customerId);
 
         usort($documents, static fn (ReportDocument $a, ReportDocument $b): int => match ($order) {

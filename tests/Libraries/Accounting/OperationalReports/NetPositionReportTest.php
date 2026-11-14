@@ -325,4 +325,14 @@ class NetPositionReportTest extends CIUnitTestCase
         $this->assertTrue($ties[1]->ties());
         $this->assertSame('381.2500', $ties[0]->ledger);
     }
+
+    public function testBuild_RefusesAPeriodOfMoreInvoicesThanTheServerCanHoldByNameWithTheCount(): void
+    {
+        $this->documents();
+
+        $table = (new NetPositionReport(null, new ReportDocuments(null, 400, 1)))->build(ReportScope::resolve(null, null), false, '2020-01-01', date('Y-m-d'));
+
+        $this->assertTrue($table->isRefused());
+        $this->assertSame(['2', '1'], $table->refusalArguments);
+    }
 }
