@@ -620,15 +620,17 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($second, 0, '10', '50')]));
 
-        $before = $this->countRows('receivings');
-        $cart   = $this->cart([$this->cartLine($itemId, 1, '4', '0'), $this->cartLine($second, 2, '3', '0')], 'requisition', null) + ['recv_stock_destination' => $other];
+        $before  = $this->countRows('receivings');
+        $refused = 'Refused ' . uniqid();
+        $cart    = $this->cart([$this->cartLine($itemId, 1, '4', '0'), array_replace($this->cartLine($second, 2, '3', '0'), ['name' => $refused])], 'requisition', null) + ['recv_stock_destination' => $other];
 
         $this->loginAs($buyerId, $cart);
         $this->accountingDb()->table('items')->where('item_id', $second)->update($change);
 
         $response = $this->post('/receivings/requisitionComplete', $this->completeForm());
 
-        $response->assertSee(lang('Receivings.unable_to_add_item'));
+        $response->assertSee(lang('Receivings.unable_to_add_item'), 'div.alert alert-danger');
+        $response->assertSee($refused, 'div.alert alert-danger');
         $this->assertSame($before, $this->countRows('receivings'), 'nothing is saved');
         $this->assertSame(['4.000', '3.000'], array_values(array_map(static fn (array $line): string => bcadd((string) $line['quantity'], '0', 3), session()->get('recv_cart'))), 'the cart keeps both lines as they were entered');
         $this->assertSame('10.000', $this->onHand($itemId));
@@ -646,7 +648,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['status' => 1]);
 
         try {
-            $this->post('/receivings/requisitionComplete', $this->completeForm())->assertSee(lang('Receivings.unable_to_add_item'));
+            $this->post('/receivings/requisitionComplete', $this->completeForm())->assertSee(lang('Receivings.unable_to_add_item'), 'div.alert alert-danger');
         } finally {
             $this->setConfigValue('accounting_enabled', '1');
         }

@@ -42,7 +42,8 @@ final class ItemOpenDocuments
     /**
      * How many open documents name each item that is named in any. With $locking every count is read
      * with a lock, which reads what was committed last and not the snapshot of the caller's
-     * transaction, and keeps a document from being added for the items until that transaction ends.
+     * transaction, and makes a line that is being added for the items wait until that transaction ends. It
+     * does not stop a document that checked its item earlier and adds the line after a deletion committed.
      *
      * @param list<int> $itemIds
      *

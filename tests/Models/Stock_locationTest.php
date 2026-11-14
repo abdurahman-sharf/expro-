@@ -7,6 +7,7 @@ use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Roles\DefaultLocations;
 use App\Libraries\Roles\RoleService;
 use App\Libraries\Stock\StockLocationLifecycle;
+use App\Models\Employee;
 use App\Models\Stock_location;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -309,6 +310,24 @@ class Stock_locationTest extends CIUnitTestCase
 
         $this->assertContains($permission, (new RoleService())->permissionsOf($holder));
         $this->assertNotContains($permission, (new RoleService())->permissionsOf($other));
+    }
+
+    public function testSaveValue_LeavesAModuleClosedToAnEmployeeWhoDoesNotHoldItWhenTwoLocationsAreAdded(): void
+    {
+        $outsider = $this->employeeWithGrants(['customers']);
+        $holder   = $this->employeeWithGrants(['items', 'sales', 'receivings']);
+        $employee = model(Employee::class);
+
+        $this->saveLocation('closed depot A ' . uniqid());
+        $this->saveLocation('closed depot B ' . uniqid());
+
+        $outsiderGrants = array_column($this->accountingDb()->table('grants')->select('permission_id')->where('person_id', $outsider)->get()->getResultArray(), 'permission_id');
+
+        foreach (['items', 'sales', 'receivings'] as $module) {
+            $this->assertGreaterThanOrEqual(2, count(array_filter($outsiderGrants, static fn (string $id): bool => str_starts_with($id, $module . '_'))), "A new location is granted to every employee: {$module}");
+            $this->assertFalse($employee->has_module_grant($module, $outsider), "Two locations do not open {$module}");
+            $this->assertTrue($employee->has_module_grant($module, $holder), "The holder of {$module} keeps it");
+        }
     }
 
     public function testGetAllowedLocations_HidesAnInactiveLocation(): void

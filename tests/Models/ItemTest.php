@@ -979,6 +979,34 @@ class ItemTest extends CIUnitTestCase
         $this->cleanTextAttributes($fixture);
     }
 
+    #[DataProvider('suggestionMethods')]
+    public function testSuggestions_FillTheLimitWithDifferentItemsWhenEveryItemMatchesTwoAttributes(string $method): void
+    {
+        $fixture = $this->itemsWithATextAttribute();
+        $found   = model(Item::class)->{$method}($fixture['token'], ['search_custom' => true, 'is_deleted' => false], false, 3);
+        $itemIds = array_map('intval', array_column($found, 'value'));
+
+        $this->assertCount(3, $found, 'two attributes of one item do not use two places of the limit');
+        $this->assertSame($itemIds, array_values(array_unique($itemIds)));
+        $this->cleanTextAttributes($fixture);
+    }
+
+    #[DataProvider('suggestionMethods')]
+    public function testSuggestions_ListTheItemsFoundByAttributeByTheirName(string $method): void
+    {
+        $fixture = $this->itemsWithATextAttribute();
+        $suffix  = uniqid();
+        [$first, $second] = $fixture['items'];
+
+        $this->accountingDb()->table('items')->where('item_id', $first)->update(['name' => 'Zulu ' . $suffix]);
+        $this->accountingDb()->table('items')->where('item_id', $second)->update(['name' => 'Alpha ' . $suffix]);
+
+        $found = array_map('intval', array_column(model(Item::class)->{$method}($fixture['token'], ['search_custom' => true, 'is_deleted' => false]), 'value'));
+
+        $this->assertSame([$second, $first], array_values(array_intersect($found, [$first, $second])), 'the limit keeps the first names, as it does for the other suggestions');
+        $this->cleanTextAttributes($fixture);
+    }
+
     public function testGetSearchSuggestions_LeavesAKitOutOfTheItemsFoundByAttribute(): void
     {
         $fixture = $this->itemsWithATextAttribute();

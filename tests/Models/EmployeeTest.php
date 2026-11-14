@@ -551,6 +551,22 @@ class EmployeeTest extends CIUnitTestCase
         $this->assertSame(['items'], $modules);
     }
 
+    /**
+     * @return array<string, list<string>>
+     */
+    private function subPermissionsByModule(): array
+    {
+        $byModule = [];
+
+        foreach (db_connect()->table('permissions')->select('permission_id, module_id')->orderBy('permission_id')->get()->getResultArray() as $permission) {
+            if ($permission['permission_id'] !== $permission['module_id'] && str_starts_with(strtolower($permission['permission_id']), strtolower($permission['module_id']) . '_')) {
+                $byModule[$permission['module_id']][] = $permission['permission_id'];
+            }
+        }
+
+        return $byModule;
+    }
+
     private function withTemporaryPermission(string $permissionId, string $moduleId, callable $body): void
     {
         $db = db_connect();
@@ -623,6 +639,42 @@ class EmployeeTest extends CIUnitTestCase
         $this->assertFalse($model->has_module_grant('sales', $this->createEmployee()));
     }
 
+    public function testHasModuleGrant_RejectsTheHolderOfTwoSubPermissionsOfAModuleWhoDoesNotHoldTheModule(): void
+    {
+        $model    = model(Employee::class);
+        $rejected = [];
+        $checked  = 0;
+
+        foreach ($this->subPermissionsByModule() as $moduleId => $subPermissions) {
+            if (count($subPermissions) < 2) {
+                continue;
+            }
+
+            $checked++;
+            $holder = $this->createEmployee(grants: $this->homeGrants(array_slice($subPermissions, 0, 2)));
+
+            if ($model->has_module_grant($moduleId, $holder)) {
+                $rejected[] = $moduleId;
+            }
+
+            $withModule = $this->createEmployee(grants: $this->homeGrants([$moduleId, ...array_slice($subPermissions, 0, 2)]));
+
+            $this->assertTrue($model->has_module_grant($moduleId, $withModule), $moduleId);
+        }
+
+        $this->assertGreaterThanOrEqual(5, $checked);
+        $this->assertSame([], $rejected, 'Two sub-permissions do not make a module: the grant of the module itself is required');
+    }
+
+    public function testHasModuleGrant_RejectsTheHolderOfTwoSubPermissionsOfAModuleThroughTheRolesToo(): void
+    {
+        $model = model(Employee::class);
+
+        $this->assertFalse($model->has_module_grant('sales', $this->employeeWithRoles([$this->createRole(['sales_delete', 'sales_change_price'])])));
+        $this->assertFalse($model->has_module_grant('sales', $this->employeeWithRoles([$this->createRole(['sales_delete'])], ['sales_change_price'])));
+        $this->assertTrue($model->has_module_grant('sales', $this->employeeWithRoles([$this->createRole(['sales_delete'])], ['sales'])));
+    }
+
     public function testHasModuleGrant_AnswersTheEmptyModuleIdForTheHolderOfTwoGrantsOfAnyKind(): void
     {
         $model = model(Employee::class);
@@ -665,15 +717,7 @@ class EmployeeTest extends CIUnitTestCase
 
     public function testCatalog_RequiresEveryModuleThatNeedsASecondGrantToBeOnTheList(): void
     {
-        $db      = db_connect();
-        $needing = [];
-
-        foreach ($db->table('permissions')->select('permission_id, module_id')->get()->getResultArray() as $permission) {
-            if ($permission['permission_id'] !== $permission['module_id'] && str_starts_with(strtolower($permission['permission_id']), strtolower($permission['module_id']) . '_')) {
-                $needing[$permission['module_id']][] = $permission['permission_id'];
-            }
-        }
-
+        $needing = $this->subPermissionsByModule();
         $unlisted = array_diff(array_keys($needing), self::MODULES_THAT_NEED_A_SECOND_GRANT);
 
         $this->assertSame([], array_map(static fn (string $moduleId): string => $moduleId . ': ' . implode(', ', $needing[$moduleId]), array_values($unlisted)), 'A permission that begins with the id of its own module and an underscore makes the module open only for a holder of two grants: name the permission another way, or put the module on the list on purpose');

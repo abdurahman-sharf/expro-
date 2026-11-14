@@ -22,8 +22,8 @@
  {
   "name": "G03 a module counts its own sub-permissions and not every permission that begins with its id",
   "file": "app/Models/Employee.php",
-  "find": "$builder->whereIn('permission_id', $counted);",
-  "replace": "$builder->like('permission_id', $permission_id, 'after');",
+  "find": "$builder->whereIn('permission_id', [$permissionId, ...$subpermissions]);",
+  "replace": "$builder->like('permission_id', $permissionId, 'after');",
   "tests": [
    "tests/Models/EmployeeTest.php"
   ]
@@ -31,8 +31,8 @@
  {
   "name": "G04 the grants of the roles are counted by the same rule",
   "file": "app/Models/Employee.php",
-  "find": "if ($permission_id === '' || in_array(strtolower($roleGranted), $countedLower, true)) {",
-  "replace": "if ($permission_id === '' || stripos($roleGranted, $permission_id) === 0) {",
+  "find": "if ($permissionId === '' || in_array(strtolower($roleGranted), $countedLower, true)) {",
+  "replace": "if ($permissionId === '' || stripos($roleGranted, $permissionId) === 0) {",
   "tests": [
    "tests/Models/EmployeeTest.php"
   ]
@@ -49,7 +49,7 @@
  {
   "name": "G06 the empty module id asks for two grants of any kind",
   "file": "app/Models/Employee.php",
-  "find": "        if ($permission_id === '') {\n            return $resultCount > 1;\n        }\n\n",
+  "find": "        if ($permissionId === '') {\n            return count($held) > 1;\n        }\n\n",
   "replace": "",
   "tests": [
    "tests/Models/EmployeeTest.php"
@@ -363,7 +363,7 @@
  {
   "name": "G35 the item suggestions by attribute leave out kits",
   "file": "app/Models/Item.php",
-  "find": "$builder->whereIn('items.item_type', $non_kit);",
+  "find": "$builder->whereIn('items.item_type', $nonKit);",
   "replace": "$builder->where('items.item_type >=', 0);",
   "tests": [
    "--filter",
@@ -372,15 +372,89 @@
   ]
  },
  {
-  "name": "G36 the stock suggestions by attribute leave out items without stock",
+  "name": "G36 the stock suggestions by attribute leave out items without stock (the stock list)",
   "file": "app/Models/Item.php",
-  "find": "$builder->where('items.stock_type', '0'); // Stocked items only",
-  "replace": "$builder->where('items.stock_type >=', 0);",
+  "find": "            // Search by custom fields\n            if ($filters['search_custom'] !== false) {\n                $suggestions = array_merge($suggestions, $this->attributeSuggestions($search, $filters, static function (BaseBuilder $builder): void {\n                    $builder->where('items.stock_type', '0'); // Stocked items only",
+  "replace": "            // Search by custom fields\n            if ($filters['search_custom'] !== false) {\n                $suggestions = array_merge($suggestions, $this->attributeSuggestions($search, $filters, static function (BaseBuilder $builder): void {\n                    $builder->where('items.stock_type >=', 0);",
   "tests": [
    "--filter",
    "LeaveAnItemWithoutStock",
    "tests/Models/ItemTest.php"
-  ],
-  "all": true
+  ]
+ },
+ {
+  "name": "G37 the stock suggestions by attribute leave out items without stock (the kit list)",
+  "file": "app/Models/Item.php",
+  "find": "            // Search in attributes\n            if ($filters['search_custom'] !== false) {\n                $suggestions = array_merge($suggestions, $this->attributeSuggestions($search, $filters, static function (BaseBuilder $builder): void {\n                    $builder->where('items.stock_type', '0'); // Stocked items only",
+  "replace": "            // Search in attributes\n            if ($filters['search_custom'] !== false) {\n                $suggestions = array_merge($suggestions, $this->attributeSuggestions($search, $filters, static function (BaseBuilder $builder): void {\n                    $builder->where('items.stock_type >=', 0);",
+  "tests": [
+   "--filter",
+   "LeaveAnItemWithoutStock",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G38 a module opens only for the holder of its own grant, never for sub-permissions alone",
+  "file": "app/Models/Employee.php",
+  "find": "        if (! in_array(strtolower($permissionId), $held, true)) {\n            return false;\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Models/EmployeeTest.php"
+  ]
+ },
+ {
+  "name": "G39 a requisition that is refused says which item it could not add",
+  "file": "app/Controllers/Receivings.php",
+  "find": "lang('Receivings.unable_to_add_item') . ' ' . $unavailable",
+  "replace": "lang('Receivings.unable_to_add_item')",
+  "tests": [
+   "--filter",
+   "testPostRequisitionComplete",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G40 the refusal to delete an item through the form says why, before the transaction",
+  "file": "app/Controllers/Items.php",
+  "find": "|| $this->item->holdsStockOutsideTheEmployeesBranches([$itemId]))) {\n            $this->adjustmentFailure = $this->item->accountingFailure();",
+  "replace": "|| $this->item->holdsStockOutsideTheEmployeesBranches([$itemId]))) {",
+  "tests": [
+   "--filter",
+   "testPostSave_Re",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G41 the refusal to delete an item through the form says why, under the lock",
+  "file": "app/Controllers/Items.php",
+  "find": "            $db->transRollback();\n            $this->adjustmentFailure = $this->item->accountingFailure();",
+  "replace": "            $db->transRollback();",
+  "tests": [
+   "--filter",
+   "testPostSave_Re",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G42 the attribute suggestions offer an item once, so that its attributes do not use the limit",
+  "file": "app/Models/Item.php",
+  "find": "$suggestions[(int) $row->item_id] ??= ['value'",
+  "replace": "$suggestions[] = ['value'",
+  "tests": [
+   "--filter",
+   "testSuggestions_",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G43 the attribute suggestions are ordered by the name of the item, as the other suggestions are",
+  "file": "app/Models/Item.php",
+  "find": "        $builder->orderBy('items.name', 'asc');\n        $builder->orderBy('items.item_id', 'asc');\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testSuggestions_",
+   "tests/Models/ItemTest.php"
+  ]
  }
 ]

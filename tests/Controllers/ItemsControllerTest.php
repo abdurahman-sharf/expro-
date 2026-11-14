@@ -3366,6 +3366,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $result = $this->saveMasterItem(['is_deleted' => '1'], $itemId);
 
         $this->assertFalse($result['success']);
+        $this->assertStringContainsString(lang('Accounting.error_item_in_open_documents', [$this->masterItemRow($itemId)['name'], '1']), $result['message'], 'the refusal says which document names the item');
         $this->assertSame('0', (string) $this->masterItemRow($itemId)['deleted']);
         $this->cleanMasterItems();
     }
@@ -3389,6 +3390,7 @@ class ItemsControllerTest extends CIUnitTestCase
         }
 
         $this->assertFalse($result['success']);
+        $this->assertStringContainsString(lang('Accounting.error_write_failed'), $result['message'], 'the refusal says that nothing was changed');
         $this->assertSame('0', (string) $this->masterItemRow($itemId)['deleted']);
         $this->cleanMasterItems();
     }
@@ -3415,6 +3417,7 @@ class ItemsControllerTest extends CIUnitTestCase
         }
 
         $this->assertFalse($result['success']);
+        $this->assertStringContainsString(lang('Accounting.error_item_in_open_documents', [$this->masterItemRow($itemId)['name'], '1']), $result['message'], 'the refusal says which document names the item');
         $this->assertSame('0', (string) $this->masterItemRow($itemId)['deleted']);
         $this->cleanMasterItems();
     }

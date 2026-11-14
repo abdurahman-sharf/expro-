@@ -452,52 +452,53 @@ class Employee extends Person
 
     /**
      * Determines whether the employee has access to a module, through their own grants or through their
-     * roles. What counts are the grant of the module itself and the grants of the sub-permissions the
-     * catalog files under that module with an id that begins with the module id and an underscore (the
-     * stock locations of items, sales and receivings, the reports and the recurring documents). The
-     * permission of another module never counts, whatever its id begins with. A module that has
-     * sub-permissions opens for a holder of at least two of them. The empty id asks for at least two grants of any kind.
+     * roles. The module opens for the holder of its own grant, and, when the catalog files sub-permissions
+     * under it with an id that begins with the module id and an underscore (the stock locations of items,
+     * sales and receivings, the reports and the recurring documents), for the holder of its own grant and at
+     * least one of them. Sub-permissions alone never open it: a stock location reaches every employee when
+     * it is created, so two of them cannot stand for the module. The permission of another module never
+     * counts, whatever its id begins with. The empty id asks for at least two grants of any kind.
      */
-    public function has_module_grant(string $permission_id, int $person_id): bool
+    public function has_module_grant(string $permissionId, int $personId): bool
     {
-        $counted      = array_merge([$permission_id], $this->subpermissionIds($permission_id));
-        $countedLower = array_map('strtolower', $counted);
+        $subpermissions = $this->subpermissionIds($permissionId);
+        $countedLower   = array_map('strtolower', [$permissionId, ...$subpermissions]);
 
         $builder = $this->db->table('grants');
         $builder->select('permission_id');
-        $builder->where('person_id', $person_id);
+        $builder->where('person_id', $personId);
 
-        if ($permission_id !== '') {
-            $builder->whereIn('permission_id', $counted);
+        if ($permissionId !== '') {
+            $builder->whereIn('permission_id', [$permissionId, ...$subpermissions]);
         }
 
         $held = array_map('strtolower', array_column($builder->get()->getResultArray(), 'permission_id'));
 
-        foreach ($this->roleGrants()->idsFor($person_id) as $roleGranted) {
-            if ($permission_id === '' || in_array(strtolower($roleGranted), $countedLower, true)) {
+        foreach ($this->roleGrants()->idsFor($personId) as $roleGranted) {
+            if ($permissionId === '' || in_array(strtolower($roleGranted), $countedLower, true)) {
                 $held[] = strtolower($roleGranted);
             }
         }
 
-        $resultCount = count(array_unique($held));
+        $held = array_unique($held);
 
-        if ($permission_id === '') {
-            return $resultCount > 1;
+        if ($permissionId === '') {
+            return count($held) > 1;
         }
 
-        if ($resultCount != 1) {
-            return ($resultCount != 0);
+        if (! in_array(strtolower($permissionId), $held, true)) {
+            return false;
         }
 
-        return $this->has_subpermissions($permission_id);
+        return count($held) > 1 || $subpermissions === [];
     }
 
     /**
      * Whether the module has no sub-permission, so that its own grant alone opens it
      */
-    public function has_subpermissions(string $permission_id): bool
+    public function has_subpermissions(string $permissionId): bool
     {
-        return $this->subpermissionIds($permission_id) === [];
+        return $this->subpermissionIds($permissionId) === [];
     }
 
     /**
