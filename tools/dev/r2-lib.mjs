@@ -25,14 +25,19 @@ export const num = (query) => Number(one(query) ?? 0);
 export const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
 export const readiness = () => {
-    const out = execFileSync('php', ['spark', 'accounting:readiness', '--json', '--no-header'], {
-        cwd: ROOT,
-        env: { ...process.env, CI_ENVIRONMENT: 'development', MYSQL_DB_NAME: DB },
-        encoding: 'utf8',
-        maxBuffer: 64 * 1024 * 1024
-    });
+    let out;
+    try {
+        out = execFileSync('php', ['spark', 'accounting:readiness', '--json', '--no-header'], {
+            cwd: ROOT,
+            env: { ...process.env, CI_ENVIRONMENT: 'development', MYSQL_DB_NAME: DB },
+            encoding: 'utf8',
+            maxBuffer: 64 * 1024 * 1024
+        });
+    } catch (e) {
+        out = e.stdout?.toString() ?? '';
+    }
     const data = JSON.parse(out.slice(out.indexOf('{')));
-    return data.checks.filter((c) => c.status !== 'pass').map((c) => ({ id: c.id ?? c.name, status: c.status, summary: String(c.summary ?? c.message ?? '').slice(0, 400) }));
+    return data.checks.filter((c) => c.status !== 'pass').map((c) => ({ id: c.id ?? c.name, status: c.status, summary: String(c.summary ?? c.message ?? '').slice(0, 400), findings: (c.findings ?? []).slice(0, 4) }));
 };
 
 export class Recorder {
@@ -72,9 +77,33 @@ export const alertOf = (html) => {
 };
 export const hasError = (res) => res.status >= 500 || /Whoops|Fatal error|Stack trace|<b>Warning<\/b>|<b>Notice<\/b>|Deprecated:|ErrorException|Uncaught/.test(res.text);
 
-export async function admin() {
-    const c = new Client('admin');
-    await c.login();
+import { existsSync } from 'node:fs';
+
+// Logs in once and keeps the session in a file, because the login screen throttles an address to five tries a minute.
+export async function admin(user = 'admin', pass = 'pointofsale', fresh = false) {
+    const file = `/tmp/r2-session-${user}.json`;
+    const c = new Client(user);
+    if (!fresh && existsSync(file)) {
+        const saved = JSON.parse(readFileSync(file, 'utf8'));
+        c.cookies = new Map(saved.cookies);
+        c.token = saved.token;
+        const probe = await c.get('/sales', { ajax: false });
+        if (probe.status === 200 && c.token) {
+            writeFileSync(file, JSON.stringify({ cookies: [...c.cookies], token: c.token }));
+            return c;
+        }
+        c.cookies = new Map();
+    }
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+            await c.login(user, pass);
+            break;
+        } catch (e) {
+            if (!String(e.message).includes('429') || attempt === 2) throw e;
+            await new Promise((r) => setTimeout(r, 65000));
+        }
+    }
+    writeFileSync(file, JSON.stringify({ cookies: [...c.cookies], token: c.token }));
     return c;
 }
 
@@ -115,7 +144,7 @@ export const saleJournal = (saleId) => sql(`SELECT j.source_type, a.code, l.debi
 export const lastId = (table, col) => num(`SELECT COALESCE(MAX(${col}),0) FROM ospos_${table}`);
 
 export const accountBalance = (where, extra = '') =>
-    num(`SELECT COALESCE(SUM(l.debit-l.credit),0) FROM ospos_accounting_journal_lines l JOIN ospos_accounting_journals j ON j.journal_id=l.journal_id JOIN ospos_accounting_accounts a ON a.account_id=l.account_id WHERE j.status='posted' AND (${where}) ${extra}`);
+    num(`SELECT COALESCE(SUM(l.debit-l.credit),0) FROM ospos_accounting_journal_lines l JOIN ospos_accounting_journals j ON j.journal_id=l.journal_id JOIN ospos_accounting_accounts a ON a.account_id=l.account_id WHERE j.status IN ('posted','reversed') AND (${where}) ${extra}`);
 export const sysBalance = (key, extra = '') => accountBalance(`a.system_key='${key}'`, extra);
 export const entityBalance = (type, id) => accountBalance(`a.entity_type='${type}' AND a.entity_id=${id}`);
 
@@ -162,7 +191,7 @@ export const fixture = () => ({
 // Balances by account code over posted journals, item stock and cost: a snapshot to take deltas against.
 export const snap = (itemIds = []) => {
     const bal = {};
-    for (const [code, b] of sql("SELECT a.code, SUM(l.debit-l.credit) FROM ospos_accounting_journal_lines l JOIN ospos_accounting_journals j ON j.journal_id=l.journal_id JOIN ospos_accounting_accounts a ON a.account_id=l.account_id WHERE j.status='posted' GROUP BY a.code")) bal[code] = Number(b);
+    for (const [code, b] of sql("SELECT a.code, SUM(l.debit-l.credit) FROM ospos_accounting_journal_lines l JOIN ospos_accounting_journals j ON j.journal_id=l.journal_id JOIN ospos_accounting_accounts a ON a.account_id=l.account_id WHERE j.status IN ('posted','reversed') GROUP BY a.code")) bal[code] = Number(b);
     const items = {};
     for (const id of itemIds) {
         items[id] = { qty: num(`SELECT COALESCE(SUM(quantity),0) FROM ospos_item_quantities WHERE item_id=${id}`), cost: num(`SELECT cost_price FROM ospos_items WHERE item_id=${id}`) };
@@ -216,7 +245,7 @@ export const ringUp = async (c, { mode = 'sale', customer = null, lines = [], pa
     if (invoiceDiscount) note(await c.post('/sales/setInvoiceDiscount', { invoice_discount: invoiceDiscount.value, invoice_discount_type: invoiceDiscount.type }));
     if (invoiceNumber) note(await c.post('/sales/setInvoiceNumber', { sales_invoice_number: invoiceNumber }));
     if (comment) await c.post('/sales/setComment', { comment });
-    for (const [type, amount, ref] of payments) note(await reg.pay(type, amount, ref ? { reference_code: ref } : {}));
+    for (const [type, amount, ref, treasury] of payments) note(await reg.pay(type, amount, { ...(ref ? { reference_code: ref } : {}), ...(treasury ? { treasury_id: treasury } : {}) }));
     out.before = num('SELECT COALESCE(MAX(sale_id),0) FROM ospos_sales');
     if (complete) {
         const r = await reg.complete();

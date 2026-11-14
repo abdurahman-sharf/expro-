@@ -59,7 +59,7 @@ let p1Receiving = 0;
 
 // P3b: balance of supplier A in the ledger screen equals 200-80
 {
-    const owed = -num(`SELECT COALESCE(SUM(l.debit-l.credit),0) FROM ospos_accounting_journal_lines l JOIN ospos_accounting_journals j USING(journal_id) JOIN ospos_accounting_accounts a USING(account_id) WHERE j.status='posted' AND a.code='${payA}'`);
+    const owed = -num(`SELECT COALESCE(SUM(l.debit-l.credit),0) FROM ospos_accounting_journal_lines l JOIN ospos_accounting_journals j USING(journal_id) JOIN ospos_accounting_accounts a USING(account_id) WHERE j.status IN ('posted','reversed') AND a.code='${payA}'`);
     rec.eq('P3b', 'supplier A balance after P1..P3', 120, owed);
     const page = await c.get(`/accounting_payables/supplier/${F.supA}`, { ajax: false });
     const text = visibleText(page.text);

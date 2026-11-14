@@ -34,3 +34,12 @@ created.itemU = await item('R2-U', 'R2 Taxed item 5', '8.00', '20.00', { 'tax_na
 console.log(JSON.stringify(created));
 console.log(sql('SELECT item_id,item_number,cost_price,unit_price FROM ospos_items WHERE item_number LIKE "R2-%"'));
 console.log(sql('SELECT item_id,name,percent FROM ospos_items_taxes'));
+
+const cashier = async () => {
+    const grants = { grant_home: 'home', grant_sales: 'sales', grant_customers: 'customers', grant_items: 'items', grant_sales_stock: 'sales_stock', grant_receivings: 'receivings', grant_receivings_stock: 'receivings_stock', grant_suppliers: 'suppliers', grant_sales_change_price: 'sales_change_price' };
+    const r = await c.submitForm('/employees/view', { first_name: 'Cash', last_name: 'Ier', username: 'cashier', password: 'Cashier#2026', repeat_password: 'Cashier#2026', language: 'en:english', ...grants });
+    console.log('cashier', JSON.stringify(r.data ?? r.text.slice(0, 200)));
+};
+await cashier();
+console.log(sql("SELECT person_id, username FROM ospos_employees"));
+console.log(sql("SELECT permission_id FROM ospos_grants WHERE person_id=(SELECT person_id FROM ospos_employees WHERE username='cashier')"));

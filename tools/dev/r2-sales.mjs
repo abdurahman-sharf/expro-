@@ -48,19 +48,11 @@ await sale('S2', 'POS: 2 T @100 (15% added), Cash 230', { lines: [{ code: 'R2-T'
     return { bal: { [ACC.cash]: 230, [REV]: -200, [TAXOUT]: -30, [COGS]: cg, [ACC.inventory]: -cg }, itm: { [F.T]: { qty: -2 } } };
 });
 
-// S3: mixed payments cash and card
-{
-    const before = snap(items);
-    const out = await ringUp(c, { lines: [{ code: 'R2-T', qty: '1' }, { code: 'R2-Q', qty: '1' }], payments: [['Cash', '100'], ['Credit Card', '65', 'AB123']] });
-    const after = snap(items);
-    if (!out.saleId || out.errors.length) rec.add('S3-reached', 'cash 100 + card 65 on 165', 'saved', `saleId=${out.saleId} ${out.errors.join(' | ')}`, false);
-    const cg = r4(cost(before, F.T) + cost(before, F.Q));
-    const moved = {};
-    for (const code of new Set([...Object.keys(before.bal), ...Object.keys(after.bal)])) moved[code] = r4((after.bal[code] ?? 0) - (before.bal[code] ?? 0));
-    const cardCode = sql("SELECT a.code FROM ospos_accounting_journal_lines l JOIN ospos_accounting_journals j USING(journal_id) JOIN ospos_accounting_accounts a USING(account_id) WHERE j.source_type='sale_payment' AND j.source_id=" + out.saleId + " AND l.debit=65").flat()[0];
-    rec.add('S3-split', 'cash 100 + card 65 on 165 (150 net + 15 tax)', 'cash +100, card account +65', `cash ${moved[ACC.cash]}, card(${cardCode}) ${moved[cardCode]}`, moved[ACC.cash] === 100 && moved[cardCode] === 65);
-    deltaCheck(rec, 'S3', 'mixed payments: all other accounts', before, after, { [ACC.cash]: 100, [cardCode]: 65, [REV]: -150, [TAXOUT]: -15, [COGS]: cg, [ACC.inventory]: -cg }, { [F.T]: { qty: -1 }, [F.Q]: { qty: -1 } });
-}
+// S3: mixed payments cash and card (with no bank treasury set, the routing sends a card to the main treasury account)
+await sale('S3', 'cash 100 + card 65 on 165 (150 net + 15 tax)', { lines: [{ code: 'R2-T', qty: '1' }, { code: 'R2-Q', qty: '1' }], payments: [['Cash', '100'], ['Credit Card', '65', 'AB123']] }, (b) => {
+    const cg = r4(cost(b, F.T) + cost(b, F.Q));
+    return { bal: { [ACC.cash]: 165, [REV]: -150, [TAXOUT]: -15, [COGS]: cg, [ACC.inventory]: -cg }, itm: { [F.T]: { qty: -1 }, [F.Q]: { qty: -1 } } };
+});
 
 // S4: credit sale to customer 1
 await sale('S4', 'sale on Due to customer 1: 3 P @25', { customer: F.cust1, lines: [{ code: 'R2-P', qty: '3' }], payments: [['Due', '75']] }, (b) => {
