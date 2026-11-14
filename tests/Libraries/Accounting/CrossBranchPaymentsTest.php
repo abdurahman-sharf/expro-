@@ -574,11 +574,10 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
         $session = $this->paymentSession(7010, '100.00', true, $this->treasury, $this->branch, 1);
         $answers = $this->raceSessions('postCrossBranch', [$session, $session]);
 
-        foreach ($answers as $answer) {
-            $this->assertMatchesRegularExpression('/^[a-z_]+$/', $answer, 'A session ended with something that is not done or an error of the books: ' . $answer);
-        }
+        sort($answers);
 
-        $this->assertContains('done', $answers);
+        $this->assertSame('done', $answers[0], 'One session wrote the payment');
+        $this->assertContains($answers[1], ['done', 'write_failed'], 'The other found it written, or was refused by the unique key of the journal and rolled back whole: ' . json_encode($answers));
         $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['sale_payment', 'sale_payment_branch'])->where('source_id', 7010)->countAllResults(), 'The payment is written once, as two journals');
         $this->assertSame(2, $this->countRows('accounting_interbranch_legs'));
         $this->assertSame('0.0000', bcadd((new InterBranchPosition())->difference(), '0', 4));

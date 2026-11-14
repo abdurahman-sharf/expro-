@@ -1,0 +1,439 @@
+[
+ {
+  "name": "G01 two refunds of one credit race: the lock of the customer gives no mutual exclusion",
+  "file": "app/Libraries/Accounting/CustomerLock.php",
+  "find": "$taken = $lock->take($name);",
+  "replace": "$taken = LockOutcome::Taken;",
+  "tests": [
+   "--filter",
+   "testRefund_TakesTheWholeOfTheCredit|testRefund_RefusesASecondRefundOfACreditOf|testRefund_NeverLetsA|testRefund_TakesOnlyWhatIsLeftOfTheCreditOf|testRefund_LeavesTheNextInvoiceOnlyTheCredit|testCancel_GivesTheCreditOf|testCancel_LetsTheCreditOf|testRefund_TakesTheCreditOfAllFive|testRefund_LetsExactlyOne|testRefund_LetsTwo|testRefund_SavesOneRefundWhenTwoSessions|testRefund_LeavesTheRefundOr|testCancel_LetsExactlyOne",
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G02 a refund may be more than the credit that is free on its date",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "if (bccomp($amount, $free, SaleAmounts::SCALE) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testRefund_TakesTheWholeOfTheCredit|testRefund_RefusesASecondRefundOfACreditOf|testRefund_NeverLetsA|testRefund_TakesOnlyWhatIsLeftOfTheCreditOf|testRefund_LeavesTheNextInvoiceOnlyTheCredit|testCancel_GivesTheCreditOf|testCancel_LetsTheCreditOf|testRefund_TakesTheCreditOfAllFive|testRefund_LetsExactlyOne|testRefund_LetsTwo|testRefund_SavesOneRefundWhenTwoSessions|testRefund_LeavesTheRefundOr|testCancel_LetsExactlyOne",
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G03 a form sent twice at the same moment is looked up by its key no more",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "$earlier = $requestKey === null ? null : $this->byRequestKey($requestKey);",
+  "replace": "$earlier = null;",
+  "tests": [
+   "--filter",
+   "testRefund_TakesTheWholeOfTheCredit|testRefund_RefusesASecondRefundOfACreditOf|testRefund_NeverLetsA|testRefund_TakesOnlyWhatIsLeftOfTheCreditOf|testRefund_LeavesTheNextInvoiceOnlyTheCredit|testCancel_GivesTheCreditOf|testCancel_LetsTheCreditOf|testRefund_TakesTheCreditOfAllFive|testRefund_LetsExactlyOne|testRefund_LetsTwo|testRefund_SavesOneRefundWhenTwoSessions|testRefund_LeavesTheRefundOr|testCancel_LetsExactlyOne",
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G04 a refund that is cancelled can be cancelled again",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "if ($refund->status === 'cancelled') {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testRefund_TakesTheWholeOfTheCredit|testRefund_RefusesASecondRefundOfACreditOf|testRefund_NeverLetsA|testRefund_TakesOnlyWhatIsLeftOfTheCreditOf|testRefund_LeavesTheNextInvoiceOnlyTheCredit|testCancel_GivesTheCreditOf|testCancel_LetsTheCreditOf|testRefund_TakesTheCreditOfAllFive|testRefund_LetsExactlyOne|testRefund_LetsTwo|testRefund_SavesOneRefundWhenTwoSessions|testRefund_LeavesTheRefundOr|testCancel_LetsExactlyOne",
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G05 the ledger counts what the refunds took from a credit as free",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "$refunded = $this->refunded($customerId, $asOf);",
+  "replace": "$refunded = [];",
+  "tests": [
+   "--filter",
+   "testRefund_TakesTheWholeOfTheCredit|testRefund_RefusesASecondRefundOfACreditOf|testRefund_NeverLetsA|testRefund_TakesOnlyWhatIsLeftOfTheCreditOf|testRefund_LeavesTheNextInvoiceOnlyTheCredit|testCancel_GivesTheCreditOf|testCancel_LetsTheCreditOf|testRefund_TakesTheCreditOfAllFive|testRefund_LetsExactlyOne|testRefund_LetsTwo|testRefund_SavesOneRefundWhenTwoSessions|testRefund_LeavesTheRefundOr|testCancel_LetsExactlyOne|testSettle_RefusesToTakeBack|testSettle_GivesTheInvoiceBack|testSettle_SpendsTheCreditOfEachSource|testSettle_SpendsAnAdvancePayment|testSettle_GivesTheOpeningBalance|testSettle_FreesTheAdvance|testSettle_SpendsTheOpeningCredit",
+   "tests/Libraries/Accounting/CreditRefundsTest.php",
+   "tests/Libraries/Accounting/CreditSettlementTest.php"
+  ]
+ },
+ {
+  "name": "G06 the credit that is available does not take the refunds off",
+  "file": "app/Libraries/Accounting/CreditSource.php",
+  "find": "bcsub(bcsub($this->amount, $this->applied, SaleAmounts::SCALE), $this->refunded, SaleAmounts::SCALE)",
+  "replace": "bcsub($this->amount, $this->applied, SaleAmounts::SCALE)",
+  "tests": [
+   "--filter",
+   "testRefund_TakesTheWholeOfTheCredit|testRefund_RefusesASecondRefundOfACreditOf|testRefund_NeverLetsA|testRefund_TakesOnlyWhatIsLeftOfTheCreditOf|testRefund_LeavesTheNextInvoiceOnlyTheCredit|testCancel_GivesTheCreditOf|testCancel_LetsTheCreditOf|testRefund_TakesTheCreditOfAllFive|testRefund_LetsExactlyOne|testRefund_LetsTwo|testRefund_SavesOneRefundWhenTwoSessions|testRefund_LeavesTheRefundOr|testCancel_LetsExactlyOne",
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G07 a credit that was paid back can shrink or go: customer settlement does not refuse",
+  "file": "app/Libraries/Accounting/CreditSettlement.php",
+  "find": "throw new AccountingException(AccountingError::CreditRefunded, 'The credit of this document was paid back in cash, so it cannot change until the refund is cancelled.', ['customer_id' => $customerId]);",
+  "replace": "continue;",
+  "tests": [
+   "--filter",
+   "testSettle_RefusesToTakeBack|testSettle_GivesTheInvoiceBack|testSettle_SpendsTheCreditOfEachSource|testSettle_SpendsAnAdvancePayment|testSettle_GivesTheOpeningBalance|testSettle_FreesTheAdvance|testSettle_SpendsTheOpeningCredit|testUpdate_RefusesToLowerTheAmount|testReject_RefusesAChequeWhoseCreditWasPaidBack|testDelete_RefusesAChequeWhoseCreditWasPaidBack|testCollect_LeavesTheCreditOfAChequeThatWasPaidBack|testReject_RefusesAChequeDeliveredToASupplier|testRevise_RefusesAnyChangeOfAnOpeningCredit|testCancel_RefusesAnOpeningCreditThatWasPaidBack|testRefund_TakesTheWholeOfTheCredit|testRefund_RefusesASecondRefundOfACreditOf|testRefund_NeverLetsA|testRefund_TakesOnlyWhatIsLeftOfTheCreditOf|testRefund_LeavesTheNextInvoiceOnlyTheCredit|testCancel_GivesTheCreditOf|testCancel_LetsTheCreditOf|testRefund_TakesTheCreditOfAllFive|testRefund_LetsExactlyOne|testRefund_LetsTwo|testRefund_SavesOneRefundWhenTwoSessions|testRefund_LeavesTheRefundOr|testCancel_LetsExactlyOne",
+   "tests/Libraries/Accounting/CreditSettlementTest.php",
+   "tests/Libraries/Accounting/ChequeServiceTest.php",
+   "tests/Libraries/Accounting/CustomerOpeningTest.php",
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G08 the refusal needs the credit to be gone and to have shrunk",
+  "file": "app/Libraries/Accounting/CreditSettlement.php",
+  "find": "if (! isset($sources[$key]) || bccomp($sources[$key]->amount, $amount, SaleAmounts::SCALE) < 0) {",
+  "replace": "if (! isset($sources[$key]) && bccomp($sources[$key]->amount, $amount, SaleAmounts::SCALE) < 0) {",
+  "tests": [
+   "--filter",
+   "testSettle_RefusesToTakeBack|testSettle_GivesTheInvoiceBack|testSettle_SpendsTheCreditOfEachSource|testSettle_SpendsAnAdvancePayment|testSettle_GivesTheOpeningBalance|testSettle_FreesTheAdvance|testSettle_SpendsTheOpeningCredit",
+   "tests/Libraries/Accounting/CreditSettlementTest.php"
+  ]
+ },
+ {
+  "name": "G09 a credit paid back to a supplier can shrink or go: supplier settlement does not refuse",
+  "file": "app/Libraries/Accounting/SupplierSettlement.php",
+  "find": "throw new AccountingException(AccountingError::CreditRefunded, 'The credit of this document was paid back in cash, so it cannot change until the refund is cancelled.', ['supplier_id' => $supplierId]);",
+  "replace": "continue;",
+  "tests": [
+   "--filter",
+   "testSettle_RefusesToTakeBackTheCreditOfEachSupplier|testSettle_GivesThePurchaseBack",
+   "tests/Libraries/Accounting/SupplierSettlementTest.php"
+  ]
+ },
+ {
+  "name": "G10 cancelling an advance does not settle the credit again",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "$this->settlement->settle($customerId, $employeeId);\n            $this->audit->write('customer_advance', $advanceId, 'cancelled'",
+  "replace": "$this->audit->write('customer_advance', $advanceId, 'cancelled'",
+  "tests": [
+   "--filter",
+   "testSettle_RefusesToTakeBack|testSettle_GivesTheInvoiceBack|testSettle_SpendsTheCreditOfEachSource|testSettle_SpendsAnAdvancePayment|testSettle_GivesTheOpeningBalance|testSettle_FreesTheAdvance|testSettle_SpendsTheOpeningCredit",
+   "tests/Libraries/Accounting/CreditSettlementTest.php"
+  ]
+ },
+ {
+  "name": "G11 cancelling an opening balance does not settle the credit again",
+  "file": "app/Libraries/Accounting/CustomerOpening.php",
+  "find": "$this->settlement->settle($customerId, $employeeId);\n            $this->audit->write('customer_opening', $openingId, 'customer_opening_cancelled'",
+  "replace": "$this->audit->write('customer_opening', $openingId, 'customer_opening_cancelled'",
+  "tests": [
+   "--filter",
+   "testSettle_RefusesToTakeBack|testSettle_GivesTheInvoiceBack|testSettle_SpendsTheCreditOfEachSource|testSettle_SpendsAnAdvancePayment|testSettle_GivesTheOpeningBalance|testSettle_FreesTheAdvance|testSettle_SpendsTheOpeningCredit|testRevise_RefusesAnyChangeOfAnOpeningCredit|testCancel_RefusesAnOpeningCreditThatWasPaidBack",
+   "tests/Libraries/Accounting/CreditSettlementTest.php",
+   "tests/Libraries/Accounting/CustomerOpeningTest.php"
+  ]
+ },
+ {
+  "name": "G12 undoing a cheque status does not settle the credit again",
+  "file": "app/Libraries/Accounting/ChequeService.php",
+  "find": "$this->settle($direction, (int) $row->party_id, $employeeId);\n                $this->audit->write(self::ENTITY, $chequeId, 'cheque_undone'",
+  "replace": "$this->audit->write(self::ENTITY, $chequeId, 'cheque_undone'",
+  "tests": [
+   "--filter",
+   "testUpdate_RefusesToLowerTheAmount|testReject_RefusesAChequeWhoseCreditWasPaidBack|testDelete_RefusesAChequeWhoseCreditWasPaidBack|testCollect_LeavesTheCreditOfAChequeThatWasPaidBack|testReject_RefusesAChequeDeliveredToASupplier",
+   "tests/Libraries/Accounting/ChequeServiceTest.php"
+  ]
+ },
+ {
+  "name": "G13 changing the amount of a received cheque does not settle the credit again",
+  "file": "app/Libraries/Accounting/ChequeService.php",
+  "find": "$this->settle($direction, $cheque->partyId, $employeeId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testUpdate_RefusesToLowerTheAmount|testReject_RefusesAChequeWhoseCreditWasPaidBack|testDelete_RefusesAChequeWhoseCreditWasPaidBack|testCollect_LeavesTheCreditOfAChequeThatWasPaidBack|testReject_RefusesAChequeDeliveredToASupplier",
+   "tests/Libraries/Accounting/ChequeServiceTest.php"
+  ]
+ },
+ {
+  "name": "G14 deleting a cheque does not settle the credit again",
+  "file": "app/Libraries/Accounting/ChequeService.php",
+  "find": "$this->settle($direction, (int) $row->party_id, $employeeId);\n                $this->audit->write(self::ENTITY, $chequeId, 'deleted'",
+  "replace": "$this->audit->write(self::ENTITY, $chequeId, 'deleted'",
+  "tests": [
+   "--filter",
+   "testUpdate_RefusesToLowerTheAmount|testReject_RefusesAChequeWhoseCreditWasPaidBack|testDelete_RefusesAChequeWhoseCreditWasPaidBack|testCollect_LeavesTheCreditOfAChequeThatWasPaidBack|testReject_RefusesAChequeDeliveredToASupplier",
+   "tests/Libraries/Accounting/ChequeServiceTest.php"
+  ]
+ },
+ {
+  "name": "G15 the ledger leaves the sales debit notes out of what a customer owes",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "foreach ($this->debitNotes($customerId, $accountId, $asOf) as $note) {",
+  "replace": "foreach ([] as $note) {",
+  "tests": [
+   "--filter",
+   "testRefusalFor_(CountsASalesDebitNote|CountsAnOpeningBalance|RefusesASaleThatTakesA(SalesDebitNote|nOpeningBalance)|DoesNotCountAnOpeningCredit|CountsOnlyWhatIsLeftOfASale|DoesNotLetARefund|HoldsTheSaleToTheDaysOfAn(OpenOpeningBalance|OpenSalesDebitNote))|testSave_RefusesTheSaleThatGoesOverTheLimitBecauseOfASalesDebitNote",
+   "tests/Libraries/Accounting/CreditLimitTest.php"
+  ]
+ },
+ {
+  "name": "G16 the ledger leaves the opening balances out of what a customer owes and holds",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "foreach ($this->openings($customerId, $accountId, $asOf) as $opening) {",
+  "replace": "foreach ([] as $opening) {",
+  "tests": [
+   "--filter",
+   "testRefusalFor_(CountsASalesDebitNote|CountsAnOpeningBalance|RefusesASaleThatTakesA(SalesDebitNote|nOpeningBalance)|DoesNotCountAnOpeningCredit|CountsOnlyWhatIsLeftOfASale|DoesNotLetARefund|HoldsTheSaleToTheDaysOfAn(OpenOpeningBalance|OpenSalesDebitNote))|testSave_RefusesTheSaleThatGoesOverTheLimitBecauseOfASalesDebitNote",
+   "tests/Libraries/Accounting/CreditLimitTest.php"
+  ]
+ },
+ {
+  "name": "G17 the limit counts only the new sale and not what the ledger holds open",
+  "file": "app/Libraries/Accounting/CreditLimit.php",
+  "find": "$open = $position->open();",
+  "replace": "$open = $sale->open();",
+  "tests": [
+   "--filter",
+   "testRefusalFor_(CountsASalesDebitNote|CountsAnOpeningBalance|RefusesASaleThatTakesA(SalesDebitNote|nOpeningBalance)|DoesNotCountAnOpeningCredit|CountsOnlyWhatIsLeftOfASale|DoesNotLetARefund|HoldsTheSaleToTheDaysOfAn(OpenOpeningBalance|OpenSalesDebitNote))|testSave_RefusesTheSaleThatGoesOverTheLimitBecauseOfASalesDebitNote",
+   "tests/Libraries/Accounting/CreditLimitTest.php"
+  ]
+ },
+ {
+  "name": "G18 the credit days are held to the newest open item and not the oldest",
+  "file": "app/Libraries/Accounting/CreditLimit.php",
+  "find": "($oldest === null || $invoice->date < $oldest)",
+  "replace": "($oldest === null || $invoice->date > $oldest)",
+  "tests": [
+   "--filter",
+   "testRefusalFor_(CountsASalesDebitNote|CountsAnOpeningBalance|RefusesASaleThatTakesA(SalesDebitNote|nOpeningBalance)|DoesNotCountAnOpeningCredit|CountsOnlyWhatIsLeftOfASale|DoesNotLetARefund|HoldsTheSaleToTheDaysOfAn(OpenOpeningBalance|OpenSalesDebitNote))|testSave_RefusesTheSaleThatGoesOverTheLimitBecauseOfASalesDebitNote",
+   "tests/Libraries/Accounting/CreditLimitTest.php"
+  ]
+ },
+ {
+  "name": "G19 credit spent on a sales debit note is not written against the note",
+  "file": "app/Libraries/Accounting/CreditSettlement.php",
+  "find": "'debit_note_id'   => $debitNoteId,",
+  "replace": "'debit_note_id'   => null,",
+  "tests": [
+   "--filter",
+   "testSettle_RefusesToTakeBack|testSettle_GivesTheInvoiceBack|testSettle_SpendsTheCreditOfEachSource|testSettle_SpendsAnAdvancePayment|testSettle_GivesTheOpeningBalance|testSettle_FreesTheAdvance|testSettle_SpendsTheOpeningCredit",
+   "tests/Libraries/Accounting/CreditSettlementTest.php"
+  ]
+ },
+ {
+  "name": "G20 credit spent on an opening balance is not written against the opening",
+  "file": "app/Libraries/Accounting/CreditSettlement.php",
+  "find": "'opening_id'      => $invoiceId < 0 && $debitNoteId === null ? -$invoiceId : null,",
+  "replace": "'opening_id'      => null,",
+  "tests": [
+   "--filter",
+   "testSettle_RefusesToTakeBack|testSettle_GivesTheInvoiceBack|testSettle_SpendsTheCreditOfEachSource|testSettle_SpendsAnAdvancePayment|testSettle_GivesTheOpeningBalance|testSettle_FreesTheAdvance|testSettle_SpendsTheOpeningCredit",
+   "tests/Libraries/Accounting/CreditSettlementTest.php"
+  ]
+ },
+ {
+  "name": "G21 the two journals of a payment across branches are written in opposite orders by different payments",
+  "file": "app/Libraries/Accounting/CrossBranchPayments.php",
+  "find": "usort($drafts, static fn (JournalDraft $a, JournalDraft $b): int => (int) $a->branchId <=> (int) $b->branchId);",
+  "replace": "usort($drafts, static fn (JournalDraft $a, JournalDraft $b): int => ((int) $a->sourceId % 2 === 0 ? -1 : 1) * ((int) $a->branchId <=> (int) $b->branchId));",
+  "tests": [
+   "--filter",
+   "testPost_LetsFourRealSessions|testPost_LetsTwoRealSessions",
+   "tests/Libraries/Accounting/CrossBranchPaymentsTest.php"
+  ]
+ },
+ {
+  "name": "G22 two sessions delete one expense with no lock on its row",
+  "file": "app/Models/Expense.php",
+  "find": "'SELECT expense_id, branch_id FROM ' . $this->db->prefixTable('expenses') . ' WHERE expense_id = ? FOR UPDATE'",
+  "replace": "'SELECT expense_id, branch_id FROM ' . $this->db->prefixTable('expenses') . ' WHERE expense_id = ?'",
+  "tests": [
+   "--filter",
+   "testDeleteList_LetsTwoSessions|testSaveValue_LetsTwoSessionsChange|testSaveValue_LetsAChange",
+   "tests/Libraries/Accounting/ExpensePostingTest.php"
+  ]
+ },
+ {
+  "name": "G23 two sessions change one expense with no lock on its row",
+  "file": "app/Models/Expense.php",
+  "find": "'SELECT * FROM ' . $this->db->prefixTable('expenses') . ' WHERE expense_id = ? FOR UPDATE'",
+  "replace": "'SELECT * FROM ' . $this->db->prefixTable('expenses') . ' WHERE expense_id = ?'",
+  "tests": [
+   "--filter",
+   "testDeleteList_LetsTwoSessions|testSaveValue_LetsTwoSessionsChange|testSaveValue_LetsAChange",
+   "tests/Libraries/Accounting/ExpensePostingTest.php"
+  ]
+ },
+ {
+  "name": "G24 two sessions delete one cash-up with no lock on its row",
+  "file": "app/Models/Cashup.php",
+  "find": "'SELECT cashup_id FROM ' . $this->db->prefixTable('cash_up') . ' WHERE cashup_id = ? FOR UPDATE'",
+  "replace": "'SELECT cashup_id FROM ' . $this->db->prefixTable('cash_up') . ' WHERE cashup_id = ?'",
+  "tests": [
+   "--filter",
+   "testDeleteList_LetsTwoSessions|testSaveValue_LetsTwoSessionsCount|testSaveValue_LetsACount",
+   "tests/Libraries/Accounting/CashupPostingTest.php"
+  ]
+ },
+ {
+  "name": "G25 two sessions change one cash-up with no lock on its row",
+  "file": "app/Models/Cashup.php",
+  "find": "'SELECT * FROM ' . $this->db->prefixTable('cash_up') . ' WHERE cashup_id = ? FOR UPDATE'",
+  "replace": "'SELECT * FROM ' . $this->db->prefixTable('cash_up') . ' WHERE cashup_id = ?'",
+  "tests": [
+   "--filter",
+   "testDeleteList_LetsTwoSessions|testSaveValue_LetsTwoSessionsCount|testSaveValue_LetsACount",
+   "tests/Libraries/Accounting/CashupPostingTest.php"
+  ]
+ },
+ {
+  "name": "G26 two sessions race for one payment across branches and the books refuse the duplicate no more",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if ($duplicate) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testPost_LetsFourRealSessions|testPost_LetsTwoRealSessions",
+   "tests/Libraries/Accounting/CrossBranchPaymentsTest.php"
+  ]
+ },
+ {
+  "name": "P01 a credit that stands on an item that is gone, or came from a source that is gone, is not released",
+  "file": "app/Libraries/Accounting/CreditOrderPreview.php",
+  "find": "if (! isset($invoices[$application['target']]) || ! isset($sources[$application['source']])) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/CreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "P02 what an item holds beyond what it still owed is not cut",
+  "file": "app/Libraries/Accounting/CreditOrderPreview.php",
+  "find": "if (bccomp($surplus, '0', SaleAmounts::SCALE) <= 0) {\n                continue;\n            }\n\n            $cut = bccomp($surplus, $application['amount']",
+  "replace": "if (true) {\n                continue;\n            }\n\n            $cut = bccomp($surplus, $application['amount']",
+  "tests": [
+   "tests/Libraries/Accounting/CreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "P03 a cut takes the whole application and not what is over",
+  "file": "app/Libraries/Accounting/CreditOrderPreview.php",
+  "find": "$cut = bccomp($surplus, $application['amount'], SaleAmounts::SCALE) < 0 ? $surplus : $application['amount'];",
+  "replace": "$cut = $application['amount'];",
+  "tests": [
+   "tests/Libraries/Accounting/CreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "P04 a credit that gave more than it came to is not cut back",
+  "file": "app/Libraries/Accounting/CreditOrderPreview.php",
+  "find": "if (bccomp($over, '0', SaleAmounts::SCALE) <= 0) {\n                continue;\n            }\n\n            foreach (array_reverse($applications)",
+  "replace": "if (true) {\n                continue;\n            }\n\n            foreach (array_reverse($applications)",
+  "tests": [
+   "tests/Libraries/Accounting/CreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "P05 a run that would shrink a credit paid back is not said to be refused",
+  "file": "app/Libraries/Accounting/CreditOrderPreview.php",
+  "find": "return null;\n            }\n        }\n\n        return $this->apply($position, $applications, $nextId);",
+  "replace": "continue;\n            }\n        }\n\n        return $this->apply($position, $applications, $nextId);",
+  "tests": [
+   "tests/Libraries/Accounting/CreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "P06 the excess of a payment is read from before the cuts and not from what stands after them",
+  "file": "app/Libraries/Accounting/CreditOrderPreview.php",
+  "find": "$excess = $this->figures($invoice, $into)->excess();",
+  "replace": "$excess = $invoice->excess();",
+  "tests": [
+   "tests/Libraries/Accounting/CreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "P07 an item whose credit does not change is listed as moved",
+  "file": "app/Libraries/Accounting/CreditOrderPreview.php",
+  "find": "if ($had === $gets) {\n                continue;\n            }",
+  "replace": "if (false) {\n                continue;\n            }",
+  "tests": [
+   "tests/Libraries/Accounting/CreditOrderPreviewTest.php",
+   "tests/Commands/AccountingCreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "P08 the customers with nothing to say are listed too",
+  "file": "app/Libraries/Accounting/CreditOrderPreview.php",
+  "find": "if (! $plan->isEmpty()) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/Accounting/CreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "P09 a refused run is not named in the plan",
+  "file": "app/Libraries/Accounting/CreditOrderPreview.php",
+  "find": "$afterARun === null ? AccountingError::CreditRefunded : null,",
+  "replace": "null,",
+  "tests": [
+   "tests/Libraries/Accounting/CreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "P10 the order is read against what stands instead of from nothing",
+  "file": "app/Libraries/Accounting/CreditOrderPreview.php",
+  "find": "$fresh     = $this->apply($position, []);",
+  "replace": "$fresh     = $this->apply($position, $standing);",
+  "tests": [
+   "tests/Libraries/Accounting/CreditOrderPreviewTest.php",
+   "tests/Commands/AccountingCreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "P11 the credit is applied in the order it was found and not by its date",
+  "file": "app/Libraries/Accounting/CreditOrderPreview.php",
+  "find": "usort($credits, static fn (CreditSource $a, CreditSource $b): int => [$a->date, $a->sourceId] <=> [$b->date, $b->sourceId]);",
+  "replace": "usort($credits, static fn (CreditSource $a, CreditSource $b): int => $b->sourceId <=> $a->sourceId);",
+  "tests": [
+   "tests/Libraries/Accounting/CreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "P12 the open items are not served by date and creation but by the order they were read in",
+  "file": "app/Libraries/Accounting/CreditOrderPreview.php",
+  "find": "$open[$invoice->saleId] = $figures->open();",
+  "replace": "$open = [$invoice->saleId => $figures->open()] + $open;",
+  "tests": [
+   "tests/Libraries/Accounting/CreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "C01 the command takes a customer that is not a whole number",
+  "file": "app/Commands/AccountingCreditOrderPreview.php",
+  "find": "(! ctype_digit((string) $customer) || (int) $customer < 1)",
+  "replace": "((int) $customer < 1)",
+  "tests": [
+   "tests/Commands/AccountingCreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "C02 the command prints text when asked for JSON",
+  "file": "app/Commands/AccountingCreditOrderPreview.php",
+  "find": "if (array_key_exists('json', $params) || CLI::getOption('json') !== null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Commands/AccountingCreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "R01 the race worker does not point the class map of a linked vendor directory at its own checkout",
+  "file": "tests/Support/RaceWorker.php",
+  "find": "if ($vendorHome !== $root) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Support/RaceWorkerTest.php"
+  ]
+ },
+ {
+  "name": "R02 the race worker does not refuse to run code of another checkout",
+  "file": "tests/Support/RaceWorker.php",
+  "find": "if (APPPATH !== (string) realpath($root . '/app') . '/' ||",
+  "replace": "if (false && APPPATH !== (string) realpath($root . '/app') . '/' ||",
+  "tests": [
+   "tests/Support/RaceWorkerTest.php"
+  ]
+ }
+]
