@@ -302,6 +302,25 @@ class App extends BaseConfig
         $this->baseURL = $this->https_on ? 'https' : 'http';
         $this->baseURL .= '://' . $host . '/';
         $this->baseURL .= str_replace(basename($_SERVER['SCRIPT_NAME']), '', $_SERVER['SCRIPT_NAME']);
+
+        $this->forceGlobalSecureRequests = $this->forceGlobalSecureRequests || ($this->isSecureBase() && $this->connectionIsHttps());
+    }
+
+    public function isSecureBase(): bool
+    {
+        return str_starts_with($this->baseURL, 'https://');
+    }
+
+    /**
+     * Whether PHP itself sees an HTTPS connection. A deployment that only declares HTTPS (FORCE_HTTPS) because a
+     * proxy ends the TLS is never redirected: unless the proxy is trusted to say the request was secure, every
+     * request would be redirected again.
+     */
+    private function connectionIsHttps(): bool
+    {
+        $https = $_SERVER['HTTPS'] ?? '';
+
+        return $https !== '' && strtolower((string) $https) !== 'off';
     }
 
     /**

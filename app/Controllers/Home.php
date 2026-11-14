@@ -5,6 +5,8 @@ namespace App\Controllers;
 use App\Libraries\Dashboard_lib;
 use App\Libraries\Organization\BranchContext;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Security\PasswordPolicy;
+use App\Libraries\Security\SecurityAudit;
 use App\Models\Employee;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -104,6 +106,11 @@ class Home extends Secure_Controller
         return view('home/form_change_password', $data);
     }
 
+    public function getMustChangePassword(): string
+    {
+        return view('home/must_change_password', ['person_info' => $this->employee->get_logged_in_employee_info()]);
+    }
+
     /**
      * Change employee password
      *
@@ -125,13 +132,17 @@ class Home extends Secure_Controller
 
         if (!empty($this->request->getPost('current_password')) && $employeeId != NEW_ENTRY) {
             if ($this->employee->check_password($this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS), $this->request->getPost('current_password'))) {
-                // Validate password length BEFORE hashing
-                $new_password = $this->request->getPost('password');
+                $new_password = (string) $this->request->getPost('password');
+                $violation    = PasswordPolicy::violation(
+                    $new_password,
+                    (string) $this->request->getPost('username'),
+                    (string) $this->employee->get_info($employeeId)->username,
+                );
 
-                if (strlen($new_password) < 8) {
+                if ($violation !== null) {
                     return $this->response->setJSON([
                         'success' => false,
-                        'message' => lang('Employees.password_minlength'),
+                        'message' => lang($violation),
                         'id'      => NEW_ENTRY
                     ]);
                 }
@@ -143,6 +154,12 @@ class Home extends Secure_Controller
                 ];
 
                 if ($this->employee->change_password($employee_data, $employeeId)) {
+                    if ($employeeId === $currentPersonId) {
+                        session()->remove(Employee::MUST_CHANGE_KEY);
+                    }
+
+                    (new SecurityAudit())->passwordChanged($currentPersonId, $employeeId);
+
                     return $this->response->setJSON([
                         'success' => true,
                         'message' => lang('Employees.successful_change_password'),

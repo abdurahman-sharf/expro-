@@ -6,6 +6,7 @@ use App\Filters\PortalGuard;
 use App\Filters\ApiAuth;
 use App\Filters\ReportExport;
 use App\Filters\Throttle;
+use App\Filters\TransportHeaders;
 use CodeIgniter\Config\Filters as BaseFilters;
 use CodeIgniter\Filters\Cors;
 use CodeIgniter\Filters\CSRF;
@@ -44,6 +45,7 @@ class Filters extends BaseFilters
         'reportexport'  => ReportExport::class,
         'portalguard'   => PortalGuard::class,
         'apiauth'       => ApiAuth::class,
+        'transport'     => TransportHeaders::class,
     ];
 
     /**
@@ -82,6 +84,7 @@ class Filters extends BaseFilters
      */
     public array $globals = [
         'before' => [
+            'transport',
             'honeypot',
             'isLoggedIn' => ['except' => ['login', 'migrate', 'portal', 'portal/*', 'api/*']],
             'csrf'       => ['except' => ['login', 'migrate']],
@@ -91,6 +94,7 @@ class Filters extends BaseFilters
             'toolbar',
             'honeypot',
             'secureheaders',
+            'transport',
         ],
     ];
 

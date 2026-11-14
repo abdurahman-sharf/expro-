@@ -760,4 +760,108 @@ class HomeTest extends CIUnitTestCase
             $this->get('/home')->assertDontSee('id="branch_switcher"');
         });
     }
+    public function testPostSave_RejectsAPasswordEqualToTheUsername(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'accountant-one']);
+        $this->withSession(['person_id' => $personId]);
+
+        $result = json_decode($this->post('/home/save', [
+            'username'         => 'accountant-one',
+            'current_password' => 'password123',
+            'password'         => 'accountant-one',
+        ])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Employees.password_same_as_username'), $result['message']);
+        $this->assertTrue(password_verify('password123', model(Employee::class)->get_info($personId)->password));
+    }
+
+    public function testPostSave_RejectsThePasswordTheInstallerGives(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'installer-user']);
+        $this->withSession(['person_id' => $personId]);
+
+        $result = json_decode($this->post('/home/save', [
+            'username'         => 'installer-user',
+            'current_password' => 'password123',
+            'password'         => 'pointofsale',
+        ])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Employees.password_is_default'), $result['message']);
+    }
+    public function testGetMustChangePassword_ShowsTheFormToTheEmployeeWhoIsSignedIn(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'forced-form']);
+        $this->withSession(['person_id' => $personId]);
+
+        $result = $this->get('/home/mustChangePassword');
+
+        $result->assertStatus(200);
+        $result->assertSee(lang('Employees.must_change_password'));
+        $result->assertSeeElement('input[name=current_password]');
+        $result->assertSeeElement('input[name=password]');
+        $result->assertSeeElement('input[name=repeat_password]');
+        $result->assertSee('value="forced-form"');
+    }
+
+    public function testPostSave_TakesTheMustChangeFlagAwayWhenTheEmployeeChangesTheirOwnPassword(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'forced-own']);
+        $this->withSession(['person_id' => $personId, Employee::MUST_CHANGE_KEY => true]);
+
+        $result = json_decode($this->post('/home/save', [
+            'username'         => 'forced-own',
+            'current_password' => 'password123',
+            'password'         => 'a-better-password',
+        ])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertNull(session()->get(Employee::MUST_CHANGE_KEY));
+    }
+
+    public function testPostSave_KeepsTheMustChangeFlagWhenThePasswordIsRefused(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'forced-bad']);
+        $this->withSession(['person_id' => $personId, Employee::MUST_CHANGE_KEY => true]);
+
+        $result = json_decode($this->post('/home/save', [
+            'username'         => 'forced-bad',
+            'current_password' => 'password123',
+            'password'         => 'short',
+        ])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertTrue(session()->get(Employee::MUST_CHANGE_KEY));
+    }
+    public function testPostSave_AuditsTheChangeOfTheOwnPassword(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'audit-own']);
+        $this->withSession(['person_id' => $personId]);
+
+        $this->post('/home/save', ['username' => 'audit-own', 'current_password' => 'password123', 'password' => 'a-better-password']);
+
+        $entry = Database::connect()->table('accounting_audit_log')->where(['action' => 'employee_password_changed', 'entity_id' => $personId])->get()->getRow();
+        $this->assertSame((string) $personId, (string) $entry->employee_id);
+    }
+
+    public function testPostSave_AuditsNothingWhenThePasswordIsRefused(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'audit-refused']);
+        $this->withSession(['person_id' => $personId]);
+
+        $this->post('/home/save', ['username' => 'audit-refused', 'current_password' => 'password123', 'password' => 'short']);
+
+        $this->assertSame(0, Database::connect()->table('accounting_audit_log')->where('entity_id', $personId)->whereIn('action', ['employee_password_changed', 'employee_password_reset'])->countAllResults());
+    }
+
+    public function testGetLogout_AuditsTheSignOut(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'audit-logout']);
+        $this->withSession(['person_id' => $personId]);
+
+        $this->get('/home/logout');
+
+        $this->assertSame(1, Database::connect()->table('accounting_audit_log')->where(['action' => 'employee_logout', 'employee_id' => $personId])->countAllResults());
+    }
 }

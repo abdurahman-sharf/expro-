@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Libraries\Organization\EmployeeBranchService;
 use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Security\PasswordPolicy;
+use App\Libraries\Security\SecurityAudit;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Session\Session;
 use stdClass;
@@ -17,6 +19,9 @@ use stdClass;
  */
 class Employee extends Person
 {
+    public const MUST_CHANGE_KEY   = 'must_change_password';
+    public const UNKNOWN_USER_HASH = '$2y$10$ZFdSLBi1mAZ01oVRRa8nYecLSEvWXHuuSWdfrrcrP8ZzQAHD4nbzC';
+
     public Session $session;
     private ?RoleGrants $roleGrants = null;
     protected $table = 'Employees';
@@ -406,6 +411,8 @@ class Employee extends Person
                         $this->session->regenerate(true);
                     }
                     $this->session->set('person_id', $row->person_id);
+                    $this->flagInstallerPassword($password);
+                    $this->audit()->loginSucceeded((int) $row->person_id, $this->address());
                 }
 
                 return $updated;
@@ -414,12 +421,70 @@ class Employee extends Person
                     $this->session->regenerate(true);
                 }
                 $this->session->set('person_id', $row->person_id);
+                $this->flagInstallerPassword($password);
+                $this->audit()->loginSucceeded((int) $row->person_id, $this->address());
 
                 return true;
             }
+        } else {
+            $this->spendAPasswordVerification($password);
         }
 
+        $this->audit()->loginFailed($username, $this->address());
+
         return false;
+    }
+
+    private function audit(): SecurityAudit
+    {
+        return new SecurityAudit($this->db);
+    }
+
+    private function address(): string
+    {
+        return service('request')->getIPAddress();
+    }
+
+    private function flagInstallerPassword(string $password): void
+    {
+        if (hash_equals(PasswordPolicy::INSTALLER_DEFAULT, $password)) {
+            $this->session->set(self::MUST_CHANGE_KEY, true);
+        } else {
+            $this->session->remove(self::MUST_CHANGE_KEY);
+        }
+    }
+
+    /**
+     * Whether the employee who is signed in signed in with the password the installer gives the first account
+     * and has not changed it since, which the stored password confirms on every call so that a flag that is
+     * out of date holds nobody back.
+     */
+    public function mustChangePassword(): bool
+    {
+        $personId = (int) $this->session->get('person_id');
+
+        if ($personId === 0 || $this->session->get(self::MUST_CHANGE_KEY) !== true) {
+            return false;
+        }
+
+        $row = $this->db->table('employees')->select('password, hash_version')->where('person_id', $personId)->get()->getRow();
+
+        $stillInstallerPassword = $row !== null && match ((string) $row->hash_version) {
+            '1'     => hash_equals((string) $row->password, md5(PasswordPolicy::INSTALLER_DEFAULT)),
+            '2'     => password_verify(PasswordPolicy::INSTALLER_DEFAULT, (string) $row->password),
+            default => false,
+        };
+
+        if (! $stillInstallerPassword) {
+            $this->session->remove(self::MUST_CHANGE_KEY);
+        }
+
+        return $stillInstallerPassword;
+    }
+
+    protected function spendAPasswordVerification(string $password): void
+    {
+        password_verify($password, self::UNKNOWN_USER_HASH);
     }
 
     /**
@@ -427,6 +492,12 @@ class Employee extends Person
      */
     public function logout(): void
     {
+        $personId = (int) $this->session->get('person_id');
+
+        if ($personId > 0) {
+            $this->audit()->logout($personId);
+        }
+
         session()->destroy();
     }
 
@@ -679,5 +750,31 @@ class Employee extends Person
         }
 
         return true;
+    }
+
+    /**
+     * Whether the actor may change the username, the password, the permissions and the roles of the
+     * target, or delete them: an administrator may, anyone may for their own account, and anyone else
+     * only when they hold every permission the target holds, their own and those their roles give.
+     */
+    public function mayChangeSecurityOf(int $targetPersonId, int $actorPersonId): bool
+    {
+        if ($targetPersonId === $actorPersonId || $this->isAdmin($actorPersonId)) {
+            return true;
+        }
+
+        if ($this->isAdmin($targetPersonId)) {
+            return false;
+        }
+
+        return array_diff($this->effectivePermissionIds($targetPersonId), $this->effectivePermissionIds($actorPersonId)) === [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function effectivePermissionIds(int $personId): array
+    {
+        return array_values(array_unique(array_map('strtolower', array_column($this->get_employee_grants($personId), 'permission_id'))));
     }
 }

@@ -14,6 +14,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Receiving_lib;
 use App\Libraries\Sale_lib;
+use App\Libraries\Security\SecurityAudit;
 use App\Libraries\Stock\StockLocationLifecycle;
 use App\Libraries\Tax_lib;
 use App\Models\Appconfig;
@@ -418,6 +419,10 @@ class Config extends Secure_Controller
 
         $success = $success && $this->db->transStatus();
 
+        if ($success) {
+            $this->auditSecuritySettings($batchSaveData);
+        }
+
         return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
     }
 
@@ -564,6 +569,10 @@ class Config extends Secure_Controller
 
         $success = $this->appconfig->batch_save($batch_save_data);
 
+        if ($success) {
+            $this->auditSecuritySettings($batch_save_data);
+        }
+
         return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
     }
 
@@ -592,6 +601,10 @@ class Config extends Secure_Controller
         ];
 
         $success = $this->appconfig->batch_save($batch_save_data);
+
+        if ($success) {
+            $this->auditSecuritySettings($batch_save_data);
+        }
 
         return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
     }
@@ -669,7 +682,19 @@ class Config extends Secure_Controller
 
         $success = $this->appconfig->batch_save($batch_save_data);
 
+        if ($success) {
+            $this->auditSecuritySettings($batch_save_data);
+        }
+
         return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
+    }
+
+    /**
+     * @param array<string, mixed> $saved
+     */
+    private function auditSecuritySettings(array $saved): void
+    {
+        (new SecurityAudit())->settingsChanged((int) $this->employee->get_logged_in_employee_info()->person_id, $this->config, $saved);
     }
 
     /**

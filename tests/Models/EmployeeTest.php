@@ -7,6 +7,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Security\PasswordPolicy;
 use App\Models\Employee;
 use App\Models\Module;
 use Tests\Support\EmployeeFixtureTrait;
@@ -790,5 +791,233 @@ class EmployeeTest extends CIUnitTestCase
         }
 
         $this->assertSame([], $failures);
+    }
+    public function testMayChangeSecurityOf_AcceptsTheOwnAccountWhateverTheEmployeeHolds(): void
+    {
+        $person = $this->createEmployee(grants: $this->homeGrants(['sales', 'customers']));
+
+        $this->assertTrue(model(Employee::class)->mayChangeSecurityOf($person, $person));
+    }
+
+    public function testMayChangeSecurityOf_AcceptsAnAdministratorForAnyEmployee(): void
+    {
+        $target = $this->createEmployee(grants: $this->homeGrants(['sales', 'config', 'giftcards']));
+
+        $this->assertTrue(model(Employee::class)->mayChangeSecurityOf($target, 1));
+    }
+
+    public function testMayChangeSecurityOf_RejectsAnAdministratorTargetForAnEmployeeWhoIsNotOne(): void
+    {
+        $actor = $this->createEmployee(grants: $this->homeGrants(['employees']));
+
+        $this->assertFalse(model(Employee::class)->mayChangeSecurityOf(1, $actor));
+    }
+
+    public function testMayChangeSecurityOf_AcceptsATargetWhoHoldsNothingTheActorLacks(): void
+    {
+        $actor  = $this->createEmployee(grants: $this->homeGrants(['employees', 'sales', 'customers']));
+        $target = $this->createEmployee(grants: $this->homeGrants(['customers']));
+
+        $this->assertTrue(model(Employee::class)->mayChangeSecurityOf($target, $actor));
+    }
+
+    public function testMayChangeSecurityOf_AcceptsATargetWhoHoldsNothingAtAll(): void
+    {
+        $actor  = $this->createEmployee(grants: $this->homeGrants(['employees']));
+        $target = $this->createEmployee();
+
+        $this->assertTrue(model(Employee::class)->mayChangeSecurityOf($target, $actor));
+    }
+
+    public function testMayChangeSecurityOf_RejectsATargetWhoHoldsOnePermissionTheActorLacks(): void
+    {
+        $actor  = $this->createEmployee(grants: $this->homeGrants(['employees', 'sales']));
+        $target = $this->createEmployee(grants: $this->homeGrants(['sales', 'customers']));
+
+        $this->assertFalse(model(Employee::class)->mayChangeSecurityOf($target, $actor));
+    }
+
+    public function testMayChangeSecurityOf_CountsWhatTheRolesOfBothGive(): void
+    {
+        $role   = $this->createRole(['sales'], 'all', true, 'Cashiers ' . uniqid());
+        $actor  = $this->employeeWithRoles([$role], ['employees']);
+        $target = $this->createEmployee(grants: $this->homeGrants(['sales']));
+        $model  = model(Employee::class);
+
+        $this->assertTrue($model->mayChangeSecurityOf($target, $actor));
+        $this->assertFalse($model->mayChangeSecurityOf($this->employeeWithRoles([$role]), $this->createEmployee(grants: $this->homeGrants(['employees']))));
+    }
+    public function testLogin_SpendsAPasswordVerificationWhenTheUsernameDoesNotExist(): void
+    {
+        $model = $this->getMockBuilder(Employee::class)->onlyMethods(['spendAPasswordVerification'])->getMock();
+        $model->expects($this->once())->method('spendAPasswordVerification')->with('whatever-pass');
+
+        $this->assertFalse($model->login('nobody-has-this-name-' . uniqid(), 'whatever-pass'));
+    }
+
+    public function testLogin_SpendsAPasswordVerificationWhenTheEmployeeWasDeleted(): void
+    {
+        $username = 'deleted-' . uniqid();
+        $this->createEmployee(username: $username, employee: ['deleted' => 1]);
+        $model = $this->getMockBuilder(Employee::class)->onlyMethods(['spendAPasswordVerification'])->getMock();
+        $model->expects($this->once())->method('spendAPasswordVerification');
+
+        $this->assertFalse($model->login($username, 'password123'));
+    }
+
+    public function testLogin_SpendsNoExtraVerificationWhenTheUsernameExists(): void
+    {
+        $username = 'present-' . uniqid();
+        $this->createEmployee(username: $username);
+        $model = $this->getMockBuilder(Employee::class)->onlyMethods(['spendAPasswordVerification'])->getMock();
+        $model->expects($this->never())->method('spendAPasswordVerification');
+
+        $this->assertFalse($model->login($username, 'wrong-password'));
+        $this->assertTrue($model->login($username, 'password123'));
+    }
+
+    public function testSpendAPasswordVerification_UsesAHashOfTheCostOfTheHashesTheApplicationMakes(): void
+    {
+        $this->assertFalse(password_needs_rehash(Employee::UNKNOWN_USER_HASH, PASSWORD_DEFAULT));
+        $this->assertFalse(password_verify('anything', Employee::UNKNOWN_USER_HASH));
+    }
+    public function testLogin_FlagsTheSessionWhenTheEmployeeSignsInWithThePasswordTheInstallerGives(): void
+    {
+        $username = 'installer-' . uniqid();
+        $this->createEmployee(username: $username, employee: ['password' => password_hash(PasswordPolicy::INSTALLER_DEFAULT, PASSWORD_DEFAULT)]);
+        $model = model(Employee::class);
+
+        $this->assertTrue($model->login($username, PasswordPolicy::INSTALLER_DEFAULT));
+        $this->assertTrue($model->mustChangePassword());
+    }
+
+    public function testLogin_FlagsTheSessionOfAnEmployeeWhosePasswordIsStillStoredAsMd5(): void
+    {
+        $username = 'oldhash-' . uniqid();
+        $this->createEmployee(username: $username, employee: ['password' => md5(PasswordPolicy::INSTALLER_DEFAULT), 'hash_version' => 1]);
+        $model = model(Employee::class);
+
+        $this->assertTrue($model->login($username, PasswordPolicy::INSTALLER_DEFAULT));
+        $this->assertTrue($model->mustChangePassword());
+    }
+
+    public function testLogin_DoesNotFlagTheSessionWhenTheEmployeeSignsInWithAnotherPassword(): void
+    {
+        $username = 'ordinary-' . uniqid();
+        $this->createEmployee(username: $username);
+        $model = model(Employee::class);
+
+        $this->assertTrue($model->login($username, 'password123'));
+        $this->assertFalse($model->mustChangePassword());
+    }
+
+    public function testLogin_TakesTheFlagOfAnEarlierSignInAway(): void
+    {
+        $forced  = 'forced-' . uniqid();
+        $regular = 'regular-' . uniqid();
+        $this->createEmployee(username: $forced, employee: ['password' => password_hash(PasswordPolicy::INSTALLER_DEFAULT, PASSWORD_DEFAULT)]);
+        $this->createEmployee(username: $regular);
+        $model = model(Employee::class);
+
+        $model->login($forced, PasswordPolicy::INSTALLER_DEFAULT);
+        $model->login($regular, 'password123');
+
+        $this->assertFalse($model->mustChangePassword());
+    }
+
+    public function testMustChangePassword_AnswersNoWhenTheStoredPasswordIsNoLongerTheInstallerOneAndTakesTheFlagAway(): void
+    {
+        $username = 'changed-' . uniqid();
+        $person   = $this->createEmployee(username: $username, employee: ['password' => password_hash(PasswordPolicy::INSTALLER_DEFAULT, PASSWORD_DEFAULT)]);
+        $model    = model(Employee::class);
+        $model->login($username, PasswordPolicy::INSTALLER_DEFAULT);
+
+        $model->change_password(['password' => password_hash('something-else-1', PASSWORD_DEFAULT), 'hash_version' => 2], $person);
+
+        $this->assertFalse($model->mustChangePassword());
+        $this->assertNull(session()->get(Employee::MUST_CHANGE_KEY));
+    }
+
+    public function testMustChangePassword_AnswersNoWhenNobodyIsSignedIn(): void
+    {
+        session()->remove(['person_id', Employee::MUST_CHANGE_KEY]);
+
+        $this->assertFalse(model(Employee::class)->mustChangePassword());
+    }
+    /**
+     * @return list<object>
+     */
+    private function sessionEntries(string $action): array
+    {
+        return $this->db->table('accounting_audit_log')->where('action', $action)->orderBy('audit_id')->get()->getResult();
+    }
+
+    public function testLogin_AuditsTheSignInOfTheEmployee(): void
+    {
+        $username = 'audited-' . uniqid();
+        $person   = $this->createEmployee(username: $username);
+
+        $this->assertTrue(model(Employee::class)->login($username, 'password123'));
+
+        $entry = array_values(array_filter($this->sessionEntries('employee_login_succeeded'), static fn (object $row): bool => (int) $row->employee_id === $person))[0];
+        $this->assertSame('employee_session', $entry->entity_type);
+    }
+
+    public function testLogin_AuditsAFailedSignInWithTheNameAndNoPassword(): void
+    {
+        $username = 'wrongpass-' . uniqid();
+        $this->createEmployee(username: $username);
+
+        $this->assertFalse(model(Employee::class)->login($username, 'the-wrong-password'));
+
+        $entries = array_values(array_filter($this->sessionEntries('employee_login_failed'), static fn (object $row): bool => str_contains((string) $row->details, $username)));
+        $this->assertCount(1, $entries);
+        $this->assertNull($entries[0]->employee_id);
+        $this->assertStringNotContainsString('the-wrong-password', (string) $entries[0]->details);
+    }
+
+    public function testLogin_AuditsAFailedSignInOfANameThatIsNotAnEmployee(): void
+    {
+        $username = 'nobody-' . uniqid();
+
+        $this->assertFalse(model(Employee::class)->login($username, 'whatever-pass'));
+
+        $this->assertCount(1, array_filter($this->sessionEntries('employee_login_failed'), static fn (object $row): bool => str_contains((string) $row->details, $username)));
+    }
+
+    public function testLogin_WritesAFailedSignInOfTheSameNameOnceWhateverTheNumberOfTries(): void
+    {
+        $username = 'repeat-' . uniqid();
+
+        for ($attempt = 0; $attempt < 4; $attempt++) {
+            model(Employee::class)->login($username, 'whatever-pass');
+        }
+
+        $written = array_filter($this->sessionEntries('employee_login_failed'), static fn (object $row): bool => str_contains((string) $row->details, $username));
+        $this->assertLessThanOrEqual(2, count($written), 'one a minute, two only when the minute turned during the test');
+        $this->assertNotEmpty($written);
+    }
+
+    public function testLogout_AuditsTheSignOutOfTheEmployee(): void
+    {
+        $username = 'leaving-' . uniqid();
+        $person   = $this->createEmployee(username: $username);
+        $model    = model(Employee::class);
+        $model->login($username, 'password123');
+
+        $model->logout();
+
+        $entries = array_filter($this->sessionEntries('employee_logout'), static fn (object $row): bool => (int) $row->employee_id === $person);
+        $this->assertCount(1, $entries);
+    }
+
+    public function testLogout_AuditsNothingWhenNobodyIsSignedIn(): void
+    {
+        session()->remove('person_id');
+        $before = count($this->sessionEntries('employee_logout'));
+
+        model(Employee::class)->logout();
+
+        $this->assertCount($before, $this->sessionEntries('employee_logout'));
     }
 }

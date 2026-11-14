@@ -13,6 +13,8 @@ use App\Libraries\Roles\RecordScope;
 use App\Libraries\Roles\RoleException;
 use App\Libraries\Roles\RoleService;
 use App\Libraries\Roles\RoleTables;
+use App\Libraries\Security\PasswordPolicy;
+use App\Libraries\Security\SecurityAudit;
 use App\Models\Module;
 use App\Models\Stock_location;
 use CodeIgniter\HTTP\Exceptions\RedirectException;
@@ -132,6 +134,7 @@ class Employees extends Persons
         $data['all_subpermissions']    = $permissions;
         $data['sensitive_permissions'] = AccountingGuard::SENSITIVE;
         $data['is_admin']              = $this->employee->isAdmin($currentUser->person_id);
+        $data['security_locked']       = $employee_id != NEW_ENTRY && ! $this->employee->mayChangeSecurityOf((int) $employee_id, (int) $currentUser->person_id);
         $data['branch_tab']            = $this->branchTab($employee_id, $currentUser->person_id);
         $data['roles_tab']             = $this->rolesTab($employee_id == NEW_ENTRY ? 0 : (int) $employee_id, (int) $currentUser->person_id);
 
@@ -153,6 +156,36 @@ class Employees extends Persons
                     'success' => false,
                     'message' => lang('Employees.error_updating_admin'),
                     'id'      => NEW_ENTRY
+                ]);
+            }
+        }
+
+        $actorId           = (int) $currentUser->person_id;
+        $mayChangeSecurity = $employeeId == NEW_ENTRY || $this->employee->mayChangeSecurityOf((int) $employeeId, $actorId);
+
+        if (! $mayChangeSecurity && $this->asksToChangeLogin($targetEmployee->username)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => lang('Employees.error_security_beyond_permissions'),
+                'id'      => $employeeId
+            ]);
+        }
+
+        $password = (string) $this->request->getPost('password');
+
+        if ($employeeId == NEW_ENTRY || $password !== '') {
+            $violation = PasswordPolicy::violation(
+                $password,
+                (string) $this->request->getPost('username'),
+                (string) $this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+                $employeeId == NEW_ENTRY ? '' : (string) $targetEmployee->username,
+            );
+
+            if ($violation !== null) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => lang($violation),
+                    'id'      => $employeeId
                 ]);
             }
         }
@@ -184,7 +217,7 @@ class Employees extends Persons
         $isAdmin = $this->employee->isAdmin($currentUser->person_id);
         $sensitiveHeld = $employeeId == NEW_ENTRY ? [] : $this->sensitivePermissions->heldBy((int) $employeeId);
 
-        foreach ($this->module->get_all_permissions()->getResult() as $permission) {
+        foreach ($mayChangeSecurity ? $this->module->get_all_permissions()->getResult() : [] as $permission) {
             $grants = [];
 
             if (!$isAdmin && SensitivePermissions::isSensitive($permission->permission_id)) {
@@ -208,9 +241,10 @@ class Employees extends Persons
         }
 
         $targetId          = $employeeId == NEW_ENTRY ? null : (int) $employeeId;
+        $grantsBefore      = $targetId === null ? [] : $this->directPermissionIds($targetId);
         $previousScope     = $targetId === null ? null : $this->branchScopes->scopeOf($targetId);
         $requestedScope    = $this->requestedBranchScope($currentUser->person_id, $targetId);
-        $requestedRoles    = $this->requestedRoles((int) $currentUser->person_id);
+        $requestedRoles    = $mayChangeSecurity ? $this->requestedRoles((int) $currentUser->person_id) : null;
         $requestedLocation = $this->requestedDefaultLocation();
 
         try {
@@ -242,7 +276,8 @@ class Employees extends Persons
             ]);
         }
 
-        if (filter_var(getenv('DISALLOW_GRANT_CHANGE'), FILTER_VALIDATE_BOOLEAN)
+        if ($mayChangeSecurity
+            && filter_var(getenv('DISALLOW_GRANT_CHANGE'), FILTER_VALIDATE_BOOLEAN)
             && $this->hasGrantsChanged($employeeId, $isAdmin, $currentUser, $grantsArray)) {
             return $this->response->setJSON([
                 'success' => false,
@@ -251,7 +286,7 @@ class Employees extends Persons
             ]);
         }
 
-        if (!empty($this->request->getPost('password')) && ENVIRONMENT != 'testing' && filter_var(getenv('DISALLOW_PASSWORD_CHANGE'), FILTER_VALIDATE_BOOLEAN)) {
+        if (!empty($this->request->getPost('password')) && filter_var(getenv('DISALLOW_PASSWORD_CHANGE'), FILTER_VALIDATE_BOOLEAN)) {
             return $this->response->setJSON([
                 'success' => false,
                 'message' => lang('Employees.error_password_change_disallowed'),
@@ -260,7 +295,7 @@ class Employees extends Persons
         }
 
         // Password has been changed OR first time password set
-        if (!empty($this->request->getPost('password')) && ENVIRONMENT != 'testing') {
+        if (!empty($this->request->getPost('password'))) {
             $exploded = explode(":", $this->request->getPost('language', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
             $employeeData = [
                 'username'      => $this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
@@ -272,20 +307,10 @@ class Employees extends Persons
         } else { // Password not changed
             $exploded = explode(":", $this->request->getPost('language', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
             $employeeData = [
-                'username'      => $this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+                'username'      => $mayChangeSecurity ? $this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS) : $targetEmployee->username,
                 'language_code' => $exploded[0],
                 'language'      => $exploded[1]
             ];
-
-            // In the testing environment the password above is never persisted
-            // (see the condition on the first branch), yet ospos_employees.password
-            // is NOT NULL. When creating a new employee, supply a placeholder hash
-            // so the insert succeeds and the grant-handling logic under test is
-            // not masked by a constraint failure. Production behavior is unchanged.
-            if (ENVIRONMENT === 'testing' && $employeeId == NEW_ENTRY) {
-                $employeeData['password']     = password_hash('test-placeholder', PASSWORD_DEFAULT);
-                $employeeData['hash_version'] = 2;
-            }
         }
 
         if ($this->employee->save_employee($personData, $employeeData, $grantsArray, $employeeId)) {
@@ -293,8 +318,10 @@ class Employees extends Persons
                 $currentUser->person_id,
                 (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId),
                 $sensitiveHeld,
-                array_values(array_filter(array_column($grantsArray, 'permission_id'), [SensitivePermissions::class, 'isSensitive'])),
+                $mayChangeSecurity ? array_values(array_filter(array_column($grantsArray, 'permission_id'), [SensitivePermissions::class, 'isSensitive'])) : $sensitiveHeld,
             );
+
+            $this->auditSave($actorId, (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId), $employeeId == NEW_ENTRY, $employeeId == NEW_ENTRY ? '' : (string) $targetEmployee->username, (string) $employeeData['username'], $grantsBefore, $password !== '');
 
             try {
                 $this->branchScopes->afterEmployeeSave($currentUser->person_id, (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId), $previousScope, $requestedScope);
@@ -338,6 +365,42 @@ class Employees extends Persons
                 'id'      => NEW_ENTRY
             ]);
         }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function directPermissionIds(int $personId): array
+    {
+        return array_values(array_diff(array_column($this->employee->getDirectGrants($personId), 'permission_id'), [BranchGuard::ALL_BRANCHES]));
+    }
+
+    /**
+     * @param list<string> $grantsBefore
+     */
+    private function auditSave(int $actorId, int $savedId, bool $isNew, string $usernameBefore, string $usernameAfter, array $grantsBefore, bool $passwordSent): void
+    {
+        $audit = new SecurityAudit();
+
+        if ($isNew) {
+            $audit->employeeCreated($actorId, $savedId, $usernameAfter);
+        } else {
+            $audit->usernameChanged($actorId, $savedId, $usernameBefore, $usernameAfter);
+
+            if ($passwordSent) {
+                $audit->passwordChanged($actorId, $savedId);
+            }
+        }
+
+        $audit->permissionsChanged($actorId, $savedId, $grantsBefore, $this->directPermissionIds($savedId));
+    }
+
+    private function asksToChangeLogin(string $storedUsername): bool
+    {
+        $posted = (string) $this->request->getPost('username');
+
+        return (string) $this->request->getPost('password') !== ''
+            || ($posted !== $storedUsername && $this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS) !== $storedUsername);
     }
 
     /**
@@ -566,6 +629,12 @@ class Employees extends Persons
             }
         }
 
+        foreach ((array) $employees_to_delete as $employeeId) {
+            if (! $this->employee->mayChangeSecurityOf((int) $employeeId, (int) $current_user->person_id)) {
+                return $this->response->setJSON(['success' => false, 'message' => lang('Employees.error_security_beyond_permissions')]);
+            }
+        }
+
         if ((new EmployeeBranchService())->wouldLeaveNobodyWithEveryBranch((array) $employees_to_delete)) {
             return $this->response->setJSON(['success' => false, 'message' => lang('Branches.error_last_unrestricted')]);
         }
@@ -579,6 +648,10 @@ class Employees extends Persons
         if ($this->employee->delete_list($employees_to_delete)) {    // TODO: this is passing a string, but delete_list expects an array
             foreach ($sensitiveHeld as $employeeId => $held) {
                 $this->sensitivePermissions->recordChange($current_user->person_id, $employeeId, $held, []);
+            }
+
+            foreach ((array) $employees_to_delete as $employeeId) {
+                (new SecurityAudit())->employeeDeleted((int) $current_user->person_id, (int) $employeeId);
             }
 
             return $this->response->setJSON([
