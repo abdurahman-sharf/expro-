@@ -1636,8 +1636,9 @@ class Sales extends Secure_Controller
 
         $priceFields = static fn (array $line): array => [$line['price'], $line['quantity'], $line['discount'], $line['discount_type']];
         $changed = [];
+        $cart = $this->sale_lib->get_cart();
 
-        foreach ($this->sale_lib->get_cart() as $key => $line) {
+        foreach ($cart as $key => $line) {
             if (!isset($cartBefore[$key]) || $priceFields($cartBefore[$key]) !== $priceFields($line)) {
                 $changed[$key] = $line;
             }
@@ -1646,7 +1647,7 @@ class Sales extends Secure_Controller
         $controls = new PriceControls();
 
         try {
-            $violations = $controls->isActive() && $changed !== [] ? $controls->violationsOf($changed, $this->sale_lib->currencyRate()) : [];
+            $violations = $controls->isActive() && $changed !== [] ? $controls->violationsOf($changed, $this->sale_lib->currencyRate(), $this->tax_lib->get_taxes($cart)[1]) : [];
         } catch (AccountingException $refusal) {
             $this->sale_lib->set_cart($cartBefore);
 

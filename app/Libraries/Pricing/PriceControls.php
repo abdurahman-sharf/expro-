@@ -5,6 +5,7 @@ namespace App\Libraries\Pricing;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\JournalOrigin;
+use App\Libraries\Tax_lib;
 use App\Models\Item;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -18,6 +19,10 @@ use Config\Database;
  * discount: that of the item when it has one of its own, else the one of the shop, which the items of
  * the excluded categories are not held to. Only an employee who holds the permission to override
  * prices sells such a line, and the audit log says so. Both controls are off until they are turned on.
+ *
+ * The minimum price is a price before tax: a tax that is inside the price of the line is taken out of
+ * it before it is compared, so a line of 105 with 15% inside it sells at 91.30 and is held to the
+ * minimum as such. The discount in percent is the same whether the tax is inside the price or not.
  */
 final class PriceControls
 {
@@ -45,16 +50,18 @@ final class PriceControls
     /**
      * @param array<int|string, array<string, mixed>> $lines The lines of the register or of the sale, as they carry price, quantity, discount and the share of the discount on the whole sale.
      * @param numeric-string                          $rate  The rate of a sale in a foreign currency: the minimum price is a price in the base currency, so the prices of the lines are compared with it at this rate.
+     * @param list<array<string, mixed>>              $taxes The tax rows of the lines as the register or the sale saves them (item_id, line, tax_type, item_tax_amount): the ones inside the price are taken out of it before the minimum is compared.
      *
      * @return list<PriceViolation> In the order of the lines, with the prices in the base currency.
      */
-    public function violationsOf(array $lines, string $rate = '1'): array
+    public function violationsOf(array $lines, string $rate = '1', array $taxes = []): array
     {
         if (! $this->isActive() || $lines === []) {
             return [];
         }
 
         $items    = $this->itemsOf($lines);
+        $inside   = $this->taxInsideThePrice($taxes);
         $exempt   = $this->settings->discountExemptCategories();
         $global   = $this->settings->maxDiscountEnabled() ? $this->settings->maxDiscountPercent() : null;
         $checkMin = $this->settings->minimumPriceEnabled();
@@ -81,7 +88,8 @@ final class PriceControls
             $net     = bcsub($net, bcdiv($share, $quantity, 4), 4);
             $percent = bccomp($price, '0', 4) > 0 ? bcdiv(bcmul(bcsub($price, $net, 6), '100', 6), $price, 4) : '0.0000';
             $minimum = bcadd((string) $item->minimum_price, '0', 4);
-            $netBase = bcmul($net, $rate, 4);
+            $taxless = bcsub($net, bcdiv($inside[(int) $line['item_id'] . ':' . (int) ($line['line'] ?? 0)] ?? '0', $quantity, 4), 4);
+            $netBase = bcmul($taxless, $rate, 4);
 
             if ($checkMin && bccomp($minimum, '0', 4) > 0 && bccomp($netBase, $minimum, 2) < 0) {
                 $found[] = new PriceViolation(PriceRule::BelowMinimum, $shown, (int) $item->item_id, (string) $item->name, $netBase, $minimum, $percent);
@@ -122,6 +130,29 @@ final class PriceControls
     public function recordRefusal(?int $branchId, ?int $employeeId, array $violations): void
     {
         $this->audit->write('sale', null, self::AUDIT_REFUSED, $employeeId, JournalOrigin::User, ['lines' => array_map(static fn (PriceViolation $violation): array => $violation->toArray(), $violations)], $branchId);
+    }
+
+    /**
+     * What each line has inside its price of tax, by item and line.
+     *
+     * @param list<array<string, mixed>> $taxes
+     *
+     * @return array<string, numeric-string>
+     */
+    private function taxInsideThePrice(array $taxes): array
+    {
+        $inside = [];
+
+        foreach ($taxes as $tax) {
+            if ((string) ($tax['tax_type'] ?? '') !== Tax_lib::TAX_TYPE_INCLUDED) {
+                continue;
+            }
+
+            $key          = (int) $tax['item_id'] . ':' . (int) ($tax['line'] ?? 0);
+            $inside[$key] = bcadd($inside[$key] ?? '0', (string) $tax['item_tax_amount'], 6);
+        }
+
+        return $inside;
     }
 
     /**

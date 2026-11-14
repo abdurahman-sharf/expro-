@@ -327,6 +327,131 @@ class PriceControlsTest extends CIUnitTestCase
         $this->assertSame([], $this->controls->violationsOf([$this->line($item, '100', '50')]));
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private function taxRow(int $itemId, int $line, string $type, string $amount): array
+    {
+        return ['item_id' => $itemId, 'line' => $line, 'name' => 'VAT', 'percent' => '15.0000', 'tax_type' => $type, 'item_tax_amount' => $amount];
+    }
+
+    public function testViolationsOf_TakesTheTaxInsideThePriceOutBeforeComparingWithTheMinimumAndRefusesWhatSellsUnderItWithoutTheTax(): void
+    {
+        $this->minimumOn();
+
+        $item  = $this->item('100');
+        $line  = $this->line($item, '105', number: 1);
+        $found = $this->controls->violationsOf([$line], '1', [$this->taxRow($item, 1, '0', '13.6957')]);
+
+        $this->assertCount(1, $found, '105 with 15% inside it is 91.30 before the tax, under 100');
+        $this->assertSame(PriceRule::BelowMinimum, $found[0]->rule);
+        $this->assertSame('91.3043', $found[0]->net);
+        $this->assertSame([], $this->controls->violationsOf([$line]), 'with no tax row the typed price is compared as it always was');
+    }
+
+    public function testViolationsOf_AcceptsAPriceWhoseTaxlessPartEqualsTheMinimum(): void
+    {
+        $this->minimumOn();
+
+        $item = $this->item('100');
+
+        $this->assertSame([], $this->controls->violationsOf([$this->line($item, '115', number: 1)], '1', [$this->taxRow($item, 1, '0', '15.0000')]));
+        $this->assertCount(1, $this->controls->violationsOf([$this->line($item, '114.99', number: 1)], '1', [$this->taxRow($item, 1, '0', '15.0000')]), 'a cent less after a tax of 15 is 99.99 before it');
+    }
+
+    public function testViolationsOf_LeavesThePriceAloneForATaxThatIsAddedToIt(): void
+    {
+        $this->minimumOn();
+
+        $item = $this->item('100');
+
+        $this->assertSame([], $this->controls->violationsOf([$this->line($item, '100', number: 1)], '1', [$this->taxRow($item, 1, '1', '15.0000')]), 'a tax added on top of 100 leaves 100 as the price');
+        $this->assertCount(1, $this->controls->violationsOf([$this->line($item, '99', number: 1)], '1', [$this->taxRow($item, 1, '1', '14.8500')]));
+    }
+
+    public function testViolationsOf_TakesOnlyTheTaxInsideThePriceOutWhenALineCarriesBothKinds(): void
+    {
+        $this->minimumOn();
+
+        $item = $this->item('100');
+        $rows = [$this->taxRow($item, 1, '0', '10.0000'), $this->taxRow($item, 1, '1', '5.0000')];
+
+        $this->assertSame([], $this->controls->violationsOf([$this->line($item, '110', number: 1)], '1', $rows), '110 less 10 inside it is exactly 100');
+        $this->assertCount(1, $this->controls->violationsOf([$this->line($item, '109', number: 1)], '1', $rows));
+    }
+
+    public function testViolationsOf_AddsUpTwoTaxesInsideThePriceOfALine(): void
+    {
+        $this->minimumOn();
+
+        $item = $this->item('100');
+        $rows = [$this->taxRow($item, 1, '0', '10.0000'), $this->taxRow($item, 1, '0', '5.0000')];
+
+        $this->assertSame([], $this->controls->violationsOf([$this->line($item, '115', number: 1)], '1', $rows));
+        $this->assertCount(1, $this->controls->violationsOf([$this->line($item, '114', number: 1)], '1', $rows));
+    }
+
+    public function testViolationsOf_SharesTheTaxOfALineOfSeveralUnitsAmongThem(): void
+    {
+        $this->minimumOn();
+
+        $item = $this->item('100');
+
+        $this->assertSame([], $this->controls->violationsOf([$this->line($item, '115', '0', PERCENT, '2', number: 1)], '1', [$this->taxRow($item, 1, '0', '30.0000')]), 'two units at 115 carry 30 of tax: 100 each');
+        $this->assertCount(1, $this->controls->violationsOf([$this->line($item, '114', '0', PERCENT, '2', number: 1)], '1', [$this->taxRow($item, 1, '0', '29.7391')]));
+    }
+
+    public function testViolationsOf_ReadsTheTaxOfTheLineItBelongsToAndNoOtherOne(): void
+    {
+        $this->minimumOn();
+
+        $item  = $this->item('100');
+        $other = $this->item('0');
+        $rows  = [$this->taxRow($item, 2, '0', '15.0000'), $this->taxRow($other, 1, '0', '15.0000')];
+
+        $this->assertSame([], $this->controls->violationsOf([$this->line($item, '110', number: 1)], '1', $rows), 'the tax of line 2 and of another item is not the tax of line 1');
+        $this->assertCount(1, $this->controls->violationsOf([$this->line($item, '110', number: 2)], '1', $rows));
+    }
+
+    public function testViolationsOf_TakesTheTaxOutOfThePriceBeforeItIsConvertedToTheBaseCurrency(): void
+    {
+        $this->minimumOn();
+
+        $item = $this->item('300');
+        $rows = [$this->taxRow($item, 1, '0', '15.0000')];
+
+        $this->assertSame([], $this->controls->violationsOf([$this->line($item, '115', number: 1)], '3', $rows), '115 less 15 is 100 in the currency of the sale, 300 in the base');
+        $this->assertCount(1, $this->controls->violationsOf([$this->line($item, '114', number: 1)], '3', $rows));
+    }
+
+    public function testViolationsOf_TakesTheTaxInsideThePriceOutAfterTheDiscountAndTheShareOfTheWholeSale(): void
+    {
+        $this->minimumOn();
+
+        $item = $this->item('90');
+        $rows = [$this->taxRow($item, 1, '0', '11.7391')];
+
+        $this->assertSame([], $this->controls->violationsOf([$this->line($item, '115', '10', PERCENT, '1', null, 1)], '1', [$this->taxRow($item, 1, '0', '13.5000')]), '115 less 10% is 103.50 and its tax inside is 13.50: exactly 90');
+        $this->assertCount(1, $this->controls->violationsOf([$this->line($item, '115', '10', PERCENT, '1', '10.0000', 1)], '1', $rows), 'a share of 10 of the whole sale leaves 93.50 and 11.74 of tax: under 90');
+    }
+
+    public function testViolationsOf_HoldsTheDiscountInPercentToTheSameCeilingWhetherOrNotTheTaxIsInsideThePrice(): void
+    {
+        $this->ceilingOn('10');
+
+        $item = $this->item();
+        $line = $this->line($item, '115', '11.5', FIXED, '1', null, 1);
+
+        $this->assertSame([], $this->controls->violationsOf([$line], '1', [$this->taxRow($item, 1, '0', '13.5000')]), '11.50 off 115 is 10%, with the tax inside the price as without it');
+        $this->assertSame([], $this->controls->violationsOf([$line]));
+
+        $found = $this->controls->violationsOf([$this->line($item, '115', '11.6', FIXED, '1', null, 1)], '1', [$this->taxRow($item, 1, '0', '13.4000')]);
+
+        $this->assertCount(1, $found);
+        $this->assertSame(PriceRule::AboveCeiling, $found[0]->rule);
+        $this->assertSame('10.08', bcadd($found[0]->percent, '0', 2));
+    }
+
     public function testViolationsOf_ReportsTheMinimumAndTheCeilingOfTheSameLineAndKeepsTheOrderOfTheLines(): void
     {
         $this->minimumOn();

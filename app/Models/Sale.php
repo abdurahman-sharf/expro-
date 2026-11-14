@@ -1359,7 +1359,7 @@ class Sale extends Model
         $salesData['invoice_discount_type'] = $discountPlan->type;
         $salesData['invoice_discount'] = $discountPlan->value;
 
-        $priceViolations = $saleStatus == COMPLETED && in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) ? (new PriceControls($this->db))->violationsOf($items, $currencyColumns['currency_rate'] ?? '1') : [];
+        $priceViolations = $saleStatus == COMPLETED && in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) ? (new PriceControls($this->db))->violationsOf($items, $currencyColumns['currency_rate'] ?? '1', $salesTaxes[1] ?? []) : [];
 
         if ($priceViolations !== [] && !(new PriceControls($this->db))->mayOverride($employeeId)) {
             $this->db->transRollback();

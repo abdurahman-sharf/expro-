@@ -6950,6 +6950,76 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame('100.00', (string) Services::session()->get('sales_cart')[1]['price']);
     }
 
+    /**
+     * The register of registerWithPriceControls with a tax of 15% inside the price of its item.
+     *
+     * @param list<string> $grants
+     *
+     * @return array{item: int, employee: int}
+     */
+    private function registerWithTaxInsideThePrice(array $grants, string $price, string $minimum): array
+    {
+        $setup = $this->registerWithPriceControls($grants, $price, minimum: $minimum);
+
+        $taxes = [['name' => 'VAT', 'percent' => '15']];
+
+        model(Item_taxes::class)->save_value($taxes, $setup['item']);
+        Database::connect()->table('tax_definitions')->insert(['tax_name' => 'VAT', 'tax_included' => 1]);
+        $this->turnOnPriceControls(true);
+
+        return $setup;
+    }
+
+    public function testPostEditItem_HoldsAPriceWithTaxInsideItToTheMinimumWithoutTheTaxAndKeepsTheLineAsItWas(): void
+    {
+        try {
+            $this->registerWithTaxInsideThePrice(['sales_change_price'], '115.00', '100');
+
+            $response = $this->post('/sales/editItem/1', ['price' => '105', 'quantity' => '1', 'discount' => '0', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1']);
+
+            $response->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '100.00', '91.30']));
+            $this->assertSame('115.00', (string) Services::session()->get('sales_cart')[1]['price']);
+
+            $this->post('/sales/editItem/1', ['price' => '115', 'quantity' => '1', 'discount' => '0', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1']);
+
+            $this->assertSame('115.00', (string) Services::session()->get('sales_cart')[1]['price'], '115 less the 15 inside it is exactly the minimum');
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testPostComplete_RefusesALineWhoseTaxlessPriceIsUnderTheMinimumAndSavesNothing(): void
+    {
+        try {
+            $this->registerWithTaxInsideThePrice([], '105.00', '100');
+
+            $sales = $this->countSales();
+
+            $response = $this->post('/sales/complete');
+
+            $response->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '100.00', '91.30']));
+            $this->assertSame($sales, $this->countSales());
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testPostComplete_SellsALineWhoseTaxlessPriceEqualsTheMinimum(): void
+    {
+        try {
+            $this->registerWithTaxInsideThePrice([], '115.00', '100');
+
+            $sales = $this->countSales();
+
+            $this->post('/sales/complete');
+
+            $this->assertSame($sales + 1, $this->countSales());
+            $this->assertSame(0, $this->auditEntries('price_refused'));
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
     public function testPostEditItem_RefusesADiscountAboveTheHighestDiscountAndKeepsTheLineAsItWas(): void
     {
         $this->registerWithPriceControls(['sales_change_price'], '100.00');
