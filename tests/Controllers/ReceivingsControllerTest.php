@@ -1738,6 +1738,28 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame('-280.0000', bcadd((string) $line['total'], '0', 4));
     }
 
+    public function testPostDebitNote_TakesTheCentOfAWholeLineDiscountThatTheUnitsBackBeforeLeftSoTheSupplierIsOwedNothingWhenEverythingIsBack(): void
+    {
+        $item     = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($item, 0, '2', '50', '0', '1.01', FIXED_LINE)]);
+        $first    = $this->buy([$this->purchaseLine($item, 0, '-1', '50', '0', '0.51', FIXED_LINE)], -1, null, $purchase);
+        $this->loginAs($this->buyer());
+
+        $this->assertGreaterThan(0, $first);
+        $this->assertTrue($this->jsonOf($this->post('/receivings/debitNote/' . $purchase))['success']);
+
+        $cart = session()->get('recv_cart');
+        $line = reset($cart);
+
+        $this->assertSame('0.50', number_format((float) $line['discount'], 2, '.', ''), 'the first unit took 0.51 of 1.01, so the second takes the 0.50 that is left');
+
+        $second = $this->buy([$this->purchaseLine($item, 0, (string) $line['quantity'], '50', '0', number_format((float) $line['discount'], 2, '.', ''), FIXED_LINE)], -1, null, $purchase);
+
+        $this->assertGreaterThan(0, $second);
+        $this->assertSame('0.00', $this->balance($this->supplierAccount()), 'the purchase and its two returns cancel to the cent');
+        $this->assertSame('0.00', $this->balance($this->stockAccountOf(self::LOCATION_ID)));
+    }
+
     public function testGetReceipt_ShowsTheFixedDiscountOfALineSavedForTheWholeLine(): void
     {
         $item     = $this->item('0.00');

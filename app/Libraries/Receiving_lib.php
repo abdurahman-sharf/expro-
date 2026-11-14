@@ -11,6 +11,7 @@ use App\Libraries\Accounting\ReceivingLine;
 use App\Libraries\Accounting\ReceivingType;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\ReturnDiscountShares;
+use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Stock\ItemStockProfile;
 use App\Libraries\Stock\StockOptions;
 use App\Libraries\Stock\StockTracking;
@@ -600,13 +601,29 @@ class Receiving_lib
                 continue;
             }
 
-            $discount = (int) $row->discount_type === FIXED_LINE ? round((float) $row->discount * $remaining / $units, 2) : $row->discount;
+            $discount = (int) $row->discount_type === FIXED_LINE ? (float) $this->discountLeftOfWholeLine((string) $row->discount, $units, $taken) : $row->discount;
 
             $this->add_item($row->item_id, -($remaining / $perPack), $row->item_location, $discount, $row->discount_type, $row->item_unit_price, $row->description, $row->serialnumber, $row->receiving_quantity, $receivingId, true, (string) $row->tax_percent);
         }
 
         $this->set_supplier($this->receiving->get_supplier($receivingId)->person_id);
         $this->set_return_origin($receivingId);
+    }
+
+    /**
+     * What a discount given to a whole line has left for the units that did not come back yet: the discount less the share the units
+     * that came back took, which is their part of it rounded to the cent, so that what every return of the line takes adds up to
+     * the discount of the line and never to a cent more or less.
+     *
+     * @return numeric-string
+     */
+    private function discountLeftOfWholeLine(string $discount, float $units, float $taken): string
+    {
+        $unitsText = sprintf('%.3F', $units);
+        $takenText = sprintf('%.3F', $taken);
+        $earlier   = SaleAmounts::round(bcdiv(bcmul($discount, $takenText, 8), $unitsText, 8), 2);
+
+        return bcsub($discount, $earlier, 2);
     }
 
     public function add_item_kit(string $external_item_kit_id, int $item_location, float $discount, int $discount_type): void

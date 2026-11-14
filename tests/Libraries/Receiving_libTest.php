@@ -13,6 +13,7 @@ use App\Models\Item_taxes;
 use App\Models\Receiving;
 use App\Models\Stock_location;
 use CodeIgniter\Config\Factories;
+use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -108,6 +109,79 @@ class Receiving_libTest extends CIUnitTestCase
             'fixed discount of a line of packs saved before'         => [2, 5, 1, FIXED_LINE, 12, '119.0000'],
             'a return of a line saved before'                        => [-4, 10, 5, FIXED_LINE, 1, '-35.0000'],
         ];
+    }
+
+    /**
+     * @return array<string, array{string, string, string, float, string, float}>
+     */
+    public static function wholeLineDiscounts(): array
+    {
+        return [
+            'nothing came back before, the whole discount'          => ['100.00', '3', '1', 0.0, '100.00', -3.0],
+            'a part came back, the rest of the units take the rest' => ['100.00', '10', '1', 3.0, '70.00', -7.0],
+            'a third of 100 is not shared as two thirds rounded'    => ['100.00', '3', '1', 1.0, '66.67', -2.0],
+            'the last unit takes what the others left'              => ['100.00', '3', '1', 2.0, '33.33', -1.0],
+            'a half cent goes to the units that came back first'    => ['1.01', '2', '1', 1.0, '0.50', -1.0],
+            'a half cent again with another amount'                 => ['0.05', '2', '1', 1.0, '0.02', -1.0],
+            'a line of packs counts the units in them'              => ['1.00', '2', '12', 5.0, '0.79', -19 / 12],
+        ];
+    }
+
+    #[DataProvider('wholeLineDiscounts')]
+    public function testReturnRemainingOfReceiving_TakesTheShareOfAWholeLineDiscountThatTheUnitsBackBeforeLeftSoTheSharesAddUpToTheDiscount(string $discount, string $bought, string $perPack, float $returnedBefore, string $share, float $packs): void
+    {
+        $row = (object) ['item_id' => 7, 'item_location' => 1, 'quantity_purchased' => $bought, 'receiving_quantity' => $perPack, 'discount' => $discount, 'discount_type' => FIXED_LINE, 'item_unit_price' => '50.00', 'description' => '', 'serialnumber' => '', 'tax_percent' => '0'];
+
+        $items = $this->createStub(ResultInterface::class);
+        $items->method('getResult')->willReturn([$row]);
+
+        $receiving = $this->createStub(Receiving::class);
+        $receiving->method('getReturnableQuantities')->willReturn([7 => ['bought' => (float) $bought * (float) $perPack, 'returned' => $returnedBefore]]);
+        $receiving->method('get_receiving_items')->willReturn($items);
+        $receiving->method('get_supplier')->willReturn((object) ['person_id' => 4]);
+        Factories::injectMock('models', Receiving::class, $receiving);
+
+        $handed  = [];
+        $library = $this->getMockBuilder(Receiving_lib::class)->onlyMethods(['add_item'])->getMock();
+        $library->method('add_item')->willReturnCallback(static function (string $itemId, int|float $quantity, ?int $location, float $given, int $type) use (&$handed): bool {
+            $handed[] = [$itemId, round((float) $quantity, 4), $type, number_format($given, 2, '.', '')];
+
+            return true;
+        });
+
+        $library->return_remaining_of_receiving(9);
+
+        $this->assertSame([['7', round($packs, 4), FIXED_LINE, $share]], $handed);
+        $this->assertSame(9, $library->get_return_origin());
+    }
+
+    public function testReturnRemainingOfReceiving_LeavesAPercentDiscountAndAFixedDiscountPerUnitAsTheLineHasThem(): void
+    {
+        $rows = [
+            (object) ['item_id' => 7, 'item_location' => 1, 'quantity_purchased' => '4', 'receiving_quantity' => '1', 'discount' => '10.00', 'discount_type' => PERCENT, 'item_unit_price' => '50.00', 'description' => '', 'serialnumber' => '', 'tax_percent' => '0'],
+            (object) ['item_id' => 8, 'item_location' => 1, 'quantity_purchased' => '4', 'receiving_quantity' => '1', 'discount' => '2.50', 'discount_type' => FIXED, 'item_unit_price' => '50.00', 'description' => '', 'serialnumber' => '', 'tax_percent' => '0'],
+        ];
+
+        $items = $this->createStub(ResultInterface::class);
+        $items->method('getResult')->willReturn($rows);
+
+        $receiving = $this->createStub(Receiving::class);
+        $receiving->method('getReturnableQuantities')->willReturn([7 => ['bought' => 4.0, 'returned' => 1.0], 8 => ['bought' => 4.0, 'returned' => 1.0]]);
+        $receiving->method('get_receiving_items')->willReturn($items);
+        $receiving->method('get_supplier')->willReturn((object) ['person_id' => 4]);
+        Factories::injectMock('models', Receiving::class, $receiving);
+
+        $handed  = [];
+        $library = $this->getMockBuilder(Receiving_lib::class)->onlyMethods(['add_item'])->getMock();
+        $library->method('add_item')->willReturnCallback(static function (string $itemId, int|float $quantity, ?int $location, float $given, int $type) use (&$handed): bool {
+            $handed[] = [$itemId, (float) $quantity, $type, number_format($given, 2, '.', '')];
+
+            return true;
+        });
+
+        $library->return_remaining_of_receiving(9);
+
+        $this->assertSame([['7', -3.0, PERCENT, '10.00'], ['8', -3.0, FIXED, '2.50']], $handed);
     }
 
     public function testGetTotal_AddsTheLinesAfterTheirDiscounts(): void
