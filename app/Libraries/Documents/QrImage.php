@@ -20,7 +20,7 @@ final class QrImage
     public const MINIMUM_MODULE_MM     = 0.5;
     public const SIZE_A4_MM            = 34.0;
     public const SIZE_THERMAL_80_MM    = 30.0;
-    public const SIZE_THERMAL_58_MM    = 25.0;
+    public const SIZE_THERMAL_58_MM    = 30.0;
     private const PIXELS_PER_MODULE    = 10;
     private const BORDER_OF_THE_ENGINE = 4;
 

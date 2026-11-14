@@ -182,6 +182,30 @@
     text-align: center;
 }
 
+.rt-qr {
+    margin-top: 10px;
+    text-align: center;
+}
+
+.rt-qr .doc-qr-label {
+    font-size: 80%;
+    font-weight: bold;
+}
+
+.rt-qr .doc-qr-image {
+    display: block;
+    margin: 4px auto;
+    image-rendering: pixelated;
+}
+
+.rt-qr .doc-qr-text {
+    margin-top: 4px;
+    font-family: monospace;
+    font-size: 7pt;
+    word-break: break-all;
+    text-align: left;
+}
+
 .rt-barcode {
     margin-top: 10px;
     text-align: center;

@@ -194,9 +194,9 @@ class QrImageTest extends CIUnitTestCase
     {
         $payload = $this->payload('شركة الأول برو للتجارة');
         $across  = $this->image->modulesAcross($payload);
-        $size    = $this->image->sizeMm($payload, QrImage::SIZE_THERMAL_58_MM);
+        $size    = $this->image->sizeMm($payload, 20.0);
 
-        $this->assertGreaterThan(QrImage::SIZE_THERMAL_58_MM, $size);
+        $this->assertGreaterThan(20.0, $size);
         $this->assertEqualsWithDelta(QrImage::MINIMUM_MODULE_MM, $size / $across, 0.0001);
     }
 

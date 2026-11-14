@@ -2259,6 +2259,13 @@ class Sales extends Secure_Controller
                 $data['error_message'] = lang('Sales.transaction_failed');
                 return $this->reload($data);
             } else {
+                $timing = $this->sale->getInvoiceTiming((int) $data['sale_id_num']);
+
+                $data['sale_time_raw']    = $this->sale->getSaleTime((int) $data['sale_id_num']);
+                $data['invoice_date_raw'] = $timing['invoice_date'];
+                $data['currency_code']    = $this->sale->getCurrencyCode((int) $data['sale_id_num']);
+                $data['sale_type']        = $saleType;
+
                 $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
                 $data = [...$data, ...$this->returnDocumentNumbersOf((int) $data['sale_id_num'])];
 

@@ -9757,8 +9757,24 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertStringContainsString('class="doc-qr-text print_hide"', $screen);
     }
 
-    #[DataProvider('receiptTemplateProvider')]
-    public function testGetReceipt_CarriesNeitherTheCodeNorItsPictureOnAnyReceiptTemplate(string $template): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function receiptTemplateWithoutTheCodeProvider(): array
+    {
+        return ['the default receipt' => ['receipt_default'], 'the short receipt' => ['receipt_short']];
+    }
+
+    /**
+     * @return array<string, array{string, float}>
+     */
+    public static function thermalReceiptProvider(): array
+    {
+        return ['the thermal receipt of 80 mm' => ['receipt_thermal_80', QrImage::SIZE_THERMAL_80_MM], 'the thermal receipt of 58 mm' => ['receipt_thermal_58', QrImage::SIZE_THERMAL_58_MM]];
+    }
+
+    #[DataProvider('receiptTemplateWithoutTheCodeProvider')]
+    public function testGetReceipt_CarriesNeitherTheCodeNorItsPictureOnTheDefaultAndTheShortReceipt(string $template): void
     {
         $invoice = $this->postedInvoice();
         $this->loginAs($this->createBranchLimitedSupervisor(1));
@@ -9773,8 +9789,8 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         });
     }
 
-    #[DataProvider('receiptTemplateProvider')]
-    public function testGetReceipt_CarriesNeitherTheCodeNorItsPictureOnTheReceiptOfAReturn(string $template): void
+    #[DataProvider('receiptTemplateWithoutTheCodeProvider')]
+    public function testGetReceipt_CarriesNeitherTheCodeNorItsPictureOnTheDefaultAndTheShortReceiptOfAReturn(string $template): void
     {
         $invoice = $this->postedInvoice();
         $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
@@ -9787,6 +9803,119 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
             $page->assertStatus(200);
             $this->assertStringNotContainsString('class="doc-qr', $page->getBody());
             $this->assertStringNotContainsString('data:image/png', $page->getBody());
+        });
+    }
+
+    #[DataProvider('thermalReceiptProvider')]
+    public function testGetReceipt_PrintsTheCodeOfTheSaleAsAPictureOnTheThermalReceipt(string $template, float $preferredMm): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $sale = $this->savedSaleData($invoice['saleId']);
+
+        $this->withReceiptSettings(['receipt_template' => $template, 'company' => 'opes', 'tax_id' => '300000000000003'], function () use ($invoice, $sale, $preferredMm): void {
+            $page   = $this->get('/sales/receipt/' . $invoice['saleId']);
+            $body   = $page->getBody();
+            $text   = $this->qrTextOf($body);
+            $a4     = view('documents/document', ['type' => 'tax_invoice', 'context' => 'screen', 'sale' => $sale]);
+            $sizeMm = sprintf('%.1F', (new QrImage())->sizeMm($text, $preferredMm));
+
+            $page->assertStatus(200);
+            $this->assertSame($this->qrTextOf($a4), $text, 'The receipt carries the code of the tax invoice of the same sale.');
+            $this->assertSame((new QrImage())->pngDataUri($text), $this->qrImageOf($body));
+            $this->assertStringContainsString('style="width: ' . $sizeMm . 'mm; height: ' . $sizeMm . 'mm"', $body);
+            $this->assertGreaterThanOrEqual(30.0, (float) $sizeMm);
+            $this->assertStringContainsString('class="doc-qr-text print_hide"', $body);
+        });
+    }
+
+    #[DataProvider('thermalReceiptProvider')]
+    public function testGetReceipt_CarriesTheAmountsOfTheSaleInTheCodeOfTheThermalReceipt(string $template): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $sale = $this->savedSaleData($invoice['saleId']);
+        $tax  = '0';
+
+        foreach ($sale['taxes'] as $row) {
+            $tax = bcadd($tax, (string) $row['sale_tax_amount'], 4);
+        }
+
+        $this->withReceiptSettings(['receipt_template' => $template, 'company' => 'opes', 'tax_id' => '300000000000003'], function () use ($invoice, $sale, $tax): void {
+            $fields = $this->qrFieldsOf($this->get('/sales/receipt/' . $invoice['saleId'])->getBody());
+
+            $this->assertSame('opes', $fields[1]);
+            $this->assertSame('300000000000003', $fields[2]);
+            $this->assertSame(number_format((float) $sale['total'], 2, '.', ''), $fields[4]);
+            $this->assertSame(number_format((float) $tax, 2, '.', ''), $fields[5]);
+        });
+    }
+
+    #[DataProvider('thermalReceiptProvider')]
+    public function testGetReceipt_CarriesNoCodeOnTheThermalReceiptAndSaysWhyOnScreenWhileTheTaxNumberIsNotEntered(string $template): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->withReceiptSettings(['receipt_template' => $template, 'company' => 'opes', 'tax_id' => ''], function () use ($invoice): void {
+            $page = $this->get('/sales/receipt/' . $invoice['saleId']);
+
+            $page->assertStatus(200);
+            $this->assertStringNotContainsString('class="doc-qr"', $page->getBody());
+            $this->assertStringNotContainsString('class="doc-qr-image"', $page->getBody());
+            $this->assertStringContainsString('doc-qr-notice', $page->getBody());
+            $page->assertSee(lang('Documents.error_qr_vat_number_missing'));
+        });
+    }
+
+    #[DataProvider('thermalReceiptProvider')]
+    public function testGetReceipt_CarriesTheAmountsAReturnTakesBackInTheCodeOfTheThermalReceipt(string $template): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $note = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $sale = $this->savedSaleData($note);
+
+        $this->withReceiptSettings(['receipt_template' => $template, 'company' => 'opes', 'tax_id' => '300000000000003'], function () use ($note, $sale): void {
+            $fields = $this->qrFieldsOf($this->get('/sales/receipt/' . $note)->getBody());
+
+            $this->assertSame(number_format(abs((float) $sale['total']), 2, '.', ''), $fields[4]);
+            $this->assertGreaterThan(0, (float) $fields[4]);
+        });
+    }
+
+    #[DataProvider('thermalReceiptProvider')]
+    public function testGetReceipt_CarriesNoCodeOnTheThermalReceiptOfASaleInAForeignCurrency(string $template): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $sale = $this->savedSaleData($invoice['saleId']);
+
+        $this->withReceiptSettings(['receipt_template' => $template, 'company' => 'opes', 'tax_id' => '300000000000003'], function () use ($sale, $template): void {
+            $html = view('sales/receipt_thermal', [...$sale, 'config' => config(OSPOS::class)->settings, 'currency_code' => 'USD', 'paper' => $template === 'receipt_thermal_58' ? 58 : 80]);
+
+            $this->assertStringNotContainsString('class="doc-qr-image"', $html);
+            $this->assertStringContainsString(lang('Documents.error_qr_foreign_currency'), $html);
+        });
+    }
+
+    #[DataProvider('thermalReceiptProvider')]
+    public function testPostComplete_PrintsOnTheThermalReceiptTheCodeThatTheReprintOfTheSaleCarries(string $template): void
+    {
+        $this->registerReadyToComplete();
+
+        $this->withReceiptSettings(['receipt_template' => $template, 'company' => 'opes', 'tax_id' => '300000000000003'], function (): void {
+            $page = $this->post('/sales/complete', ['register_token' => $this->registerToken()]);
+            $body = $page->getBody();
+
+            $page->assertStatus(200);
+            $this->assertNotNull($this->qrImageOf($body), 'The receipt printed at the sale carries the picture of the code.');
+
+            $saleId  = (int) $this->accountingDb()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+            $reprint = $this->get('/sales/receipt/' . $saleId)->getBody();
+
+            $this->assertSame($this->qrTextOf($reprint), $this->qrTextOf($body));
         });
     }
 

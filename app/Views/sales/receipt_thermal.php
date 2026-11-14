@@ -15,11 +15,24 @@
  * @var string $barcode
  * @var array  $config
  */
+use App\Libraries\Documents\QrImage;
+
 $paper ??= 80;
 $logo                = documentLogoSource($config, 'screen');
 $showDiscountTotals  = $config['receipt_show_total_discount'] && $discount > 0;
 $onlyCheck           = false;
 $showGiftcardBalance = false;
+$isReturn            = ($sale_type ?? SALE_TYPE_POS) === SALE_TYPE_RETURN || ! empty($is_return);
+$qr                  = documentQr($isReturn ? 'credit_note' : 'tax_invoice', [
+    'total'            => $total,
+    'taxes'            => $taxes,
+    'header_charges'   => $header_charges ?? [],
+    'sale_time_raw'    => $sale_time_raw ?? '',
+    'invoice_date_raw' => $invoice_date_raw ?? null,
+    'sale_status'      => $sale_status ?? COMPLETED,
+    'sale_type'        => $sale_type ?? SALE_TYPE_POS,
+    'currency_code'    => $currency_code ?? '',
+], $config);
 
 foreach ($payments as $payment) {
     $onlyCheck           = $onlyCheck           || $payment['payment_type'] === lang('Sales.check');
@@ -110,6 +123,14 @@ foreach ($payments as $payment) {
 
     <?php if (! empty($config['return_policy'])): ?>
         <div class="rt-policy"><?= nl2br(esc($config['return_policy'])) ?></div>
+    <?php endif; ?>
+
+    <?php if ($qr->payload !== null): ?>
+        <div class="rt-qr">
+            <?= view('documents/qr', ['qr' => $qr, 'context' => 'screen', 'preferredMm' => (int) $paper === 58 ? QrImage::SIZE_THERMAL_58_MM : QrImage::SIZE_THERMAL_80_MM]) ?>
+        </div>
+    <?php elseif ($qr->refusal !== null): ?>
+        <div class="alert alert-warning print_hide doc-qr-notice" role="alert"><?= esc(lang('Documents.error_' . $qr->refusal->value)) ?></div>
     <?php endif; ?>
 
     <div class="rt-barcode">
