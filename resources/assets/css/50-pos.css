@@ -197,7 +197,7 @@
 }
 
 .cart-row-receiving {
-    grid-template-columns: minmax(0, 1fr) 88px 124px 108px 136px 84px 84px;
+    grid-template-columns: minmax(0, 1fr) 88px 124px 108px 136px 72px 84px 84px;
 }
 
 .giftcard-input:disabled {
