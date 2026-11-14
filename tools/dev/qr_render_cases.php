@@ -3,12 +3,13 @@
 /**
  * Renders the cases of the check that the printed code of a simplified tax invoice can be read by a scanner:
  * the picture as a PNG file, the A4 tax invoice and credit note through the real template and the real PDF
- * engine, and the block of the code alone on pages of the width of a thermal roll of 80 and of 58 millimetres,
- * and writes the manifest that tools/dev/qr_decode_check.py reads. The settings of the shop are given to the
- * template as the document layer gets them; the only read of the database is one setting of the template (the
- * second language of the documents), so any database that a run of PHPUnit has seeded will do and nothing is
- * written to it. A series of pictures of texts of every size that the symbols of level M hold, up to the
- * largest text a document can carry, is written beside them to check the encoder itself.
+ * engine (with the page of the screen as a file of HTML, to be looked at in a browser), and the block of the
+ * code alone on pages as wide as a thermal roll of 80 and of 58 millimetres. It writes the manifest that
+ * tools/dev/qr_decode_check.py reads. The settings of the shop are given to the template as the document
+ * layer gets them; the only read of the database is one setting of the template (the second language of the
+ * documents), so any database that a run of PHPUnit has seeded will do, and nothing is written to it. A series
+ * of pictures of texts of every size that a symbol of level M holds, up to the largest text a document can
+ * carry, is written beside them to check the encoder itself.
  *
  * Run from the root of the repository: MYSQL_DB_NAME=<seeded database> php tools/dev/qr_render_cases.php <output directory>
  */
@@ -110,6 +111,9 @@ foreach ($cases as $name => $case) {
 
     file_put_contents($directory . '/' . $name . '.png', $images->png($payload));
     file_put_contents($directory . '/' . $name . '-a4.pdf', $pdfs->render(view('documents/pdf', ['type' => $case['type'], 'sale' => $sale]), ['title' => $name]));
+
+    $screen = view('documents/document', ['type' => $case['type'], 'context' => 'screen', 'sale' => $sale]);
+    file_put_contents($directory . '/' . $name . '-screen.html', '<html><head><meta charset="utf-8"><style>' . $css . '</style></head><body>' . $screen . '</body></html>');
 
     $files = ['png' => $name . '.png', 'a4' => $name . '-a4.pdf'];
 
