@@ -11,6 +11,9 @@ require __DIR__ . '/boot.php';
 
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\OperationalReports\NetPositionReport;
+use App\Libraries\Accounting\ProfitAndLoss;
+use App\Libraries\Accounting\ProfitPeriodKind;
+use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Models\Sale;
 use Config\Database;
@@ -21,6 +24,7 @@ $today = date('Y-m-d');
 $scope = ReportScope::resolve(null, null);
 
 $work = [
+    'profit_loss' => static fn () => (new ProfitAndLoss())->build($scope, ReportPeriod::of(null, $today), ProfitPeriodKind::Monthly, null),
     'receivables_search' => static fn () => (new CustomerLedger())->customersWithBalance('', 'balance', 'desc', 25, 0),
     'net_position'       => static fn () => (new NetPositionReport())->build($scope, false, null, $today),
     'sales_search'       => static function () use ($today): void {

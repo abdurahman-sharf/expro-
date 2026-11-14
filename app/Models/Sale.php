@@ -3390,7 +3390,7 @@ class Sale extends Model
         $this->readWithoutLocksOnce();
         $this->db->query('CREATE TEMPORARY TABLE IF NOT EXISTS '
             . $this->db->prefixTable('sales_items_taxes_temp')
-            . ' (INDEX(sale_id), INDEX(item_id)) ENGINE=MEMORY AS (' . $sub_query . ')');
+            . ' (INDEX(sale_id), INDEX(item_id)) AS (' . $sub_query . ')');
     }
 
     /**
