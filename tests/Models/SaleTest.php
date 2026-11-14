@@ -631,6 +631,31 @@ class SaleTest extends CIUnitTestCase
         $this->assertFalse($this->temporaryTableExists('sales_items_temp'), 'Reading the time of a sale must leave no temporary table behind.');
     }
 
+    public function testSearch_ReadsTheListWithoutWaitingForASaleThatIsBeingSaved(): void
+    {
+        $db         = Database::connect();
+        $employeeId = $this->createEmployee();
+        $config     = (new Database())->tests;
+        $writer     = Database::connect($config, false);
+
+        $writer->transStart();
+        $writer->table('sales')->insert(['sale_time' => '2026-10-20 12:00:00', 'employee_id' => $employeeId, 'comment' => '', 'sale_status' => COMPLETED, 'sale_type' => SALE_TYPE_POS, 'branch_id' => 1]);
+        $writer->table('sales_payments')->insert(['sale_id' => $writer->insertID(), 'payment_type' => 'Cash', 'payment_amount' => '10', 'cash_refund' => '0', 'employee_id' => $employeeId, 'reference_code' => '']);
+
+        $db->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $filters = ['sale_type' => 'all', 'location_id' => 'all', 'start_date' => '2026-10-20', 'end_date' => '2026-10-20', 'only_cash' => false, 'only_due' => false, 'only_check' => false, 'selected_customer' => false, 'only_creditcard' => false, 'only_debit' => false, 'only_bank_transfer' => false, 'only_wallet' => false, 'only_invoices' => false, 'is_valid_receipt' => false];
+
+            $this->assertNotNull(model(Sale::class)->search('', $filters, 25, 0, 'sale_id', 'desc'));
+        } finally {
+            $writer->transRollback();
+            $writer->close();
+            $db->query('SET SESSION innodb_lock_wait_timeout = 50');
+            $this->dropReportTables();
+        }
+    }
+
     private function temporaryTableExists(string $table): bool
     {
         $db = Database::connect();
