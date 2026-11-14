@@ -283,6 +283,26 @@ $result = match ($method) {
 
         return model(Receiving::class)->save_value($lines, (int) $args[0], (int) $args[4], 'race', 'REF', 'Due', NEW_ENTRY, isset($args[5]) ? (int) $args[5] : null) > 0;
     })($args),
+    'moveUnits' => (static function (array $args): bool {
+        $line   = static fn (int $number, string $quantity, int $location): array => [
+            'item_id'            => (int) $args[0],
+            'line'               => $number,
+            'description'        => 'Race',
+            'serialnumber'       => '',
+            'quantity'           => $quantity,
+            'receiving_quantity' => 1,
+            'discount'           => 0,
+            'discount_type'      => 0,
+            'price'              => '0',
+            'item_location'      => $location,
+            'tax_percent'        => 0,
+        ];
+        $result = model(Receiving::class)->save_value([$line(0, (string) $args[1], (int) $args[2]), $line(1, '-' . $args[1], 1)], NEW_ENTRY, (int) $args[3], 'race', 'REF', 'Due', NEW_ENTRY);
+
+        file_put_contents((string) $args[4], $result > 0 ? 'done' : 'refused');
+
+        return $result > 0;
+    })($args),
     'backfillApprove' => (static function (array $args): bool {
         try {
             (new BackfillService())->approve((int) $args[0], (string) $args[1], (int) $args[2]);

@@ -35,6 +35,7 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\PurchaseCycle\PurchaseOrderReceipts;
 use App\Libraries\Roles\RecordScope;
+use App\Libraries\Stock\NegativeStockGuard;
 use App\Libraries\Stock\StockTracking;
 use App\Libraries\Stock\TrackingEntry;
 use App\Libraries\Stock\UnitLines;
@@ -1233,6 +1234,11 @@ class Receiving extends Model
                     $tracking->receive('receiving', (int) $receivingId, (int) $itemData['line'], (int) $itemData['item_id'], (int) $itemData['item_location'], sprintf('%.3F', $itemsReceived), TrackingEntry::ofLine($itemData));
                 } else {
                     $this->assertNoTrackingEntry($itemData);
+
+                    if ($type === ReceivingType::Requisition && $itemsReceived < 0 && $item->get_info($itemData['item_id'])->stock_type == HAS_STOCK) {
+                        (new NegativeStockGuard($this->db))->assertSale((int) $itemData['item_id'], (int) $itemData['item_location'], bcmul(self::unitsOf($itemData), '-1', 3));
+                    }
+
                     $itemQuantity->changeQuantity((int) $itemData['item_id'], (int) $itemData['item_location'], $itemsReceived);
                 }
 

@@ -553,7 +553,7 @@ return [
     'error_lookup_name_taken'                    => 'Another entry already has the name «{0}».',
     'error_lookup_not_found'                     => 'This entry does not exist.',
     'error_name_taken'                           => 'An account named {0} already exists under the same parent.',
-    'error_negative_stock_refused'               => 'There is not enough stock of {0}: the setting refuses a sale that would take the stock below nothing.',
+    'error_negative_stock_refused'               => 'There is not enough stock of {0}: the setting refuses a sale or a transfer that would take the stock below nothing.',
     'error_no_lines'                             => 'The journal has no lines.',
     'error_not_a_draft'                          => 'Only a draft can be changed, posted or deleted.',
     'error_not_posted'                           => 'Only a posted journal can be reversed.',

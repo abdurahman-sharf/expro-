@@ -345,4 +345,136 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::NegativeStockRefused, static fn () => (new NegativeStockGuard())->assertSale($itemId, self::LOCATION_ID, '5'));
         $this->assertSame('10.000', $this->onHand($itemId));
     }
+
+    private function moveUnits(int $itemId, string $units, int $to, int $from = self::LOCATION_ID): int
+    {
+        return $this->buy([$this->purchaseLine($itemId, 0, $units, '0', '0', '0', PERCENT, $to), $this->purchaseLine($itemId, 1, '-' . $units, '0', '0', '0', PERCENT, $from)], null, null);
+    }
+
+    public function testAssertSale_AllowsATransferBetweenLocationsBelowNothingByDefaultAsTheSystemAlwaysDid(): void
+    {
+        $itemId = $this->stocked('3', '5');
+        $second = $this->openLocation();
+
+        $this->assertGreaterThan(0, $this->moveUnits($itemId, '5', $second));
+        $this->assertSame(['-2.000', '5.000'], [$this->onHand($itemId), $this->onHand($itemId, $second)]);
+    }
+
+    public function testAssertSale_RefusesATransferOfMoreThanTheSourceLocationHoldsWhenTheOptionRefuses(): void
+    {
+        $itemId = $this->stocked('3', '5');
+        $second = $this->openLocation();
+        $moves  = $this->accountingDb()->table('receivings')->countAllResults();
+
+        $this->option(NegativeStockOption::Refuse);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->moveUnits($itemId, '4', $second));
+        $this->assertSame(AccountingError::NegativeStockRefused, $this->purchases->accountingFailure()?->error);
+        $this->assertSame(['3.000', '0.000'], [$this->onHand($itemId), $this->onHand($itemId, $second)]);
+        $this->assertSame($moves, $this->accountingDb()->table('receivings')->countAllResults(), 'The refused transfer left no document behind');
+        $this->assertSame(0, $this->accountingDb()->table('inventory')->where('trans_items', $itemId)->where('trans_location', $second)->countAllResults());
+        $this->assertStockTies();
+    }
+
+    public function testAssertSale_AllowsATransferOfExactlyWhatTheSourceLocationHolds(): void
+    {
+        $itemId = $this->stocked('3', '5');
+        $second = $this->openLocation();
+
+        $this->option(NegativeStockOption::Refuse);
+
+        $this->assertGreaterThan(0, $this->moveUnits($itemId, '3', $second));
+        $this->assertSame(['0.000', '3.000'], [$this->onHand($itemId), $this->onHand($itemId, $second)]);
+        $this->assertStockTies();
+    }
+
+    public function testAssertSale_RefusesATransferBetweenBranchesOfMoreThanTheSourceLocationHolds(): void
+    {
+        $itemId = $this->stocked('3', '5');
+        $branch = $this->createBranch('B3', 'Third branch');
+        $other  = $this->locationOfBranch($branch, 'Branch warehouse');
+
+        $this->workInEveryBranch();
+        $this->option(NegativeStockOption::Refuse);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->moveUnits($itemId, '4', $other));
+        $this->assertSame(AccountingError::NegativeStockRefused, $this->purchases->accountingFailure()?->error);
+        $this->assertSame(['3.000', '0.000'], [$this->onHand($itemId), $this->onHand($itemId, $other)]);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_transfer')->countAllResults());
+    }
+
+    public function testAssertSale_CountsWhatInvoicesNotYetDeliveredPromiseForATransferWhenTheOptionIsBelowAvailable(): void
+    {
+        $itemId = $this->stocked('10', '5');
+        $second = $this->openLocation();
+
+        $this->sellPieces($itemId, '8', false, SALE_TYPE_INVOICE);
+        $this->option(NegativeStockOption::RefuseAvailable);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->moveUnits($itemId, '3', $second));
+        $this->assertGreaterThan(0, $this->moveUnits($itemId, '2', $second));
+        $this->assertSame(['8.000', '2.000'], [$this->onHand($itemId), $this->onHand($itemId, $second)]);
+    }
+
+    public function testAssertSale_ChecksEachSourceLineOfATransferAfterTheOnesBeforeIt(): void
+    {
+        $itemId = $this->stocked('5', '5');
+        $second = $this->openLocation();
+
+        $this->option(NegativeStockOption::Refuse);
+
+        $moved = $this->buy([
+            $this->purchaseLine($itemId, 0, '6', '0', '0', '0', PERCENT, $second),
+            $this->purchaseLine($itemId, 1, '-3', '0', '0', '0', PERCENT, self::LOCATION_ID),
+            $this->purchaseLine($itemId, 2, '-3', '0', '0', '0', PERCENT, self::LOCATION_ID),
+        ], null, null);
+
+        $this->assertSame(ACCOUNTING_FAILED, $moved);
+        $this->assertSame(['5.000', '0.000'], [$this->onHand($itemId), $this->onHand($itemId, $second)]);
+    }
+
+    public function testAssertSale_LeavesAReturnToASupplierAloneWhenTheOptionRefuses(): void
+    {
+        $itemId = $this->item('0.00');
+        $bought = $this->buy([$this->purchaseLine($itemId, 0, '2', '5')]);
+
+        $this->assertGreaterThan(0, $this->sellPieces($itemId, '2'));
+        $this->option(NegativeStockOption::Refuse);
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '-2', '5')], -1, null, $bought));
+        $this->assertSame('-2.000', $this->onHand($itemId), 'A return to a supplier keeps the rules it has');
+    }
+
+    public function testAssertSale_MovesTheLastUnitOutOfALocationForOnlyOneOfTwoSessionsTransferringItWhenTheOptionRefuses(): void
+    {
+        $itemId = $this->stocked('1', '5');
+        $second = $this->openLocation();
+        $moves  = $this->accountingDb()->table('receivings')->countAllResults();
+
+        $this->option(NegativeStockOption::Refuse);
+
+        $answers = $this->raceStockWorkers('moveUnits', [(string) $itemId, '1', (string) $second, (string) $this->employeeId], [(string) $itemId, '1', (string) $second, (string) $this->employeeId]);
+
+        $this->assertSame(['done', 'refused'], $answers);
+        $this->assertSame(['0.000', '1.000'], [$this->onHand($itemId), $this->onHand($itemId, $second)]);
+        $this->assertSame($moves + 1, $this->accountingDb()->table('receivings')->countAllResults(), 'The refused transfer left no document behind');
+        $this->assertStockTies();
+
+        $this->accountingDb()->table('inventory')->like('trans_comment', 'RECV ', 'after')->delete();
+    }
+
+    public function testAssertSale_LetsTwoSessionsTransferTheLastUnitAndTakesTheSourceBelowNothingWhenTheOptionAllows(): void
+    {
+        $itemId = $this->stocked('1', '5');
+        $second = $this->openLocation();
+
+        $this->option(NegativeStockOption::Allow);
+
+        $answers = $this->raceStockWorkers('moveUnits', [(string) $itemId, '1', (string) $second, (string) $this->employeeId], [(string) $itemId, '1', (string) $second, (string) $this->employeeId]);
+
+        $this->assertSame(['done', 'done'], $answers);
+        $this->assertSame(['-1.000', '2.000'], [$this->onHand($itemId), $this->onHand($itemId, $second)]);
+
+        $this->accountingDb()->table('inventory')->like('trans_comment', 'RECV ', 'after')->delete();
+    }
 }
