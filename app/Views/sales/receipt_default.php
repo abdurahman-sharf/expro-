@@ -182,7 +182,7 @@
         <?php } ?>
         <tr>
             <td colspan="3" style="text-align: right;"> <?= lang($amount_change >= 0 ? ($only_sale_check ? 'Sales.check_balance' : 'Sales.change_due') : 'Sales.amount_due') ?> </td>
-            <td class="total-value"><?= to_currency($amount_change) ?></td>
+            <td class="total-value"><?= to_currency(abs($amount_change)) ?></td>
         </tr>
     </table>
 

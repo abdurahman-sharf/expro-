@@ -30,7 +30,7 @@ foreach ($payments as $payment) {
 
 $notes = array_filter([
     (string) ($config['payment_message'] ?? ''),
-    empty($sale['comments']) ? (string) ($config['invoice_default_comments'] ?? '') : lang('Sales.comments') . ': ' . $sale['comments'],
+    empty($sale['comments']) ? (string) ($config[$type === 'quote' ? 'quote_default_comments' : 'invoice_default_comments'] ?? '') : lang('Sales.comments') . ': ' . $sale['comments'],
     (string) ($config['return_policy'] ?? ''),
 ], static fn (string $note): bool => $note !== '');
 ?>
@@ -197,7 +197,7 @@ $notes = array_filter([
                         <?php if (! empty($payments)): ?>
                             <tr class="doc-balance">
                                 <td class="<?= $alignStart ?>"><?= lang($sale['amount_change'] >= 0 ? ($onlyCheck ? 'Sales.check_balance' : 'Sales.change_due') : 'Sales.amount_due') ?></td>
-                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($sale['amount_change'])) ?></td>
+                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency(abs($sale['amount_change']))) ?></td>
                             </tr>
                         <?php endif; ?>
                     </table>
