@@ -760,4 +760,34 @@ class HomeTest extends CIUnitTestCase
             $this->get('/home')->assertDontSee('id="branch_switcher"');
         });
     }
+    public function testPostSave_RejectsAPasswordEqualToTheUsername(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'accountant-one']);
+        $this->withSession(['person_id' => $personId]);
+
+        $result = json_decode($this->post('/home/save', [
+            'username'         => 'accountant-one',
+            'current_password' => 'password123',
+            'password'         => 'accountant-one',
+        ])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Employees.password_same_as_username'), $result['message']);
+        $this->assertTrue(password_verify('password123', model(Employee::class)->get_info($personId)->password));
+    }
+
+    public function testPostSave_RejectsThePasswordTheInstallerGives(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'installer-user']);
+        $this->withSession(['person_id' => $personId]);
+
+        $result = json_decode($this->post('/home/save', [
+            'username'         => 'installer-user',
+            'current_password' => 'password123',
+            'password'         => 'pointofsale',
+        ])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Employees.password_is_default'), $result['message']);
+    }
 }

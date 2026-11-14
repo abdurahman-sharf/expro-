@@ -846,4 +846,38 @@ class EmployeeTest extends CIUnitTestCase
         $this->assertTrue($model->mayChangeSecurityOf($target, $actor));
         $this->assertFalse($model->mayChangeSecurityOf($this->employeeWithRoles([$role]), $this->createEmployee(grants: $this->homeGrants(['employees']))));
     }
+    public function testLogin_SpendsAPasswordVerificationWhenTheUsernameDoesNotExist(): void
+    {
+        $model = $this->getMockBuilder(Employee::class)->onlyMethods(['spendAPasswordVerification'])->getMock();
+        $model->expects($this->once())->method('spendAPasswordVerification')->with('whatever-pass');
+
+        $this->assertFalse($model->login('nobody-has-this-name-' . uniqid(), 'whatever-pass'));
+    }
+
+    public function testLogin_SpendsAPasswordVerificationWhenTheEmployeeWasDeleted(): void
+    {
+        $username = 'deleted-' . uniqid();
+        $this->createEmployee(username: $username, employee: ['deleted' => 1]);
+        $model = $this->getMockBuilder(Employee::class)->onlyMethods(['spendAPasswordVerification'])->getMock();
+        $model->expects($this->once())->method('spendAPasswordVerification');
+
+        $this->assertFalse($model->login($username, 'password123'));
+    }
+
+    public function testLogin_SpendsNoExtraVerificationWhenTheUsernameExists(): void
+    {
+        $username = 'present-' . uniqid();
+        $this->createEmployee(username: $username);
+        $model = $this->getMockBuilder(Employee::class)->onlyMethods(['spendAPasswordVerification'])->getMock();
+        $model->expects($this->never())->method('spendAPasswordVerification');
+
+        $this->assertFalse($model->login($username, 'wrong-password'));
+        $this->assertTrue($model->login($username, 'password123'));
+    }
+
+    public function testSpendAPasswordVerification_UsesAHashOfTheCostOfTheHashesTheApplicationMakes(): void
+    {
+        $this->assertFalse(password_needs_rehash(Employee::UNKNOWN_USER_HASH, PASSWORD_DEFAULT));
+        $this->assertFalse(password_verify('anything', Employee::UNKNOWN_USER_HASH));
+    }
 }

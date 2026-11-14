@@ -13,6 +13,7 @@ use App\Libraries\Roles\RecordScope;
 use App\Libraries\Roles\RoleException;
 use App\Libraries\Roles\RoleService;
 use App\Libraries\Roles\RoleTables;
+use App\Libraries\Security\PasswordPolicy;
 use App\Models\Module;
 use App\Models\Stock_location;
 use CodeIgniter\HTTP\Exceptions\RedirectException;
@@ -169,6 +170,25 @@ class Employees extends Persons
             ]);
         }
 
+        $password = (string) $this->request->getPost('password');
+
+        if ($employeeId == NEW_ENTRY || $password !== '') {
+            $violation = PasswordPolicy::violation(
+                $password,
+                (string) $this->request->getPost('username'),
+                (string) $this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+                $employeeId == NEW_ENTRY ? '' : (string) $targetEmployee->username,
+            );
+
+            if ($violation !== null) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => lang($violation),
+                    'id'      => $employeeId
+                ]);
+            }
+        }
+
         $firstName = $this->request->getPost('first_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS);    // TODO: duplicated code
         $lastName = $this->request->getPost('last_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
         $email = strtolower($this->request->getPost('email', FILTER_SANITIZE_EMAIL));
@@ -289,16 +309,6 @@ class Employees extends Persons
                 'language_code' => $exploded[0],
                 'language'      => $exploded[1]
             ];
-
-            // In the testing environment the password above is never persisted
-            // (see the condition on the first branch), yet ospos_employees.password
-            // is NOT NULL. When creating a new employee, supply a placeholder hash
-            // so the insert succeeds and the grant-handling logic under test is
-            // not masked by a constraint failure. Production behavior is unchanged.
-            if (ENVIRONMENT === 'testing' && $employeeId == NEW_ENTRY) {
-                $employeeData['password']     = password_hash('test-placeholder', PASSWORD_DEFAULT);
-                $employeeData['hash_version'] = 2;
-            }
         }
 
         if ($this->employee->save_employee($personData, $employeeData, $grantsArray, $employeeId)) {

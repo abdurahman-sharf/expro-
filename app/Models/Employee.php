@@ -17,6 +17,8 @@ use stdClass;
  */
 class Employee extends Person
 {
+    public const UNKNOWN_USER_HASH = '$2y$10$ZFdSLBi1mAZ01oVRRa8nYecLSEvWXHuuSWdfrrcrP8ZzQAHD4nbzC';
+
     public Session $session;
     private ?RoleGrants $roleGrants = null;
     protected $table = 'Employees';
@@ -417,9 +419,16 @@ class Employee extends Person
 
                 return true;
             }
+        } else {
+            $this->spendAPasswordVerification($password);
         }
 
         return false;
+    }
+
+    protected function spendAPasswordVerification(string $password): void
+    {
+        password_verify($password, self::UNKNOWN_USER_HASH);
     }
 
     /**

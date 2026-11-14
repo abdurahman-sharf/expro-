@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Dashboard_lib;
 use App\Libraries\Organization\BranchContext;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Security\PasswordPolicy;
 use App\Models\Employee;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -125,13 +126,17 @@ class Home extends Secure_Controller
 
         if (!empty($this->request->getPost('current_password')) && $employeeId != NEW_ENTRY) {
             if ($this->employee->check_password($this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS), $this->request->getPost('current_password'))) {
-                // Validate password length BEFORE hashing
-                $new_password = $this->request->getPost('password');
+                $new_password = (string) $this->request->getPost('password');
+                $violation    = PasswordPolicy::violation(
+                    $new_password,
+                    (string) $this->request->getPost('username'),
+                    (string) $this->employee->get_info($employeeId)->username,
+                );
 
-                if (strlen($new_password) < 8) {
+                if ($violation !== null) {
                     return $this->response->setJSON([
                         'success' => false,
-                        'message' => lang('Employees.password_minlength'),
+                        'message' => lang($violation),
                         'id'      => NEW_ENTRY
                     ]);
                 }

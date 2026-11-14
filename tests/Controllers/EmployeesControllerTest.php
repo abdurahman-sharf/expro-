@@ -859,6 +859,7 @@ class EmployeesControllerTest extends CIUnitTestCase
         $this->loginAsAdmin();
 
         $result = json_decode($this->post('/employees/save/-1', $this->formFor('newsens' . uniqid(), [
+            'password'                 => 'password123',
             'grant_employees'          => 'employees',
             'grant_accounting_periods' => 'accounting_periods',
             'grant_acc_opening_manage' => AccountingGuard::OPENING_MANAGE,
@@ -1263,7 +1264,7 @@ class EmployeesControllerTest extends CIUnitTestCase
 
         $this->loginAsNonAdmin($manager);
 
-        $result = json_decode($this->post('/employees/save/-1', $this->formFor($username, ['grant_employees' => 'employees', 'roles_present' => '1', 'role_ids' => [(string) $role]]))->getJSON(), true);
+        $result = json_decode($this->post('/employees/save/-1', $this->formFor($username, ['password' => 'password123', 'grant_employees' => 'employees', 'roles_present' => '1', 'role_ids' => [(string) $role]]))->getJSON(), true);
 
         $this->assertFalse($result['success']);
         $this->assertSame(lang('Roles.error_cannot_grant', ['items']), $result['message']);
@@ -1297,8 +1298,8 @@ class EmployeesControllerTest extends CIUnitTestCase
 
         $before = $this->db->table('employees')->countAllResults();
 
-        $location = json_decode($this->post('/employees/save/-1', $this->formFor($locator, ['grant_employees' => 'employees', 'default_location_present' => '1', 'default_location_id' => '999999']))->getJSON(), true);
-        $scope    = json_decode($this->post('/employees/save/-1', $this->formFor($scoped, ['grant_employees' => 'employees', 'roles_present' => '1', 'role_ids' => [(string) $role], 'record_scope' => 'nobody']))->getJSON(), true);
+        $location = json_decode($this->post('/employees/save/-1', $this->formFor($locator, ['password' => 'password123', 'grant_employees' => 'employees', 'default_location_present' => '1', 'default_location_id' => '999999']))->getJSON(), true);
+        $scope    = json_decode($this->post('/employees/save/-1', $this->formFor($scoped, ['password' => 'password123', 'grant_employees' => 'employees', 'roles_present' => '1', 'role_ids' => [(string) $role], 'record_scope' => 'nobody']))->getJSON(), true);
 
         $this->assertFalse($location['success']);
         $this->assertSame(lang('Roles.error_location_not_found'), $location['message']);
@@ -1623,5 +1624,93 @@ class EmployeesControllerTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/id="password"[^>]*\sdisabled/', $response->getBody());
         $this->assertMatchesRegularExpression('/id="username"[^>]*\sreadonly/', $response->getBody());
         $this->assertMatchesRegularExpression('/id="grant_customers"[^>]*\sdisabled/', $response->getBody());
+    }
+    private function countOfEmployeesNamed(string $username): int
+    {
+        return $this->db->table('employees')->where('username', $username)->countAllResults();
+    }
+
+    public function testPostSave_RejectsAOneCharacterPasswordForANewEmployee(): void
+    {
+        $this->loginAsAdmin();
+        $username = 'shortpass' . uniqid();
+
+        $result = json_decode($this->post('/employees/save/-1', $this->formFor($username, ['password' => '1']))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Employees.password_minlength'), $result['message']);
+        $this->assertSame(0, $this->countOfEmployeesNamed($username));
+    }
+
+    public function testPostSave_RequiresAPasswordForANewEmployee(): void
+    {
+        $this->loginAsAdmin();
+        $username = 'nopass' . uniqid();
+
+        $result = json_decode($this->post('/employees/save/-1', $this->formFor($username))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Employees.password_required'), $result['message']);
+        $this->assertSame(0, $this->countOfEmployeesNamed($username));
+    }
+
+    public function testPostSave_RejectsAPasswordEqualToTheUsernameForANewEmployee(): void
+    {
+        $this->loginAsAdmin();
+        $username = 'samename' . uniqid();
+
+        $result = json_decode($this->post('/employees/save/-1', $this->formFor($username, ['password' => strtoupper($username)]))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Employees.password_same_as_username'), $result['message']);
+        $this->assertSame(0, $this->countOfEmployeesNamed($username));
+    }
+
+    public function testPostSave_AcceptsAPasswordOfEightCharactersForANewEmployee(): void
+    {
+        $this->loginAsAdmin();
+        $username = 'eightpass' . uniqid();
+
+        $result = json_decode($this->post('/employees/save/-1', $this->formFor($username, ['password' => '12345678']))->getJSON(), true);
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertTrue(password_verify('12345678', $this->storedPasswordHash((int) $result['id'])));
+    }
+
+    public function testPostSave_RejectsAShortPasswordWhenChangingAnEmployeeAndKeepsTheOldOne(): void
+    {
+        $target = $this->createNonAdminEmployee();
+        $before = $this->storedPasswordHash($target);
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), ['password' => 'abc']))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Employees.password_minlength'), $result['message']);
+        $this->assertSame($before, $this->storedPasswordHash($target));
+    }
+
+    public function testPostSave_RejectsAPasswordEqualToTheStoredUsernameWhenChangingAnEmployee(): void
+    {
+        $target   = $this->createNonAdminEmployee();
+        $username = $this->usernameOf($target);
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($username, ['password' => $username]))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Employees.password_same_as_username'), $result['message']);
+    }
+
+    public function testPostSave_KeepsThePasswordWhenTheFormSendsNoneForAnExistingEmployee(): void
+    {
+        $target = $this->createNonAdminEmployee();
+        $before = $this->storedPasswordHash($target);
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target)))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame($before, $this->storedPasswordHash($target));
     }
 }
