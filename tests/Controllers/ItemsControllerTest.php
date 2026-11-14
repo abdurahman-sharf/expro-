@@ -367,6 +367,13 @@ class ItemsControllerTest extends CIUnitTestCase
         } finally {
             $this->accountingDb()->table('items')->where('purchase_tax_1_percent IS NOT NULL', null, false)->update(['deleted' => 0]);
         }
+
+        $itemId = (int) $this->accountingDb()->table('items')->select('item_id')->where('purchase_tax_1_percent IS NOT NULL', null, false)->get()->getRow()->item_id;
+
+        $this->accountingDb()->table('items')->update(['purchase_tax_1_percent' => null, 'purchase_tax_2_percent' => null]);
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['purchase_tax_2_percent' => '3.000']);
+
+        $this->assertStringContainsString('"field":"purchase_taxes"', $this->get('/items')->getBody(), 'The second purchase tax is enough for the column');
     }
 
     public function testGetSearch_ShowsThePurchaseTaxesOfEachItemInItsRowSoThatTheTableAndItsExportCarryThem(): void

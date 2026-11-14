@@ -360,6 +360,19 @@ final class AccountPickerTest extends CIUnitTestCase
         $this->assertNull($this->picker->partyScreen(AccountPicker::CUSTOMER, null, 'http://x/search', '#box', AccountPicker::LEDGER));
     }
 
+    public function testPartyScreen_CountsOnlyTheCustomersOfTheLedgerAgainstTheThreshold(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $before = $this->picker->count(AccountPicker::CUSTOMER, AccountPicker::LEDGER, null);
+
+        $this->insertCustomer('Ledger', 'Unbooked One');
+        $this->insertCustomer('Ledger', 'Unbooked Two');
+        $this->setConfigValue('accounting_picker_threshold', (string) max(1, $before));
+
+        $this->assertGreaterThan($before, $this->picker->count(AccountPicker::CUSTOMER, AccountPicker::EVERY, null));
+        $this->assertNull($this->picker->partyScreen(AccountPicker::CUSTOMER, null, 'http://x/search', '#box', AccountPicker::LEDGER), 'Customers without an account are not what the filter lists');
+    }
+
     public function testPartyScreen_CountsTheCustomersOfTheLedgerAtTheThresholdAsAList(): void
     {
         $this->setConfigValue('accounting_enabled', '1');

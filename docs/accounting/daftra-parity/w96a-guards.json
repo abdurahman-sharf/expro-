@@ -50,7 +50,7 @@
     "replace": "if (! $this->settings->isEnabled() || ! $this->searching($kind, self::EVERY, null)) {",
     "tests": [
       "--filter",
-      "CountsTheCustomersOfTheLedgerAtTheThresholdAsAList",
+      "CountsOnlyTheCustomersOfTheLedgerAgainstTheThreshold|CountsTheCustomersOfTheLedgerAtTheThresholdAsAList",
       "tests/Libraries/Accounting/AccountPickerTest.php"
     ]
   },
