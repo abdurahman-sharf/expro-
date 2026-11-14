@@ -90,8 +90,8 @@
  {
   "name": "G09 edit: a quote that became an invoice is not updated by its id",
   "file": "app/Models/Sale.php",
-  "find": "(new QuoteLifecycle($this->db))->assertUnlocked((int) $saleId);",
-  "replace": "$saleId;",
+  "find": "WHERE sale_id = ? FOR UPDATE', [$saleId]);\n\n        try {\n            (new QuoteLifecycle($this->db))->assertUnlocked((int) $saleId);",
+  "replace": "WHERE sale_id = ? FOR UPDATE', [$saleId]);\n\n        try {\n            $saleId;",
   "tests": [
    "--filter",
    "testUpdate_",
@@ -101,8 +101,8 @@
  {
   "name": "G10 edit: the form of a converted quote answers with the named refusal",
   "file": "app/Models/Sale.php",
-  "find": "(new QuoteLifecycle($this->db))->assertUnlocked((int) $saleId);",
-  "replace": "$saleId;",
+  "find": "WHERE sale_id = ? FOR UPDATE', [$saleId]);\n\n        try {\n            (new QuoteLifecycle($this->db))->assertUnlocked((int) $saleId);",
+  "replace": "WHERE sale_id = ? FOR UPDATE', [$saleId]);\n\n        try {\n            $saleId;",
   "tests": [
    "--filter",
    "testPostSave_RefusesToEditAConvertedQuote",

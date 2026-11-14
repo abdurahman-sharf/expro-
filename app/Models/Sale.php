@@ -2542,7 +2542,7 @@ class Sale extends Model
         // The lock of the sale comes first, so two requests cancelling it never run side by side
         $locked      = $this->db->query('SELECT sale_status, delivered, sale_type, return_of_sale_id, return_document FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$saleId]);
         $sale        = $locked === false ? null : $locked->getRow();
-        $saleStatus = $sale === null ? null : (int) $sale->sale_status;
+        $saleStatus  = $sale === null ? null : (int) $sale->sale_status;
 
         try {
             (new QuoteLifecycle($this->db))->assertUnlocked((int) $saleId);
