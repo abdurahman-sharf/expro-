@@ -1153,6 +1153,17 @@ class ItemTest extends CIUnitTestCase
         $this->cleanStatusFixtures();
     }
 
+    private function transactionsOpenOnTheConnection(): string
+    {
+        $db = $this->accountingDb();
+
+        if ($db->query("SHOW VARIABLES LIKE 'in_transaction'")->getRow() !== null) {
+            return (string) $db->query('SELECT @@in_transaction AS open')->getRow()->open;
+        }
+
+        return (string) $db->query('SELECT COUNT(*) AS open FROM information_schema.INNODB_TRX WHERE trx_mysql_thread_id = CONNECTION_ID()')->getRow()->open;
+    }
+
     /**
      * Runs the action while another connection, standing for a request running at the same time, holds the
      * rows of the items for update, and gives the connections back.
@@ -1212,7 +1223,7 @@ class ItemTest extends CIUnitTestCase
         $this->whileAnotherRequestHoldsTheItems([$itemId], function () use ($model, $itemId): void {
             $this->assertFalse($model->delete($itemId));
             $this->assertSame(AccountingError::WriteFailed, $model->accountingFailure()->error);
-            $this->assertSame('0', (string) $this->accountingDb()->query('SELECT @@in_transaction AS open')->getRow()->open, 'the refused deletion leaves no transaction open');
+            $this->assertSame('0', $this->transactionsOpenOnTheConnection(), 'the refused deletion leaves no transaction open');
         });
 
         $this->assertSame('0', (string) $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow()->deleted);
@@ -1229,7 +1240,7 @@ class ItemTest extends CIUnitTestCase
         $this->whileAnotherRequestHoldsTheItems([$held], function () use ($model, $first, $held): void {
             $this->assertFalse($model->delete_list([$first, $held]));
             $this->assertSame(AccountingError::WriteFailed, $model->accountingFailure()->error);
-            $this->assertSame('0', (string) $this->accountingDb()->query('SELECT @@in_transaction AS open')->getRow()->open, 'the refused deletion leaves no transaction open');
+            $this->assertSame('0', $this->transactionsOpenOnTheConnection(), 'the refused deletion leaves no transaction open');
         });
 
         $this->assertSame(['0', '0'], [(string) $this->accountingDb()->table('items')->where('item_id', $first)->get()->getRow()->deleted, (string) $this->accountingDb()->table('items')->where('item_id', $held)->get()->getRow()->deleted]);
