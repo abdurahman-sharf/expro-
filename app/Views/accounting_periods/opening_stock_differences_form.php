@@ -1,10 +1,10 @@
 <?php
 /**
- * @var int $branch_id
- * @var int $location_id
- * @var string $location_name
+ * @var int                                                     $branch_id
+ * @var int                                                     $location_id
+ * @var string                                                  $location_name
  * @var list<array{name: string, units: string, value: string}> $differences
- * @var string $net
+ * @var string                                                  $net
  */
 ?>
 

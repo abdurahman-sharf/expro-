@@ -1,9 +1,9 @@
 <?php
 /**
- * @var object|null $account
+ * @var object|null  $account
  * @var list<object> $path
- * @var string $balance
- * @var bool $can_manage
+ * @var string       $balance
+ * @var bool         $can_manage
  */
 ?>
 <nav class="acc-breadcrumb" aria-label="<?= lang('Accounting_chart.path') ?>">

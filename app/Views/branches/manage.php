@@ -1,10 +1,9 @@
 <?php
 /**
  * @var string $table_headers
- * @var bool $can_create
- * @var array $config
+ * @var bool   $can_create
+ * @var array  $config
  */
-
 $messages = [
     'activate'   => lang('Branches.confirm_activate'),
     'deactivate' => lang('Branches.confirm_deactivate'),

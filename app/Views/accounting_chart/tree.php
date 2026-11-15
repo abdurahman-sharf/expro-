@@ -1,10 +1,9 @@
 <?php
 /**
  * @var array<int|string, list<object>> $nodes
- * @var array<int, true> $open
- * @var int|null $selected_id
+ * @var array<int, true>                $open
+ * @var int|null                        $selected_id
  */
-
 $renderNodes = static function (array $accounts) use (&$renderNodes, $nodes, $open, $selected_id): void {
     foreach ($accounts as $account) {
         $id       = (int) $account->account_id;

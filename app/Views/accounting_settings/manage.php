@@ -1,41 +1,40 @@
 <?php
 /**
- * @var bool $enabled
- * @var list<string> $issues
- * @var list<string> $notices
- * @var string|null $routing_url
- * @var string $currency
- * @var string $start_date
- * @var bool $auto_year
- * @var bool $lineDescriptionRequired
- * @var bool $expense_account_required
- * @var bool $revenue_account_required
- * @var bool $customer_opening
- * @var bool $backfill_enabled
- * @var bool $sales_adjustment
- * @var bool $sales_shipping
- * @var string $shipping_tax_percent
- * @var bool $debit_note
- * @var int $picker_threshold
- * @var string $journal_description_sales
- * @var string $journal_description_purchases
- * @var list<string> $template_placeholders
- * @var int $template_max
- * @var array{allow_over_100: bool, cost_center_required: bool, automatic_default: bool, line_tags: bool, line_tax: bool} $journalSettings
- * @var bool $shippingEnabled
- * @var list<object> $shippingCompanies
- * @var array<int, string> $shippingAccounts
+ * @var bool                                                                                                                                                                                                              $enabled
+ * @var list<string>                                                                                                                                                                                                      $issues
+ * @var list<string>                                                                                                                                                                                                      $notices
+ * @var string|null                                                                                                                                                                                                       $routing_url
+ * @var string                                                                                                                                                                                                            $currency
+ * @var string                                                                                                                                                                                                            $start_date
+ * @var bool                                                                                                                                                                                                              $auto_year
+ * @var bool                                                                                                                                                                                                              $lineDescriptionRequired
+ * @var bool                                                                                                                                                                                                              $expense_account_required
+ * @var bool                                                                                                                                                                                                              $revenue_account_required
+ * @var bool                                                                                                                                                                                                              $customer_opening
+ * @var bool                                                                                                                                                                                                              $backfill_enabled
+ * @var bool                                                                                                                                                                                                              $sales_adjustment
+ * @var bool                                                                                                                                                                                                              $sales_shipping
+ * @var string                                                                                                                                                                                                            $shipping_tax_percent
+ * @var bool                                                                                                                                                                                                              $debit_note
+ * @var int                                                                                                                                                                                                               $picker_threshold
+ * @var string                                                                                                                                                                                                            $journal_description_sales
+ * @var string                                                                                                                                                                                                            $journal_description_purchases
+ * @var list<string>                                                                                                                                                                                                      $template_placeholders
+ * @var int                                                                                                                                                                                                               $template_max
+ * @var array{allow_over_100: bool, cost_center_required: bool, automatic_default: bool, line_tags: bool, line_tax: bool}                                                                                                 $journalSettings
+ * @var bool                                                                                                                                                                                                              $shippingEnabled
+ * @var list<object>                                                                                                                                                                                                      $shippingCompanies
+ * @var array<int, string>                                                                                                                                                                                                $shippingAccounts
  * @var array{price_lists: bool, default_list: ?int, change_list: bool, minimum_price: bool, max_discount_enabled: bool, max_discount: ?string, exempt_categories: list<string>, credit_limit: bool, credit_period: bool} $controls
- * @var array<int, string> $controlLists
- * @var list<string> $controlCategories
- * @var bool $locked
- * @var int $next_number
- * @var bool $can_manage
- * @var array{name: string, start_date: string, end_date: string}|null $first_year
- * @var bool $can_first_year
- * @var list<array{name: string, username: string, permissions: list<string>, all_branches: bool, branches: list<string>}> $holders
+ * @var array<int, string>                                                                                                                                                                                                $controlLists
+ * @var list<string>                                                                                                                                                                                                      $controlCategories
+ * @var bool                                                                                                                                                                                                              $locked
+ * @var int                                                                                                                                                                                                               $next_number
+ * @var bool                                                                                                                                                                                                              $can_manage
+ * @var array{name: string, start_date: string, end_date: string}|null                                                                                                                                                    $first_year
+ * @var bool                                                                                                                                                                                                              $can_first_year
+ * @var list<array{name: string, username: string, permissions: list<string>, all_branches: bool, branches: list<string>}>                                                                                                $holders
  */
-
 $messages = [
     'enable'  => lang('Accounting_settings.confirm_enable'),
     'disable' => lang('Accounting_settings.confirm_disable'),
@@ -413,7 +412,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                     'credit_limit'         => ['credit_limit', $controls['credit_limit']],
                     'credit_period'        => ['credit_period', $controls['credit_period']],
                 ];
-                ?>
+?>
                 <?php foreach ($switches as $name => [$key, $on]): ?>
                     <div class="field span-all">
                         <div class="form-check form-switch">

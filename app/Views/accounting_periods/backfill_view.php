@@ -1,25 +1,25 @@
 <?php
 /**
- * @var BackfillBatch                                                                 $batch
- * @var array{documents: int, ready: int, refused: int, journals: int, debit: string} $figures
- * @var list<array{reason: string, kind: string, documents: int, net: string, gross: string}> $classes
+ * @var BackfillBatch                                                                                   $batch
+ * @var array{documents: int, ready: int, refused: int, journals: int, debit: string}                   $figures
+ * @var list<array{reason: string, kind: string, documents: int, net: string, gross: string}>           $classes
  * @var array{documents: int, from: string, to: string, first: string, last: string, missing: int}|null $outsideYears
- * @var bool                                                                          $canCreateYears
- * @var array{total: int, rows: list<object>}                                         $items
- * @var array{total: int, rows: list<object>}                                         $journals
- * @var array<int, list<object>>                                                      $lines
- * @var list<object>                                                                  $totals
- * @var string|null                                                                   $outcome
- * @var int                                                                           $documentsPage
- * @var int                                                                           $journalsPage
- * @var int                                                                           $pageSize
- * @var array<string, int|string>                                                     $pageQuery
- * @var list<string>                                                                  $blockers
- * @var string|null                                                                   $notice
- * @var Closure                                                                       $date
- * @var Closure                                                                       $amount
- * @var string                                                                        $statusText
- * @var Closure                                                                       $viewUrl
+ * @var bool                                                                                            $canCreateYears
+ * @var array{total: int, rows: list<object>}                                                           $items
+ * @var array{total: int, rows: list<object>}                                                           $journals
+ * @var array<int, list<object>>                                                                        $lines
+ * @var list<object>                                                                                    $totals
+ * @var string|null                                                                                     $outcome
+ * @var int                                                                                             $documentsPage
+ * @var int                                                                                             $journalsPage
+ * @var int                                                                                             $pageSize
+ * @var array<string, int|string>                                                                       $pageQuery
+ * @var list<string>                                                                                    $blockers
+ * @var string|null                                                                                     $notice
+ * @var Closure                                                                                         $date
+ * @var Closure                                                                                         $amount
+ * @var string                                                                                          $statusText
+ * @var Closure                                                                                         $viewUrl
  */
 
 use App\Libraries\Accounting\Backfill\BackfillBatch;
@@ -31,7 +31,7 @@ $collecting = $batch->status === BackfillStatus::Collecting;
 $approvable = in_array($batch->status, [BackfillStatus::Preview, BackfillStatus::Verifying, BackfillStatus::Approving], true) && $batch->fingerprint !== null && $batch->readyCount > 0;
 $cancelable = in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview, BackfillStatus::Verifying, BackfillStatus::Approving], true);
 $reasonText = static fn (string $reason): string => BackfillRefusalText::reason($reason);
-$pager = static function (int $total, int $page, int $size, string $param, Closure $url, array $query): string {
+$pager      = static function (int $total, int $page, int $size, string $param, Closure $url, array $query): string {
     $pages = max(1, (int) ceil($total / $size));
 
     if ($pages === 1) {

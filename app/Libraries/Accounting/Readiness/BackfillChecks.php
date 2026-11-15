@@ -103,8 +103,8 @@ final class BackfillChecks extends CheckGroup
 
             if ($count > 0) {
                 $documents += $count;
-                $day        = $adapter->latest($scope);
-                $latest     = $latest === null || ($day !== null && $day > $latest) ? $day : $latest;
+                $day    = $adapter->latest($scope);
+                $latest = $latest === null || ($day !== null && $day > $latest) ? $day : $latest;
             }
         }
 
@@ -186,7 +186,7 @@ final class BackfillChecks extends CheckGroup
         $result = [];
 
         foreach ($net as $period => $parties) {
-            $parties = array_filter($parties, static fn (string $amount): bool => bccomp($amount, '0', 4) !== 0);
+            $parties  = array_filter($parties, static fn (string $amount): bool => bccomp($amount, '0', 4) !== 0);
             $positive = '0.0000';
             $negative = '0.0000';
 

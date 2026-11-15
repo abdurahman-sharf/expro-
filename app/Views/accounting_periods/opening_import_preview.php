@@ -1,18 +1,18 @@
 <?php
 /**
- * @var OpeningImportKind                                        $kind
- * @var string                                                   $token
- * @var OpeningImportPlan                                        $plan
- * @var array{positive: string, negative: string, net: string}   $totals
- * @var array{rows: int, pending: int, posted: int, error: int}  $counts
- * @var list<OpeningImportRow>                                   $rows
- * @var array<int, string>                                       $accounts
- * @var string|null                                              $state
- * @var int                                                      $page
- * @var int                                                      $pages
- * @var Closure                                                  $urlOf
- * @var Closure                                                  $amountOf
- * @var string|null                                              $notice
+ * @var OpeningImportKind                                       $kind
+ * @var string                                                  $token
+ * @var OpeningImportPlan                                       $plan
+ * @var array{positive: string, negative: string, net: string}  $totals
+ * @var array{rows: int, pending: int, posted: int, error: int} $counts
+ * @var list<OpeningImportRow>                                  $rows
+ * @var array<int, string>                                      $accounts
+ * @var string|null                                             $state
+ * @var int                                                     $page
+ * @var int                                                     $pages
+ * @var Closure                                                 $urlOf
+ * @var Closure                                                 $amountOf
+ * @var string|null                                             $notice
  */
 
 use App\Libraries\Accounting\OpeningImport\OpeningImportError;

@@ -1,10 +1,10 @@
 <?php
 /**
- * @var array<string|int, string> $scopes
- * @var string $scope
- * @var string $previous
- * @var string $suggested
- * @var string $max_date
+ * @var array<int|string, string> $scopes
+ * @var string                    $scope
+ * @var string                    $previous
+ * @var string                    $suggested
+ * @var string                    $max_date
  */
 ?>
 
@@ -49,8 +49,8 @@
     $(document).ready(function() {
         const text = <?= json_encode([
             'journals' => lang('Accounting_periods.preview_journals'),
-            'drafts' => lang('Accounting_periods.preview_drafts'),
-            'none' => lang('Accounting_periods.preview_none'),
+            'drafts'   => lang('Accounting_periods.preview_drafts'),
+            'none'     => lang('Accounting_periods.preview_none'),
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
         const $box = $('#preview_box');

@@ -1,14 +1,13 @@
 <?php
 /**
- * @var object|null $account
- * @var list<object> $groups
- * @var int $parent_id
- * @var string $suggested_code
- * @var bool $used
- * @var bool $contra
+ * @var object|null           $account
+ * @var list<object>          $groups
+ * @var int                   $parent_id
+ * @var string                $suggested_code
+ * @var bool                  $used
+ * @var bool                  $contra
  * @var array<string, string> $natural
  */
-
 $isNew      = $account === null;
 $isSystem   = ! $isNew && (int) $account->is_system === 1;
 $codeLocked = ! $isNew && ($isSystem || $used);

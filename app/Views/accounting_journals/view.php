@@ -4,28 +4,27 @@ use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\Money;
 
 /**
- * @var object $journal
- * @var list<array{time: string, action: string, employee: string, details: string}> $audit
- * @var string $currency
- * @var bool $can_draft
- * @var bool $can_post
- * @var bool $can_reverse
- * @var bool $canEditDetails
+ * @var object                                                                                $journal
+ * @var list<array{time: string, action: string, employee: string, details: string}>          $audit
+ * @var string                                                                                $currency
+ * @var bool                                                                                  $can_draft
+ * @var bool                                                                                  $can_post
+ * @var bool                                                                                  $can_reverse
+ * @var bool                                                                                  $canEditDetails
  * @var list<array{id: int, name: string, size: string, by: string, at: string, url: string}> $attachments
- * @var bool $canAttach
- * @var string|null $notice
- * @var string $status_badge
- * @var string $source_label
- * @var string $number_label
- * @var bool $show_branch
+ * @var bool                                                                                  $canAttach
+ * @var string|null                                                                           $notice
+ * @var string                                                                                $status_badge
+ * @var string                                                                                $source_label
+ * @var string                                                                                $number_label
+ * @var bool                                                                                  $show_branch
  */
-
-$isDraft  = $journal->status === 'draft';
-$isPosted = $journal->status === 'posted';
-$format   = static fn (?string $value): string => to_currency_no_money($value ?? '0');
-$date     = static fn (?string $value): string => $value === null || strtotime($value) === false ? '' : to_date(strtotime($value));
-$dateTime = static fn (?string $value): string => $value === null || strtotime($value) === false ? '' : to_datetime(strtotime($value));
-$jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+$isDraft    = $journal->status === 'draft';
+$isPosted   = $journal->status === 'posted';
+$format     = static fn (?string $value): string => to_currency_no_money($value ?? '0');
+$date       = static fn (?string $value): string => $value === null || strtotime($value) === false ? '' : to_date(strtotime($value));
+$dateTime   = static fn (?string $value): string => $value === null || strtotime($value) === false ? '' : to_datetime(strtotime($value));
+$jsonFlags  = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 $hasForeign = array_filter($journal->lines, static fn (object $line): bool => ($line->foreign_amount ?? null) !== null) !== [];
 $currencies = new Currencies();
 ?>
@@ -37,7 +36,7 @@ $currencies = new Currencies();
     $(document).ready(function() {
         const confirmations = <?= json_encode([
             'delete' => lang('Accounting_journals.confirm_delete_draft'),
-            'post' => lang('Accounting_journals.confirm_post'),
+            'post'   => lang('Accounting_journals.confirm_post'),
         ], $jsonFlags) ?>;
 
         $('#post_draft').on('click', function() {

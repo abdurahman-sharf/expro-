@@ -1,17 +1,16 @@
 <?php
 /**
- * @var string $table_headers
- * @var string|null $company_cutoff
- * @var bool $has_company
+ * @var string                                                                                    $table_headers
+ * @var string|null                                                                               $company_cutoff
+ * @var bool                                                                                      $has_company
  * @var list<array{branch_id: int, code: string, name: string, cutoff: ?string, has_close: bool}> $branches
- * @var bool $show_branches
- * @var bool $can_close
- * @var bool $can_reopen
- * @var bool $is_unrestricted
- * @var string|null $notice
- * @var array $config
+ * @var bool                                                                                      $show_branches
+ * @var bool                                                                                      $can_close
+ * @var bool                                                                                      $can_reopen
+ * @var bool                                                                                      $is_unrestricted
+ * @var string|null                                                                               $notice
+ * @var array                                                                                     $config
  */
-
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 $closeUrl  = static fn (string $scope): string => esc('accounting_periods/closings/close_form?scope=' . $scope, 'attr');
 $reopenUrl = static fn (string $scope): string => esc('accounting_periods/closings/reopen_form?scope=' . $scope, 'attr');

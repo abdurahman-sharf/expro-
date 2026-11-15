@@ -1,11 +1,10 @@
 <?php
 /**
- * @var string $controller_name
- * @var string $table_headers
- * @var array $config
+ * @var string                                   $controller_name
+ * @var string                                   $table_headers
+ * @var array                                    $config
  * @var array<string, array<int|string, string>> $filterOptions
  */
-
 $filterNames = ['classification_id', 'manual_status', 'assigned_employee_id', 'area', 'city', 'country_code', 'customer_type', 'created_from', 'created_to'];
 ?>
 
@@ -57,10 +56,10 @@ $filterNames = ['classification_id', 'manual_status', 'assigned_employee_id', 'a
 </script>
 
 <div id="title_bar" class="btn-toolbar">
-    <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= "$controller_name/csvImport" ?>" title="<?= lang('Customers.import_items_csv') ?>">
+    <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= "{$controller_name}/csvImport" ?>" title="<?= lang('Customers.import_items_csv') ?>">
         <span class="bi bi-box-arrow-in-down" aria-hidden="true">&nbsp;</span><?= lang('Common.import_csv') ?>
     </button>
-    <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= "$controller_name/view" ?>" title="<?= lang('Customers.new') ?>">
+    <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= "{$controller_name}/view" ?>" title="<?= lang('Customers.new') ?>">
         <span class="bi bi-person" aria-hidden="true">&nbsp;</span><?= lang('Customers.new') ?>
     </button>
     <a class="btn btn-outline-secondary btn-sm float-end" href="<?= esc(site_url('customer_classifications'), 'attr') ?>">
