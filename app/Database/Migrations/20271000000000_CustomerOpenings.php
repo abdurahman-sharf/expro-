@@ -103,7 +103,7 @@ class CustomerOpenings extends Migration
         }
 
         if (! $this->columnIsRequired('customer_credit_applications', 'invoice_sale_id')) {
-            $this->db->query("ALTER TABLE `{$applications}` MODIFY COLUMN `invoice_sale_id` INT(10) NOT NULL");
+            $this->requireInvoice($applications);
         }
 
         $this->db->query('DROP TABLE IF EXISTS `' . $this->db->prefixTable('customer_openings') . '`');
@@ -115,6 +115,19 @@ class CustomerOpenings extends Migration
             'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
             [$this->db->prefixTable($table), $column],
         )->getRow() !== null;
+    }
+
+    private function requireInvoice(string $applications): void
+    {
+        $mode = $this->db->query('SELECT @@SESSION.sql_mode AS mode')->getRow()->mode;
+
+        $this->db->query("SET SESSION sql_mode = CONCAT_WS(',', @@SESSION.sql_mode, 'STRICT_ALL_TABLES')");
+
+        try {
+            $this->db->query("ALTER TABLE `{$applications}` MODIFY COLUMN `invoice_sale_id` INT(10) NOT NULL");
+        } finally {
+            $this->db->query('SET SESSION sql_mode = ?', [$mode]);
+        }
     }
 
     private function columnIsRequired(string $table, string $column): bool

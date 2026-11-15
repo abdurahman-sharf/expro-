@@ -43,13 +43,13 @@ class AccountingPeriods extends Migration
     {
         $this->db->query('SET FOREIGN_KEY_CHECKS = 0');
 
-        $this->dropIndex('accounting_closed_periods', 'accounting_closed_periods_scope');
+        $this->dropIndexKeepingCompanyCovered('accounting_closed_periods', 'accounting_closed_periods_scope', 'accounting_closed_periods_company');
 
         foreach (['reopened_by', 'reopened_at', 'reopen_reason'] as $column) {
             $this->dropColumn('accounting_closed_periods', $column);
         }
 
-        $this->dropIndex('accounting_fiscal_years', 'accounting_fiscal_years_company_start');
+        $this->dropIndexKeepingCompanyCovered('accounting_fiscal_years', 'accounting_fiscal_years_company_start', 'accounting_fiscal_years_company');
         $this->dropColumn('accounting_fiscal_years', 'description');
 
         foreach (['accounting_opening_drafts', 'accounting_period_locks'] as $table) {
@@ -204,11 +204,22 @@ class AccountingPeriods extends Migration
         )->getRow()->found > 0;
     }
 
-    private function dropIndex(string $table, string $index): void
+    private function dropIndexKeepingCompanyCovered(string $table, string $index, string $replacement): void
     {
-        if ($this->hasIndex($table, $index)) {
-            $this->db->query('ALTER TABLE `' . $this->db->prefixTable($table) . '` DROP INDEX `' . $this->db->prefixTable($index) . '`');
+        if (! $this->hasIndex($table, $index)) {
+            return;
         }
+
+        $prefixed = $this->db->prefixTable($table);
+        $drop     = 'DROP INDEX `' . $this->db->prefixTable($index) . '`';
+
+        if ($this->hasIndex($table, $replacement)) {
+            $this->db->query("ALTER TABLE `{$prefixed}` {$drop}");
+
+            return;
+        }
+
+        $this->db->query("ALTER TABLE `{$prefixed}` ADD INDEX `" . $this->db->prefixTable($replacement) . "` (`company_id`), {$drop}");
     }
 
     private function dropColumn(string $table, string $column): void

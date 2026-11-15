@@ -51,6 +51,20 @@ class CustomerOpeningsMigrationTest extends CIUnitTestCase
         $migration->down();
     }
 
+    private function makeInvoiceRequired(string $applications): void
+    {
+        $db   = $this->accountingDb();
+        $mode = $db->query('SELECT @@SESSION.sql_mode AS mode')->getRow()->mode;
+
+        $db->query("SET SESSION sql_mode = CONCAT_WS(',', @@SESSION.sql_mode, 'STRICT_ALL_TABLES')");
+
+        try {
+            $db->query("ALTER TABLE `{$applications}` MODIFY COLUMN `invoice_sale_id` INT(10) NOT NULL");
+        } finally {
+            $db->query('SET SESSION sql_mode = ?', [$mode]);
+        }
+    }
+
     private function hasTable(): bool
     {
         return $this->accountingDb()->query(
@@ -167,7 +181,7 @@ class CustomerOpeningsMigrationTest extends CIUnitTestCase
         $this->assertTrue($this->hasConstraint('customer_credit_applications', 'customer_credit_applications_fk_opening', 'FOREIGN KEY'));
         $this->assertTrue($this->hasConstraint('customer_credit_applications', 'customer_credit_applications_target', 'CHECK'));
 
-        $this->accountingDb()->query("ALTER TABLE `{$applications}` MODIFY COLUMN `invoice_sale_id` INT(10) NOT NULL");
+        $this->makeInvoiceRequired($applications);
 
         (new CustomerOpenings())->up();
 

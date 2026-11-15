@@ -138,7 +138,14 @@ final class ReadCommittedStatementTest extends CIUnitTestCase
 
     private function deadlocksSoFar(): int
     {
-        return (int) Database::connect()->query("SHOW GLOBAL STATUS LIKE 'Innodb_deadlocks'")->getRow()->Value;
+        $db     = Database::connect();
+        $status = $db->query("SHOW GLOBAL STATUS LIKE 'Innodb_deadlocks'")->getRow();
+
+        if ($status !== null) {
+            return (int) $status->Value;
+        }
+
+        return (int) $db->query("SELECT `COUNT` AS deadlocks FROM information_schema.INNODB_METRICS WHERE `NAME` = 'lock_deadlocks'")->getRow()->deadlocks;
     }
 
     /**
