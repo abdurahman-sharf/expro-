@@ -32,9 +32,11 @@ vendor/bin/phpunit --no-coverage --log-junit test-results/junit.xml
 
 تحتاج قاعدة `ospos_test` ومستخدمًا (`admin` / `pointofsale`) بصلاحيات كاملة عليها.
 
+**خادم على منفذ آخر (مثلًا MySQL 8 بجانب MariaDB):** أضف `MYSQL_PORT=<المنفذ>` و`MYSQL_HOST_NAME=127.0.0.1` (لا `localhost`، فهو يستعمل المقبس ويتجاهل المنفذ). المتغير يصل إلى مُنشِئ القاعدة وإلى عمليات التنافس التي يشغّلها الاختبار. على الخادم نفسه: منطقة زمنية عامة `America/New_York` (تحتاج جداول المناطق: `mysql_tzinfo_to_sql`)، و`sql_mode` الافتراضي للخادم (تُظهر `ONLY_FULL_GROUP_BY` عيوبًا لا تظهر على MariaDB). ولا تشغّل عمليتين على القاعدة نفسها: كل صنف اختبار يُسقط القاعدة ويعيد إنشاءها. للتوازي أعطِ كل عملية قاعدة باسمها (`MYSQL_DB_NAME`).
+
 ## مطبات
 
 - عميل `mysql` يستعمل ترميز `latin1` افتراضيًا، فتُخزَّن الأسماء العربية مضاعفة الترميز. استعمل دائمًا `--default-character-set=utf8mb4`.
 - الصنف الذي يُدخَل بـSQL بلا سجل في `ospos_inventory` لا يظهر في قائمة الأصناف.
 - `pkill -f` بنمط `php -S` قد يقتل صدفة الأمر نفسها. استعمل نمطًا مثبتًا على بداية الأمر: `pkill -f "^php -S"`.
-- الاختبارات الأربعة المتخطاة في `security_helperTest` تعتمد على صلاحيات الملفات، وتُتخطى عند التشغيل كـroot.
+- الاختبارات الأربعة المتخطاة في `security_helperTest` تعتمد على صلاحيات الملفات، وتُتخطى حين تتجاوز العملية بتات الصلاحيات (root بـ`CAP_DAC_OVERRIDE`). لتشغيلها كـroot: `setpriv --bounding-set=-dac_override,-dac_read_search,-fowner vendor/bin/phpunit --no-coverage tests/helpers/security_helperTest.php`.
