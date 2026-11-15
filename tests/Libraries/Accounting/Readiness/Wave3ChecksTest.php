@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting\Readiness;
 
+use App\Database\Migrations\RefundInvoice;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\Readiness\CheckResult;
 use App\Libraries\Accounting\Readiness\CheckStatus;
@@ -80,8 +81,8 @@ final class Wave3ChecksTest extends CIUnitTestCase
             $db->query('RENAME TABLE ospos_supplier_advances_hold TO ospos_supplier_advances');
         }
 
-        if (! $db->query('SHOW COLUMNS FROM ospos_sales LIKE ?', ['return_document'])->getNumRows() && $db->query('SHOW COLUMNS FROM ospos_sales LIKE ?', ['return_document_hold'])->getNumRows()) {
-            $db->query('ALTER TABLE ospos_sales RENAME COLUMN return_document_hold TO return_document');
+        if (! $db->query('SHOW COLUMNS FROM ospos_sales LIKE ?', ['return_document'])->getNumRows()) {
+            (new RefundInvoice())->up();
         }
 
         date_default_timezone_set($this->processZone);
@@ -204,7 +205,7 @@ final class Wave3ChecksTest extends CIUnitTestCase
 
     public function testReturnDocument_IsSkippedBeforeTheMigrationOfTheRefundInvoice(): void
     {
-        $this->accountingDb()->query('ALTER TABLE ospos_sales RENAME COLUMN return_document TO return_document_hold');
+        (new RefundInvoice())->down();
 
         $result = $this->check('return_document');
 
