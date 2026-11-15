@@ -2,8 +2,9 @@
 
 namespace Config;
 
-use App\Filters\PortalGuard;
 use App\Filters\ApiAuth;
+use App\Filters\IsLoggedIn;
+use App\Filters\PortalGuard;
 use App\Filters\ReportExport;
 use App\Filters\Throttle;
 use App\Filters\TransportHeaders;
@@ -17,7 +18,6 @@ use CodeIgniter\Filters\InvalidChars;
 use CodeIgniter\Filters\PageCache;
 use CodeIgniter\Filters\PerformanceMetrics;
 use CodeIgniter\Filters\SecureHeaders;
-use App\Filters\IsLoggedIn;
 
 class Filters extends BaseFilters
 {
@@ -142,7 +142,7 @@ class Filters extends BaseFilters
         // Remove CSRF filter from globals in testing environment
         if ($isTesting) {
             // Remove the 'csrf' key from $globals['before'] while preserving array structure
-            $this->globals['before'] = array_filter($this->globals['before'], static fn($key) => $key !== 'csrf', ARRAY_FILTER_USE_KEY);
+            $this->globals['before'] = array_filter($this->globals['before'], static fn ($key) => $key !== 'csrf', ARRAY_FILTER_USE_KEY);
         }
     }
 }

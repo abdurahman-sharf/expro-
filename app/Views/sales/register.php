@@ -1,80 +1,82 @@
 <?php
 /**
- * @var string    $controller_name
- * @var array     $modes
- * @var array     $mode
- * @var array     $empty_tables
- * @var array     $selected_table
- * @var array     $stock_locations
- * @var array     $stock_location
- * @var array     $cart
- * @var bool      $items_module_allowed
- * @var bool      $change_price
- * @var int       $customer_id
- * @var int       $customer_discount_type
- * @var float     $customer_discount
- * @var float     $customer_total
- * @var string    $customer_required
- * @var float|int $item_count
- * @var float|int $total_units
- * @var float     $subtotal
- * @var string    $invoice_discount
- * @var array|null $invoice_discount_entry
- * @var bool      $can_invoice_discount
- * @var array     $header_charges
- * @var bool      $can_adjustment
- * @var bool      $can_shipping
- * @var list<object> $shipping_companies
- * @var string    $shipping_tax_percent
- * @var bool      $shipping_taxed
- * @var \App\Libraries\HeaderCharges $header_charges_entry
- * @var array     $taxes
- * @var float     $total
- * @var float     $payments_total
- * @var float     $amount_due
- * @var bool      $payments_cover_total
- * @var array     $payment_options
- * @var array     $selected_payment_type
- * @var bool      $pos_mode
- * @var array     $payments
- * @var string    $payment_request_key
- * @var string    $register_token
- * @var array<int, string> $treasury_options
- * @var list<string> $treasury_free_types
- * @var string    $mode_label
- * @var string    $comment
- * @var list<App\Libraries\Documents\CustomFieldDefinition>|null $custom_fields
- * @var array<int, string>|null $custom_values
- * @var bool      $print_after_sale
- * @var bool      $accounting_enabled
- * @var bool      $delivered
- * @var string|null $invoice_date
- * @var string|null $payment_terms
- * @var string|null $due_date
- * @var bool      $can_type_invoice_date
- * @var string    $today
- * @var int|null  $return_origin
- * @var bool      $can_override_return
- * @var string|null $return_override
- * @var array{options: array<int, string>, selected: int}|null $priceListSelector
+ * @var string                                                       $controller_name
+ * @var array                                                        $modes
+ * @var array                                                        $mode
+ * @var array                                                        $empty_tables
+ * @var array                                                        $selected_table
+ * @var array                                                        $stock_locations
+ * @var array                                                        $stock_location
+ * @var array                                                        $cart
+ * @var bool                                                         $items_module_allowed
+ * @var bool                                                         $change_price
+ * @var int                                                          $customer_id
+ * @var int                                                          $customer_discount_type
+ * @var float                                                        $customer_discount
+ * @var float                                                        $customer_total
+ * @var string                                                       $customer_required
+ * @var float|int                                                    $item_count
+ * @var float|int                                                    $total_units
+ * @var float                                                        $subtotal
+ * @var string                                                       $invoice_discount
+ * @var array|null                                                   $invoice_discount_entry
+ * @var bool                                                         $can_invoice_discount
+ * @var array                                                        $header_charges
+ * @var bool                                                         $can_adjustment
+ * @var bool                                                         $can_shipping
+ * @var list<object>                                                 $shipping_companies
+ * @var string                                                       $shipping_tax_percent
+ * @var bool                                                         $shipping_taxed
+ * @var HeaderCharges                                                $header_charges_entry
+ * @var array                                                        $taxes
+ * @var float                                                        $total
+ * @var float                                                        $payments_total
+ * @var float                                                        $amount_due
+ * @var bool                                                         $payments_cover_total
+ * @var array                                                        $payment_options
+ * @var array                                                        $selected_payment_type
+ * @var bool                                                         $pos_mode
+ * @var array                                                        $payments
+ * @var string                                                       $payment_request_key
+ * @var string                                                       $register_token
+ * @var array<int, string>                                           $treasury_options
+ * @var list<string>                                                 $treasury_free_types
+ * @var string                                                       $mode_label
+ * @var string                                                       $comment
+ * @var list<CustomFieldDefinition>|null                             $custom_fields
+ * @var array<int, string>|null                                      $custom_values
+ * @var bool                                                         $print_after_sale
+ * @var bool                                                         $accounting_enabled
+ * @var bool                                                         $delivered
+ * @var string|null                                                  $invoice_date
+ * @var string|null                                                  $payment_terms
+ * @var string|null                                                  $due_date
+ * @var bool                                                         $can_type_invoice_date
+ * @var string                                                       $today
+ * @var int|null                                                     $return_origin
+ * @var bool                                                         $can_override_return
+ * @var string|null                                                  $return_override
+ * @var array{options: array<int, string>, selected: int}|null       $priceListSelector
  * @var array{options: array<string, string>, selected: string}|null $currencySelector
- * @var bool      $has_cart_items
- * @var string    $return_document
- * @var bool      $email_receipt
- * @var bool      $price_work_orders
- * @var string    $invoice_number
- * @var int       $cash_mode
- * @var float     $non_cash_total
- * @var float     $cash_amount_due
- * @var array     $config
+ * @var bool                                                         $has_cart_items
+ * @var string                                                       $return_document
+ * @var bool                                                         $email_receipt
+ * @var bool                                                         $price_work_orders
+ * @var string                                                       $invoice_number
+ * @var int                                                          $cash_mode
+ * @var float                                                        $non_cash_total
+ * @var float                                                        $cash_amount_due
+ * @var array                                                        $config
  */
 
+use App\Libraries\Documents\CustomFieldDefinition;
+use App\Libraries\HeaderCharges;
 use App\Models\Employee;
 
 $keyboardShortcuts ??= [];
 $priceListSelector ??= null;
-$currencySelector  ??= null;
-$has_cart_items    ??= false;
+$currencySelector ??= null;
+$has_cart_items ??= false;
 $sectionName   = ucfirst($controller_name);
 $shortcutLabel = static fn (string $name): string => $keyboardShortcuts[$name]['label'] ?? '';
 $hasCart       = count($cart) > 0;
@@ -255,7 +257,7 @@ $employee        = model(Employee::class);
             </div>
         <?= form_close() ?>
 
-        <?php if (!empty($quick_items)): ?>
+        <?php if (! empty($quick_items)): ?>
             <section class="pos-top" aria-labelledby="quick_items_title">
                 <h2 id="quick_items_title" class="pos-label"><?= lang('Sales.quick_items') ?></h2>
                 <div class="pos-top-tiles">

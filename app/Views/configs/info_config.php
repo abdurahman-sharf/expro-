@@ -1,8 +1,8 @@
 <?php
 /**
- * @var bool $logo_exists
+ * @var bool   $logo_exists
  * @var string $controller_name
- * @var array $config
+ * @var array  $config
  */
 ?>
 
@@ -24,7 +24,7 @@
                             'name'  => 'company',
                             'id'    => 'company',
                             'class' => 'form-control form-control-sm required',
-                            'value' => $config['company']
+                            'value' => $config['company'],
                         ]) ?>
                     </div>
                 </div>
@@ -48,8 +48,8 @@
                         'name'  => 'address',
                         'id'    => 'address',
                         'class' => 'form-control form-control-sm required',
-                        'style'    => 'resize: vertical',
-                        'value' => $config['address']
+                        'style' => 'resize: vertical',
+                        'value' => $config['address'],
                     ]) ?>
                 </div>
             </div>
@@ -65,7 +65,7 @@
                             'name'  => 'website',
                             'id'    => 'website',
                             'class' => 'form-control form-control-sm',
-                            'value' => $config['website']
+                            'value' => $config['website'],
                         ]) ?>
                     </div>
                 </div>
@@ -83,7 +83,7 @@
                             'id'    => 'email',
                             'type'  => 'email',
                             'class' => 'form-control form-control-sm',
-                            'value' => $config['email']
+                            'value' => $config['email'],
                         ]) ?>
                     </div>
                 </div>
@@ -101,7 +101,7 @@
                             'name'  => 'phone',
                             'id'    => 'phone',
                             'class' => 'form-control form-control-sm required',
-                            'value' => $config['phone']
+                            'value' => $config['phone'],
                         ]) ?>
                     </div>
                 </div>
@@ -119,7 +119,7 @@
                             'name'  => 'fax',
                             'id'    => 'fax',
                             'class' => 'form-control form-control-sm',
-                            'value' => $config['fax']
+                            'value' => $config['fax'],
                         ]) ?>
                     </div>
                 </div>
@@ -132,8 +132,8 @@
                         'name'  => 'return_policy',
                         'id'    => 'return_policy',
                         'class' => 'form-control form-control-sm required',
-                        'style'    => 'resize: vertical',
-                        'value' => $config['return_policy']
+                        'style' => 'resize: vertical',
+                        'value' => $config['return_policy'],
                     ]) ?>
                 </div>
             </div>
@@ -143,7 +143,7 @@
                     'name'  => 'submit_info',
                     'id'    => 'submit_info',
                     'value' => lang('Common.submit'),
-                    'class' => 'btn btn-primary'
+                    'class' => 'btn btn-primary',
                 ]) ?>
             </div>
 
@@ -157,7 +157,7 @@
         $('.image-upload-remove').click(function() {
             $.ajax({
                 type: 'POST',
-                url: '<?= "$controller_name/removeLogo"; ?>',
+                url: '<?= "{$controller_name}/removeLogo"; ?>',
                 dataType: 'json'
             })
         });

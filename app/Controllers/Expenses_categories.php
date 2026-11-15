@@ -9,7 +9,6 @@ use App\Libraries\Accounting\ExpenseCategoryAccounts;
 use App\Libraries\Organization\BranchException;
 use App\Models\Expense_category;
 use CodeIgniter\HTTP\ResponseInterface;
-use Config\Services;
 
 class Expenses_categories extends Secure_Controller    // TODO: Is this class ever used?
 {
@@ -34,7 +33,7 @@ class Expenses_categories extends Secure_Controller    // TODO: Is this class ev
 
     /**
      * Returns expense_category_manage table data rows. This will be called with AJAX.
-     **/
+     */
     public function getSearch(): ResponseInterface
     {
         $search = $this->request->getGet('search');
@@ -44,9 +43,10 @@ class Expenses_categories extends Secure_Controller    // TODO: Is this class ev
         $order  = $this->request->getGet('order', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
         $expense_categories = $this->expense_category->search($search, $limit, $offset, $sort, $order);
-        $total_rows = $this->expense_category->get_found_rows($search);
+        $total_rows         = $this->expense_category->get_found_rows($search);
 
         $data_rows = [];
+
         foreach ($expense_categories->getResult() as $expense_category) {
             $data_rows[] = get_expense_category_data_row($expense_category);
         }
@@ -55,7 +55,6 @@ class Expenses_categories extends Secure_Controller    // TODO: Is this class ev
     }
 
     /**
-     * @param int $row_id
      * @return void
      */
     public function getRow(int $row_id): ResponseInterface
@@ -66,17 +65,16 @@ class Expenses_categories extends Secure_Controller    // TODO: Is this class ev
     }
 
     /**
-     * @param int $expenseCategoryId
      * @return void
      */
     public function getView(int $expenseCategoryId = NEW_ENTRY): string
     {
         $data['category_info'] = $this->expense_category->get_info($expenseCategoryId);
 
-        $accounts                  = new ExpenseCategoryAccounts();
-        $employeeId                = (int) $this->employee->get_logged_in_employee_info()->person_id;
-        $data['accounting_on']     = (new AccountingSettings())->isEnabled();
-        $data['account_options']   = [];
+        $accounts                   = new ExpenseCategoryAccounts();
+        $employeeId                 = (int) $this->employee->get_logged_in_employee_info()->person_id;
+        $data['accounting_on']      = (new AccountingSettings())->isEnabled();
+        $data['account_options']    = [];
         $data['can_assign_account'] = $data['accounting_on'] && $accounts->mayAssign($employeeId);
 
         if ($data['accounting_on']) {
@@ -87,18 +85,17 @@ class Expenses_categories extends Secure_Controller    // TODO: Is this class ev
             }
         }
 
-        return view("expenses_categories/form", $data);
+        return view('expenses_categories/form', $data);
     }
 
     /**
-     * @param int $expenseCategoryId
      * @return void
      */
     public function postSave(int $expenseCategoryId = NEW_ENTRY): ResponseInterface
     {
         $expenseCategoryData = [
             'category_name'        => $this->request->getPost('category_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'category_description' => $this->request->getPost('category_description', FILTER_SANITIZE_FULL_SPECIAL_CHARS)
+            'category_description' => $this->request->getPost('category_description', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
         ];
 
         $account = $this->request->getPost('account_id', FILTER_SANITIZE_NUMBER_INT);
@@ -113,28 +110,27 @@ class Expenses_categories extends Secure_Controller    // TODO: Is this class ev
                 return $this->response->setJSON([
                     'success' => true,
                     'message' => lang('Expenses_categories.successful_adding'),
-                    'id'      => $expenseCategoryData['expense_category_id']
+                    'id'      => $expenseCategoryData['expense_category_id'],
                 ]);
-            } else { // Existing Expense Category
-                return $this->response->setJSON([
-                    'success' => true,
-                    'message' => lang('Expenses_categories.successful_updating'),
-                    'id'      => $expenseCategoryId
-                ]);
-            }
-        } else { // Failure
-            $failure = $this->expense_category->accountingFailure();
-
-            if ($failure instanceof AccountingException || $failure instanceof BranchException) {
-                return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($failure), 'id' => NEW_ENTRY]);
-            }
+            }   // Existing Expense Category
 
             return $this->response->setJSON([
                 'success' => true,
-                'message' => lang('Expenses_categories.error_adding_updating') . ' ' . $expenseCategoryData['category_name'],
-                'id'      => NEW_ENTRY
+                'message' => lang('Expenses_categories.successful_updating'),
+                'id'      => $expenseCategoryId,
             ]);
+        }   // Failure
+        $failure = $this->expense_category->accountingFailure();
+
+        if ($failure instanceof AccountingException || $failure instanceof BranchException) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($failure), 'id' => NEW_ENTRY]);
         }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => lang('Expenses_categories.error_adding_updating') . ' ' . $expenseCategoryData['category_name'],
+            'id'      => NEW_ENTRY,
+        ]);
     }
 
     /**
@@ -147,10 +143,10 @@ class Expenses_categories extends Secure_Controller    // TODO: Is this class ev
         if ($this->expense_category->delete_list($expenseCategoryToDelete)) {    // TODO: Convert to ternary notation.
             return $this->response->setJSON([
                 'success' => true,
-                'message' => lang('Expenses_categories.successful_deleted') . ' ' . count($expenseCategoryToDelete) . ' ' . lang('Expenses_categories.one_or_multiple')
+                'message' => lang('Expenses_categories.successful_deleted') . ' ' . count($expenseCategoryToDelete) . ' ' . lang('Expenses_categories.one_or_multiple'),
             ]);
-        } else {
-            return $this->response->setJSON(['success' => false, 'message' => lang('Expenses_categories.cannot_be_deleted')]);
         }
+
+        return $this->response->setJSON(['success' => false, 'message' => lang('Expenses_categories.cannot_be_deleted')]);
     }
 }

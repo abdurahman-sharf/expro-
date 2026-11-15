@@ -19,11 +19,11 @@ use stdClass;
  */
 class Customer extends Person
 {
-    protected $table = 'customers';
-    protected $primaryKey = 'person_id';
+    protected $table            = 'customers';
+    protected $primaryKey       = 'person_id';
     protected $useAutoIncrement = false;
-    protected $useSoftDeletes = false;
-    protected $allowedFields = [
+    protected $useSoftDeletes   = false;
+    protected $allowedFields    = [
         'account_number',
         'taxable',
         'tax_id',
@@ -44,9 +44,8 @@ class Customer extends Person
         'country_code',
         'customer_type',
         'is_government_entity',
-        'billing_method'
+        'billing_method',
     ];
-
 
     /**
      * Determines if a given person_id is a customer
@@ -56,7 +55,8 @@ class Customer extends Person
         $builder = $this->db->table('customers');
         $builder->join('people', 'people.person_id = customers.person_id');
         $builder->where('customers.person_id', $person_id);
-        return ($builder->get()->getNumRows() == 1);
+
+        return $builder->get()->getNumRows() == 1;
     }
 
     /**
@@ -67,7 +67,7 @@ class Customer extends Person
         $builder = $this->db->table('customers');
         $builder->where('account_number', $account_number);
 
-        if (!empty($person_id)) {
+        if (! empty($person_id)) {
             $builder->where('person_id !=', $person_id);
         }
 
@@ -126,8 +126,6 @@ class Customer extends Person
 
     /**
      * Initializes an empty object based on database definitions
-     * @param string $table_name
-     * @return object
      */
     private function getEmptyObject(string $table_name): object
     {
@@ -139,23 +137,22 @@ class Customer extends Person
             $field_name = $field->name;
 
             if (in_array($field->type, ['int', 'tinyint', 'decimal'])) {
-                $empty_obj->$field_name = ($field->primary_key == 1) ? NEW_ENTRY : 0;
+                $empty_obj->{$field_name} = ($field->primary_key == 1) ? NEW_ENTRY : 0;
             } else {
-                $empty_obj->$field_name = null;
+                $empty_obj->{$field_name} = null;
             }
         }
 
         return $empty_obj;
     }
 
-
     /**
      * Gets stats about a particular customer
      */
     public function get_stats(int $customerId, ?array $branchIds = null): ?stdClass
     {
-        $dbPrefix = $this->db->getPrefix();
-        $totalsDecimals = totals_decimals();
+        $dbPrefix         = $this->db->getPrefix();
+        $totalsDecimals   = totals_decimals();
         $quantityDecimals = quantity_decimals();
 
         // Temp Table
@@ -178,8 +175,8 @@ class Customer extends Person
             'MIN(sales_payments.payment_amount - sales_payments.cash_refund) AS min',
             'MAX(sales_payments.payment_amount - sales_payments.cash_refund) AS max',
             'AVG(sales_payments.payment_amount - sales_payments.cash_refund) AS average',
-            "ROUND(AVG(sales_items_temp.avg_discount), $totalsDecimals) AS avg_discount",
-            "ROUND(SUM(sales_items_temp.quantity), $quantityDecimals) AS quantity"
+            "ROUND(AVG(sales_items_temp.avg_discount), {$totalsDecimals}) AS avg_discount",
+            "ROUND(SUM(sales_items_temp.quantity), {$quantityDecimals}) AS quantity",
         ]);
         $builder->join('sales_payments AS sales_payments', 'sales.sale_id = sales_payments.sale_id');
         $builder->join('sales_items_temp AS sales_items_temp', 'sales.sale_id = sales_items_temp.sale_id');
@@ -225,11 +222,11 @@ class Customer extends Person
         $builder->where('people.email', $email);
         $builder->where('customers.deleted', 0);
 
-        if (!empty($customer_id)) {
+        if (! empty($customer_id)) {
             $builder->where('customers.person_id !=', $customer_id);
         }
 
-        return ($builder->get()->getNumRows() == 1);    // TODO: ===
+        return $builder->get()->getNumRows() == 1;    // TODO: ===
     }
 
     /**
@@ -242,9 +239,9 @@ class Customer extends Person
 
         if (parent::save_value($person_data, $customer_id)) {
             $builder = $this->db->table('customers');
-            if ($customer_id == NEW_ENTRY || !$customer_id || !$this->exists($customer_id)) {
+            if ($customer_id == NEW_ENTRY || ! $customer_id || ! $this->exists($customer_id)) {
                 $customer_data['person_id'] = $person_data['person_id'];
-                $success = $builder->insert($customer_data);
+                $success                    = $builder->insert($customer_data);
 
                 if ($success && ($customer_data['account_number'] ?? '') === '') {
                     try {
@@ -320,11 +317,6 @@ class Customer extends Person
         $builder->update();
     }
 
-    /**
-     * @param $customer_id
-     * @param bool $purge
-     * @return bool
-     */
     public function delete($customer_id = null, bool $purge = false): bool
     {
         $result = true;
@@ -346,7 +338,7 @@ class Customer extends Person
                 'state'        => '',
                 'zip'          => '',
                 'country'      => '',
-                'comments'     => ''
+                'comments'     => '',
             ]);
 
             $builder = $this->db->table('customers');
@@ -362,7 +354,7 @@ class Customer extends Person
                 'package_id'        => null,
                 'points'            => null,
                 'sales_tax_code_id' => null,
-                'deleted'           => 1
+                'deleted'           => 1,
             ]);
         } else {
             $builder = $this->db->table('customers');
@@ -427,11 +419,11 @@ class Customer extends Person
         foreach ($builder->get()->getResult() as $row) {
             $suggestions[] = [
                 'value' => $row->person_id,
-                'label' => $row->first_name . ' ' . $row->last_name . (!empty($row->company_name) ? ' [' . $row->company_name . ']' : '') . (!empty($row->phone_number) ? ' [' . $row->phone_number . ']' : '')
+                'label' => $row->first_name . ' ' . $row->last_name . (! empty($row->company_name) ? ' [' . $row->company_name . ']' : '') . (! empty($row->phone_number) ? ' [' . $row->phone_number . ']' : ''),
             ];
         }
 
-        if (!$unique) {
+        if (! $unique) {
             $builder = $this->db->table('customers');
             $builder->join('people', 'customers.person_id = people.person_id');
             $builder->where('deleted', 0);
@@ -504,11 +496,21 @@ class Customer extends Person
     public function search(string $search, ?int $rows = 0, ?int $limitFrom = 0, ?string $sort = 'last_name', ?string $order = 'asc', ?bool $countOnly = false, array $filters = [])
     {
         // Set default values
-        if ($rows == null) $rows = 0;
-        if ($limitFrom == null) $limitFrom = 0;
-        if ($sort == null) $sort = 'last_name';
-        if ($order == null) $order = 'asc';
-        if ($countOnly == null) $countOnly = false;
+        if ($rows == null) {
+            $rows = 0;
+        }
+        if ($limitFrom == null) {
+            $limitFrom = 0;
+        }
+        if ($sort == null) {
+            $sort = 'last_name';
+        }
+        if ($order == null) {
+            $order = 'asc';
+        }
+        if ($countOnly == null) {
+            $countOnly = false;
+        }
 
         $builder = $this->db->table('customers AS customers');
 
@@ -522,7 +524,7 @@ class Customer extends Person
             $builder->join(
                 'people AS assigned_person',
                 'assigned_person.person_id = customers.assigned_employee_id' . ($visible === null ? '' : ($visible === [] ? ' AND 1 = 0' : ' AND customers.assigned_employee_id IN (' . implode(',', array_map('intval', $visible)) . ')')),
-                'left'
+                'left',
             );
         }
 
@@ -546,8 +548,8 @@ class Customer extends Person
 
         $builder->orderBy(match (true) {
             in_array($sort, ['first_name', 'last_name', 'email', 'phone_number', 'city'], true) => 'people.' . $sort,
-            $sort === 'created'                                                                  => 'customers.date',
-            default                                                                              => $sort,
+            $sort === 'created'                                                                 => 'customers.date',
+            default                                                                             => $sort,
         }, $order);
 
         if ($rows > 0) {

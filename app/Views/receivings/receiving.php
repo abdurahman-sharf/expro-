@@ -1,33 +1,36 @@
 <?php
+
+use App\Libraries\Accounting\InvoiceDiscount;
+
 /**
- * @var string $controller_name
- * @var array  $modes
- * @var string $mode
- * @var bool   $show_stock_locations
- * @var array  $stock_locations
- * @var int    $stock_source
- * @var string $stock_destination
- * @var array  $cart
- * @var bool   $items_module_allowed
- * @var float  $total
- * @var string $comment
- * @var bool   $print_after_sale
- * @var string $reference
- * @var array  $payment_options
- * @var array  $config
- * @var string $tax_total
- * @var string $total_with_tax
- * @var App\Libraries\Accounting\InvoiceDiscount $invoiceDiscount
- * @var string $invoiceDiscountAmount
- * @var int|null $return_origin
- * @var string|null $order_source
+ * @var string                               $controller_name
+ * @var array                                $modes
+ * @var string                               $mode
+ * @var bool                                 $show_stock_locations
+ * @var array                                $stock_locations
+ * @var int                                  $stock_source
+ * @var string                               $stock_destination
+ * @var array                                $cart
+ * @var bool                                 $items_module_allowed
+ * @var float                                $total
+ * @var string                               $comment
+ * @var bool                                 $print_after_sale
+ * @var string                               $reference
+ * @var array                                $payment_options
+ * @var array                                $config
+ * @var string                               $tax_total
+ * @var string                               $total_with_tax
+ * @var InvoiceDiscount                      $invoiceDiscount
+ * @var string                               $invoiceDiscountAmount
+ * @var int|null                             $return_origin
+ * @var string|null                          $order_source
  * @var array{from: string, to: string}|null $between_branches
- * @var bool $accounting_enabled
- * @var string|null $invoice_date
- * @var string|null $payment_terms
- * @var string $due_date_label
- * @var bool $can_type_invoice_date
- * @var string $today
+ * @var bool                                 $accounting_enabled
+ * @var string|null                          $invoice_date
+ * @var string|null                          $payment_terms
+ * @var string                               $due_date_label
+ * @var bool                                 $can_type_invoice_date
+ * @var string                               $today
  */
 $sectionName = ucfirst($controller_name);
 $hasCart     = count($cart) > 0;

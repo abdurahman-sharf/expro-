@@ -1,19 +1,19 @@
 <?php
 /**
- * @var int $giftcard_id
+ * @var int    $giftcard_id
  * @var string $selected_person_name
- * @var int $selected_person_id
+ * @var int    $selected_person_id
  * @var string $giftcard_number
- * @var float $giftcard_value
+ * @var float  $giftcard_value
  * @var string $controller_name
- * @var array $config
+ * @var array  $config
  */
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 <ul id="error_message_box" class="error_message_box"></ul>
 
-<?= form_open("giftcards/save/$giftcard_id", ['id' => 'giftcard_form', 'class' => 'app-form']) ?>
+<?= form_open("giftcards/save/{$giftcard_id}", ['id' => 'giftcard_form', 'class' => 'app-form']) ?>
     <fieldset id="giftcard_basic_info" class="form-grid">
 
         <div class="field span-all">
@@ -23,15 +23,15 @@
                     'name'  => 'person_name',
                     'id'    => 'person_name',
                     'class' => 'form-control form-control-sm',
-                    'value' => $selected_person_name
+                    'value' => $selected_person_name,
                 ]) ?>
-                <?= form_hidden('person_id', (string)$selected_person_id) ?>
+                <?= form_hidden('person_id', (string) $selected_person_id) ?>
             </div>
         </div>
 
         <?php
         $numberLabelClass = $config['giftcard_number'] == 'series' ? 'form-label text-danger required' : 'form-label';
-        ?>
+?>
         <div class="field">
             <?= form_label(lang('Giftcards.giftcard_number'), 'giftcard_number', ['class' => $numberLabelClass]) ?>
             <div class="field-control">
@@ -39,7 +39,7 @@
                     'name'  => 'giftcard_number',
                     'id'    => 'giftcard_number',
                     'class' => 'form-control form-control-sm',
-                    'value' => $giftcard_number
+                    'value' => $giftcard_number,
                 ]) ?>
             </div>
         </div>
@@ -49,14 +49,14 @@
             <?= form_label(lang('Giftcards.card_value'), 'giftcard_amount', ['class' => 'form-label text-danger required']) ?>
             <div class="field-control">
                 <div class="input-group input-group-sm">
-                    <?php if (!is_right_side_currency_symbol()): ?>
+                    <?php if (! is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><?= esc($config['currency_symbol']) ?></span>
                     <?php endif; ?>
                     <?= form_input([
                         'name'  => 'giftcard_amount',
                         'id'    => 'giftcard_amount',
                         'class' => 'form-control form-control-sm',
-                        'value' => to_currency_no_money($giftcard_value)
+                        'value' => to_currency_no_money($giftcard_value),
                     ]) ?>
                     <?php if (is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -83,7 +83,7 @@
         };
 
         $('#person_name').autocomplete({
-            source: "<?= esc("customers/suggest") ?>",
+            source: "<?= esc('customers/suggest') ?>",
             minChars: 0,
             delay: 15,
             change: fill_value,
@@ -117,7 +117,7 @@
                         required: true,
                         number: true,
                         remote: {
-                            url: "<?= esc("$controller_name/checkNumberGiftcard") ?>",
+                            url: "<?= esc("{$controller_name}/checkNumberGiftcard") ?>",
                             type: 'POST',
                             data: {
                                 'giftcard_number': function() { return $('#giftcard_number').val() },
@@ -128,7 +128,7 @@
                 <?php } ?>
                 giftcard_amount: {
                     required: true,
-                    remote: "<?= esc("$controller_name/checkNumeric") ?>"
+                    remote: "<?= esc("{$controller_name}/checkNumeric") ?>"
                 }
             },
 

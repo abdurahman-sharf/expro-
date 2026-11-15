@@ -19,20 +19,18 @@ use CodeIgniter\Session\Session;
  *
  * @property employee employee
  * @property item item
- * @property session session
- *
+ * @property Session session
  */
 class Stock_location extends Model
 {
-    protected $table = 'stock_locations';
-    protected $primaryKey = 'location_id';
+    protected $table            = 'stock_locations';
+    protected $primaryKey       = 'location_id';
     protected $useAutoIncrement = true;
-    protected $useSoftDeletes = false;
-    protected $allowedFields = [
+    protected $useSoftDeletes   = false;
+    protected $allowedFields    = [
         'location_name',
-        'deleted'
+        'deleted',
     ];
-
     private Session $session;
     private Employee $employee;
     private ?AccountingException $removalRefusal = null;
@@ -44,21 +42,14 @@ class Stock_location extends Model
         $this->session = session();
     }
 
-    /**
-     * @param int $location_id
-     * @return bool
-     */
     public function exists(int $location_id = NEW_ENTRY): bool
     {
         $builder = $this->db->table('stock_locations');
         $builder->where('location_id', $location_id);
 
-        return ($builder->get()->getNumRows() >= 1);
+        return $builder->get()->getNumRows() >= 1;
     }
 
-    /**
-     * @return ResultInterface
-     */
     public function get_all(): ResultInterface
     {
         $builder = $this->db->table('stock_locations');
@@ -70,15 +61,12 @@ class Stock_location extends Model
     /**
      * The locations of the lists for new documents leave out an inactive one; the filters of the reports
      * of what was done ask for it too, because an inactive location keeps its history.
-     *
-     * @param string $module_id
-     * @return ResultInterface
      */
     public function get_undeleted_all(string $module_id = 'items', bool $byBranch = false, bool $withInactive = false): ResultInterface
     {
         $branchIds = $this->employeeBranchIds($byBranch);
         $roleHeld  = $this->heldThroughRoles();
-        $builder = $this->db->table('stock_locations');
+        $builder   = $this->db->table('stock_locations');
         $builder->join('permissions AS permissions', 'permissions.location_id = stock_locations.location_id');
         $this->limitToHeld($builder, $roleHeld);
         $builder->like('permissions.permission_id', $module_id, 'after');
@@ -93,10 +81,6 @@ class Stock_location extends Model
         return $builder->get();
     }
 
-    /**
-     * @param string $module_id
-     * @return bool
-     */
     public function show_locations(string $module_id = 'items', bool $byBranch = false): bool
     {
         $stock_locations = $this->get_allowed_locations($module_id, $byBranch);
@@ -104,21 +88,14 @@ class Stock_location extends Model
         return count($stock_locations) > 1;
     }
 
-    /**
-     * @return bool
-     */
     public function multiple_locations(): bool
     {
         return $this->get_all()->getNumRows() > 1;
     }
 
-    /**
-     * @param string $module_id
-     * @return array
-     */
     public function get_allowed_locations(string $module_id = 'items', bool $byBranch = false, bool $withInactive = false): array
     {
-        $stock = $this->get_undeleted_all($module_id, $byBranch, $withInactive)->getResultArray();
+        $stock           = $this->get_undeleted_all($module_id, $byBranch, $withInactive)->getResultArray();
         $stock_locations = [];
 
         foreach ($stock as $location_data) {
@@ -128,16 +105,11 @@ class Stock_location extends Model
         return $stock_locations;
     }
 
-    /**
-     * @param int $location_id
-     * @param string $module_id
-     * @return bool
-     */
     public function is_allowed_location(int $location_id, string $module_id = 'items', bool $byBranch = false): bool
     {
         $branchIds = $this->employeeBranchIds($byBranch);
         $roleHeld  = $this->heldThroughRoles();
-        $builder = $this->db->table('stock_locations');
+        $builder   = $this->db->table('stock_locations');
         $builder->join('permissions AS permissions', 'permissions.location_id = stock_locations.location_id');
         $this->limitToHeld($builder, $roleHeld);
         $builder->like('permissions.permission_id', $module_id, 'after');
@@ -146,13 +118,9 @@ class Stock_location extends Model
         $builder->where('stock_locations.status', 1);
         $this->limitToBranches($builder, $branchIds);
 
-        return ($builder->get()->getNumRows() == 1);    // TODO: ===
+        return $builder->get()->getNumRows() == 1;    // TODO: ===
     }
 
-    /**
-     * @param string $module_id
-     * @return int
-     */
     public function get_default_location_id(string $module_id = 'items', bool $byBranch = false): int
     {
         $own = in_array($module_id, ['sales', 'receivings'], true) ? (new DefaultLocations($this->db))->of((int) $this->session->get('person_id')) : null;
@@ -163,7 +131,7 @@ class Stock_location extends Model
 
         $branchIds = $this->employeeBranchIds($byBranch);
         $roleHeld  = $this->heldThroughRoles();
-        $builder = $this->db->table('stock_locations');
+        $builder   = $this->db->table('stock_locations');
         $builder->join('permissions AS permissions', 'permissions.location_id = stock_locations.location_id');
         $this->limitToHeld($builder, $roleHeld);
         $builder->like('permissions.permission_id', $module_id, 'after');
@@ -233,10 +201,6 @@ class Stock_location extends Model
         $branchIds === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('stock_locations.branch_id', $branchIds);
     }
 
-    /**
-     * @param int $location_id
-     * @return string
-     */
     public function get_location_name(int $location_id): string
     {
         $builder = $this->db->table('stock_locations');
@@ -245,10 +209,6 @@ class Stock_location extends Model
         return $builder->get()->getRow()->location_name;
     }
 
-    /**
-     * @param string $location_name
-     * @return int
-     */
     public function get_location_id(string $location_name): int
     {
         $builder = $this->db->table('stock_locations');
@@ -257,23 +217,18 @@ class Stock_location extends Model
         return $builder->get()->getRow()->location_id;
     }
 
-    /**
-     * @param array $location_data
-     * @param int $location_id
-     * @return bool
-     */
     public function save_value(array &$location_data, int $location_id): bool
     {
         $location_name = $location_data['location_name'];
 
         $location_data_to_save = ['location_name' => $location_name, 'deleted' => 0];
 
-        if (!$this->exists($location_id)) {
+        if (! $this->exists($location_id)) {
             $this->db->transStart();
 
             $builder = $this->db->table('stock_locations');
             $builder->insert($location_data_to_save);
-            $location_id = $this->db->insertID();
+            $location_id                  = $this->db->insertID();
             $location_data['location_id'] = $location_id;
 
             $this->_insert_new_permission('items', $location_id, $location_name);    // TODO: need to refactor out the hungarian notation.
@@ -281,15 +236,15 @@ class Stock_location extends Model
             $this->_insert_new_permission('receivings', $location_id, $location_name);
 
             // Insert quantities for existing items
-            $item = model(Item::class);
+            $item    = model(Item::class);
             $builder = $this->db->table('item_quantities');
-            $items = $item->get_all();
+            $items   = $item->get_all();
 
             foreach ($items->getResultArray() as $item) {
                 $quantity_data = [
                     'item_id'     => $item['item_id'],
                     'location_id' => $location_id,
-                    'quantity'    => 0
+                    'quantity'    => 0,
                 ];
                 $builder->insert($quantity_data);
             }
@@ -328,23 +283,17 @@ class Stock_location extends Model
         return $updated;
     }
 
-    /**
-     * @param string $module
-     * @param int $location_id
-     * @param string $location_name
-     * @return void
-     */
     private function _insert_new_permission(string $module, int $location_id, string $location_name): void    // TODO: refactor out hungarian notation
     {
         // Insert new permission for stock location
-        $permission_id = $module . '_' . str_replace(' ', '_', $location_name);    // TODO: String interpolation
+        $permission_id   = $module . '_' . str_replace(' ', '_', $location_name);    // TODO: String interpolation
         $permission_data = ['permission_id' => $permission_id, 'module_id' => $module, 'location_id' => $location_id];
 
         $builder = $this->db->table('permissions');
         $builder->insert($permission_data);
 
         // Insert grants for new permission
-        $employee = model(Employee::class);
+        $employee  = model(Employee::class);
         $employees = $employee->get_all();
 
         $builder = $this->db->table('grants');
@@ -365,9 +314,8 @@ class Stock_location extends Model
 
     /**
      * Deletes one item
+     *
      * @param int|null $locationId
-     * @param bool $purge
-     * @return bool
      */
     public function delete($locationId = null, bool $purge = false): bool
     {

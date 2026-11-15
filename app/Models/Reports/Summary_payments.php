@@ -10,25 +10,21 @@ use Config\OSPOS;
 class Summary_payments extends Summary_report
 {
     /**
-     * @return array[]
+     * @return list<array>
      */
     protected function _get_data_columns(): array    // TODO: Hungarian notation
     {
         return [
-            ['trans_group'    => lang('Reports.trans_group')],
+            ['trans_group' => lang('Reports.trans_group')],
             ['trans_type'     => lang('Reports.trans_type')],
             ['trans_sales'    => lang('Reports.sales')],
             ['trans_amount'   => lang('Reports.trans_amount')],
             ['trans_payments' => lang('Reports.trans_payments')],
             ['trans_refunded' => lang('Reports.trans_refunded')],
-            ['trans_due'      => lang('Reports.trans_due')]
+            ['trans_due'      => lang('Reports.trans_due')],
         ];
     }
 
-    /**
-     * @param array $inputs
-     * @return array
-     */
     public function getData(array $inputs): array
     {
         $config = config(OSPOS::class)->settings;
@@ -40,7 +36,7 @@ class Summary_payments extends Summary_report
             'trans_amount'   => '',
             'trans_payments' => '',
             'trans_refunded' => '',
-            'trans_due'      => ''
+            'trans_due'      => '',
         ];
 
         $where = '';    // TODO: Duplicated code
@@ -78,8 +74,9 @@ class Summary_payments extends Summary_report
 
         // At this point in time refunds are assumed to be cash refunds.
         $total_cash_refund = 0;
+
         foreach ($sales as $key => $sale_summary) {
-            if ($sale_summary['trans_refunded'] <> 0) {
+            if ($sale_summary['trans_refunded'] != 0) {
                 $total_cash_refund += $sale_summary['trans_refunded'];
             }
         }
@@ -104,9 +101,9 @@ class Summary_payments extends Summary_report
 
         // A payment is stored under the name of its type in the language of the moment: every name of one type is one row,
         // and a gift card is one row whatever the number after its name
-        $giftCardCount = 0;
+        $giftCardCount  = 0;
         $giftCardAmount = 0;
-        $byType = [];
+        $byType         = [];
 
         foreach ($payments as $payment) {
             $type = PaymentType::fromLabel((string) $payment['trans_type']);
@@ -145,24 +142,20 @@ class Summary_payments extends Summary_report
                 'trans_amount'   => $giftCardAmount,
                 'trans_payments' => $giftCardAmount,
                 'trans_refunded' => 0,
-                'trans_due'      => 0
+                'trans_due'      => 0,
             ];
         }
 
         return array_merge($sales, $separator, $payments);
     }
 
-    /**
-     * @param string $where
-     * @return void
-     */
     protected function create_summary_payments_temp_tables(string $where): void
     {
         // TODO: convert to using QueryBuilder. Use App/Models/Reports/Summary_taxes.php getData() as a reference template
         $decimals = totals_decimals();
 
         $trans_amount = 'SUM(CASE WHEN sales_items.discount_type = ' . PERCENT
-            . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, $decimals) "
+            . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, {$decimals}) "
             . ' ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END - ' . InvoiceDiscount::sqlShare('sales_items') . ') AS trans_amount';
 
         ReadCommittedStatement::run(
@@ -176,7 +169,7 @@ class Summary_payments extends Summary_report
                     ON sales.sale_id = sales_taxes.sale_id
                 WHERE ' . $where . ' AND sales_taxes.tax_type = \'1\'
                 GROUP BY sales.sale_id
-            )'
+            )',
         );
 
         ReadCommittedStatement::run(
@@ -191,7 +184,7 @@ class Summary_payments extends Summary_report
                 . 'LEFT OUTER JOIN ' . $this->db->prefixTable('sumpay_taxes_temp') . ' AS sumpay_taxes '
                 . 'ON sales.sale_id = sumpay_taxes.sale_id '
                 . 'WHERE ' . $where . ' GROUP BY sales.sale_id
-            )'
+            )',
         );
 
         $this->db->query('UPDATE ' . $this->db->prefixTable('sumpay_items_temp') . ' AS sumpay_items '
@@ -212,7 +205,7 @@ class Summary_payments extends Summary_report
                     ON sales.sale_id = sales_payments.sale_id
                 WHERE ' . $where . '
                 GROUP BY sales.sale_id
-            )'
+            )',
         );
     }
 }

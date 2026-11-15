@@ -1,17 +1,17 @@
 <?php
 /**
- * @var object $category_info
- * @var bool $accounting_on
+ * @var object             $category_info
+ * @var bool               $accounting_on
  * @var array<int, string> $account_options
- * @var bool $can_assign_account
- * @var string $controller_name
+ * @var bool               $can_assign_account
+ * @var string             $controller_name
  */
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 <ul id="error_message_box" class="error_message_box"></ul>
 
-<?= form_open("expenses_categories/save/$category_info->expense_category_id", ['id' => 'expense_category_edit_form', 'class' => 'app-form']) ?>
+<?= form_open("expenses_categories/save/{$category_info->expense_category_id}", ['id' => 'expense_category_edit_form', 'class' => 'app-form']) ?>
     <fieldset id="expenses_categories">
 
         <div class="field">
@@ -21,7 +21,7 @@
                     'name'  => 'category_name',
                     'id'    => 'category_name',
                     'class' => 'form-control form-control-sm',
-                    'value' => $category_info->category_name
+                    'value' => $category_info->category_name,
                 ]) ?>
             </div>
         </div>
@@ -33,7 +33,7 @@
                     'name'  => 'category_description',
                     'id'    => 'category_description',
                     'class' => 'form-control form-control-sm',
-                    'value' => $category_info->category_description
+                    'value' => $category_info->category_description,
                 ]) ?>
             </div>
         </div>

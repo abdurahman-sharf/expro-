@@ -2,16 +2,16 @@
 
 namespace app\Libraries;
 
+use App\Libraries\Sale_lib;
 use App\Models\Customer;
-use App\Models\Item_taxes;
 use App\Models\Enums\Rounding_mode;
+use App\Models\Item_taxes;
 use App\Models\Sale;
 use App\Models\Tax;
 use App\Models\Tax_category;
 use App\Models\Tax_code;
 use App\Models\Tax_definition;
 use App\Models\Tax_jurisdiction;
-use App\Libraries\Sale_lib;
 use Config\OSPOS;
 
 /**
@@ -23,6 +23,7 @@ class Tax_lib
 {
     public const TAX_TYPE_EXCLUDED = '1';    // TODO: These constants need to be moved to constants.php
     public const TAX_TYPE_INCLUDED = '0';
+
     private Sale_lib $sale_lib;
     private Customer $customer;
     private Item_taxes $item_taxes;
@@ -38,25 +39,22 @@ class Tax_lib
     {
         $this->sale_lib = new Sale_lib();
 
-        $this->customer = model(Customer::class);
-        $this->item_taxes = model(Item_taxes::class);
-        $this->sale = model(Sale::class);
-        $this->tax = model(Tax::class);
-        $this->tax_category = model(Tax_category::class);
-        $this->tax_code = model(Tax_code::class);
-        $this->taxDefinition = model(Tax_definition::class);
+        $this->customer         = model(Customer::class);
+        $this->item_taxes       = model(Item_taxes::class);
+        $this->sale             = model(Sale::class);
+        $this->tax              = model(Tax::class);
+        $this->tax_category     = model(Tax_category::class);
+        $this->tax_code         = model(Tax_code::class);
+        $this->taxDefinition    = model(Tax_definition::class);
         $this->tax_jurisdiction = model(Tax_jurisdiction::class);
-        $this->config = config(OSPOS::class)->settings;
+        $this->config           = config(OSPOS::class)->settings;
     }
 
-    /**
-     * @return array
-     */
     public function get_tax_types(): array
     {
         return [
             Tax_lib::TAX_TYPE_EXCLUDED => lang('Taxes.tax_excluded'),
-            Tax_lib::TAX_TYPE_INCLUDED => lang('Taxes.tax_included')
+            Tax_lib::TAX_TYPE_INCLUDED => lang('Taxes.tax_included'),
         ];
     }
 
@@ -80,7 +78,7 @@ class Tax_lib
     {
         $tax_amount = bcmul($tax_basis, bcdiv($tax_percentage, '100'));
 
-        return rounding_mode::round_number($rounding_mode, $tax_amount, $decimals);
+        return Rounding_mode::round_number($rounding_mode, $tax_amount, $decimals);
     }
 
     /**
@@ -92,19 +90,19 @@ class Tax_lib
     public function get_taxes(array &$cart, int $saleId = -1, ?int $customerId = null, ?string $registerMode = null): array    // TODO: Replace -1 with constant.
     {
         $registerModeUsed = $registerMode ?? $this->sale_lib->get_mode();
-        $taxDecimals = tax_decimals();
-        $customerIdUsed = $customerId ?? $this->sale_lib->get_customer();
-        $customerInfo = $this->customer->get_info($customerIdUsed);
-        $taxes = [];
-        $itemTaxes = [];
+        $taxDecimals      = tax_decimals();
+        $customerIdUsed   = $customerId ?? $this->sale_lib->get_customer();
+        $customerInfo     = $this->customer->get_info($customerIdUsed);
+        $taxes            = [];
+        $itemTaxes        = [];
 
         // Charge sales tax if customer is not selected (walk-in) or customer is flagged as taxable
         if ($customerIdUsed == -1 || $customerInfo->taxable) {    // TODO: Replace -1 with constant.
-            $storedSale = $this->storedSource($saleId, $registerMode);
+            $storedSale    = $this->storedSource($saleId, $registerMode);
             $taxInfoByLine = [];
-            $definitions = [];
+            $definitions   = [];
 
-            if (!$this->config['use_destination_based_tax']) {
+            if (! $this->config['use_destination_based_tax']) {
                 foreach ($cart as $line => $item) {
                     $taxInfoByLine[$line] = $storedSale === null
                         ? $this->item_taxes->get_info($item['item_id'])
@@ -119,15 +117,15 @@ class Tax_lib
             foreach ($cart as $line => $item) {
                 $taxed = false;
 
-                if (!$this->config['use_destination_based_tax']) {
+                if (! $this->config['use_destination_based_tax']) {
                     // Start of current Base System tax calculations
                     $taxGroupSequence = 0;
 
                     foreach ($this->lineTaxes($item, $taxInfoByLine[$line], $definitions, $taxDecimals) as $tax) {
-                        if ($tax['amount'] <> 0) {
+                        if ($tax['amount'] != 0) {
                             $taxGroupSequence++;
                             $this->update_taxes($taxes, $tax['type'], $tax['name'], $tax['percent'], $tax['basis'], $tax['amount'], $taxGroupSequence, Rounding_mode::HALF_UP, -1, $tax['name']);    // TODO: Replace -1 with constant.
-                            $taxGroupSequence += 1;    // TODO: $taxGroupSequence++;
+                            $taxGroupSequence++;    // TODO: $taxGroupSequence++;
                             $taxed = true;
                         }
 
@@ -164,7 +162,7 @@ class Tax_lib
             $this->round_taxes($taxes);
         }
 
-        $taxDetails = [];
+        $taxDetails    = [];
         $taxDetails[0] = $taxes;
         $taxDetails[1] = $itemTaxes;
 
@@ -179,7 +177,7 @@ class Tax_lib
     public function taxesOfItem(int $itemId, string $quantity, string $price, string $discount, int $discountType, string $invoiceDiscountShare = '0'): array
     {
         $taxInfo = $this->item_taxes->get_info($itemId);
-        $item = ['quantity' => $quantity, 'price' => $price, 'discount' => $discount, 'discount_type' => $discountType, 'invoice_discount_share' => $invoiceDiscountShare];
+        $item    = ['quantity' => $quantity, 'price' => $price, 'discount' => $discount, 'discount_type' => $discountType, 'invoice_discount_share' => $invoiceDiscountShare];
 
         return $this->lineTaxes($item, $taxInfo, $this->taxDefinition->forNames(array_column($taxInfo, 'name')), tax_decimals());
     }
@@ -192,8 +190,8 @@ class Tax_lib
      * their rates over that sum plus a hundred, and each is charged on the net, unless the rows are
      * those of a saved sale, whose amounts are kept for the units of the line.
      *
-     * @param array<string, mixed>                                          $item
-     * @param list<array<string, mixed>>                                    $taxInfo     The tax rows of the item: the item's own, or those a sale was saved with.
+     * @param array<string, mixed>                                         $item
+     * @param list<array<string, mixed>>                                   $taxInfo     The tax rows of the item: the item's own, or those a sale was saved with.
      * @param array<string, array{included: bool|null, account: int|null}> $definitions By the name in lower case.
      *
      * @return list<array{name: string, percent: string, type: string, amount: string, basis: string, account: int|null}>
@@ -202,7 +200,7 @@ class Tax_lib
     {
         $share = $item['invoice_discount_share'] ?? '0';
         $total = $this->sale_lib->get_item_total($item['quantity'], $item['price'], $item['discount'], $item['discount_type'], true, $share);
-        $rows = [];
+        $rows  = [];
 
         foreach ($taxInfo as $info) {
             $rows[] = [
@@ -218,12 +216,12 @@ class Tax_lib
         }
 
         $includedRows = array_keys(array_filter($rows, static fn (array $row): bool => $row['included']));
-        $net = $total;
+        $net          = $total;
 
         if (count($includedRows) === 1) {
-            $index = $includedRows[0];
+            $index                  = $includedRows[0];
             $rows[$index]['amount'] = $this->get_included_tax($item['quantity'], $item['price'], $item['discount'], $item['discount_type'], $rows[$index]['percent'], $taxDecimals, Rounding_mode::HALF_UP, $share);
-            $net = bcsub($total, $rows[$index]['amount']);
+            $net                    = bcsub($total, $rows[$index]['amount']);
         } elseif (count($includedRows) > 1) {
             $quantity = (string) $item['quantity'];
             $net      = $this->savedAmountsOf($rows, $includedRows)
@@ -234,9 +232,9 @@ class Tax_lib
         $taxes = [];
 
         foreach ($rows as $row) {
-            if (!$row['included']) {
+            if (! $row['included']) {
                 $row['amount'] = $this->get_tax_for_amount($net, $row['percent'], Rounding_mode::HALF_UP, $taxDecimals);
-                $row['basis'] = $net;
+                $row['basis']  = $net;
             }
 
             $taxes[] = [
@@ -320,7 +318,7 @@ class Tax_lib
      * asked again. The tax of an item is asked of the tax list by its name, and a tax the list does not
      * know, or knows with no mode, follows the default mode of the shop.
      *
-     * @param array<string, mixed>                                          $info
+     * @param array<string, mixed>                                         $info
      * @param array<string, array{included: bool|null, account: int|null}> $definitions
      */
     private function isIncluded(array $info, array $definitions): bool
@@ -335,7 +333,7 @@ class Tax_lib
     }
 
     /**
-     * @param array<string, mixed>                                          $info
+     * @param array<string, mixed>                                         $info
      * @param array<string, array{included: bool|null, account: int|null}> $definitions
      */
     private function liabilityAccount(array $info, array $definitions): ?int
@@ -361,21 +359,12 @@ class Tax_lib
         return $registerMode === null && $this->sale_lib->is_return_mode() ? $this->sale_lib->get_return_origin() : null;
     }
 
-    /**
-     * @param string $quantity
-     * @param string $price
-     * @param string $discount_percentage
-     * @param int $discount_type
-     * @param string $tax_percentage
-     * @param $tax_decimal
-     * @param $rounding_code
-     * @return string
-     */
     public function get_included_tax(string $quantity, string $price, string $discount_percentage, int $discount_type, string $tax_percentage, $tax_decimal, $rounding_code, string $invoiceDiscountShare = '0'): string    // TODO: $tax_decimal and $rounding_code are in the signature but never used in the function.
     {
-        $itemTotal = $this->sale_lib->get_item_total($quantity, $price, $discount_percentage, $discount_type, true, $invoiceDiscountShare);
-        $taxFraction = bcdiv(bcadd('100', $tax_percentage), '100');
+        $itemTotal    = $this->sale_lib->get_item_total($quantity, $price, $discount_percentage, $discount_type, true, $invoiceDiscountShare);
+        $taxFraction  = bcdiv(bcadd('100', $tax_percentage), '100');
         $priceTaxExcl = bcdiv($itemTotal, $taxFraction);
+
         return bcsub($itemTotal, $priceTaxExcl);
     }
 
@@ -384,13 +373,13 @@ class Tax_lib
      */
     public function update_taxes(array &$taxes, string $taxType, string $taxGroup, string $taxRate, string $taxBasis, string $itemTaxAmount, int $taxGroupSequence, int $roundingCode, int $saleId, string $name = '', ?int $taxCodeId = null, ?int $jurisdictionId = null, ?int $taxCategoryId = null): void
     {
-        $taxGroupIndex = $this->clean('X' . (float)$taxRate . '% ' . $taxGroup);    // TODO: Not sure we should be casting to a float here.  The clean() function takes a string, so it just gets converted back to a string and there's risk of inaccuracies in the value displayed.
+        $taxGroupIndex = $this->clean('X' . (float) $taxRate . '% ' . $taxGroup);    // TODO: Not sure we should be casting to a float here.  The clean() function takes a string, so it just gets converted back to a string and there's risk of inaccuracies in the value displayed.
 
         if (isset($taxes[$taxGroupIndex]) && (string) $taxes[$taxGroupIndex]['tax_type'] !== $taxType) {
             $taxGroupIndex .= '-' . $taxType;
         }
 
-        if (!array_key_exists($taxGroupIndex, $taxes)) {
+        if (! array_key_exists($taxGroupIndex, $taxes)) {
             $insertKey = $taxGroupIndex;
 
             $tax = [
@@ -406,8 +395,8 @@ class Tax_lib
                     'sales_tax_code_id' => $taxCodeId,
                     'jurisdiction_id'   => $jurisdictionId,
                     'tax_category_id'   => $taxCategoryId,
-                    'rounding_code'     => $roundingCode
-                ]
+                    'rounding_code'     => $roundingCode,
+                ],
             ];
 
             // Add to existing array
@@ -415,7 +404,7 @@ class Tax_lib
         } else {
             // Important: the sales amounts are accumulated for the group at the maximum configurable scale value of 4
             // but the scale will in reality be the scale specified by the tax_decimal configuration value  used for sales_items_taxes
-            $taxes[$taxGroupIndex]['sale_tax_basis'] = bcadd($taxes[$taxGroupIndex]['sale_tax_basis'], $taxBasis, 4);
+            $taxes[$taxGroupIndex]['sale_tax_basis']  = bcadd($taxes[$taxGroupIndex]['sale_tax_basis'], $taxBasis, 4);
             $taxes[$taxGroupIndex]['sale_tax_amount'] = bcadd($taxes[$taxGroupIndex]['sale_tax_amount'], $itemTaxAmount, 4);
         }
     }
@@ -426,8 +415,9 @@ class Tax_lib
      */
     public function apply_invoice_taxing(array &$taxes): void
     {
-        if (!empty($taxes)) {
+        if (! empty($taxes)) {
             $sort = [];
+
             foreach ($taxes as $k => $v) {
                 $sort['print_sequence'][$k] = $v['print_sequence'];
             }
@@ -446,8 +436,9 @@ class Tax_lib
      */
     public function round_taxes(array &$taxes): void
     {
-        if (!empty($taxes)) {
+        if (! empty($taxes)) {
             $sort = [];
+
             foreach ($taxes as $k => $v) {
                 $sort['print_sequence'][$k] = $v['print_sequence'];
             }
@@ -461,8 +452,8 @@ class Tax_lib
                 : (string) $salesTax['tax_type'] === Tax_lib::TAX_TYPE_INCLUDED;
             $decimals = $included ? tax_decimals() : totals_decimals();
 
-            $taxAmount = $salesTax['sale_tax_amount'];
-            $roundingCode = $salesTax['rounding_code'];
+            $taxAmount        = $salesTax['sale_tax_amount'];
+            $roundingCode     = $salesTax['rounding_code'];
             $roundedTaxAmount = $taxAmount;
 
             if ($roundingCode == Rounding_mode::HALF_UP) {    // TODO: this block needs to be converted to a switch statement
@@ -474,10 +465,10 @@ class Tax_lib
             } elseif ($roundingCode == Rounding_mode::HALF_ODD) {
                 $roundedTaxAmount = round($taxAmount, $decimals, PHP_ROUND_HALF_UP);
             } elseif ($roundingCode == Rounding_mode::ROUND_UP) {
-                $fig = (int)str_pad('1', $decimals, '0');
+                $fig              = (int) str_pad('1', $decimals, '0');
                 $roundedTaxAmount = ceil($taxAmount * $fig) / $fig;
             } elseif ($roundingCode == Rounding_mode::ROUND_DOWN) {
-                $fig = (int)str_pad('1', $decimals, '0');
+                $fig              = (int) str_pad('1', $decimals, '0');
                 $roundedTaxAmount = floor($taxAmount * $fig) / $fig;
             } elseif ($roundingCode == Rounding_mode::HALF_FIVE) {
                 $roundedTaxAmount = round($taxAmount / 5) * 5;
@@ -509,16 +500,16 @@ class Tax_lib
             $row = 0;    // TODO: This variable is set but never used.
 
             $last_cascade_sequence = 0;
-            $cascade_tax_amount = '0.0';
+            $cascade_tax_amount    = '0.0';
 
             foreach ($tax_definition as $tax) {
                 $cascade_sequence = $tax['cascade_sequence'];
                 if ($cascade_sequence != $last_cascade_sequence) {
                     $last_cascade_sequence = $cascade_sequence;
-                    $tax_basis = bcadd($tax_basis, $cascade_tax_amount);
+                    $tax_basis             = bcadd($tax_basis, $cascade_tax_amount);
                 }
 
-                $tax_rate = $tax['tax_rate'];
+                $tax_rate      = $tax['tax_rate'];
                 $rounding_code = $tax['tax_rounding_code'];
 
                 // This computes tax for each line item and adds it to the tax type total
@@ -527,7 +518,7 @@ class Tax_lib
                 if ($tax_type == Tax_lib::TAX_TYPE_INCLUDED) {
                     $tax_amount = $this->get_included_tax($item['quantity'], $item['price'], $item['discount'], $item['discount_type'], $tax_rate, $tax_decimals, $rounding_code, $item['invoice_discount_share'] ?? '0');
                 } else {
-                    $tax_amount = $this->get_tax_for_amount($tax_basis, $tax_rate, $rounding_code, $tax_decimals);
+                    $tax_amount         = $this->get_tax_for_amount($tax_basis, $tax_rate, $rounding_code, $tax_decimals);
                     $cascade_tax_amount = bcadd($cascade_tax_amount, $tax_amount);
                 }
 
@@ -536,18 +527,18 @@ class Tax_lib
                     $this->update_taxes($taxes, $tax_type, $tax['tax_group'], $tax_rate, $tax_basis, $tax_amount, $tax['tax_group_sequence'], $rounding_code, $sale_id, $tax['tax_group'], $tax_code_id, $tax['rate_jurisdiction_id'], $item['tax_category_id']);
                 }
 
-                $item_taxes_detail = [];
-                $item_taxes_detail['line'] = $line;
-                $item_taxes_detail['item_id'] = $item['item_id'];
-                $item_taxes_detail['name'] = $tax['tax_group'];
-                $item_taxes_detail['percent'] = $tax['tax_rate'];
-                $item_taxes_detail['tax_type'] = $tax_type;
-                $item_taxes_detail['rounding_code'] = $rounding_code;
-                $item_taxes_detail['cascade_sequence'] = $cascade_sequence;
-                $item_taxes_detail['item_tax_amount'] = $tax_amount;
-                $item_taxes_detail['sales_tax_code_id'] = $tax_code_id;
-                $item_taxes_detail['jurisdiction_id'] = $tax['rate_jurisdiction_id'];
-                $item_taxes_detail['tax_category_id'] = $tax['rate_tax_category_id'];
+                $item_taxes_detail                       = [];
+                $item_taxes_detail['line']               = $line;
+                $item_taxes_detail['item_id']            = $item['item_id'];
+                $item_taxes_detail['name']               = $tax['tax_group'];
+                $item_taxes_detail['percent']            = $tax['tax_rate'];
+                $item_taxes_detail['tax_type']           = $tax_type;
+                $item_taxes_detail['rounding_code']      = $rounding_code;
+                $item_taxes_detail['cascade_sequence']   = $cascade_sequence;
+                $item_taxes_detail['item_tax_amount']    = $tax_amount;
+                $item_taxes_detail['sales_tax_code_id']  = $tax_code_id;
+                $item_taxes_detail['jurisdiction_id']    = $tax['rate_jurisdiction_id'];
+                $item_taxes_detail['tax_category_id']    = $tax['rate_tax_category_id'];
                 $item_taxes_detail['tax_group_sequence'] = $tax['tax_group_sequence'];
 
                 $item_taxes[] = $item_taxes_detail;
@@ -557,13 +548,6 @@ class Tax_lib
         return $taxed;
     }
 
-    /**
-     * @param string $register_mode
-     * @param string $city
-     * @param string $state
-     * @param int $sales_tax_code_id
-     * @return int
-     */
     public function get_applicable_tax_code(string $register_mode, string $city, string $state, int $sales_tax_code_id): int
     {
         if ($register_mode == 'sale') {
@@ -581,10 +565,6 @@ class Tax_lib
         return $sales_tax_code_id;
     }
 
-    /**
-     * @param string $string
-     * @return string
-     */
     public function clean(string $string): string    // TODO: $string is not a good choice of variable name here.
     {
         $string = str_replace(' ', '-', $string); // Replaces all spaces with hyphens.
@@ -592,49 +572,40 @@ class Tax_lib
         return preg_replace('/[^A-Za-z0-9\-]/', '', $string); // Removes special chars.
     }
 
-    /**
-     * @return array
-     */
     public function get_tax_code_options(): array
     {
-        $tax_codes = $this->tax_code->get_all()->getResultArray();
-        $tax_code_options = [];
+        $tax_codes            = $this->tax_code->get_all()->getResultArray();
+        $tax_code_options     = [];
         $tax_code_options[''] = '';
 
         foreach ($tax_codes as $tax_code) {
-            $a = $tax_code['tax_code_id'];    // TODO: Need to refactor single-letter variables into meaningful variable names
-            $b = $tax_code['tax_code_name'];
+            $a                    = $tax_code['tax_code_id'];    // TODO: Need to refactor single-letter variables into meaningful variable names
+            $b                    = $tax_code['tax_code_name'];
             $tax_code_options[$a] = $b;
         }
 
         return $tax_code_options;
     }
 
-    /**
-     * @return array
-     */
     public function get_tax_jurisdiction_options(): array
     {
-        $tax_jurisdictions = $this->tax_jurisdiction->get_all()->getResultArray();
-        $tax_jurisdiction_options = [];
+        $tax_jurisdictions           = $this->tax_jurisdiction->get_all()->getResultArray();
+        $tax_jurisdiction_options    = [];
         $tax_jurisdiction_options[0] = '';
 
         foreach ($tax_jurisdictions as $tax_jurisdiction) {    // TODO: Need to refactor single-letter variables into meaningful variable names
-            $a = $tax_jurisdiction['jurisdiction_id'];
-            $b = $tax_jurisdiction['jurisdiction_name'];
+            $a                            = $tax_jurisdiction['jurisdiction_id'];
+            $b                            = $tax_jurisdiction['jurisdiction_name'];
             $tax_jurisdiction_options[$a] = $b;
         }
 
         return $tax_jurisdiction_options;
     }
 
-    /**
-     * @return array
-     */
     public function get_tax_category_options(): array
     {
-        $tax_categories = $this->tax_category->get_all()->getResultArray();
-        $tax_category_options = [];
+        $tax_categories          = $this->tax_category->get_all()->getResultArray();
+        $tax_category_options    = [];
         $tax_category_options[0] = '';
 
         foreach ($tax_categories as $tax_category) {
@@ -647,10 +618,6 @@ class Tax_lib
         return $tax_category_options;
     }
 
-    /**
-     * @param string $selected_tax_type
-     * @return string
-     */
     public function get_tax_type_options(string $selected_tax_type): string
     {
         $selected = 'selected=\"selected\" ';

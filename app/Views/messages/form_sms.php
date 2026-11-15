@@ -2,14 +2,14 @@
 /**
  * @var object $person_info
  * @var string $controller_name
- * @var array $config
+ * @var array  $config
  */
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 <ul id="error_message_box" class="error_message_box"></ul>
 
-<?= form_open("messages/send_form/$person_info->person_id", ['id' => 'send_sms_form', 'class' => 'app-form']) ?>
+<?= form_open("messages/send_form/{$person_info->person_id}", ['id' => 'send_sms_form', 'class' => 'app-form']) ?>
     <fieldset class="form-grid">
 
         <div class="field">

@@ -2,6 +2,7 @@
 
 namespace app\Libraries;
 
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\InvoiceDiscountProblem;
 use App\Libraries\Accounting\InvoiceDiscountShares;
@@ -9,7 +10,6 @@ use App\Libraries\Accounting\ItemPurchaseTax;
 use App\Libraries\Accounting\ReceivingAmounts;
 use App\Libraries\Accounting\ReceivingLine;
 use App\Libraries\Accounting\ReceivingType;
-use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\ReturnDiscountShares;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Stock\ItemStockProfile;
@@ -36,7 +36,6 @@ use Config\OSPOS;
 class Receiving_lib
 {
     private ?AccountingException $unitFailure = null;
-
     private Attribute $attribute;
     private Item $item;
     private Item_kit_items $item_kit_items;
@@ -278,7 +277,7 @@ class Receiving_lib
      * @param bool        $orderLine  A line of a purchase order: the item is the one with this id and never one whose barcode reads like it, and the line
      *                                stands by itself at its own price even when the register holds a line of the same item.
      */
-    public function add_item(string $itemId, int|float $quantity = 1, ?int $itemLocation = null, float $discount = 0, int $discountType = 0, ?float $price = null, ?string $description = null, ?string $serialNumber = null, ?float $receivingQuantity = null, ?int $receivingId = null, bool $includeDeleted = false, ?string $taxPercent = null, bool $orderLine = false): bool
+    public function add_item(string $itemId, float|int $quantity = 1, ?int $itemLocation = null, float $discount = 0, int $discountType = 0, ?float $price = null, ?string $description = null, ?string $serialNumber = null, ?float $receivingQuantity = null, ?int $receivingId = null, bool $includeDeleted = false, ?string $taxPercent = null, bool $orderLine = false): bool
     {
         $config   = config(OSPOS::class)->settings;
         $itemInfo = $orderLine ? $this->undeletedItem((int) $itemId) : $this->item->get_info_by_id_or_number($itemId, $includeDeleted);
@@ -359,7 +358,7 @@ class Receiving_lib
         if ($itemAlreadyInSale) {
             $items[$updateKey]['quantity'] += $quantity;
             $items[$updateKey]['total'] = $this->get_item_total($items[$updateKey]['quantity'], $price, $discount, $discountType, $items[$updateKey]['receiving_quantity']);
-            $items[$updateKey] = (new UnitCart())->refresh($items[$updateKey]);
+            $items[$updateKey]          = (new UnitCart())->refresh($items[$updateKey]);
         } else {
             $items += $item;
         }
@@ -911,9 +910,9 @@ class Receiving_lib
         $origin = $this->get_return_origin();
 
         return match (true) {
-            $type === ReceivingType::Receive                     => InvoiceDiscountShares::forPurchase($lines, $this->getInvoiceDiscount()),
+            $type === ReceivingType::Receive                    => InvoiceDiscountShares::forPurchase($lines, $this->getInvoiceDiscount()),
             $type === ReceivingType::Return && $origin !== null => (new ReturnDiscountShares())->forReturn($origin, $lines),
-            default                                              => array_fill(0, count($lines), '0.0000'),
+            default                                             => array_fill(0, count($lines), '0.0000'),
         };
     }
 }

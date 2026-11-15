@@ -1,15 +1,13 @@
 <?php
 /**
- * @var bool $hasErrors
- * @var bool $isLatest
- * @var bool $isNewInstall
- * @var string $latestVersion
- * @var bool $gcaptchaEnabled
- * @var array $config
- * @var $validation
+ * @var bool        $hasErrors
+ * @var bool        $isLatest
+ * @var bool        $isNewInstall
+ * @var string      $latestVersion
+ * @var bool        $gcaptchaEnabled
+ * @var array       $config
  * @var string|null $migrationRefusal
  */
-
 $formStyle = $config['login_form'] ?? '';
 ?>
 
@@ -41,21 +39,21 @@ $formStyle = $config['login_form'] ?? '';
         <main class="login-panel">
             <?= form_open('login', ['id' => 'login-form', 'class' => 'login-card']) ?>
 
-            <?php if (!empty($config['company_logo'])): ?>
+            <?php if (! empty($config['company_logo'])): ?>
                 <img class="login-company-logo" src="<?= base_url('uploads/' . esc($config['company_logo'], 'url')) ?>" alt="<?= esc(lang('Common.logo') . ' ' . $config['company']) ?>">
             <?php endif; ?>
 
             <h1 id="form-heading" class="login-heading">
                 <?php if ($isNewInstall): ?>
                     <?= lang('Login.initialization_required') ?>
-                <?php elseif (!$isLatest): ?>
+                <?php elseif (! $isLatest): ?>
                     <?= lang('Login.migration_required') ?>
                 <?php else: ?>
                     <?= lang('Login.welcome', [BRAND_NAME]) ?>
                 <?php endif; ?>
             </h1>
 
-            <div id="migration-warning" class="alert alert-warning<?= ($isNewInstall || !$isLatest) ? '' : ' d-none' ?>">
+            <div id="migration-warning" class="alert alert-warning<?= ($isNewInstall || ! $isLatest) ? '' : ' d-none' ?>">
                 <strong>
                     <?php if ($isNewInstall): ?>
                         <?= lang('Login.initialization_message') ?>
@@ -73,7 +71,7 @@ $formStyle = $config['login_form'] ?? '';
                 <?php endforeach; ?>
             <?php endif; ?>
 
-            <?php if (!empty($migrationRefusal)): ?>
+            <?php if (! empty($migrationRefusal)): ?>
                 <div id="migration-refusal" class="alert alert-danger" role="alert">
                     <?= esc($migrationRefusal) ?>
                 </div>
@@ -103,23 +101,31 @@ $formStyle = $config['login_form'] ?? '';
                         <label class="form-label" for="input-username"><?= lang('Login.username') ?></label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="bi bi-person" aria-hidden="true"></i></span>
-                            <input class="form-control" id="input-username" name="username" type="text" autocomplete="username" <?php if (ENVIRONMENT == 'testing') echo 'value="admin"'; ?>>
+                            <input class="form-control" id="input-username" name="username" type="text" autocomplete="username" <?php if (ENVIRONMENT == 'testing') {
+                                echo 'value="admin"';
+                            } ?>>
                         </div>
                     </div>
                     <div>
                         <label class="form-label" for="input-password"><?= lang('Login.password') ?></label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="bi bi-key" aria-hidden="true"></i></span>
-                            <input class="form-control" id="input-password" name="password" type="password" autocomplete="current-password" <?php if (ENVIRONMENT == 'testing') echo 'value="pointofsale"'; ?>>
+                            <input class="form-control" id="input-password" name="password" type="password" autocomplete="current-password" <?php if (ENVIRONMENT == 'testing') {
+                                echo 'value="pointofsale"';
+                            } ?>>
                         </div>
                     </div>
                 <?php else: ?>
                     <div class="form-floating">
-                        <input class="form-control" id="input-username" name="username" type="text" placeholder="<?= lang('Login.username') ?>" autocomplete="username" <?php if (ENVIRONMENT == 'testing') echo 'value="admin"'; ?>>
+                        <input class="form-control" id="input-username" name="username" type="text" placeholder="<?= lang('Login.username') ?>" autocomplete="username" <?php if (ENVIRONMENT == 'testing') {
+                            echo 'value="admin"';
+                        } ?>>
                         <label for="input-username"><?= lang('Login.username') ?></label>
                     </div>
                     <div class="form-floating">
-                        <input class="form-control" id="input-password" name="password" type="password" placeholder="<?= lang('Login.password') ?>" autocomplete="current-password" <?php if (ENVIRONMENT == 'testing') echo 'value="pointofsale"'; ?>>
+                        <input class="form-control" id="input-password" name="password" type="password" placeholder="<?= lang('Login.password') ?>" autocomplete="current-password" <?php if (ENVIRONMENT == 'testing') {
+                            echo 'value="pointofsale"';
+                        } ?>>
                         <label for="input-password"><?= lang('Login.password') ?></label>
                     </div>
                 <?php endif; ?>
@@ -134,7 +140,7 @@ $formStyle = $config['login_form'] ?? '';
                 <button id="submit-button" class="btn btn-lg btn-primary" name="login-button" type="submit">
                     <?php if ($isNewInstall): ?>
                         <?= lang('Login.initialize') ?>
-                    <?php elseif (!$isLatest): ?>
+                    <?php elseif (! $isLatest): ?>
                         <?= lang('Module.migrate') ?>
                     <?php else: ?>
                         <?= lang('Login.go') ?>

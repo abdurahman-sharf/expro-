@@ -31,6 +31,17 @@ $finder = Finder::create()
 $overrides = [
     // For updating to coding-standard
     'modernize_strpos'    => true,
+
+    // Rules that change what the code does, not how it looks. The code inherited from OSPOS compares the strings the
+    // database returns with numbers on purpose, so these are not applied by machine.
+    'strict_comparison'                => false,
+    'strict_param'                     => false,
+    'logical_operators'                => false,
+    'string_length_to_empty'           => false,
+    'ternary_to_elvis_operator'        => false,
+    'fopen_flags'                      => false,
+    'no_trailing_whitespace_in_string' => false,
+    'non_printable_character'          => false,
 ];
 
 $options = [

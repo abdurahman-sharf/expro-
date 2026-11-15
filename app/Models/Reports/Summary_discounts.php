@@ -7,24 +7,20 @@ use Config\OSPOS;
 class Summary_discounts extends Summary_report
 {
     /**
-     * @return array[]
+     * @return list<array>
      */
     protected function _get_data_columns(): array    // TODO: Hungarian notation
     {
         return [
             ['discount' => lang('Reports.discount'), 'sorter' => 'number_sorter'],
-            ['count'    => lang('Reports.count')],
-            ['total'    => lang('Reports.total')]
+            ['count' => lang('Reports.count')],
+            ['total' => lang('Reports.total')],
         ];
     }
 
-    /**
-     * @param array $inputs
-     * @return array
-     */
     public function getData(array $inputs): array
     {
-        $config = config(OSPOS::class)->settings;
+        $config  = config(OSPOS::class)->settings;
         $builder = $this->db->table('sales_items AS sales_items');
 
         if ($inputs['discount_type'] == FIXED) {

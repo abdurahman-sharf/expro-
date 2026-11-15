@@ -1,29 +1,32 @@
 <?php
+
+use App\Libraries\Accounting\InvoiceDiscount;
+
 /**
- * @var bool $print_after_sale
- * @var string $transaction_time
- * @var int $receiving_id
- * @var string $employee
- * @var array $cart
- * @var bool $show_stock_locations
- * @var float $total
- * @var string $tax_total
- * @var string $total_with_tax
- * @var App\Libraries\Accounting\InvoiceDiscount $invoiceDiscount
- * @var string $invoiceDiscountAmount
- * @var string $mode
- * @var string $payment_type
- * @var float $amount_tendered
- * @var string $amount_change
- * @var string $amount_due
- * @var string $barcode
- * @var array $config
- * @var string|null $documentLabel
- * @var string|null $documentNumber
- * @var string|null $invoice_date
- * @var string|null $due_date
- * @var string|null $supplier_tax_id
- * @var string|null $supplier_commercial_registry
+ * @var bool            $print_after_sale
+ * @var string          $transaction_time
+ * @var int             $receiving_id
+ * @var string          $employee
+ * @var array           $cart
+ * @var bool            $show_stock_locations
+ * @var float           $total
+ * @var string          $tax_total
+ * @var string          $total_with_tax
+ * @var InvoiceDiscount $invoiceDiscount
+ * @var string          $invoiceDiscountAmount
+ * @var string          $mode
+ * @var string          $payment_type
+ * @var float           $amount_tendered
+ * @var string          $amount_change
+ * @var string          $amount_due
+ * @var string          $barcode
+ * @var array           $config
+ * @var string|null     $documentLabel
+ * @var string|null     $documentNumber
+ * @var string|null     $invoice_date
+ * @var string|null     $due_date
+ * @var string|null     $supplier_tax_id
+ * @var string|null     $supplier_commercial_registry
  */
 ?>
 
@@ -32,6 +35,7 @@
 <?php
 if (isset($error_message)) {
     echo '<div class="alert alert-danger">' . esc($error_message) . '</div>';
+
     exit;
 }
 
@@ -39,10 +43,10 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
 
 <?php $receivingNumber = (int) trim(substr((string) $receiving_id, 4)); ?>
 <?= view('partial/document_actions', ['actions' => array_values(array_filter([
-        ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'onclick' => 'printdoc();'],
-        $receivingNumber > 0 && $mode != 'requisition' ? ['id' => 'show_invoice_button', 'label' => lang($mode == 'return' ? 'Receivings.debit_note' : 'Documents.purchase_invoice'), 'icon' => 'bi-file-earmark-text', 'href' => 'receivings/print/' . $receivingNumber] : null,
-        ['id' => 'show_sales_button', 'label' => lang('Receivings.register'), 'icon' => 'bi-box-arrow-in-down', 'href' => 'receivings', 'class' => 'btn-primary']
-    ]))]) ?>
+    ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'onclick' => 'printdoc();'],
+    $receivingNumber > 0 && $mode != 'requisition' ? ['id' => 'show_invoice_button', 'label' => lang($mode == 'return' ? 'Receivings.debit_note' : 'Documents.purchase_invoice'), 'icon' => 'bi-file-earmark-text', 'href' => 'receivings/print/' . $receivingNumber] : null,
+    ['id' => 'show_sales_button', 'label' => lang('Receivings.register'), 'icon' => 'bi-box-arrow-in-down', 'href' => 'receivings', 'class' => 'btn-primary'],
+]))]) ?>
 
 <div id="receipt_wrapper">
     <div id="receipt_header">
@@ -64,28 +68,28 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
 
     <div id="receipt_general_info">
         <?php if (isset($supplier)) { ?>
-            <div id="customer"><?= lang('Suppliers.supplier') . esc(": $supplier") ?></div>
-            <?php if (!empty($supplier_tax_id)) { ?>
-                <div id="supplier_tax_id"><?= lang('Receivings.supplier_tax_id') . esc(": $supplier_tax_id") ?></div>
+            <div id="customer"><?= lang('Suppliers.supplier') . esc(": {$supplier}") ?></div>
+            <?php if (! empty($supplier_tax_id)) { ?>
+                <div id="supplier_tax_id"><?= lang('Receivings.supplier_tax_id') . esc(": {$supplier_tax_id}") ?></div>
             <?php } ?>
-            <?php if (!empty($supplier_commercial_registry)) { ?>
-                <div id="supplier_commercial_registry"><?= lang('Receivings.supplier_commercial_registry') . esc(": $supplier_commercial_registry") ?></div>
+            <?php if (! empty($supplier_commercial_registry)) { ?>
+                <div id="supplier_commercial_registry"><?= lang('Receivings.supplier_commercial_registry') . esc(": {$supplier_commercial_registry}") ?></div>
             <?php } ?>
         <?php } ?>
-        <div id="sale_id"><?= lang('Receivings.id') . ": $receiving_id" ?></div>
-        <?php if (!empty($documentNumber)) { ?>
-            <div id="document_number"><?= esc($documentLabel) . esc(": $documentNumber") ?></div>
+        <div id="sale_id"><?= lang('Receivings.id') . ": {$receiving_id}" ?></div>
+        <?php if (! empty($documentNumber)) { ?>
+            <div id="document_number"><?= esc($documentLabel) . esc(": {$documentNumber}") ?></div>
         <?php } ?>
-        <?php if (!empty($reference)) { ?>
-            <div id="reference"><?= lang('Receivings.reference') . esc(": $reference") ?></div>
+        <?php if (! empty($reference)) { ?>
+            <div id="reference"><?= lang('Receivings.reference') . esc(": {$reference}") ?></div>
         <?php } ?>
-        <?php if (!empty($invoice_date)) { ?>
-            <div id="invoice_date"><?= lang('Receivings.invoice_date') . esc(": $invoice_date") ?></div>
+        <?php if (! empty($invoice_date)) { ?>
+            <div id="invoice_date"><?= lang('Receivings.invoice_date') . esc(": {$invoice_date}") ?></div>
         <?php } ?>
-        <?php if (!empty($due_date)) { ?>
-            <div id="due_date"><?= lang('Receivings.due_date') . esc(": $due_date") ?></div>
+        <?php if (! empty($due_date)) { ?>
+            <div id="due_date"><?= lang('Receivings.due_date') . esc(": {$due_date}") ?></div>
         <?php } ?>
-        <div id="employee"><?= lang('Employees.employee') . esc(": $employee") ?></div>
+        <div id="employee"><?= lang('Employees.employee') . esc(": {$employee}") ?></div>
     </div>
 
     <table id="receipt_items">
