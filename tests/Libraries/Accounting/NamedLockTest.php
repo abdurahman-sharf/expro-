@@ -71,8 +71,8 @@ class NamedLockTest extends CIUnitTestCase
     public function testTake_RejectsALockTheConnectionHeldBeforeItAskedAndLeavesItToItsHolder(): void
     {
         $db = Database::connect();
-        $db->query('SELECT GET_LOCK(?, 0)', [self::NAME]);
 
+        $this->assertSame(1, (int) $db->query('SELECT GET_LOCK(?, 10) AS got', [self::NAME])->getRow()->got, 'The test holds the lock before it asks for it');
         $this->assertSame(LockOutcome::Occupied, (new NamedLock($db, 0))->take(self::NAME));
         $this->assertFalse($this->anotherConnectionCanTake(self::NAME), 'Somebody else still holds it');
     }
