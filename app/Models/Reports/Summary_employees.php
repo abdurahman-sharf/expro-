@@ -55,6 +55,6 @@ class Summary_employees extends Summary_report
     protected function _group_order(object &$builder): void    // TODO: hungarian notation
     {
         $builder->groupBy('sales.employee_id');
-        $builder->orderBy('employee_p.last_name');
+        $builder->orderBy('MAX(employee_p.last_name)', '', false);
     }
 }

@@ -58,12 +58,13 @@ final class Tax_definitionTest extends CIUnitTestCase
         $taxes->save(['tax_name' => 'Plain'], null, $router);
 
         $found = (new Tax_definition())->forNames(['vat', ' SERVICE ', 'Plain', 'Unknown', '']);
+        ksort($found);
 
         $this->assertSame(
             [
-                'vat'     => ['included' => true, 'account' => null],
-                'service' => ['included' => false, 'account' => $account],
                 'plain'   => ['included' => null, 'account' => null],
+                'service' => ['included' => false, 'account' => $account],
+                'vat'     => ['included' => true, 'account' => null],
             ],
             $found,
         );

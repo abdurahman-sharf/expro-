@@ -55,6 +55,6 @@ class Summary_customers extends Summary_report
     protected function _group_order(object &$builder): void    // TODO: Hungarian notation
     {
         $builder->groupBy('sales.customer_id');
-        $builder->orderBy('customer_p.last_name');
+        $builder->orderBy('MAX(customer_p.last_name)', '', false);
     }
 }
