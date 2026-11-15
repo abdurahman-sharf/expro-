@@ -85,7 +85,7 @@ class Detailed_sales extends Report
             SUM(profit) AS profit,
             MAX(payment_type) AS payment_type,
             MAX(sale_status) AS sale_status,
-            comment');
+            MAX(comment) AS comment');
         $builder->where('sale_id', $sale_id);
 
         return $builder->get()->getRowArray();
