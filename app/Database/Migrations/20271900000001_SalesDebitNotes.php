@@ -130,7 +130,7 @@ class SalesDebitNotes extends Migration
     private function targetNamesDebitNotes(): bool
     {
         return $this->db->query(
-            'SELECT 1 FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CHECK_CLAUSE LIKE ?',
+            'SELECT 1 FROM information_schema.CHECK_CONSTRAINTS AS cc INNER JOIN information_schema.TABLE_CONSTRAINTS AS tc ON tc.CONSTRAINT_SCHEMA = cc.CONSTRAINT_SCHEMA AND tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME AND tc.CONSTRAINT_TYPE = \'CHECK\' WHERE cc.CONSTRAINT_SCHEMA = DATABASE() AND tc.TABLE_NAME = ? AND cc.CONSTRAINT_NAME = ? AND cc.CHECK_CLAUSE LIKE ?',
             [$this->db->prefixTable('customer_credit_applications'), $this->db->prefixTable('customer_credit_applications_target'), '%debit_note_id%'],
         )->getRow() !== null;
     }

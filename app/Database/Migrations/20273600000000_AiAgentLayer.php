@@ -167,7 +167,7 @@ class AiAgentLayer extends Migration
     private function hasCheck(string $table, string $constraint): bool
     {
         return $this->db->query(
-            'SELECT 1 FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ?',
+            'SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CONSTRAINT_TYPE = \'CHECK\'',
             [$this->db->prefixTable($table), $this->db->prefixTable($constraint)],
         )->getRow() !== null;
     }
