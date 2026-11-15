@@ -303,7 +303,7 @@ class security_helperTest extends CIUnitTestCase
 
     public function testEnvFileIsWritableReturnsFalseWhenLockFileIsReadOnly(): void
     {
-        $this->skipIfRoot();
+        $this->skipWhenPermissionBitsAreBypassed();
         file_put_contents($this->envPath, "# tmp\n");
         file_put_contents($this->lockPath, "");
         chmod($this->lockPath, 0444);
@@ -317,7 +317,7 @@ class security_helperTest extends CIUnitTestCase
 
     public function testEnvFileIsWritableReturnsFalseWhenDirectoryIsNotWritable(): void
     {
-        $this->skipIfRoot();
+        $this->skipWhenPermissionBitsAreBypassed();
         file_put_contents($this->envPath, "# tmp\n");
         chmod($this->sandbox, 0500);
 
@@ -357,7 +357,7 @@ class security_helperTest extends CIUnitTestCase
 
     public function testCheckEncryptionThrowsWhenKeyEmptyAndEnvNotWritable(): void
     {
-        $this->skipIfRoot();
+        $this->skipWhenPermissionBitsAreBypassed();
         config('Encryption')->key = '';
         file_put_contents($this->envPath, "encryption.key=''\n");
         file_put_contents($this->lockPath, "");
@@ -365,7 +365,7 @@ class security_helperTest extends CIUnitTestCase
 
         try {
             $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessage('provisioned');
+            $this->expectExceptionMessage(lang('Error.encryption_key_not_provisioned'));
             checkEncryption();
         } finally {
             @unlink($this->lockPath);
@@ -470,7 +470,7 @@ class security_helperTest extends CIUnitTestCase
 
     public function testCheckThrottleEncryptionThrowsWhenKeyMissingAndEnvNotWritable(): void
     {
-        $this->skipIfRoot();
+        $this->skipWhenPermissionBitsAreBypassed();
         putenv('throttle.key');
         unset($_ENV['throttle.key'], $_SERVER['throttle.key']);
         file_put_contents($this->envPath, "encryption.key='abc'\n");
@@ -479,7 +479,7 @@ class security_helperTest extends CIUnitTestCase
 
         try {
             $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessage('provisioned');
+            $this->expectExceptionMessage(lang('Error.throttle_key_not_provisioned'));
             checkThrottleEncryption();
         } finally {
             @unlink($this->lockPath);
@@ -677,21 +677,16 @@ class security_helperTest extends CIUnitTestCase
         $this->assertFileDoesNotExist($this->backupPath);
     }
 
-    /**
-     * When PHPUnit runs as root, is_writable() reports 0444 files as writable
-     * (and root bypasses directory permission bits), so the "not writable"
-     * fixtures cannot be faked reliably. Skip those tests under root.
-     */
-    private function skipIfRoot(): void
+    private function skipWhenPermissionBitsAreBypassed(): void
     {
-        $isRoot = false;
-        if (function_exists('posix_geteuid')) {
-            $isRoot = posix_geteuid() === 0;
-        } elseif (function_exists('get_current_user')) {
-            $isRoot = in_array(get_current_user(), ['root', '0'], true);
-        }
-        if ($isRoot) {
-            $this->markTestSkipped('is_writable() is bypassed when running as root; cannot fake a non-writable fixture');
+        $probe = $this->sandbox . '/read-only-probe';
+        file_put_contents($probe, '');
+        chmod($probe, 0444);
+        $bypassed = is_writable($probe);
+        unlink($probe);
+
+        if ($bypassed) {
+            $this->markTestSkipped('is_writable() ignores permission bits for this process (root with CAP_DAC_OVERRIDE); a non-writable fixture cannot be faked');
         }
     }
 }
