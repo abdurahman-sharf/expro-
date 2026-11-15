@@ -74,7 +74,7 @@ final class PerTaxInclusiveMigrationTest extends CIUnitTestCase
             return null;
         }
 
-        return ['type' => strtolower((string) $row->type), 'nullable' => (string) $row->nullable, 'default' => in_array($row->dflt, [null, 'NULL'], true) ? null : $row->dflt];
+        return ['type' => preg_replace('/\b(int|bigint|smallint|mediumint)\(\d+\)/', '$1', strtolower((string) $row->type)), 'nullable' => (string) $row->nullable, 'default' => in_array($row->dflt, [null, 'NULL'], true) ? null : $row->dflt];
     }
 
     private function hasIndex(string $table, string $index): bool
@@ -113,8 +113,8 @@ final class PerTaxInclusiveMigrationTest extends CIUnitTestCase
     {
         $this->assertTrue($this->hasTable('tax_definitions'));
         $this->assertSame(['type' => 'tinyint(1)', 'nullable' => 'YES', 'default' => null], $this->column('tax_definitions', 'tax_included'));
-        $this->assertSame(['type' => 'int(10) unsigned', 'nullable' => 'YES', 'default' => null], $this->column('tax_definitions', 'liability_account_id'));
-        $this->assertSame(['type' => 'int(10) unsigned', 'nullable' => 'YES', 'default' => null], $this->column('sales_items_taxes', 'liability_account_id'));
+        $this->assertSame(['type' => 'int unsigned', 'nullable' => 'YES', 'default' => null], $this->column('tax_definitions', 'liability_account_id'));
+        $this->assertSame(['type' => 'int unsigned', 'nullable' => 'YES', 'default' => null], $this->column('sales_items_taxes', 'liability_account_id'));
         $this->assertTrue($this->hasIndex('sales_items_taxes', 'sales_items_taxes_liability'));
     }
 
