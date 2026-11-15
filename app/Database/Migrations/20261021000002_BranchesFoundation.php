@@ -49,6 +49,14 @@ class BranchesFoundation extends Migration
     {
         $this->db->query('SET FOREIGN_KEY_CHECKS = 0');
 
+        foreach (array_keys(self::BRANCH_TABLES) as $table) {
+            $this->dropForeignKey($table, "{$table}_fk_branch");
+        }
+
+        foreach (self::COMPANY_TABLES as $table) {
+            $this->dropForeignKey($table, "{$table}_fk_company");
+        }
+
         $this->restoreUniqueKeys();
         $this->dropIndex('accounting_journals', 'accounting_journals_branch_date');
         $this->dropIndex('accounting_audit_log', 'accounting_audit_log_branch');
@@ -304,15 +312,20 @@ class BranchesFoundation extends Migration
         }
     }
 
+    private function dropForeignKey(string $table, string $foreignKey): void
+    {
+        if ($this->hasForeignKey($table, $foreignKey)) {
+            $this->db->query('ALTER TABLE `' . $this->db->prefixTable($table) . '` DROP FOREIGN KEY `' . $this->db->prefixTable($foreignKey) . '`');
+        }
+    }
+
     private function dropColumn(string $table, string $column, string $foreignKey): void
     {
         if (! $this->hasColumn($table, $column)) {
             return;
         }
 
-        if ($this->hasForeignKey($table, $foreignKey)) {
-            $this->db->query('ALTER TABLE `' . $this->db->prefixTable($table) . '` DROP FOREIGN KEY `' . $this->db->prefixTable($foreignKey) . '`');
-        }
+        $this->dropForeignKey($table, $foreignKey);
 
         $this->db->query('ALTER TABLE `' . $this->db->prefixTable($table) . "` DROP COLUMN `{$column}`");
     }
