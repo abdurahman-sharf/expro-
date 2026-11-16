@@ -78,7 +78,6 @@ return [
     'outside_years_notice'                       => '',
     'outside_years_permission'                   => '',
     'pages'                                      => '',
-    'permission_note'                            => '',
     'preview_continues'                          => '',
     'preview_run'                                => '',
     'previewed'                                  => '',

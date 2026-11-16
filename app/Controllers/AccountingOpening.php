@@ -30,6 +30,7 @@ class AccountingOpening extends AccountingController
     public function __construct()
     {
         parent::__construct('accounting_periods');
+        $this->requireGrant(AccountingGuard::OPENING_MANAGE);
 
         $this->opening      = new OpeningBalanceService(null, null, $this->branchGuard());
         $this->openingStock = new OpeningStock(null, null, $this->branchGuard());
@@ -70,7 +71,6 @@ class AccountingOpening extends AccountingController
             'state'         => $state,
             'stock'         => array_map(fn (OpeningStockPlan $plan): array => $this->stockRow($plan), $stock),
             'deleted_stock' => array_map(static fn (array $location): string => lang('Accounting_periods.opening_stock_deleted_notice', [$location['name'], (string) $location['items'], to_quantity_decimals($location['units'])]), $gone),
-            'can_manage'    => $this->can(AccountingGuard::OPENING_MANAGE),
             'start_date'    => $state['start_date'] === null ? '' : $this->formatDate($state['start_date']),
             'show_branch'   => count($branches) > 1,
             'notice'        => session()->getFlashdata('accounting_notice'),
@@ -121,10 +121,6 @@ class AccountingOpening extends AccountingController
 
     public function getReverseForm(): string
     {
-        if (! $this->can(AccountingGuard::OPENING_MANAGE)) {
-            throw PageNotFoundException::forPageNotFound();
-        }
-
         $branchId = (int) $this->request->getGet('branch');
 
         try {
@@ -187,10 +183,6 @@ class AccountingOpening extends AccountingController
 
     public function getStockReverseForm(): string
     {
-        if (! $this->can(AccountingGuard::OPENING_MANAGE)) {
-            throw PageNotFoundException::forPageNotFound();
-        }
-
         try {
             $plan = $this->openingStock->plan((int) $this->request->getGet('location'), $this->employeeId());
         } catch (AccountingException|BranchException) {
@@ -206,10 +198,6 @@ class AccountingOpening extends AccountingController
 
     public function getStockDifferencesForm(): string
     {
-        if (! $this->can(AccountingGuard::OPENING_MANAGE)) {
-            throw PageNotFoundException::forPageNotFound();
-        }
-
         try {
             $plan = $this->openingStock->plan((int) $this->request->getGet('location'), $this->employeeId());
         } catch (AccountingException|BranchException) {
@@ -231,10 +219,6 @@ class AccountingOpening extends AccountingController
 
     public function getStockRepriceForm(): string
     {
-        if (! $this->can(AccountingGuard::OPENING_MANAGE)) {
-            throw PageNotFoundException::forPageNotFound();
-        }
-
         try {
             $locationId = (int) $this->request->getGet('location');
             $plan       = $this->openingStock->repricePlan($locationId, $this->employeeId());

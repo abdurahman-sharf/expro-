@@ -5,7 +5,6 @@
  * @var list<object>                                                                                                                              $accounts
  * @var array<string, mixed>|null                                                                                                                 $picker The search box that replaces the list of accounts when there are many.
  * @var array{start_date: ?string, posted: ?object, draft: list<array{account_id: int, description: string, debit: string, credit: string}>|null} $state
- * @var bool                                                                                                                                      $can_manage
  * @var string                                                                                                                                    $start_date
  * @var bool                                                                                                                                      $show_branch
  * @var list<array<string, mixed>>                                                                                                                $stock
@@ -14,7 +13,7 @@
  */
 $posted    = $state['posted'];
 $draft     = $state['draft'];
-$editable  = $can_manage && $posted === null && $state['start_date'] !== null;
+$editable  = $posted === null && $state['start_date'] !== null;
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 $label     = static fn (object $account): string => $account->code . ' - ' . $account->name;
 $labels    = [];
@@ -38,10 +37,6 @@ $accountInputs = static function (string $name, ?int $selected) use ($labels, $p
 <?= view('accounting_journals/notice', ['notice' => $notice]) ?>
 
 <?= view('accounting_periods/tabs', ['active' => 'opening']) ?>
-
-<?php if (! $can_manage): ?>
-    <p class="text-body-secondary small" role="note"><span class="bi bi-shield-lock" aria-hidden="true"></span> <?= lang('Accounting_periods.permission_note') ?></p>
-<?php endif; ?>
 
 <?php if ($show_branch): ?>
     <form class="acc-filters print_hide" method="get" action="<?= esc(base_url('accounting_periods/opening'), 'attr') ?>">
@@ -90,11 +85,9 @@ $accountInputs = static function (string $name, ?int $selected) use ($labels, $p
                 </tbody>
             </table>
         </div>
-        <?php if ($can_manage): ?>
-            <button type="button" class="btn btn-outline-danger btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_journals.reverse'), 'attr') ?>" data-href="<?= esc('accounting_periods/opening/reverse_form?branch=' . $branch_id, 'attr') ?>" title="<?= esc(lang('Accounting_periods.opening_reverse'), 'attr') ?>">
-                <span class="bi bi-arrow-counterclockwise" aria-hidden="true">&nbsp;</span><?= lang('Accounting_periods.opening_reverse') ?>
-            </button>
-        <?php endif; ?>
+        <button type="button" class="btn btn-outline-danger btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_journals.reverse'), 'attr') ?>" data-href="<?= esc('accounting_periods/opening/reverse_form?branch=' . $branch_id, 'attr') ?>" title="<?= esc(lang('Accounting_periods.opening_reverse'), 'attr') ?>">
+            <span class="bi bi-arrow-counterclockwise" aria-hidden="true">&nbsp;</span><?= lang('Accounting_periods.opening_reverse') ?>
+        </button>
     </section>
 <?php elseif ($state['start_date'] !== null): ?>
     <template id="line_template">
@@ -326,6 +319,6 @@ $accountInputs = static function (string $name, ?int $selected) use ($labels, $p
     </script>
 <?php endif; ?>
 
-<?= view('accounting_periods/opening_stock', ['stock' => $stock, 'deleted_stock' => $deleted_stock, 'branch_id' => $branch_id, 'can_manage' => $can_manage, 'start_date' => $start_date, 'has_start' => $state['start_date'] !== null]) ?>
+<?= view('accounting_periods/opening_stock', ['stock' => $stock, 'deleted_stock' => $deleted_stock, 'branch_id' => $branch_id, 'start_date' => $start_date, 'has_start' => $state['start_date'] !== null]) ?>
 
 <?= view('partial/footer') ?>

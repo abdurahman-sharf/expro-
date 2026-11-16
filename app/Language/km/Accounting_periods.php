@@ -159,7 +159,6 @@ return [
     'year_end_no_years'                               => '',
     'year_end_nothing'                                => '',
     'year_end_period'                                 => '',
-    'year_end_permission_note'                        => '',
     'year_end_preview'                                => '',
     'year_end_profit'                                 => '',
     'year_end_result'                                 => '',

@@ -5,15 +5,18 @@ namespace Tests\Controllers;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\FiscalYearService;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Navigation\SidebarMenu;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Tests\Support\AccountingControllerFixtureTrait;
+use Tests\Support\NoAccessAssertionTrait;
 
 class AccountingPeriodsControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingControllerFixtureTrait;
+    use NoAccessAssertionTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -61,6 +64,56 @@ class AccountingPeriodsControllerTest extends CIUnitTestCase
         $response->assertStatus(200);
         $response->assertSee('id="table"');
         $response->assertDontSee('data-href="accounting_periods/view"');
+    }
+
+    public function testGetIndex_ShowsOnlyTheTabsOfThePagesTheEmployeeMayOpen(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+
+        $html = $this->get('/accounting_periods')->getBody();
+
+        $this->assertMatchesRegularExpression('~href="[^"]*/accounting_periods/closings"~', $html);
+        $this->assertMatchesRegularExpression('~href="[^"]*/accounting_periods/opening_import"~', $html);
+
+        foreach (['backfill', 'year_end', 'opening'] as $tab) {
+            $this->assertDoesNotMatchRegularExpression('~href="[^"]*/accounting_periods/' . $tab . '"~', $html, $tab);
+        }
+    }
+
+    public function testGetIndex_ShowsEveryTabToWhoHoldsThePermissionsOfTheGatedPages(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_periods', AccountingGuard::BACKFILL_MANAGE, AccountingGuard::YEAR_END_CLOSE, AccountingGuard::OPENING_MANAGE]));
+
+        $html = $this->get('/accounting_periods')->getBody();
+
+        foreach (['closings', 'opening', 'opening_import', 'year_end', 'backfill'] as $tab) {
+            $this->assertMatchesRegularExpression('~href="[^"]*/accounting_periods/' . $tab . '"~', $html, $tab);
+        }
+    }
+
+    public function testTheGatedPages_AnswerExactlyWhomTheMenuOffersThemTo(): void
+    {
+        $gated = [];
+
+        foreach (SidebarMenu::definition() as $section) {
+            foreach ($section['groups'] as $group) {
+                foreach ($group['items'] as $page) {
+                    if ($page['module'] === 'accounting_periods' && isset($page['permission'])) {
+                        $gated[$page['path']] = $page['permission'];
+                    }
+                }
+            }
+        }
+
+        $this->assertSame(['accounting_periods/backfill', 'accounting_periods/year_end', 'accounting_periods/opening'], array_keys($gated));
+
+        foreach ($gated as $path => $permission) {
+            $this->actAs($this->employeeWithGrants(['accounting_periods']));
+            $this->assertNoAccess($this->get('/' . $path), 'accounting_periods', $permission);
+
+            $this->actAs($this->employeeWithGrants(['accounting_periods', $permission]));
+            $this->get('/' . $path)->assertStatus(200);
+        }
     }
 
     public function testGetIndex_IsNotFoundWhileAccountingIsDisabled(): void

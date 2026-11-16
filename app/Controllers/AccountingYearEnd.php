@@ -23,6 +23,7 @@ class AccountingYearEnd extends AccountingController
     public function __construct()
     {
         parent::__construct('accounting_periods');
+        $this->requireGrant(AccountingGuard::YEAR_END_CLOSE);
 
         $this->closing = new YearEndClosing(null, null, $this->branchGuard());
     }
@@ -33,7 +34,6 @@ class AccountingYearEnd extends AccountingController
         $options = $this->scopeOptions();
         $scope   = $this->scopeParameter($options);
         $yearId  = $this->yearParameter($years);
-        $canRun  = $this->can(AccountingGuard::YEAR_END_CLOSE);
         $preview = null;
         $error   = null;
 
@@ -50,7 +50,6 @@ class AccountingYearEnd extends AccountingController
             'year_id'     => $yearId,
             'scopes'      => $options,
             'scope'       => $scope,
-            'can_run'     => $canRun,
             'preview'     => $preview,
             'error'       => $error,
             'blockers'    => $preview === null ? [] : array_map(fn (AccountingException $blocker): string => $this->messageFor($blocker), $preview->blockers),
@@ -65,10 +64,6 @@ class AccountingYearEnd extends AccountingController
 
     public function getCsv(): ResponseInterface
     {
-        if (! $this->can(AccountingGuard::YEAR_END_CLOSE)) {
-            throw PageNotFoundException::forPageNotFound();
-        }
-
         $options = $this->scopeOptions();
         $scope   = $this->scopeParameter($options);
         $yearId  = $this->yearParameter($this->closing->years($this->employeeId()));
@@ -135,10 +130,6 @@ class AccountingYearEnd extends AccountingController
 
     public function getReverseForm(int $closingId): string
     {
-        if (! $this->can(AccountingGuard::YEAR_END_CLOSE)) {
-            throw PageNotFoundException::forPageNotFound();
-        }
-
         $closing = $this->visibleClosing($closingId);
 
         if ($closing === null || $closing->status !== 'active') {

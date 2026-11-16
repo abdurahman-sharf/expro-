@@ -159,7 +159,6 @@ return [
     'year_end_no_years'                               => 'No fiscal year has ended yet.',
     'year_end_nothing'                                => 'No revenue or expense moved in this branch in the year, so no entry is made.',
     'year_end_period'                                 => 'Year {0}, from {1} to {2}.',
-    'year_end_permission_note'                        => 'You can read the closings of your branches. Previewing, approving and taking back a closing needs the sensitive permission to close the year.',
     'year_end_preview'                                => 'Preview',
     'year_end_profit'                                 => 'Profit',
     'year_end_result'                                 => 'Result',

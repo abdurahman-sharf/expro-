@@ -11,6 +11,7 @@ use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Exceptions\PageNotFoundException;
+use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\ResponseInterface;
 
 abstract class AccountingController extends Secure_Controller
@@ -42,6 +43,19 @@ abstract class AccountingController extends Secure_Controller
     protected function can(string $permissionId): bool
     {
         return $this->employee->has_grant($permissionId, $this->employeeId());
+    }
+
+    /**
+     * A screen that is open only to who holds a permission of its own, on top of the grant of the module, answers
+     * everyone else with the page that says access is refused, the way the sidebar already leaves it out.
+     *
+     * @throws RedirectException
+     */
+    protected function requireGrant(string $permissionId): void
+    {
+        if (! $this->can($permissionId)) {
+            throw new RedirectException('no_access/' . $this->global_view_data['controller_name'] . '/' . $permissionId);
+        }
     }
 
     protected function branchGuard(): BranchGuard

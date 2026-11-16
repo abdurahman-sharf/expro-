@@ -541,6 +541,7 @@ final class report_helperTest extends CIUnitTestCase
             'accounting_statements/cash_flow/settings'    => 'The settings of a report, not a report.',
             'accounting_reports/trial_balance'            => 'The same screen as accounting_reports.',
             'accounting_statements'                       => 'The same screen as the income statement.',
+            'accounting_reports/overview'                 => 'The overview of the general accounts, opened from the first item of the books in the menu: a page of figures, not a report.',
         ];
     }
 

@@ -27,8 +27,7 @@ class AccountingOverview extends AccountingController
         $personId             = $this->employeeId();
         $modules              = array_map(static fn (object $module): string => $module->module_id, $this->global_view_data['allowed_modules'] ?? []);
         [$held, $permissions] = navigationGrants($personId);
-        $pages                = $this->pages();
-        $opens                = static fn (string $id): bool => isset($pages[$id]) && SidebarMenu::opens($pages[$id], $modules, $held, $permissions);
+        $opens                = static fn (string $id): bool => ($page = SidebarMenu::page($id)) !== null && SidebarMenu::opens($page, $modules, $held, $permissions);
         $figures              = new OverviewFigures(null, $this->branchGuard());
         $branchIds            = $this->branchIds();
 
@@ -36,7 +35,8 @@ class AccountingOverview extends AccountingController
 
         foreach (self::SHORTCUTS as $id) {
             if ($opens($id)) {
-                $shortcuts[] = ['label' => lang($pages[$id]['label']), 'url' => site_url($pages[$id]['path']), 'icon' => $this->iconOf($id)];
+                $page        = SidebarMenu::page($id);
+                $shortcuts[] = ['label' => lang($page['label']), 'url' => site_url($page['path']), 'icon' => $this->iconOf($id)];
             }
         }
 
@@ -57,24 +57,6 @@ class AccountingOverview extends AccountingController
             'amount'       => fn (string $value): string => $this->formatAmount($value),
             'date'         => fn (string $value): string => $this->formatDate($value),
         ]);
-    }
-
-    /**
-     * @return array<string, array<string, mixed>>
-     */
-    private function pages(): array
-    {
-        $pages = [];
-
-        foreach (SidebarMenu::definition() as $section) {
-            foreach ($section['groups'] as $group) {
-                foreach ($group['items'] as $page) {
-                    $pages[$page['id']] = $page;
-                }
-            }
-        }
-
-        return $pages;
     }
 
     private function iconOf(string $id): string

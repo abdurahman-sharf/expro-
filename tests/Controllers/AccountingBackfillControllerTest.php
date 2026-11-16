@@ -18,6 +18,7 @@ use Tests\Support\BackfillFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\NoAccessAssertionTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
@@ -36,6 +37,7 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
     use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use NoAccessAssertionTrait;
     use PurchaseAccountingFixtureTrait;
     use SaleAccountingFixtureTrait;
 
@@ -100,18 +102,13 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
         $this->get('/accounting_periods/backfill');
     }
 
-    public function testGetIndex_ShowsTheNoteAndNoBatchToAUserWithoutThePermission(): void
+    public function testGetIndex_RefusesAUserWithoutThePermissionOfTheRetroactivePosting(): void
     {
         $this->legacyExpense();
         $this->previewed();
         $this->actAs([]);
 
-        $response = $this->get('/accounting_periods/backfill');
-
-        $response->assertStatus(200);
-        $response->assertSee('backfill_permission_note');
-        $response->assertDontSee('backfill_batches');
-        $response->assertDontSee('backfill_new');
+        $this->assertNoAccess($this->get('/accounting_periods/backfill'), 'accounting_periods', AccountingGuard::BACKFILL_MANAGE);
     }
 
     public function testGetIndex_ListsTheBatchesWithTheirFigures(): void
@@ -159,16 +156,11 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
         $this->get('/accounting_periods/backfill/view/' . $batch->id);
     }
 
-    public function testGetNewForm_IsNotFoundWithoutThePermissionAndOffersTheCompanyOnlyToWhoWorksEverywhere(): void
+    public function testGetNewForm_RefusesWithoutThePermissionAndOffersTheCompanyOnlyToWhoWorksEverywhere(): void
     {
         $this->actAs([], [1]);
 
-        try {
-            $this->get('/accounting_periods/backfill/new_form');
-            $this->fail('The form opened without the permission.');
-        } catch (PageNotFoundException) {
-            $this->addToAssertionCount(1);
-        }
+        $this->assertNoAccess($this->get('/accounting_periods/backfill/new_form'), 'accounting_periods', AccountingGuard::BACKFILL_MANAGE);
 
         $this->actAs([AccountingGuard::BACKFILL_MANAGE], [1]);
         $this->get('/accounting_periods/backfill/new_form')->assertDontSee(lang('Accounting_backfill.scope_company'));
@@ -209,10 +201,9 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
     {
         $this->actAs([]);
 
-        $result = $this->json($this->post('/accounting_periods/backfill/create', ['name' => 'Nope', 'from' => '2026-03-01', 'to' => '2026-03-31']));
+        $response = $this->post('/accounting_periods/backfill/create', ['name' => 'Nope', 'from' => '2026-03-01', 'to' => '2026-03-31']);
 
-        $this->assertFalse($result['success']);
-        $this->assertSame(lang('Accounting.error_permission_denied'), $result['message']);
+        $this->assertNoAccess($response, 'accounting_periods', AccountingGuard::BACKFILL_MANAGE);
         $this->assertSame(0, $this->countRows('accounting_backfill_batches'));
     }
 
@@ -376,17 +367,20 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
         $this->assertStringContainsString("'=HYPERLINK", (string) $this->get('/accounting_periods/backfill/refused/' . $batch->id)->response()->getBody());
     }
 
-    public function testGetRefused_IsNotFoundForSomeoneWithoutThePermissionOrForABatchThatDoesNotExist(): void
+    public function testGetRefused_RefusesSomeoneWithoutThePermissionAndIsNotFoundForABatchThatDoesNotExist(): void
     {
         $this->legacyExpense('100', '0', '2019-03-14');
 
         $batch = $this->previewed(['from' => '2019-01-01', 'to' => '2026-12-31']);
 
         $this->actAs([]);
+        $this->assertNoAccess($this->get('/accounting_periods/backfill/refused/' . $batch->id), 'accounting_periods', AccountingGuard::BACKFILL_MANAGE);
+
+        $this->actAsManager();
 
         $this->expectException(PageNotFoundException::class);
 
-        $this->get('/accounting_periods/backfill/refused/' . $batch->id);
+        $this->get('/accounting_periods/backfill/refused/999999');
     }
 
     public function testGetView_ListsTheJournalsTheBatchWouldPostWithTheirLines(): void
@@ -649,9 +643,9 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
 
         $this->actAs([]);
 
-        $result = $this->json($this->post('/accounting_periods/backfill/approve/' . $batch->id, ['fingerprint' => $batch->fingerprint, 'confirm' => '1']));
+        $response = $this->post('/accounting_periods/backfill/approve/' . $batch->id, ['fingerprint' => $batch->fingerprint, 'confirm' => '1']);
 
-        $this->assertFalse($result['success']);
+        $this->assertNoAccess($response, 'accounting_periods', AccountingGuard::BACKFILL_MANAGE);
         $this->assertSame(BackfillStatus::Preview, $this->statusOf($batch->id));
     }
 

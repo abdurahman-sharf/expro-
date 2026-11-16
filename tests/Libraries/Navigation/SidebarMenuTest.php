@@ -217,6 +217,15 @@ final class SidebarMenuTest extends CIUnitTestCase
         $this->assertSame([], $unlisted);
     }
 
+    public function testPage_FindsAPageOfTheMenuByItsIdWithTheRuleThatDecidesWhoMayOpenIt(): void
+    {
+        $page = SidebarMenu::page('year_end');
+
+        $this->assertSame('accounting_periods/year_end', $page['path']);
+        $this->assertSame('acc_year_end_close', $page['permission']);
+        $this->assertNull(SidebarMenu::page('a_page_the_menu_does_not_name'));
+    }
+
     public function testCompanyModules_ListsTheModulesWhoseFirstPageNeedsTheWholeCompany(): void
     {
         $this->assertSame(['accounting_receivables', 'accounting_payables'], SidebarMenu::companyModules());
