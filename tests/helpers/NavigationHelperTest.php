@@ -196,13 +196,13 @@ class NavigationHelperTest extends CIUnitTestCase
         $this->assertNotSame(NAVIGATION_FALLBACK_ICON, $groups[0]['items'][0]['icon']);
     }
 
-    public function testNavigationGroups_PutsElectronicInvoicingInTheAccountingGroupAfterTheRoutingWithItsOwnIconAndAddress(): void
+    public function testNavigationGroups_PutsElectronicInvoicingInTheSettingsGroupAfterTheRoutingWithItsOwnIconAndAddress(): void
     {
         $groups = navigationGroups($this->modules('accounting_settings', 'accounting_einvoicing', 'accounting_routing', 'accounting_chart', 'config'), 'accounting_einvoicing');
 
-        $this->assertSame([['accounting_chart', 'accounting_routing', 'accounting_einvoicing', 'accounting_settings'], ['config']], $this->itemIds($groups));
+        $this->assertSame([['accounting_chart'], ['config', 'accounting_settings', 'accounting_routing', 'accounting_einvoicing']], $this->itemIds($groups));
 
-        $item = $groups[0]['items'][2];
+        $item = $groups[1]['items'][3];
 
         $this->assertSame(base_url('accounting_einvoicing'), $item['url']);
         $this->assertNotSame(NAVIGATION_FALLBACK_ICON, $item['icon']);

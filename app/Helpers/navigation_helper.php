@@ -1,16 +1,8 @@
 <?php
 
-const NAVIGATION_GROUPS = [
-    'group_main'       => ['home', 'notifications'],
-    'group_sales'      => ['sales', 'customer_orders', 'recurring_invoices'],
-    'group_purchases'  => ['purchase_requests', 'quotation_requests', 'supplier_quotations', 'purchase_orders', 'receivings', 'suppliers'],
-    'group_inventory'  => ['items', 'item_kits', 'attributes', 'price_lists', 'stock_documents', 'stock_units'],
-    'group_customers'  => ['customers', 'giftcards', 'messages'],
-    'group_finance'    => ['expenses', 'expenses_categories', 'recurring_expenses', 'receipt_vouchers', 'revenue_categories', 'cashups', 'taxes'],
-    'group_accounting' => ['accounting_chart', 'accounting_journals', 'accounting_receivables', 'accounting_debit_notes', 'accounting_payables', 'accounting_cheques', 'accounting_assets', 'accounting_reports', 'accounting_cost_centers', 'accounting_currencies', 'accounting_periods', 'accounting_routing', 'accounting_einvoicing', 'accounting_ai', 'accounting_settings'],
-    'group_analysis'   => ['reports'],
-    'group_admin'      => ['employees', 'roles', 'branches', 'custom_fields', 'integrations', 'config'],
-];
+use App\Libraries\Navigation\SidebarMenu;
+use App\Models\Employee;
+use Config\Database;
 
 const NAVIGATION_ICONS = [
     'home'                    => 'bi-house',
@@ -67,7 +59,8 @@ const NAVIGATION_ICONS = [
 const NAVIGATION_FALLBACK_ICON = 'bi-grid';
 
 /**
- * Arranges the modules the user may open into the sidebar groups.
+ * Arranges the modules the user holds a grant for into the sections of the menu, one entry per module: the tiles of
+ * the start page and the quick search read it. The sidebar itself is navigationSections().
  *
  * @param array  $allowedModules Rows of the modules table the user holds a grant for.
  * @param string $activeModule   Module id of the page being shown.
@@ -90,7 +83,7 @@ function navigationGroups(array $allowedModules, string $activeModule): array
 
     $groups = [];
 
-    foreach (NAVIGATION_GROUPS as $labelKey => $moduleIds) {
+    foreach (SidebarMenu::tilesBySection() as $sectionKey => $moduleIds) {
         $items = [];
 
         foreach ($moduleIds as $moduleId) {
@@ -99,20 +92,45 @@ function navigationGroups(array $allowedModules, string $activeModule): array
                 unset($itemsById[$moduleId]);
             }
         }
-        $groups[$labelKey] = $items;
+        $groups[$sectionKey] = $items;
     }
 
-    $groups['group_admin'] = array_merge($groups['group_admin'], array_values($itemsById));
+    $groups[SidebarMenu::SETTINGS] = array_merge($groups[SidebarMenu::SETTINGS], array_values($itemsById));
 
     $result = [];
 
-    foreach ($groups as $labelKey => $items) {
+    foreach ($groups as $sectionKey => $items) {
         if ($items !== []) {
-            $result[] = ['label' => lang("Module.{$labelKey}"), 'items' => $items];
+            $result[] = ['label' => lang("Module.nav_section_{$sectionKey}"), 'items' => $items];
         }
     }
 
     return $result;
+}
+
+/**
+ * The sections of the sidebar for the person signed in: only the pages they can open, only the sections that
+ * keep at least one, the section of the page being shown marked open and the page itself marked current.
+ *
+ * @param array    $allowedModules Rows of the modules table the user holds a grant for.
+ * @param string   $path           Path of the page being shown, relative to the site.
+ * @param int|null $personId       Person whose grants decide, the one signed in when null.
+ *
+ * @return list<array{key: string, label: string, icon: string, active: bool, groups: list<array{label: ?string, items: list<array{id: string, label: string, url: string, active: bool}>}>}>
+ */
+function navigationSections(array $allowedModules, string $path, ?int $personId = null): array
+{
+    $personId ??= (int) session('person_id');
+    $held        = array_map('strtolower', array_column(model(Employee::class)->get_employee_grants($personId), 'permission_id'));
+    $permissions = [];
+
+    foreach (Database::connect()->table('permissions')->select('module_id, permission_id')->get()->getResultArray() as $row) {
+        if (str_starts_with(strtolower($row['permission_id']), strtolower($row['module_id']) . '_')) {
+            $permissions[$row['module_id']][] = $row['permission_id'];
+        }
+    }
+
+    return SidebarMenu::sections(array_map(static fn (object $module): string => $module->module_id, $allowedModules), $held, $permissions, $path);
 }
 
 /**

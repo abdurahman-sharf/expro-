@@ -61,18 +61,6 @@
     overflow-y: auto;
 }
 
-.app-nav-group:first-child {
-    display: none;
-}
-
-.app-nav-group {
-    margin: 0;
-    padding: 12px 12px 4px;
-    color: #a0abc0;
-    font-size: 11px;
-    font-weight: 600;
-}
-
 .app-nav-list {
     margin: 0;
     padding: 0;
@@ -117,6 +105,135 @@
     width: 3px;
     border-radius: 3px;
     background: var(--sky-400);
+}
+
+.app-nav-section {
+    margin: 2px 0;
+}
+
+.app-nav-heading {
+    margin: 0;
+    font-size: inherit;
+    font-weight: inherit;
+}
+
+.app-nav-toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #d2d7e1;
+    font: inherit;
+    font-weight: 600;
+    text-align: start;
+    cursor: pointer;
+}
+
+.app-nav-toggle:hover {
+    background: rgba(255, 255, 255, .09);
+    color: #fff;
+}
+
+.app-nav-toggle:focus-visible,
+.app-sidebar-collapse:focus-visible {
+    outline: 3px solid var(--sky-400);
+    outline-offset: -3px;
+}
+
+.app-nav-icon {
+    flex: none;
+    font-size: 20px;
+    line-height: 1;
+}
+
+.app-nav-caret {
+    flex: none;
+    margin-inline-start: auto;
+    font-size: 12px;
+    transition: transform .15s ease;
+}
+
+.app-nav-section.is-open .app-nav-caret {
+    transform: rotate(180deg);
+}
+
+.app-nav-section.has-active > .app-nav-heading .app-nav-toggle {
+    color: #fff;
+}
+
+.app-nav-section.has-active > .app-nav-heading .app-nav-icon {
+    color: var(--sky-400);
+}
+
+.app-nav-panel {
+    display: none;
+    margin: 2px 0 8px;
+    margin-inline-start: 22px;
+    padding-inline-start: 10px;
+    border-inline-start: 1px solid rgba(255, 255, 255, .16);
+}
+
+.app-nav-section.is-open .app-nav-panel {
+    display: block;
+}
+
+.app-nav-flyout-title {
+    display: none;
+}
+
+.app-nav-subhead {
+    margin: 10px 12px 2px;
+    color: #a0abc0;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.app-nav-panel .app-nav-link {
+    min-height: 36px;
+    font-size: 13.5px;
+}
+
+.app-nav-panel .app-nav-link.active::before {
+    inset-block: 9px;
+}
+
+.app-sidebar-tools {
+    display: none;
+    padding: 6px 10px;
+    border-top: 1px solid rgba(255, 255, 255, .12);
+}
+
+.app-sidebar-collapse {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 36px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #a7b2c5;
+    font: inherit;
+    font-size: 13px;
+    text-align: start;
+    cursor: pointer;
+}
+
+.app-sidebar-collapse:hover {
+    background: rgba(255, 255, 255, .09);
+    color: #fff;
+}
+
+.app-sidebar-collapse .bi {
+    flex: none;
+    font-size: 18px;
+    line-height: 1;
 }
 
 .app-sidebar-foot {
@@ -256,17 +373,17 @@
     text-align: center;
 }
 
-@media (max-height: 960px) {
+@media (min-width: 640px) and (max-height: 960px) {
     .app-nav {
         padding-block: 4px 8px;
     }
 
-    .app-nav-group {
-        padding-block: 8px 2px;
+    .app-nav-toggle {
+        min-height: 38px;
     }
 
-    .app-nav-link {
-        min-height: 36px;
+    .app-nav-panel .app-nav-link {
+        min-height: 32px;
     }
 
     .app-sidebar-foot {
@@ -275,49 +392,6 @@
 }
 
 @media (min-width: 640px) and (max-width: 1099.98px) {
-    .app-shell {
-        grid-template-columns: 72px minmax(0, 1fr);
-    }
-
-    .app-brand-wordmark,
-    .app-nav-text,
-    .app-user,
-    .app-logout {
-        display: none;
-    }
-
-    .app-sidebar-head {
-        justify-content: center;
-        padding-inline: 0;
-    }
-
-    .app-nav-link {
-        justify-content: center;
-        padding: 0;
-    }
-
-    .app-nav-group {
-        margin-top: 6px;
-        padding: 0;
-        border-top: 1px solid rgba(255, 255, 255, .12);
-        font-size: 0;
-    }
-
-    .app-nav-group:first-child {
-        margin-top: 0;
-        border-top: 0;
-    }
-
-    .app-sidebar-foot {
-        justify-content: center;
-        padding-inline: 0;
-    }
-
-    .app-user-link {
-        flex: none;
-        justify-content: center;
-    }
-
     .app-company {
         display: none;
     }
@@ -328,6 +402,108 @@
 
     .btn {
         --bs-btn-padding-y: .625rem;
+    }
+}
+
+@media (min-width: 1100px) {
+    .app-sidebar-tools {
+        display: block;
+    }
+}
+
+@media (min-width: 640px) {
+    html.nav-rail .app-shell {
+        grid-template-columns: 72px minmax(0, 1fr);
+    }
+
+    html.nav-rail .app-brand-wordmark,
+    html.nav-rail .app-nav-caret,
+    html.nav-rail .app-user,
+    html.nav-rail .app-logout {
+        display: none;
+    }
+
+    html.nav-rail .app-nav-text {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        white-space: nowrap;
+        clip-path: inset(50%);
+    }
+
+    html.nav-rail .app-sidebar-head {
+        justify-content: center;
+        padding-inline: 0;
+    }
+
+    html.nav-rail .app-nav {
+        padding-inline: 8px;
+    }
+
+    html.nav-rail .app-nav-toggle,
+    html.nav-rail .app-sidebar-collapse {
+        justify-content: center;
+        padding: 0;
+    }
+
+    html.nav-rail .app-nav-section {
+        margin: 2px 0;
+    }
+
+    html.nav-rail .app-nav-section .app-nav-panel {
+        display: none;
+    }
+
+    html.nav-rail .app-nav-section.is-flyout .app-nav-panel {
+        position: fixed;
+        top: var(--nav-fly-top, 8px);
+        inset-inline-start: 76px;
+        z-index: 1060;
+        display: block;
+        width: 240px;
+        max-height: calc(100vh - 16px);
+        margin: 0;
+        padding: 8px;
+        overflow-y: auto;
+        border: 1px solid rgba(255, 255, 255, .18);
+        border-radius: 12px;
+        background: var(--navy-800);
+        box-shadow: 0 12px 32px rgba(1, 15, 52, .45);
+    }
+
+    html.nav-rail .app-nav-section.is-flyout > .app-nav-heading .app-nav-toggle {
+        background: rgba(255, 255, 255, .15);
+        color: #fff;
+    }
+
+    html.nav-rail .app-nav-flyout-title {
+        display: block;
+        margin: 0;
+        padding: 6px 12px 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, .14);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    html.nav-rail .app-nav-section.is-flyout .app-nav-panel .app-nav-text {
+        position: static;
+        width: auto;
+        height: auto;
+        overflow: visible;
+        white-space: normal;
+        clip-path: none;
+    }
+
+    html.nav-rail .app-sidebar-foot {
+        justify-content: center;
+        padding-inline: 0;
+    }
+
+    html.nav-rail .app-user-link {
+        flex: none;
+        justify-content: center;
     }
 }
 
@@ -351,6 +527,14 @@
 @media (max-width: 639.98px) {
     .app-shell {
         grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app-nav-toggle {
+        min-height: 44px;
+    }
+
+    .app-nav-panel .app-nav-link {
+        min-height: 42px;
     }
 
     .app-menu-toggle {

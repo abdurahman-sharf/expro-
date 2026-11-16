@@ -1,0 +1,373 @@
+<?php
+
+namespace App\Libraries\Navigation;
+
+/**
+ * The sidebar: eight sections, each with the pages that exist for its job, arranged by what a person does with
+ * them and not by the module that holds them. A section or page shows only to a person who can open what it
+ * points at, by the very rule the page applies when it is asked for, so the menu never offers a page that answers
+ * "no access". Nothing here grants or refuses anything: the controllers keep every check they had.
+ */
+final class SidebarMenu
+{
+    public const SETTINGS = 'settings';
+
+    /**
+     * The section the tile of a module on the start page belongs to, for the modules that appear in more than one.
+     */
+    private const TILE_SECTION = [
+        'accounting_reports' => 'reports',
+    ];
+
+    /**
+     * Each section: icon, the path prefixes that keep it open for a page the menu does not list by name, and its
+     * groups. A page: id, the module whose grant opens it, its path, and optionally the permission it asks for as
+     * well, the other modules it asks for, and further paths that count as the page itself.
+     *
+     * @return array<string, array{icon: string, also: list<string>, groups: list<array{label: ?string, items: list<array<string, mixed>>}>}>
+     */
+    public static function definition(): array
+    {
+        $page = static fn (string $id, string $module, string $path, string $label, array $more = []): array => ['id' => $id, 'module' => $module, 'path' => $path, 'label' => $label] + $more;
+
+        return [
+            'home' => ['icon' => 'bi-house', 'also' => [], 'groups' => [
+                ['label' => null, 'items' => [
+                    $page('home', 'home', 'home', 'Module.nav_dashboard', ['aliases' => ['']]),
+                    $page('notifications', 'notifications', 'notifications', 'Module.notifications'),
+                ]],
+            ]],
+            'sales' => ['icon' => 'bi-cart3', 'also' => [], 'groups' => [
+                ['label' => null, 'items' => [
+                    $page('sales', 'sales', 'sales', 'Module.nav_pos'),
+                    $page('sales_log', 'sales', 'sales/manage', 'Module.nav_sales_log', ['permission' => 'reports_sales']),
+                    $page('sales_documents', 'sales', 'sales/documents', 'Module.nav_sales_documents', ['permission' => 'reports_sales']),
+                    $page('customer_orders', 'customer_orders', 'customer_orders', 'Module.customer_orders'),
+                    $page('recurring_invoices', 'recurring_invoices', 'recurring_invoices', 'Module.recurring_invoices'),
+                    $page('price_lists', 'price_lists', 'price_lists', 'Module.price_lists'),
+                    $page('giftcards', 'giftcards', 'giftcards', 'Module.giftcards'),
+                ]],
+                ['label' => 'Module.nav_group_customers', 'items' => [
+                    $page('customers', 'customers', 'customers', 'Module.customers'),
+                    $page('accounting_receivables', 'accounting_receivables', 'accounting_receivables', 'Module.accounting_receivables'),
+                    $page('receivables_payments', 'accounting_receivables', 'accounting_receivables/payments', 'Module.nav_receivables_payments'),
+                    $page('receivables_credit_notes', 'accounting_receivables', 'accounting_receivables/credit_notes', 'Module.nav_receivables_credit_notes'),
+                    $page('receivables_aged', 'accounting_receivables', 'accounting_receivables/aged_ledger', 'Module.nav_receivables_aged'),
+                    $page('accounting_debit_notes', 'accounting_debit_notes', 'accounting_debit_notes', 'Module.nav_debit_notes'),
+                    $page('messages', 'messages', 'messages', 'Module.messages'),
+                ]],
+            ]],
+            'purchases' => ['icon' => 'bi-bag', 'also' => [], 'groups' => [
+                ['label' => null, 'items' => [
+                    $page('purchase_requests', 'purchase_requests', 'purchase_requests', 'Module.purchase_requests'),
+                    $page('quotation_requests', 'quotation_requests', 'quotation_requests', 'Module.quotation_requests'),
+                    $page('supplier_quotations', 'supplier_quotations', 'supplier_quotations', 'Module.supplier_quotations'),
+                    $page('purchase_orders', 'purchase_orders', 'purchase_orders', 'Module.purchase_orders'),
+                    $page('receivings', 'receivings', 'receivings', 'Module.receivings'),
+                ]],
+                ['label' => 'Module.nav_group_suppliers', 'items' => [
+                    $page('suppliers', 'suppliers', 'suppliers', 'Module.suppliers'),
+                    $page('accounting_payables', 'accounting_payables', 'accounting_payables', 'Module.accounting_payables'),
+                    $page('payables_payments', 'accounting_payables', 'accounting_payables/payments', 'Module.nav_payables_payments'),
+                    $page('payables_debit_notes', 'accounting_payables', 'accounting_payables/debit_notes', 'Module.nav_payables_debit_notes'),
+                    $page('payables_aged', 'accounting_payables', 'accounting_payables/aged_ledger', 'Module.nav_payables_aged'),
+                ]],
+            ]],
+            'inventory' => ['icon' => 'bi-box-seam', 'also' => [], 'groups' => [
+                ['label' => null, 'items' => [
+                    $page('items', 'items', 'items', 'Module.items'),
+                    $page('item_kits', 'item_kits', 'item_kits', 'Module.item_kits'),
+                    $page('attributes', 'attributes', 'attributes', 'Module.nav_attributes'),
+                    $page('stock_units', 'stock_units', 'stock_units', 'Module.stock_units'),
+                ]],
+                ['label' => 'Module.nav_group_stock', 'items' => [
+                    $page('stock_documents', 'stock_documents', 'stock_documents', 'Module.nav_stock_permits'),
+                    $page('stocktakes', 'stock_documents', 'stock_documents/stocktakes', 'Module.nav_stocktakes'),
+                    $page('stock_requests', 'stock_documents', 'stock_documents/requests', 'Module.nav_stock_requests'),
+                ]],
+            ]],
+            'ledger' => ['icon' => 'bi-journal-bookmark', 'also' => [], 'groups' => [
+                ['label' => null, 'items' => [
+                    $page('accounting_chart', 'accounting_chart', 'accounting_chart', 'Module.accounting_chart'),
+                    $page('accounting_journals', 'accounting_journals', 'accounting_journals', 'Module.accounting_journals'),
+                    $page('ledger', 'accounting_reports', 'accounting_reports/ledger', 'Module.nav_ledger'),
+                    $page('trial_balance', 'accounting_reports', 'accounting_reports/trial_balance', 'Module.nav_trial_balance', ['aliases' => ['accounting_reports']]),
+                    $page('accounting_periods', 'accounting_periods', 'accounting_periods', 'Module.accounting_periods'),
+                    $page('accounting_cost_centers', 'accounting_cost_centers', 'accounting_cost_centers', 'Module.accounting_cost_centers'),
+                    $page('accounting_currencies', 'accounting_currencies', 'accounting_currencies', 'Module.accounting_currencies'),
+                    $page('accounting_assets', 'accounting_assets', 'accounting_assets', 'Module.accounting_assets'),
+                    $page('accounting_ai', 'accounting_ai', 'accounting_ai', 'Module.accounting_ai'),
+                ]],
+            ]],
+            'treasury' => ['icon' => 'bi-bank', 'also' => [], 'groups' => [
+                ['label' => null, 'items' => [
+                    $page('accounting_treasuries', 'accounting_treasuries', 'accounting_treasuries', 'Module.nav_treasuries'),
+                    $page('treasury_transfers', 'accounting_treasuries', 'accounting_treasuries/transfers', 'Module.nav_transfers'),
+                    $page('bank_reconciliation', 'accounting_treasuries', 'accounting_treasuries/bank', 'Module.nav_bank_reconciliation'),
+                    $page('inter_branch', 'accounting_treasuries', 'accounting_treasuries/inter_branch', 'Module.nav_inter_branch'),
+                    $page('accounting_cheques', 'accounting_cheques', 'accounting_cheques', 'Module.accounting_cheques'),
+                    $page('cashups', 'cashups', 'cashups', 'Module.cashups'),
+                ]],
+                ['label' => 'Module.nav_group_receipts', 'items' => [
+                    $page('receipt_vouchers', 'receipt_vouchers', 'receipt_vouchers', 'Module.receipt_vouchers'),
+                    $page('revenue_categories', 'revenue_categories', 'revenue_categories', 'Module.revenue_categories'),
+                ]],
+                ['label' => 'Module.nav_group_expenses', 'items' => [
+                    $page('expenses', 'expenses', 'expenses', 'Module.expenses'),
+                    $page('expenses_categories', 'expenses_categories', 'expenses_categories', 'Module.expenses_categories'),
+                    $page('recurring_expenses', 'recurring_expenses', 'recurring_expenses', 'Module.recurring_expenses'),
+                ]],
+            ]],
+            'reports' => ['icon' => 'bi-bar-chart-line', 'also' => ['accounting_reports', 'accounting_statements'], 'groups' => [
+                ['label' => null, 'items' => [
+                    $page('reports', 'reports', 'reports', 'Module.nav_reports_hub'),
+                    $page('income_statement', 'accounting_reports', 'accounting_statements/income_statement', 'Module.nav_income_statement'),
+                    $page('balance_sheet', 'accounting_reports', 'accounting_statements/balance_sheet', 'Module.nav_balance_sheet'),
+                    $page('cash_flow', 'accounting_reports', 'accounting_statements/cash_flow', 'Module.nav_cash_flow'),
+                    $page('tax_report', 'accounting_reports', 'accounting_reports/tax', 'Module.nav_tax_report'),
+                ]],
+            ]],
+            self::SETTINGS => ['icon' => 'bi-gear', 'also' => [], 'groups' => [
+                ['label' => null, 'items' => [
+                    $page('config', 'config', 'config', 'Module.config'),
+                    $page('branches', 'branches', 'branches', 'Module.branches'),
+                    $page('employees', 'employees', 'employees', 'Module.employees'),
+                    $page('roles', 'roles', 'roles', 'Module.roles'),
+                    $page('taxes', 'taxes', 'taxes', 'Module.taxes'),
+                    $page('custom_fields', 'custom_fields', 'custom_fields', 'Module.custom_fields'),
+                    $page('integrations', 'integrations', 'integrations', 'Module.integrations', ['also' => ['config']]),
+                ]],
+                ['label' => 'Module.group_accounting', 'items' => [
+                    $page('accounting_settings', 'accounting_settings', 'accounting_settings', 'Module.accounting_settings'),
+                    $page('accounting_routing', 'accounting_routing', 'accounting_routing', 'Module.accounting_routing'),
+                    $page('accounting_einvoicing', 'accounting_einvoicing', 'accounting_einvoicing', 'Module.accounting_einvoicing'),
+                ]],
+            ]],
+        ];
+    }
+
+    /**
+     * Every module the menu names, in the order of the sections.
+     *
+     * @return list<string>
+     */
+    public static function modules(): array
+    {
+        $modules = [];
+
+        foreach (self::definition() as $section) {
+            foreach ($section['groups'] as $group) {
+                foreach ($group['items'] as $item) {
+                    $modules[$item['module']] = true;
+                }
+            }
+        }
+
+        return array_keys($modules);
+    }
+
+    /**
+     * The module ids that open one tile each on the start page, by section, in the order of the menu.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function tilesBySection(): array
+    {
+        $tiles    = [];
+        $deferred = [];
+        $seen     = [];
+
+        foreach (self::definition() as $sectionKey => $section) {
+            $tiles[$sectionKey] ??= [];
+
+            foreach ($section['groups'] as $group) {
+                foreach ($group['items'] as $item) {
+                    $module = $item['module'];
+
+                    if (isset($seen[$module])) {
+                        continue;
+                    }
+
+                    $seen[$module] = true;
+                    $home          = self::TILE_SECTION[$module] ?? $sectionKey;
+
+                    if ($home === $sectionKey) {
+                        $tiles[$sectionKey][] = $module;
+                    } else {
+                        $deferred[$home][] = $module;
+                    }
+                }
+            }
+        }
+
+        foreach ($deferred as $home => $modules) {
+            $tiles[$home] = [...$tiles[$home], ...$modules];
+        }
+
+        return $tiles;
+    }
+
+    /**
+     * Whether a person holds a module the way the module's own screens ask for it: the grant of the module and,
+     * for a module that has permissions of its own under its name, at least one of them besides. This is the rule of
+     * Employee::has_module_grant, worked out from lists read once for the whole menu.
+     *
+     * @param list<string>                $held        Lower-case permission ids the person holds, their own and their roles'.
+     * @param array<string, list<string>> $permissions Permission ids of each module that start with the module's id and an underscore.
+     */
+    public static function holdsModule(string $moduleId, array $held, array $permissions): bool
+    {
+        $own      = array_map('strtolower', $permissions[$moduleId] ?? []);
+        $inModule = array_intersect($held, [strtolower($moduleId), ...$own]);
+
+        return in_array(strtolower($moduleId), $inModule, true) && (count($inModule) > 1 || $own === []);
+    }
+
+    /**
+     * @param list<string>                $allowedModules Ids of the modules the person holds a grant for, as the module list gives them.
+     * @param list<string>                $held           Lower-case permission ids the person holds, their own and their roles'.
+     * @param array<string, list<string>> $permissions    See holdsModule().
+     *
+     * @return list<array{key: string, label: string, icon: string, active: bool, groups: list<array{label: ?string, items: list<array{id: string, label: string, url: string, active: bool}>}>}>
+     */
+    public static function sections(array $allowedModules, array $held, array $permissions, string $path): array
+    {
+        $definition = self::definition();
+        $path       = self::normalize($path);
+        $known      = self::modules();
+        $allowed    = array_flip($allowedModules);
+        $opens      = static fn (string $module): bool => isset($allowed[$module]) && self::holdsModule($module, $held, $permissions);
+        $visible    = [];
+
+        foreach ($definition as $sectionKey => $section) {
+            foreach ($section['groups'] as $groupIndex => $group) {
+                foreach ($group['items'] as $item) {
+                    if (! $opens($item['module'])) {
+                        continue;
+                    }
+
+                    if (isset($item['permission']) && ! in_array(strtolower($item['permission']), $held, true)) {
+                        continue;
+                    }
+
+                    foreach ($item['also'] ?? [] as $other) {
+                        if (! $opens($other)) {
+                            continue 2;
+                        }
+                    }
+
+                    $visible[$sectionKey][$groupIndex][] = $item;
+                }
+            }
+        }
+
+        foreach ($allowedModules as $moduleId) {
+            if (! in_array($moduleId, $known, true) && $opens($moduleId)) {
+                $last                                 = array_key_last($definition[self::SETTINGS]['groups']);
+                $visible[self::SETTINGS][$last + 1][] = ['id' => $moduleId, 'module' => $moduleId, 'path' => $moduleId, 'label' => "Module.{$moduleId}"];
+            }
+        }
+
+        $activeId = self::activeItem($visible, $path);
+        $sections = [];
+
+        foreach ($definition as $sectionKey => $section) {
+            if (! isset($visible[$sectionKey])) {
+                continue;
+            }
+
+            $groups = [];
+
+            foreach ($visible[$sectionKey] as $groupIndex => $items) {
+                $label = $section['groups'][$groupIndex]['label'] ?? null;
+
+                $groups[] = [
+                    'label' => $label === null ? null : lang($label),
+                    'items' => array_map(static fn (array $item): array => [
+                        'id'     => $item['id'],
+                        'label'  => lang($item['label']),
+                        'url'    => base_url($item['path']),
+                        'active' => $item['id'] === $activeId,
+                    ], $items),
+                ];
+            }
+
+            $active = $activeId !== null && in_array($activeId, array_column(array_merge(...array_column($groups, 'items')), 'id'), true);
+
+            if (! $active && $activeId === null) {
+                $active = self::keepsOpen($section['also'], $path);
+            }
+
+            $sections[] = [
+                'key'    => $sectionKey,
+                'label'  => lang("Module.nav_section_{$sectionKey}"),
+                'icon'   => $section['icon'],
+                'active' => $active,
+                'groups' => $groups,
+            ];
+        }
+
+        return $sections;
+    }
+
+    /**
+     * @param array<string, array<int, list<array<string, mixed>>>> $visible
+     */
+    private static function activeItem(array $visible, string $path): ?string
+    {
+        $best    = null;
+        $bestLen = -1;
+
+        foreach ($visible as $groups) {
+            foreach ($groups as $items) {
+                foreach ($items as $item) {
+                    $length = self::matchLength($item, $path);
+
+                    if ($length > $bestLen) {
+                        $best    = $item['id'];
+                        $bestLen = $length;
+                    }
+                }
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * How much of the path the page accounts for, or -1 when it is not this page.
+     *
+     * @param array<string, mixed> $item
+     */
+    private static function matchLength(array $item, string $path): int
+    {
+        if (in_array($path, $item['aliases'] ?? [], true)) {
+            return strlen($path);
+        }
+
+        if ($item['path'] === $path || str_starts_with($path, $item['path'] . '/')) {
+            return strlen($item['path']);
+        }
+
+        return -1;
+    }
+
+    /**
+     * @param list<string> $prefixes
+     */
+    private static function keepsOpen(array $prefixes, string $path): bool
+    {
+        foreach ($prefixes as $prefix) {
+            if ($path === $prefix || str_starts_with($path, $prefix . '/')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function normalize(string $path): string
+    {
+        return trim(strtolower(parse_url($path, PHP_URL_PATH) ?: ''), '/');
+    }
+}
