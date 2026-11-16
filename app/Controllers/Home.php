@@ -35,6 +35,7 @@ class Home extends Secure_Controller
 
         return view('home/home', [
             'first_name'     => $employee->first_name,
+            'shortcuts'      => quickActionsFor($this->global_view_data['allowed_modules'] ?? [], $personId),
             'sales'          => $granted('reports_sales') ? $dashboard->sales() : null,
             'top_items'      => $granted('reports_items') ? $dashboard->topItems() : null,
             'low_stock'      => $granted('reports_inventory') ? $dashboard->lowStock() : null,

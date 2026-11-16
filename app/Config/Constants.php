@@ -189,6 +189,11 @@ const BRAND_NAME    = 'الاول برو';
 const BRAND_TAGLINE = 'نظام مالي متكامل';
 
 /**
+ * Technical support: the WhatsApp number of the vendor, with the country code and no signs
+ */
+const SUPPORT_WHATSAPP = '966530882752';
+
+/**
  * Admin modules - list of modules required for admin privileges
  */
 const ADMIN_MODULES = ['customers', 'employees', 'giftcards', 'items', 'item_kits', 'messages', 'receivings', 'reports', 'sales', 'config', 'suppliers'];

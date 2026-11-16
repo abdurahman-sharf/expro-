@@ -8,11 +8,11 @@ use App\Libraries\Roles\RoleGrants;
 use App\Models\Employee;
 use App\Models\Module;
 use CodeIgniter\Language\Language;
-use CodeIgniter\Router\Router;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\NavigationShapesTrait;
 use Tests\Support\RoleFixtureTrait;
 
 /**
@@ -22,6 +22,7 @@ final class SidebarMenuTest extends CIUnitTestCase
 {
     use AccountingFixtureTrait;
     use DatabaseTestTrait;
+    use NavigationShapesTrait;
     use RoleFixtureTrait;
 
     protected $migrate     = true;
@@ -98,94 +99,6 @@ final class SidebarMenuTest extends CIUnitTestCase
     }
 
     /**
-     * @return array<string, list<string>> Permission ids of each module that start with the module's id.
-     */
-    private function ownPermissions(): array
-    {
-        $own = [];
-
-        foreach (Database::connect()->table('permissions')->select('module_id, permission_id')->get()->getResultArray() as $row) {
-            if (str_starts_with(strtolower($row['permission_id']), strtolower($row['module_id']) . '_')) {
-                $own[$row['module_id']][] = $row['permission_id'];
-            }
-        }
-
-        return $own;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function everyModuleId(): array
-    {
-        return array_column(Database::connect()->table('modules')->select('module_id')->get()->getResultArray(), 'module_id');
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function everyPermissionId(): array
-    {
-        return array_column(Database::connect()->table('permissions')->select('permission_id')->get()->getResultArray(), 'permission_id');
-    }
-
-    /**
-     * @param list<string> $permissionIds
-     */
-    private function employeeHolding(array $permissionIds): int
-    {
-        return $this->createEmployee(grants: array_map(
-            static fn (string $permissionId): array => ['permission_id' => $permissionId, 'menu_group' => 'home'],
-            array_values(array_unique($permissionIds)),
-        ));
-    }
-
-    /**
-     * @param list<string> $permissionIds
-     */
-    private function employeeHoldingThroughARole(array $permissionIds): int
-    {
-        return $this->employeeWithRoles([$this->createRole(array_values(array_diff($permissionIds, RoleGrants::forbidden())))]);
-    }
-
-    /**
-     * @return array<string, int>
-     */
-    private function employeesOfEveryShape(): array
-    {
-        $own     = $this->ownPermissions();
-        $modules = $this->everyModuleId();
-        $oneEach = [];
-
-        foreach ($modules as $moduleId) {
-            $oneEach[] = $moduleId;
-
-            if (isset($own[$moduleId])) {
-                $oneEach[] = $own[$moduleId][0];
-            }
-        }
-
-        $everything = $this->everyPermissionId();
-        $balances   = ['accounting_receivables', 'accounting_payables', ...($own['accounting_receivables'] ?? []), ...($own['accounting_payables'] ?? [])];
-        $half       = array_slice($modules, 0, intdiv(count($modules), 2));
-        $rest       = array_slice($modules, intdiv(count($modules), 2));
-
-        RoleGrants::flush();
-
-        return [
-            'no permission at all'                              => $this->employeeHolding([]),
-            'the grant of every module and no more'             => $this->employeeHolding($modules),
-            'each module with one permission of its own'        => $this->employeeHolding($oneEach),
-            'every permission'                                  => $this->employeeHolding($everything),
-            'the permissions of a role'                         => $this->employeeHoldingThroughARole($oneEach),
-            'half of the modules directly, half through a role' => $this->employeeWithRoles([$this->createRole(array_values(array_diff($rest, RoleGrants::forbidden())))], $half),
-            'only the sales cycle'                              => $this->employeeHolding(['sales', 'customers', ...($own['sales'] ?? []), ...($own['customers'] ?? [])]),
-            'the balances of a branch'                          => $this->employeeHolding($balances),
-            'the balances of the company'                       => $this->employeeHolding([...$balances, BranchGuard::ALL_BRANCHES]),
-        ];
-    }
-
-    /**
      * @return list<string>
      */
     private function shownFor(int $personId, string $path = 'home'): array
@@ -228,36 +141,6 @@ final class SidebarMenuTest extends CIUnitTestCase
         }
 
         return $ids;
-    }
-
-    private function withAccounting(bool $enabled, callable $then): void
-    {
-        $previous = $this->accountingDb()->table('app_config')->where('key', 'accounting_enabled')->get()->getRow();
-
-        $this->setConfigValue('accounting_enabled', $enabled ? '1' : '0');
-
-        try {
-            $then();
-        } finally {
-            $previous === null
-                ? $this->accountingDb()->table('app_config')->where('key', 'accounting_enabled')->delete()
-                : $this->setConfigValue('accounting_enabled', (string) $previous->value);
-        }
-    }
-
-    private function handlerOf(string $uri): array
-    {
-        $routes = service('routes', true);
-        $routes->loadRoutes();
-        $routes->setHTTPVerb('get');
-
-        $request = service('incomingrequest', null, false);
-        $request->setMethod('GET');
-
-        $router = new Router($routes, $request);
-        $router->handle($uri);
-
-        return [$router->controllerName(), $router->methodName()];
     }
 
     public function testHoldsModule_RequiresAPermissionOfTheModuleWhenItHasSome(): void

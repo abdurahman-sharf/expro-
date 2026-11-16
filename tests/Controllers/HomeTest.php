@@ -9,6 +9,7 @@ use CodeIgniter\Test\FeatureTestTrait;
 use App\Libraries\Organization\BranchGuard;
 use App\Models\Employee;
 use Config\Database;
+use Config\OSPOS;
 use RuntimeException;
 
 /**
@@ -863,5 +864,74 @@ class HomeTest extends CIUnitTestCase
         $this->get('/home/logout');
 
         $this->assertSame(1, Database::connect()->table('accounting_audit_log')->where(['action' => 'employee_logout', 'employee_id' => $personId])->countAllResults());
+    }
+
+    public function testGetIndex_ShowsTheShortcutsAndTheSupportLinkToAnAdmin(): void
+    {
+        $this->resetSession();
+
+        $response = $this->get('/home');
+
+        $response->assertStatus(200);
+        $response->assertSee('id="home_shortcuts"');
+        $response->assertSee('data-shortcut-id="pos"');
+        $response->assertSee('data-shortcut-id="add_customer"');
+        $response->assertSee('id="home_shortcuts_customize"');
+        $response->assertSee('https://wa.me/966530882752?text=');
+    }
+
+    public function testGetIndex_OffersOnlyTheShortcutsOfThePagesTheEmployeeMayOpen(): void
+    {
+        $employeeId = $this->createNonAdminEmployee(['grants' => [
+            ['permission_id' => 'home', 'menu_group' => 'home'],
+            ['permission_id' => 'customers', 'menu_group' => 'home'],
+        ]]);
+        $this->loginAs($employeeId);
+
+        $response = $this->get('/home');
+
+        $response->assertSee('data-shortcut-id="add_customer"');
+        $response->assertDontSee('data-shortcut-id="pos"');
+        $response->assertDontSee('data-shortcut-id="add_user"');
+        $response->assertDontSee('data-shortcut-id="add_journal"');
+    }
+
+    public function testGetIndex_KeepsTheSupportLinkForAnEmployeeWhoMayOpenNoShortcut(): void
+    {
+        $employeeId = $this->createNonAdminEmployee(['grants' => [['permission_id' => 'home', 'menu_group' => 'home']]]);
+        $this->loginAs($employeeId);
+
+        $response = $this->get('/home');
+
+        $response->assertStatus(200);
+        $response->assertDontSee('data-shortcut-id=');
+        $response->assertDontSee('id="home_shortcuts_customize"');
+        $response->assertSee('https://wa.me/966530882752?text=');
+    }
+
+    public function testGetIndex_OpensTheSupportLinkInANewTabWithoutLeakingTheOpener(): void
+    {
+        $this->resetSession();
+
+        $html = $this->get('/home')->getBody();
+
+        $this->assertMatchesRegularExpression('~<a [^>]*href="https://wa\.me/966530882752[^"]*"[^>]*target="_blank"[^>]*rel="noopener noreferrer"~', $html);
+    }
+
+    public function testGetIndex_OffersTheQuoteShortcutOnlyWhileTheInvoiceModeIsOn(): void
+    {
+        $settings = config(OSPOS::class)->settings;
+        $before   = $settings['invoice_enable'] ?? null;
+
+        try {
+            config(OSPOS::class)->settings['invoice_enable'] = 1;
+            $this->resetSession();
+            $this->get('/home')->assertSee('data-home-quote=');
+
+            config(OSPOS::class)->settings['invoice_enable'] = 0;
+            $this->get('/home')->assertDontSee('data-home-quote=');
+        } finally {
+            config(OSPOS::class)->settings['invoice_enable'] = $before;
+        }
     }
 }

@@ -1,9 +1,12 @@
 <?php
 
+use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Navigation\QuickActions;
 use App\Libraries\Navigation\SidebarMenu;
 use App\Libraries\Organization\BranchGuard;
 use App\Models\Employee;
 use Config\Database;
+use Config\OSPOS;
 
 const NAVIGATION_ICONS = [
     'home'                    => 'bi-house',
@@ -130,7 +133,18 @@ function navigationGroups(array $allowedModules, string $activeModule, ?int $per
  */
 function navigationSections(array $allowedModules, string $path, ?int $personId = null, string $query = ''): array
 {
-    $personId ??= (int) session('person_id');
+    [$held, $permissions] = navigationGrants($personId ?? (int) session('person_id'));
+
+    return SidebarMenu::sections(array_map(static fn (object $module): string => $module->module_id, $allowedModules), $held, $permissions, $path, $query, (new AccountingSettings())->isEnabled());
+}
+
+/**
+ * What a person holds, for the rules that decide which pages are offered to them.
+ *
+ * @return array{0: list<string>, 1: array<string, list<string>>} The lower-case permission ids they hold, their own and their roles', and the permission ids of each module that start with the module's id and an underscore.
+ */
+function navigationGrants(int $personId): array
+{
     $held        = array_map('strtolower', array_column(model(Employee::class)->get_employee_grants($personId), 'permission_id'));
     $permissions = [];
 
@@ -140,7 +154,28 @@ function navigationSections(array $allowedModules, string $path, ?int $personId 
         }
     }
 
-    return SidebarMenu::sections(array_map(static fn (object $module): string => $module->module_id, $allowedModules), $held, $permissions, $path, $query);
+    return [$held, $permissions];
+}
+
+/**
+ * The shortcuts of the start page the person may use, by the rule the sidebar applies to the page each one opens.
+ *
+ * @param array    $allowedModules Rows of the modules table the user holds a grant for.
+ * @param int|null $personId       Person whose grants decide, the one signed in when null.
+ *
+ * @return list<array<string, mixed>>
+ */
+function quickActionsFor(array $allowedModules, ?int $personId = null): array
+{
+    [$held, $permissions] = navigationGrants($personId ?? (int) session('person_id'));
+
+    return QuickActions::visible(
+        array_map(static fn (object $module): string => $module->module_id, $allowedModules),
+        $held,
+        $permissions,
+        (new AccountingSettings())->isEnabled(),
+        ! empty(config(OSPOS::class)->settings['invoice_enable']),
+    );
 }
 
 /**

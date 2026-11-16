@@ -26,8 +26,8 @@ final class SidebarMenu
      * Each section: icon, the path prefixes that keep it open for a page the menu does not list by name, and its
      * groups. A page: id, the module whose grant opens it, its path, and optionally the permission it asks for as
      * well, the other modules it asks for, whether it answers "not found" to an employee who is limited to some
-     * branches, a query string that makes it a view of another page's path, and further paths that count as the page
-     * itself.
+     * branches, whether it needs accounting to be on, a query string that makes it a view of another page's path, and
+     * further paths that count as the page itself.
      *
      * @return array<string, array{icon: string, also: list<string>, groups: list<array{label: ?string, items: list<array<string, mixed>>}>}>
      */
@@ -91,9 +91,9 @@ final class SidebarMenu
             ]],
             'vouchers' => ['icon' => 'bi-receipt-cutoff', 'also' => [], 'groups' => [
                 ['label' => 'Module.nav_group_receipt_vouchers', 'items' => [
-                    $page('receipt_vouchers', 'receipt_vouchers', 'receipt_vouchers', 'Module.receipt_vouchers'),
+                    $page('receipt_vouchers', 'receipt_vouchers', 'receipt_vouchers', 'Module.receipt_vouchers', ['accounting' => true]),
                     $page('receivables_payments', 'accounting_receivables', 'accounting_receivables/payments', 'Module.nav_customer_receipts'),
-                    $page('revenue_categories', 'revenue_categories', 'revenue_categories', 'Module.revenue_categories'),
+                    $page('revenue_categories', 'revenue_categories', 'revenue_categories', 'Module.revenue_categories', ['accounting' => true]),
                 ]],
                 ['label' => 'Module.nav_group_payment_vouchers', 'items' => [
                     $page('payables_payments', 'accounting_payables', 'accounting_payables/payments', 'Module.nav_payables_payments'),
@@ -286,12 +286,13 @@ final class SidebarMenu
      * needs that, and hold the other modules it asks for. The sidebar and the shortcuts of the start page both ask
      * this, so that the two never disagree.
      *
-     * @param array<string, mixed>        $item           A page: module, and optionally permission, company and also.
+     * @param array<string, mixed>        $item           A page: module, and optionally permission, company, accounting and also.
      * @param list<string>                $allowedModules Ids of the modules the person holds a grant for, as the module list gives them.
      * @param list<string>                $held           Lower-case permission ids the person holds, their own and their roles'.
      * @param array<string, list<string>> $permissions    See holdsModule().
+     * @param bool                        $accountingOn   Whether accounting is on, for the pages that answer "not found" while it is off.
      */
-    public static function opens(array $item, array $allowedModules, array $held, array $permissions): bool
+    public static function opens(array $item, array $allowedModules, array $held, array $permissions, bool $accountingOn = true): bool
     {
         $holds = static fn (string $module): bool => in_array($module, $allowedModules, true) && self::holdsModule($module, $held, $permissions);
 
@@ -304,6 +305,10 @@ final class SidebarMenu
         }
 
         if (($item['company'] ?? false) && ! in_array(BranchGuard::ALL_BRANCHES, $held, true)) {
+            return false;
+        }
+
+        if (($item['accounting'] ?? false) && ! $accountingOn) {
             return false;
         }
 
@@ -321,10 +326,11 @@ final class SidebarMenu
      * @param list<string>                $held           Lower-case permission ids the person holds, their own and their roles'.
      * @param array<string, list<string>> $permissions    See holdsModule().
      * @param string                      $query          Query string of the page being shown, for the pages that are a view of another page's path.
+     * @param bool                        $accountingOn   See opens().
      *
      * @return list<array{key: string, label: string, icon: string, active: bool, groups: list<array{label: ?string, items: list<array{id: string, label: string, url: string, active: bool}>}>}>
      */
-    public static function sections(array $allowedModules, array $held, array $permissions, string $path, string $query = ''): array
+    public static function sections(array $allowedModules, array $held, array $permissions, string $path, string $query = '', bool $accountingOn = true): array
     {
         $definition = self::definition();
         $path       = self::normalize($path);
@@ -335,7 +341,7 @@ final class SidebarMenu
         foreach ($definition as $sectionKey => $section) {
             foreach ($section['groups'] as $groupIndex => $group) {
                 foreach ($group['items'] as $item) {
-                    if (self::opens($item, $allowedModules, $held, $permissions)) {
+                    if (self::opens($item, $allowedModules, $held, $permissions, $accountingOn)) {
                         $visible[$sectionKey][$groupIndex][] = $item;
                     }
                 }

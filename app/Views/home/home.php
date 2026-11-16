@@ -2,6 +2,7 @@
 /**
  * @var array  $allowed_modules
  * @var object $user_info
+ * @var list<array<string, mixed>> $shortcuts
  * @var string $first_name
  * @var ?array $sales
  * @var ?array $top_items
@@ -9,6 +10,8 @@
  * @var ?float $expenses_month
  * @var array  $config
  */
+use App\Libraries\Navigation\QuickActions;
+
 $currency                                                        = ['prefix' => '', 'suffix' => ''];
 $currency[is_right_side_currency_symbol() ? 'suffix' : 'prefix'] = $config['currency_symbol'];
 
@@ -31,6 +34,62 @@ $delta = static function (?float $value): string {
 <?php endif; ?>
 
 <h2 class="dash-welcome"><?= lang('Common.welcome') ?> <?= esc($first_name) ?></h2>
+
+<section class="home-shortcuts" id="home_shortcuts" aria-labelledby="home_shortcuts_title" data-person="<?= (int) $user_info->person_id ?>" data-max="<?= QuickActions::MAX_PINNED ?>">
+    <div class="home-shortcuts-head">
+        <h3 class="home-shortcuts-title" id="home_shortcuts_title"><?= lang('Common.shortcuts_title') ?></h3>
+        <div class="home-shortcuts-actions">
+            <a class="btn btn-sm home-shortcuts-support" href="<?= esc(QuickActions::supportUrl(lang('Common.shortcut_support_message')), 'attr') ?>" target="_blank" rel="noopener noreferrer">
+                <i class="bi bi-whatsapp" aria-hidden="true"></i> <?= lang('Common.shortcut_support') ?>
+            </a>
+            <?php if ($shortcuts !== []): ?>
+                <button type="button" class="btn btn-sm home-shortcuts-customize" id="home_shortcuts_customize" data-bs-toggle="modal" data-bs-target="#home_shortcuts_modal">
+                    <i class="bi bi-sliders" aria-hidden="true"></i> <?= lang('Common.shortcuts_customize') ?>
+                </button>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <ul class="home-shortcuts-grid" id="home_shortcuts_grid">
+        <?php foreach ($shortcuts as $order => $shortcut): ?>
+            <?php $label = lang($shortcut['label']); ?>
+            <li data-shortcut-id="<?= esc($shortcut['id'], 'attr') ?>" data-order="<?= $order ?>" data-default="<?= (int) ($shortcut['default'] ?? 0) ?>"<?= isset($shortcut['default']) ? '' : ' hidden' ?>>
+                <?php if ($shortcut['kind'] === QuickActions::PAGE): ?>
+                    <a class="home-shortcut" href="<?= esc(site_url($shortcut['url']), 'attr') ?>">
+                <?php elseif ($shortcut['kind'] === QuickActions::DIALOG): ?>
+                    <button type="button" class="home-shortcut modal-dlg" data-href="<?= esc($shortcut['url'], 'attr') ?>" data-btn-submit="<?= lang('Common.submit') ?>" title="<?= esc($label, 'attr') ?>">
+                <?php else: ?>
+                    <button type="button" class="home-shortcut" data-home-quote="<?= esc(site_url('sales/changeMode'), 'attr') ?>" data-home-register="<?= esc(site_url($shortcut['url']), 'attr') ?>">
+                <?php endif; ?>
+                    <span class="home-shortcut-icon tone-<?= esc($shortcut['tone'], 'attr') ?>"><i class="bi <?= esc($shortcut['icon'], 'attr') ?>" aria-hidden="true"></i></span>
+                    <span class="home-shortcut-label"><?= esc($label) ?></span>
+                <?= $shortcut['kind'] === QuickActions::PAGE ? '</a>' : '</button>' ?>
+            </li>
+        <?php endforeach; ?>
+    </ul>
+</section>
+
+<?php if ($shortcuts !== []): ?>
+    <div class="modal fade" id="home_shortcuts_modal" tabindex="-1" aria-labelledby="home_shortcuts_modal_title" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="home_shortcuts_modal_title"><?= lang('Common.shortcuts_customize_title') ?></h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="<?= lang('Common.close') ?>"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-secondary small"><?= lang('Common.shortcuts_customize_hint', [QuickActions::MAX_PINNED]) ?></p>
+                    <ul class="list-group home-shortcuts-chooser" id="home_shortcuts_chooser" data-up="<?= esc(lang('Common.shortcuts_move_up'), 'attr') ?>" data-down="<?= esc(lang('Common.shortcuts_move_down'), 'attr') ?>"></ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary me-auto" id="home_shortcuts_reset"><?= lang('Common.shortcuts_reset') ?></button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><?= lang('Common.close') ?></button>
+                    <button type="button" class="btn btn-primary" id="home_shortcuts_save"><?= lang('Common.shortcuts_save') ?></button>
+                </div>
+            </div>
+        </div>
+    </div>
+<?php endif; ?>
 
 <?php if ($sales !== null || $low_stock !== null || $expenses_month !== null): ?>
     <section class="report-kpis dash-kpis" aria-label="<?= lang('Common.dashboard') ?>">
