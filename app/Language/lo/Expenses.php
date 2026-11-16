@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'ທ່ານຍັງບໍ່ທັນໄດ້ເລືອກຄ່າໃຊ້ຈ່າຍ',
     'one_or_multiple'            => 'ຄ່າໃຊ້ຈ່າຍ',
     'payment'                    => 'ປະເພດການຊໍາລະເງິນ',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => '',
     'successful_adding'          => 'ເພີ່ມຄ່າໃຊ້ຈ່າຍສຳເລັດ',
     'successful_deleted'         => 'ລຶບຄ່າໃຊ້ຈ່າຍສຳເລັດ',

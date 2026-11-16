@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'U heb geen onkosten geselecteerd',
     'one_or_multiple'            => 'Onkost(en)',
     'payment'                    => 'Betaalwijze',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'Begin de naam van de Leverancier te Typen...',
     'successful_adding'          => 'Onkosten toevoegen geslaagd',
     'successful_deleted'         => 'Onkosten verwijderen geslaagd',

@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'Sie haben keine Ausgaben ausgewählt',
     'one_or_multiple'            => 'Ausgaben',
     'payment'                    => 'Zahlart',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'Zulieferer eingeben...',
     'successful_adding'          => 'Ausgabe erfolgreich hinzugefügt',
     'successful_deleted'         => 'Ausgabe erfolgreich gelöscht',

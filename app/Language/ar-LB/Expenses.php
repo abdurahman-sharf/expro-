@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'لم يتم تحديد اي خيار',
     'one_or_multiple'            => 'واحد او أكثر',
     'payment'                    => 'الدفع',
+    'payment_voucher'            => 'طباعة سند صرف المصروف',
     'start_typing_supplier_name' => 'ابدا بكتابة اسم المورد...',
     'successful_adding'          => 'تم إضافة المصاريف بنجاح',
     'successful_deleted'         => 'تم مسح المصاريف بنجاح',

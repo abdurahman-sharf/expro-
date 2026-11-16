@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'Niste odabrali nijedan trošak',
     'one_or_multiple'            => 'Trošak(ovi)',
     'payment'                    => 'Vrsta plaćanja',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'Počnite pisati ime dobavljača...',
     'successful_adding'          => 'Dodavanje troškova uspješno',
     'successful_deleted'         => 'Brisanje troškova uspješno',

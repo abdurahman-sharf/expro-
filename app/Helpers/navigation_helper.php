@@ -124,10 +124,11 @@ function navigationGroups(array $allowedModules, string $activeModule, ?int $per
  * @param array    $allowedModules Rows of the modules table the user holds a grant for.
  * @param string   $path           Path of the page being shown, relative to the site.
  * @param int|null $personId       Person whose grants decide, the one signed in when null.
+ * @param string   $query          Query string of the page being shown.
  *
  * @return list<array{key: string, label: string, icon: string, active: bool, groups: list<array{label: ?string, items: list<array{id: string, label: string, url: string, active: bool}>}>}>
  */
-function navigationSections(array $allowedModules, string $path, ?int $personId = null): array
+function navigationSections(array $allowedModules, string $path, ?int $personId = null, string $query = ''): array
 {
     $personId ??= (int) session('person_id');
     $held        = array_map('strtolower', array_column(model(Employee::class)->get_employee_grants($personId), 'permission_id'));
@@ -139,7 +140,7 @@ function navigationSections(array $allowedModules, string $path, ?int $personId 
         }
     }
 
-    return SidebarMenu::sections(array_map(static fn (object $module): string => $module->module_id, $allowedModules), $held, $permissions, $path);
+    return SidebarMenu::sections(array_map(static fn (object $module): string => $module->module_id, $allowedModules), $held, $permissions, $path, $query);
 }
 
 /**

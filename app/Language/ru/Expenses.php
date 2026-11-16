@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'Вы не выбрали ни одного расхода',
     'one_or_multiple'            => 'Расходы',
     'payment'                    => 'Тип оплаты',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'Начните вводить имя поставщика...',
     'successful_adding'          => 'Расходы успешно добавлены',
     'successful_deleted'         => 'Расходы успешно удалены',

@@ -291,7 +291,7 @@ final class SidebarMenuTest extends CIUnitTestCase
 
     public function testDefinition_NamesTheSectionsOfTheMenuInOrder(): void
     {
-        $this->assertSame(['home', 'sales', 'purchases', 'inventory', 'ledger', 'treasury', 'reports', 'settings'], array_keys(SidebarMenu::definition()));
+        $this->assertSame(['home', 'parties', 'purchases', 'sales', 'vouchers', 'expenses', 'accounts', 'ledger', 'inventory', 'reports', 'settings'], array_keys(SidebarMenu::definition()));
     }
 
     public function testDefinition_NamesEveryPageAndSectionInArabic(): void
@@ -369,7 +369,7 @@ final class SidebarMenuTest extends CIUnitTestCase
         $with    = $this->itemIds(SidebarMenu::sections(['sales'], ['sales', 'reports_sales'], [], 'home'));
 
         $this->assertSame(['sales'], $without);
-        $this->assertSame(['sales', 'sales_log', 'sales_documents'], $with);
+        $this->assertSame(['sales_log', 'sales_documents', 'sales'], $with);
     }
 
     public function testSections_OffersIntegrationsOnlyToWhoAlsoHoldsTheSettingsModule(): void
@@ -383,11 +383,124 @@ final class SidebarMenuTest extends CIUnitTestCase
     {
         $modules = ['accounting_receivables', 'accounting_payables'];
         $held    = ['accounting_receivables', 'accounting_payables'];
-        $kept    = ['receivables_payments', 'payables_payments', 'payables_debit_notes'];
+        $kept    = ['payables_debit_notes', 'receivables_payments', 'payables_payments'];
         $whole   = ['accounting_receivables', 'receivables_payments', 'receivables_credit_notes', 'receivables_aged', 'accounting_payables', 'payables_payments', 'payables_debit_notes', 'payables_aged'];
 
         $this->assertSame($kept, $this->itemIds(SidebarMenu::sections($modules, $held, [], 'home')));
         $this->assertEqualsCanonicalizing($whole, $this->itemIds(SidebarMenu::sections($modules, [...$held, BranchGuard::ALL_BRANCHES], [], 'home')));
+    }
+
+    public function testSections_StartsPurchasesWithTheInvoicesAndKeepsTheRegisterApart(): void
+    {
+        $sections = SidebarMenu::sections(['reports', 'receivings', 'purchase_orders'], ['reports', 'reports_receivings', 'receivings', 'purchase_orders'], ['reports' => ['reports_receivings']], 'home');
+        $groups   = $sections[0]['groups'];
+
+        $this->assertSame('purchases', $sections[0]['key']);
+        $this->assertSame([lang('Module.nav_group_purchase_invoices'), lang('Module.nav_group_purchase_new'), lang('Module.nav_group_purchase_cycle')], array_column($groups, 'label'));
+        $this->assertSame(['purchase_invoices'], array_column($groups[0]['items'], 'id'));
+        $this->assertSame(['receivings'], array_column($groups[1]['items'], 'id'));
+        $this->assertSame(base_url('reports/detailed_receivings'), $groups[0]['items'][0]['url']);
+    }
+
+    public function testSections_OffersThePurchaseInvoicesOnlyWithThePurchaseReportsPermission(): void
+    {
+        $permissions = ['reports' => ['reports_receivings', 'reports_sales']];
+
+        $this->assertNotContains('purchase_invoices', $this->itemIds(SidebarMenu::sections(['reports'], ['reports', 'reports_sales'], $permissions, 'home')));
+        $this->assertContains('purchase_invoices', $this->itemIds(SidebarMenu::sections(['reports'], ['reports', 'reports_receivings'], $permissions, 'home')));
+    }
+
+    public function testSections_SeparatesTheSalesInvoicesFromThePointOfSale(): void
+    {
+        $sections = SidebarMenu::sections(['sales', 'customer_orders'], ['sales', 'reports_sales', 'customer_orders'], [], 'home');
+        $groups   = $sections[0]['groups'];
+
+        $this->assertSame('sales', $sections[0]['key']);
+        $this->assertSame([lang('Module.nav_group_sales_invoices'), lang('Module.nav_group_pos'), lang('Module.nav_group_sales_orders')], array_column($groups, 'label'));
+        $this->assertSame(['sales_log', 'sales_documents'], array_column($groups[0]['items'], 'id'));
+        $this->assertSame(['sales'], array_column($groups[1]['items'], 'id'));
+        $this->assertSame(base_url('sales/manage'), $groups[0]['items'][0]['url']);
+        $this->assertSame(base_url('sales'), $groups[1]['items'][0]['url']);
+    }
+
+    public function testSections_LinksThePostingOfTheJournalsToTheJournalsOpenOnTheirDrafts(): void
+    {
+        $sections = SidebarMenu::sections(['accounting_journals'], ['accounting_journals', 'acc_journals_post'], [], 'home');
+        $urls     = array_merge(...array_map(static fn (array $group): array => array_column($group['items'], 'url', 'id'), $sections[0]['groups']));
+
+        $this->assertSame(base_url('accounting_journals'), $urls['accounting_journals']);
+        $this->assertSame(base_url('accounting_journals') . '?status[]=draft', $urls['post_journals']);
+    }
+
+    public function testSections_OffersThePostingOfTheJournalsOnlyWithThePostPermission(): void
+    {
+        $this->assertNotContains('post_journals', $this->itemIds(SidebarMenu::sections(['accounting_journals'], ['accounting_journals', 'acc_journals_draft'], [], 'home')));
+        $this->assertContains('post_journals', $this->itemIds(SidebarMenu::sections(['accounting_journals'], ['accounting_journals', 'acc_journals_post'], [], 'home')));
+    }
+
+    public function testSections_MarksThePostingViewOfTheJournalsOnlyWhenTheQueryAsksForIt(): void
+    {
+        $held = ['accounting_journals', 'acc_journals_post'];
+
+        $this->assertSame(['post_journals'], $this->activeIds(SidebarMenu::sections(['accounting_journals'], $held, [], 'accounting_journals', 'status%5B%5D=draft')));
+        $this->assertSame(['post_journals'], $this->activeIds(SidebarMenu::sections(['accounting_journals'], $held, [], 'accounting_journals', 'status[]=posted&status[]=draft')));
+        $this->assertSame(['accounting_journals'], $this->activeIds(SidebarMenu::sections(['accounting_journals'], $held, [], 'accounting_journals', '')));
+        $this->assertSame(['accounting_journals'], $this->activeIds(SidebarMenu::sections(['accounting_journals'], $held, [], 'accounting_journals', 'status[]=posted')));
+        $this->assertSame(['accounting_journals'], $this->activeIds(SidebarMenu::sections(['accounting_journals'], $held, [], 'accounting_journals/new', '')));
+    }
+
+    public function testSections_OffersTheCollectedInvoicesWithTheSalesReportsPermissionAndMarksThemByTheirQuery(): void
+    {
+        $modules = ['accounting_reports'];
+
+        $this->assertNotContains('collected_invoices', $this->itemIds(SidebarMenu::sections($modules, ['accounting_reports'], [], 'home')));
+
+        $sections = SidebarMenu::sections($modules, ['accounting_reports', 'reports_sales'], [], 'accounting_reports/net_position', 'status[]=paid');
+
+        $this->assertContains('collected_invoices', $this->itemIds($sections));
+        $this->assertSame(['collected_invoices'], $this->activeIds($sections));
+    }
+
+    public function testSections_NamesTheEveryPostingAndClosingPageApartInTheirOwnGroup(): void
+    {
+        $held     = ['accounting_journals', 'acc_journals_post', 'accounting_periods', 'acc_backfill_manage', 'acc_year_end_close', 'acc_opening_manage'];
+        $sections = SidebarMenu::sections(['accounting_journals', 'accounting_periods'], $held, [], 'home');
+        $ledger   = array_values(array_filter($sections, static fn (array $section): bool => $section['key'] === 'ledger'))[0];
+        $posting  = array_values(array_filter($ledger['groups'], static fn (array $group): bool => $group['label'] === lang('Module.nav_group_posting')))[0];
+
+        $this->assertSame(['post_journals', 'backfill', 'accounting_periods', 'closings', 'year_end', 'opening'], array_column($posting['items'], 'id'));
+        $this->assertCount(6, array_unique(array_column($posting['items'], 'label')));
+    }
+
+    public function testDefinition_NamesNoPostingOrClosingPageByAGenericName(): void
+    {
+        $language = new Language('ar-EG');
+        $labels   = [];
+
+        foreach ($this->definedPages() as $page) {
+            if (in_array($page['id'], ['post_journals', 'backfill', 'closings', 'year_end', 'opening'], true)) {
+                $labels[$page['id']] = $language->getLine($page['label']);
+            }
+        }
+
+        $this->assertCount(5, $labels);
+        $this->assertNotContains('الترحيل', $labels);
+        $this->assertStringContainsString('القيود', $labels['post_journals']);
+        $this->assertStringContainsString('بأثر رجعي', $labels['backfill']);
+        $this->assertStringContainsString('الفترات', $labels['closings']);
+        $this->assertStringContainsString('السنة', $labels['year_end']);
+    }
+
+    public function testOpens_AppliesTheModuleGateThePermissionTheCompanyScopeAndTheOtherModules(): void
+    {
+        $page = ['module' => 'sales', 'permission' => 'reports_sales', 'company' => true, 'also' => ['customers']];
+        $held = ['sales', 'reports_sales', BranchGuard::ALL_BRANCHES, 'customers'];
+
+        $this->assertTrue(SidebarMenu::opens($page, ['sales', 'customers'], $held, []));
+        $this->assertFalse(SidebarMenu::opens($page, ['sales'], $held, []));
+        $this->assertFalse(SidebarMenu::opens($page, ['sales', 'customers'], array_diff($held, ['reports_sales']), []));
+        $this->assertFalse(SidebarMenu::opens($page, ['sales', 'customers'], array_diff($held, [BranchGuard::ALL_BRANCHES]), []));
+        $this->assertFalse(SidebarMenu::opens($page, ['sales', 'customers'], array_diff($held, ['customers']), []));
     }
 
     public function testSections_AppendsAModuleTheMenuDoesNotNameToTheLastGroupOfSettings(): void

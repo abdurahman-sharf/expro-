@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'You have not selected any Expense',
     'one_or_multiple'            => 'Expense(s)',
     'payment'                    => 'Payment Type',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => '',
     'successful_adding'          => '支出添加成功',
     'successful_deleted'         => '支出删除成功',

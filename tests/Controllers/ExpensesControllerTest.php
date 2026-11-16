@@ -1111,6 +1111,17 @@ class ExpensesControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('id="expense_voucher_link"', $duePage);
     }
 
+    public function testGetView_NamesTheLinkOfTheVoucherAfterTheExpenseItPrints(): void
+    {
+        $paid = $this->voucherExpense(['description' => 'Rent of the fourth floor']);
+        $this->actAsWith();
+
+        $page = $this->get('/expenses/view/' . $paid)->getBody();
+
+        $this->assertStringContainsString(lang('Expenses.payment_voucher'), $page);
+        $this->assertNotSame(lang('Documents.payment_voucher'), lang('Expenses.payment_voucher'));
+    }
+
     public function testGetVoucher_ShowsNoVoucherOfAnUnknownExpense(): void
     {
         $this->actAsWith();

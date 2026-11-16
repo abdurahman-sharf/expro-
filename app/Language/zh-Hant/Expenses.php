@@ -45,6 +45,7 @@ return [
     'none_selected'              => '您還沒有選擇任何費用',
     'one_or_multiple'            => '花費',
     'payment'                    => '付款方式',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => '開始輸入供應商名稱...',
     'successful_adding'          => '費用添加成功',
     'successful_deleted'         => '費用刪除成功',

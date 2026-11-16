@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'Hujachagua Matumizi yoyote',
     'one_or_multiple'            => 'Matumizi',
     'payment'                    => 'Aina ya Malipo',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'Anza kuandika jina la Msambazaji...',
     'successful_adding'          => 'Kuongeza Matumizi kumewezekana',
     'successful_deleted'         => 'Kufuta Matumizi kumewezekana',

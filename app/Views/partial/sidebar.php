@@ -3,7 +3,7 @@
  * @var object $user_info
  * @var array  $allowed_modules
  */
-$sections = navigationSections($allowed_modules, uri_string(), (int) $user_info->person_id);
+$sections = navigationSections($allowed_modules, uri_string(), (int) $user_info->person_id, (string) service('request')->getUri()->getQuery());
 $initial  = mb_substr(trim($user_info->first_name . $user_info->last_name) ?: $user_info->username, 0, 1);
 ?>
 

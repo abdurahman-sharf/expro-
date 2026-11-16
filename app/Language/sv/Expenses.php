@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'Du har inte valt någon kostnad',
     'one_or_multiple'            => 'Utgifter',
     'payment'                    => 'Betalningstyp',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'Börja skriva leverantörens namn ...',
     'successful_adding'          => 'Kostnaden tillagd',
     'successful_deleted'         => 'Kostnaden raderas',

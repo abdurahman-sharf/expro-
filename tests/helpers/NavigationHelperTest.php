@@ -58,7 +58,7 @@ class NavigationHelperTest extends CIUnitTestCase
     {
         $groups = navigationGroups($this->modules('config', 'sales', 'home', 'items', 'receivings'), 'sales');
 
-        $this->assertSame([['home'], ['sales'], ['receivings'], ['items'], ['config']], $this->itemIds($groups));
+        $this->assertSame([['home'], ['receivings'], ['sales'], ['items'], ['config']], $this->itemIds($groups));
     }
 
     public function testNavigationGroups_OmitsGroupsWithoutAllowedModules(): void
@@ -179,11 +179,11 @@ class NavigationHelperTest extends CIUnitTestCase
         $this->assertNotContains('setting', array_column($entries, 'type'));
     }
 
-    public function testNavigationGroups_PutsTheFourDocumentsOfThePurchaseCycleInThePurchasesGroupBeforeTheReceivingsInTheOrderOfTheChain(): void
+    public function testNavigationGroups_PutsTheRegisterOfPurchasesBeforeTheFourDocumentsOfTheCycleInTheOrderOfTheChainAndTheSupplierApart(): void
     {
         $groups = navigationGroups($this->modules('purchase_orders', 'receivings', 'supplier_quotations', 'quotation_requests', 'purchase_requests', 'suppliers'), 'purchase_orders');
 
-        $this->assertSame([['purchase_requests', 'quotation_requests', 'supplier_quotations', 'purchase_orders', 'receivings', 'suppliers']], $this->itemIds($groups));
+        $this->assertSame([['suppliers'], ['receivings', 'purchase_requests', 'quotation_requests', 'supplier_quotations', 'purchase_orders']], $this->itemIds($groups));
     }
 
     public function testNavigationGroups_ShowsOnlyTheDocumentsOfThePurchaseCycleTheEmployeeMayOpenWithAnIconAndTheirOwnAddress(): void
@@ -196,13 +196,13 @@ class NavigationHelperTest extends CIUnitTestCase
         $this->assertNotSame(NAVIGATION_FALLBACK_ICON, $groups[0]['items'][0]['icon']);
     }
 
-    public function testNavigationGroups_PutsElectronicInvoicingInTheSettingsGroupAfterTheRoutingWithItsOwnIconAndAddress(): void
+    public function testNavigationGroups_PutsElectronicInvoicingInTheGeneralAccountsGroupAfterTheRoutingWithItsOwnIconAndAddress(): void
     {
         $groups = navigationGroups($this->modules('accounting_settings', 'accounting_einvoicing', 'accounting_routing', 'accounting_chart', 'config'), 'accounting_einvoicing');
 
-        $this->assertSame([['accounting_chart'], ['config', 'accounting_settings', 'accounting_routing', 'accounting_einvoicing']], $this->itemIds($groups));
+        $this->assertSame([['accounting_chart', 'accounting_settings', 'accounting_routing', 'accounting_einvoicing'], ['config']], $this->itemIds($groups));
 
-        $item = $groups[1]['items'][3];
+        $item = $groups[0]['items'][3];
 
         $this->assertSame(base_url('accounting_einvoicing'), $item['url']);
         $this->assertNotSame(NAVIGATION_FALLBACK_ICON, $item['icon']);

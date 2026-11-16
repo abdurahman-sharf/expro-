@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'Non hai selezionato alcuna Spesa',
     'one_or_multiple'            => 'Spesa/e',
     'payment'                    => 'Tipo di Pagamento',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'Inizia a digitare il nome del fornitore...',
     'successful_adding'          => 'Spesa aggiunta correttamente',
     'successful_deleted'         => 'Spesa eliminata correttamente',

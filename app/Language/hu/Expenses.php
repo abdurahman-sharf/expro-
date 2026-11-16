@@ -45,6 +45,7 @@ return [
     'none_selected'              => '',
     'one_or_multiple'            => '',
     'payment'                    => '',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => '',
     'successful_adding'          => '',
     'successful_deleted'         => '',

@@ -75,6 +75,7 @@ class AccountingJournals extends AccountingController
             'can_post'       => $this->can(AccountingGuard::JOURNALS_POST),
             'can_audit'      => $this->can(AccountingGuard::JOURNALS_AUDIT),
             'notice'         => session()->getFlashdata('accounting_notice'),
+            'preset_status'  => array_values(array_intersect(array_map('strval', (array) $this->request->getGet('status')), ['draft', 'posted', 'reversed'])),
         ]);
     }
 

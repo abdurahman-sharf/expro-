@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'Vous n\'avez sélectionné aucune dépense',
     'one_or_multiple'            => 'Dépense (s)',
     'payment'                    => 'Type de paiement',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'Commencez à taper le nom du fournisseur...',
     'successful_adding'          => 'Les dépenses ajoutent avec succès',
     'successful_deleted'         => 'La suppression des dépenses a réussi',

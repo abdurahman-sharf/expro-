@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'Tidak ada Biaya yang dipilih',
     'one_or_multiple'            => 'Biaya',
     'payment'                    => 'Jenis Pembayaran',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'Ketik nama pemasok...',
     'successful_adding'          => 'Baiaya berhasil ditambahkan',
     'successful_deleted'         => 'Biaya berhasil dihapus',

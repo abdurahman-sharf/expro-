@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'Seçili Gider yok',
     'one_or_multiple'            => 'Gider(ler)',
     'payment'                    => 'Ödeme Tipi',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'Tedarikçinin adını yazmaya başlayın ...',
     'successful_adding'          => 'Gider eklendi',
     'successful_deleted'         => 'Gider silindi',

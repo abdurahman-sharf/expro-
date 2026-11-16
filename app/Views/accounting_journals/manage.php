@@ -11,6 +11,7 @@
  * @var bool                                     $can_post
  * @var bool                                     $can_audit
  * @var string|null                              $notice
+ * @var list<string>                             $preset_status The states the filter opens on, from the address.
  * @var array                                    $config
  */
 $messages = [
@@ -165,7 +166,7 @@ $empty     = '<p class="mb-2">' . esc(lang('Accounting_journals.empty')) . '</p>
         <fieldset class="acc-filter acc-filter-status">
             <legend class="form-label"><?= lang('Accounting.status') ?></legend>
             <?php foreach (['draft', 'posted', 'reversed'] as $state): ?>
-                <label class="choice"><input type="checkbox" class="form-check-input f-status" value="<?= $state ?>"> <?= lang('Accounting.state_' . $state) ?></label>
+                <label class="choice"><input type="checkbox" class="form-check-input f-status" value="<?= $state ?>"<?= in_array($state, $preset_status, true) ? ' checked' : '' ?>> <?= lang('Accounting.state_' . $state) ?></label>
             <?php endforeach; ?>
         </fieldset>
         <div class="acc-filter">

@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'Ви не обрали жодних витрат',
     'one_or_multiple'            => 'Витрати',
     'payment'                    => 'Тип оплати',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'Введіть ім’я постачальника...',
     'successful_adding'          => 'Витрати успішно додано',
     'successful_deleted'         => 'Витрати успішно видалено',

@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'You have not selected any Expense',
     'one_or_multiple'            => 'Expense(s)',
     'payment'                    => 'Payment Type',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => '',
     'successful_adding'          => 'Expense add successful',
     'successful_deleted'         => 'Expense delete successful',

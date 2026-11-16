@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'நீங்கள் எந்த செலவையும் தேர்ந்தெடுக்கவில்லை',
     'one_or_multiple'            => 'செலவு(கள்)',
     'payment'                    => 'கட்டண வகை',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'வழங்குபவரின் பெயரைத் தட்டச்சு செய்யத் தொடங்குங்கள் ...',
     'successful_adding'          => 'செலவு வெற்றிகரமாக சேர்க்கிறது',
     'successful_deleted'         => 'செலவு வெற்றிகரமாக நீக்கப்பட்டது',

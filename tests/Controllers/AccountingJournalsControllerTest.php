@@ -97,6 +97,25 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $response->assertDontSee('accounting_journals/audit');
     }
 
+    public function testGetIndex_OpensTheStatusFilterOnTheStatesTheAddressAsksFor(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_journals']));
+
+        $body = $this->get('/accounting_journals?status[]=draft&status[]=nonsense')->getBody();
+
+        $this->assertMatchesRegularExpression('/value="draft" checked/', $body);
+        $this->assertDoesNotMatchRegularExpression('/value="posted" checked/', $body);
+        $this->assertDoesNotMatchRegularExpression('/value="reversed" checked/', $body);
+        $this->assertStringNotContainsString('nonsense', $body);
+    }
+
+    public function testGetIndex_OpensTheStatusFilterOnNoStateWithoutAskingFor(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_journals']));
+
+        $this->assertDoesNotMatchRegularExpression('/class="form-check-input f-status" value="\w+" checked/', $this->get('/accounting_journals')->getBody());
+    }
+
     public function testGetIndex_OffersEverySourceOfTheChequeCycleAndTheReceiptVoucherInTheSourceFilter(): void
     {
         $this->actAs($this->employeeWithGrants(['accounting_journals']));

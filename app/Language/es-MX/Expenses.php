@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'No ha seleccionado ningún gasto',
     'one_or_multiple'            => 'Gasto(s)',
     'payment'                    => 'Tipo de Pago',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'Comience a escribir el nombre del proveedor...',
     'successful_adding'          => 'Gasto agregado exitosamente',
     'successful_deleted'         => 'Gasto eliminado exitosamente',

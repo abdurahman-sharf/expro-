@@ -5,7 +5,7 @@ namespace App\Libraries\Navigation;
 use App\Libraries\Organization\BranchGuard;
 
 /**
- * The sidebar: eight sections, each with the pages that exist for its job, arranged by what a person does with
+ * The sidebar: eleven sections, each with the pages that exist for its job, arranged by what a person does with
  * them and not by the module that holds them. A section or page shows only to a person who can open what it
  * points at, by the very rule the page applies when it is asked for, so the menu never offers a page that answers
  * "no access". Nothing here grants or refuses anything: the controllers keep every check they had.
@@ -19,13 +19,15 @@ final class SidebarMenu
      */
     private const TILE_SECTION = [
         'accounting_reports' => 'reports',
+        'reports'            => 'reports',
     ];
 
     /**
      * Each section: icon, the path prefixes that keep it open for a page the menu does not list by name, and its
      * groups. A page: id, the module whose grant opens it, its path, and optionally the permission it asks for as
      * well, the other modules it asks for, whether it answers "not found" to an employee who is limited to some
-     * branches, and further paths that count as the page itself.
+     * branches, a query string that makes it a view of another page's path, and further paths that count as the page
+     * itself.
      *
      * @return array<string, array{icon: string, also: list<string>, groups: list<array{label: ?string, items: list<array<string, mixed>>}>}>
      */
@@ -40,40 +42,110 @@ final class SidebarMenu
                     $page('notifications', 'notifications', 'notifications', 'Module.notifications'),
                 ]],
             ]],
+            'parties' => ['icon' => 'bi-people', 'also' => [], 'groups' => [
+                ['label' => 'Module.nav_group_customers', 'items' => [
+                    $page('customers', 'customers', 'customers', 'Module.customers'),
+                    $page('accounting_receivables', 'accounting_receivables', 'accounting_receivables', 'Module.accounting_receivables', ['company' => true]),
+                    $page('receivables_credit_notes', 'accounting_receivables', 'accounting_receivables/credit_notes', 'Module.nav_receivables_credit_notes', ['company' => true]),
+                    $page('receivables_aged', 'accounting_receivables', 'accounting_receivables/aged_ledger', 'Module.nav_receivables_aged', ['company' => true]),
+                    $page('accounting_debit_notes', 'accounting_debit_notes', 'accounting_debit_notes', 'Module.nav_debit_notes'),
+                ]],
+                ['label' => 'Module.nav_group_suppliers', 'items' => [
+                    $page('suppliers', 'suppliers', 'suppliers', 'Module.suppliers'),
+                    $page('accounting_payables', 'accounting_payables', 'accounting_payables', 'Module.accounting_payables', ['company' => true]),
+                    $page('payables_debit_notes', 'accounting_payables', 'accounting_payables/debit_notes', 'Module.nav_payables_debit_notes'),
+                    $page('payables_aged', 'accounting_payables', 'accounting_payables/aged_ledger', 'Module.nav_payables_aged', ['company' => true]),
+                ]],
+                ['label' => 'Module.nav_group_communication', 'items' => [
+                    $page('messages', 'messages', 'messages', 'Module.messages'),
+                ]],
+            ]],
+            'purchases' => ['icon' => 'bi-bag', 'also' => [], 'groups' => [
+                ['label' => 'Module.nav_group_purchase_invoices', 'items' => [
+                    $page('purchase_invoices', 'reports', 'reports/detailed_receivings', 'Module.nav_purchase_invoices', ['permission' => 'reports_receivings']),
+                ]],
+                ['label' => 'Module.nav_group_purchase_new', 'items' => [
+                    $page('receivings', 'receivings', 'receivings', 'Module.nav_purchase_new'),
+                ]],
+                ['label' => 'Module.nav_group_purchase_cycle', 'items' => [
+                    $page('purchase_requests', 'purchase_requests', 'purchase_requests', 'Module.purchase_requests'),
+                    $page('quotation_requests', 'quotation_requests', 'quotation_requests', 'Module.quotation_requests'),
+                    $page('supplier_quotations', 'supplier_quotations', 'supplier_quotations', 'Module.supplier_quotations'),
+                    $page('purchase_orders', 'purchase_orders', 'purchase_orders', 'Module.purchase_orders'),
+                ]],
+            ]],
             'sales' => ['icon' => 'bi-cart3', 'also' => [], 'groups' => [
-                ['label' => null, 'items' => [
-                    $page('sales', 'sales', 'sales', 'Module.nav_pos'),
-                    $page('sales_log', 'sales', 'sales/manage', 'Module.nav_sales_log', ['permission' => 'reports_sales']),
+                ['label' => 'Module.nav_group_sales_invoices', 'items' => [
+                    $page('sales_log', 'sales', 'sales/manage', 'Module.nav_sales_invoices', ['permission' => 'reports_sales']),
                     $page('sales_documents', 'sales', 'sales/documents', 'Module.nav_sales_documents', ['permission' => 'reports_sales']),
+                ]],
+                ['label' => 'Module.nav_group_pos', 'items' => [
+                    $page('sales', 'sales', 'sales', 'Module.nav_pos_new'),
+                ]],
+                ['label' => 'Module.nav_group_sales_orders', 'items' => [
                     $page('customer_orders', 'customer_orders', 'customer_orders', 'Module.customer_orders'),
                     $page('recurring_invoices', 'recurring_invoices', 'recurring_invoices', 'Module.recurring_invoices'),
                     $page('price_lists', 'price_lists', 'price_lists', 'Module.price_lists'),
                     $page('giftcards', 'giftcards', 'giftcards', 'Module.giftcards'),
                 ]],
-                ['label' => 'Module.nav_group_customers', 'items' => [
-                    $page('customers', 'customers', 'customers', 'Module.customers'),
-                    $page('accounting_receivables', 'accounting_receivables', 'accounting_receivables', 'Module.accounting_receivables', ['company' => true]),
-                    $page('receivables_payments', 'accounting_receivables', 'accounting_receivables/payments', 'Module.nav_receivables_payments'),
-                    $page('receivables_credit_notes', 'accounting_receivables', 'accounting_receivables/credit_notes', 'Module.nav_receivables_credit_notes', ['company' => true]),
-                    $page('receivables_aged', 'accounting_receivables', 'accounting_receivables/aged_ledger', 'Module.nav_receivables_aged', ['company' => true]),
-                    $page('accounting_debit_notes', 'accounting_debit_notes', 'accounting_debit_notes', 'Module.nav_debit_notes'),
-                    $page('messages', 'messages', 'messages', 'Module.messages'),
+            ]],
+            'vouchers' => ['icon' => 'bi-receipt-cutoff', 'also' => [], 'groups' => [
+                ['label' => 'Module.nav_group_receipt_vouchers', 'items' => [
+                    $page('receipt_vouchers', 'receipt_vouchers', 'receipt_vouchers', 'Module.receipt_vouchers'),
+                    $page('receivables_payments', 'accounting_receivables', 'accounting_receivables/payments', 'Module.nav_customer_receipts'),
+                    $page('revenue_categories', 'revenue_categories', 'revenue_categories', 'Module.revenue_categories'),
+                ]],
+                ['label' => 'Module.nav_group_payment_vouchers', 'items' => [
+                    $page('payables_payments', 'accounting_payables', 'accounting_payables/payments', 'Module.nav_payables_payments'),
                 ]],
             ]],
-            'purchases' => ['icon' => 'bi-bag', 'also' => [], 'groups' => [
+            'expenses' => ['icon' => 'bi-cash-coin', 'also' => [], 'groups' => [
                 ['label' => null, 'items' => [
-                    $page('purchase_requests', 'purchase_requests', 'purchase_requests', 'Module.purchase_requests'),
-                    $page('quotation_requests', 'quotation_requests', 'quotation_requests', 'Module.quotation_requests'),
-                    $page('supplier_quotations', 'supplier_quotations', 'supplier_quotations', 'Module.supplier_quotations'),
-                    $page('purchase_orders', 'purchase_orders', 'purchase_orders', 'Module.purchase_orders'),
-                    $page('receivings', 'receivings', 'receivings', 'Module.receivings'),
+                    $page('expenses', 'expenses', 'expenses', 'Module.nav_expenses_with_vouchers'),
+                    $page('expenses_categories', 'expenses_categories', 'expenses_categories', 'Module.expenses_categories'),
+                    $page('recurring_expenses', 'recurring_expenses', 'recurring_expenses', 'Module.recurring_expenses'),
                 ]],
-                ['label' => 'Module.nav_group_suppliers', 'items' => [
-                    $page('suppliers', 'suppliers', 'suppliers', 'Module.suppliers'),
-                    $page('accounting_payables', 'accounting_payables', 'accounting_payables', 'Module.accounting_payables', ['company' => true]),
-                    $page('payables_payments', 'accounting_payables', 'accounting_payables/payments', 'Module.nav_payables_payments'),
-                    $page('payables_debit_notes', 'accounting_payables', 'accounting_payables/debit_notes', 'Module.nav_payables_debit_notes'),
-                    $page('payables_aged', 'accounting_payables', 'accounting_payables/aged_ledger', 'Module.nav_payables_aged', ['company' => true]),
+            ]],
+            'accounts' => ['icon' => 'bi-bank', 'also' => [], 'groups' => [
+                ['label' => null, 'items' => [
+                    $page('accounting_treasuries', 'accounting_treasuries', 'accounting_treasuries', 'Module.nav_treasuries'),
+                    $page('treasury_transfers', 'accounting_treasuries', 'accounting_treasuries/transfers', 'Module.nav_transfers'),
+                    $page('accounting_cheques', 'accounting_cheques', 'accounting_cheques', 'Module.accounting_cheques'),
+                    $page('bank_reconciliation', 'accounting_treasuries', 'accounting_treasuries/bank', 'Module.nav_bank_reconciliation'),
+                    $page('inter_branch', 'accounting_treasuries', 'accounting_treasuries/inter_branch', 'Module.nav_inter_branch'),
+                    $page('cashups', 'cashups', 'cashups', 'Module.cashups'),
+                    $page('collected_invoices', 'accounting_reports', 'accounting_reports/net_position', 'Module.nav_collected_invoices', ['permission' => 'reports_sales', 'query' => 'status[]=paid']),
+                    $page('cash_flow', 'accounting_reports', 'accounting_statements/cash_flow', 'Module.nav_cash_flow'),
+                ]],
+            ]],
+            'ledger' => ['icon' => 'bi-journal-bookmark', 'also' => [], 'groups' => [
+                ['label' => 'Module.nav_group_books', 'items' => [
+                    $page('accounting_chart', 'accounting_chart', 'accounting_chart', 'Module.nav_chart_tree'),
+                    $page('ledger', 'accounting_reports', 'accounting_reports/ledger', 'Module.nav_account_statement'),
+                    $page('accounting_journals', 'accounting_journals', 'accounting_journals', 'Module.accounting_journals'),
+                    $page('trial_balance', 'accounting_reports', 'accounting_reports/trial_balance', 'Module.nav_trial_balance', ['aliases' => ['accounting_reports']]),
+                ]],
+                ['label' => 'Module.nav_group_statements', 'items' => [
+                    $page('balance_sheet', 'accounting_reports', 'accounting_statements/balance_sheet', 'Module.nav_balance_sheet'),
+                    $page('income_statement', 'accounting_reports', 'accounting_statements/income_statement', 'Module.nav_income_statement'),
+                    $page('tax_report', 'accounting_reports', 'accounting_reports/tax', 'Module.nav_tax_report'),
+                ]],
+                ['label' => 'Module.nav_group_posting', 'items' => [
+                    $page('post_journals', 'accounting_journals', 'accounting_journals', 'Module.nav_post_journals', ['permission' => 'acc_journals_post', 'query' => 'status[]=draft']),
+                    $page('backfill', 'accounting_periods', 'accounting_periods/backfill', 'Module.nav_backfill', ['permission' => 'acc_backfill_manage']),
+                    $page('accounting_periods', 'accounting_periods', 'accounting_periods', 'Module.nav_fiscal_periods'),
+                    $page('closings', 'accounting_periods', 'accounting_periods/closings', 'Module.nav_close_periods'),
+                    $page('year_end', 'accounting_periods', 'accounting_periods/year_end', 'Module.nav_year_end', ['permission' => 'acc_year_end_close']),
+                    $page('opening', 'accounting_periods', 'accounting_periods/opening', 'Module.nav_opening_balances', ['permission' => 'acc_opening_manage']),
+                ]],
+                ['label' => 'Module.nav_group_accounting_settings', 'items' => [
+                    $page('accounting_cost_centers', 'accounting_cost_centers', 'accounting_cost_centers', 'Module.accounting_cost_centers'),
+                    $page('accounting_currencies', 'accounting_currencies', 'accounting_currencies', 'Module.accounting_currencies'),
+                    $page('accounting_assets', 'accounting_assets', 'accounting_assets', 'Module.accounting_assets'),
+                    $page('accounting_ai', 'accounting_ai', 'accounting_ai', 'Module.accounting_ai'),
+                    $page('accounting_settings', 'accounting_settings', 'accounting_settings', 'Module.accounting_settings'),
+                    $page('accounting_routing', 'accounting_routing', 'accounting_routing', 'Module.accounting_routing'),
+                    $page('accounting_einvoicing', 'accounting_einvoicing', 'accounting_einvoicing', 'Module.accounting_einvoicing'),
                 ]],
             ]],
             'inventory' => ['icon' => 'bi-box-seam', 'also' => [], 'groups' => [
@@ -89,45 +161,9 @@ final class SidebarMenu
                     $page('stock_requests', 'stock_documents', 'stock_documents/requests', 'Module.nav_stock_requests'),
                 ]],
             ]],
-            'ledger' => ['icon' => 'bi-journal-bookmark', 'also' => [], 'groups' => [
-                ['label' => null, 'items' => [
-                    $page('accounting_chart', 'accounting_chart', 'accounting_chart', 'Module.accounting_chart'),
-                    $page('accounting_journals', 'accounting_journals', 'accounting_journals', 'Module.accounting_journals'),
-                    $page('ledger', 'accounting_reports', 'accounting_reports/ledger', 'Module.nav_ledger'),
-                    $page('trial_balance', 'accounting_reports', 'accounting_reports/trial_balance', 'Module.nav_trial_balance', ['aliases' => ['accounting_reports']]),
-                    $page('accounting_periods', 'accounting_periods', 'accounting_periods', 'Module.accounting_periods'),
-                    $page('accounting_cost_centers', 'accounting_cost_centers', 'accounting_cost_centers', 'Module.accounting_cost_centers'),
-                    $page('accounting_currencies', 'accounting_currencies', 'accounting_currencies', 'Module.accounting_currencies'),
-                    $page('accounting_assets', 'accounting_assets', 'accounting_assets', 'Module.accounting_assets'),
-                    $page('accounting_ai', 'accounting_ai', 'accounting_ai', 'Module.accounting_ai'),
-                ]],
-            ]],
-            'treasury' => ['icon' => 'bi-bank', 'also' => [], 'groups' => [
-                ['label' => null, 'items' => [
-                    $page('accounting_treasuries', 'accounting_treasuries', 'accounting_treasuries', 'Module.nav_treasuries'),
-                    $page('treasury_transfers', 'accounting_treasuries', 'accounting_treasuries/transfers', 'Module.nav_transfers'),
-                    $page('bank_reconciliation', 'accounting_treasuries', 'accounting_treasuries/bank', 'Module.nav_bank_reconciliation'),
-                    $page('inter_branch', 'accounting_treasuries', 'accounting_treasuries/inter_branch', 'Module.nav_inter_branch'),
-                    $page('accounting_cheques', 'accounting_cheques', 'accounting_cheques', 'Module.accounting_cheques'),
-                    $page('cashups', 'cashups', 'cashups', 'Module.cashups'),
-                ]],
-                ['label' => 'Module.nav_group_receipts', 'items' => [
-                    $page('receipt_vouchers', 'receipt_vouchers', 'receipt_vouchers', 'Module.receipt_vouchers'),
-                    $page('revenue_categories', 'revenue_categories', 'revenue_categories', 'Module.revenue_categories'),
-                ]],
-                ['label' => 'Module.nav_group_expenses', 'items' => [
-                    $page('expenses', 'expenses', 'expenses', 'Module.expenses'),
-                    $page('expenses_categories', 'expenses_categories', 'expenses_categories', 'Module.expenses_categories'),
-                    $page('recurring_expenses', 'recurring_expenses', 'recurring_expenses', 'Module.recurring_expenses'),
-                ]],
-            ]],
             'reports' => ['icon' => 'bi-bar-chart-line', 'also' => ['accounting_reports', 'accounting_statements'], 'groups' => [
                 ['label' => null, 'items' => [
                     $page('reports', 'reports', 'reports', 'Module.nav_reports_hub'),
-                    $page('income_statement', 'accounting_reports', 'accounting_statements/income_statement', 'Module.nav_income_statement'),
-                    $page('balance_sheet', 'accounting_reports', 'accounting_statements/balance_sheet', 'Module.nav_balance_sheet'),
-                    $page('cash_flow', 'accounting_reports', 'accounting_statements/cash_flow', 'Module.nav_cash_flow'),
-                    $page('tax_report', 'accounting_reports', 'accounting_reports/tax', 'Module.nav_tax_report'),
                 ]],
             ]],
             self::SETTINGS => ['icon' => 'bi-gear', 'also' => [], 'groups' => [
@@ -139,11 +175,6 @@ final class SidebarMenu
                     $page('taxes', 'taxes', 'taxes', 'Module.taxes'),
                     $page('custom_fields', 'custom_fields', 'custom_fields', 'Module.custom_fields'),
                     $page('integrations', 'integrations', 'integrations', 'Module.integrations', ['also' => ['config']]),
-                ]],
-                ['label' => 'Module.group_accounting', 'items' => [
-                    $page('accounting_settings', 'accounting_settings', 'accounting_settings', 'Module.accounting_settings'),
-                    $page('accounting_routing', 'accounting_routing', 'accounting_routing', 'Module.accounting_routing'),
-                    $page('accounting_einvoicing', 'accounting_einvoicing', 'accounting_einvoicing', 'Module.accounting_einvoicing'),
                 ]],
             ]],
         ];
@@ -250,43 +281,63 @@ final class SidebarMenu
     }
 
     /**
+     * Whether a person may open a page: the module it belongs to is among their modules and they hold it the way its
+     * screens ask for it, they hold the permission the page asks for as well, work in the whole company when the page
+     * needs that, and hold the other modules it asks for. The sidebar and the shortcuts of the start page both ask
+     * this, so that the two never disagree.
+     *
+     * @param array<string, mixed>        $item           A page: module, and optionally permission, company and also.
      * @param list<string>                $allowedModules Ids of the modules the person holds a grant for, as the module list gives them.
      * @param list<string>                $held           Lower-case permission ids the person holds, their own and their roles'.
      * @param array<string, list<string>> $permissions    See holdsModule().
+     */
+    public static function opens(array $item, array $allowedModules, array $held, array $permissions): bool
+    {
+        $holds = static fn (string $module): bool => in_array($module, $allowedModules, true) && self::holdsModule($module, $held, $permissions);
+
+        if (! $holds($item['module'])) {
+            return false;
+        }
+
+        if (isset($item['permission']) && ! in_array(strtolower($item['permission']), $held, true)) {
+            return false;
+        }
+
+        if (($item['company'] ?? false) && ! in_array(BranchGuard::ALL_BRANCHES, $held, true)) {
+            return false;
+        }
+
+        foreach ($item['also'] ?? [] as $other) {
+            if (! $holds($other)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string>                $allowedModules Ids of the modules the person holds a grant for, as the module list gives them.
+     * @param list<string>                $held           Lower-case permission ids the person holds, their own and their roles'.
+     * @param array<string, list<string>> $permissions    See holdsModule().
+     * @param string                      $query          Query string of the page being shown, for the pages that are a view of another page's path.
      *
      * @return list<array{key: string, label: string, icon: string, active: bool, groups: list<array{label: ?string, items: list<array{id: string, label: string, url: string, active: bool}>}>}>
      */
-    public static function sections(array $allowedModules, array $held, array $permissions, string $path): array
+    public static function sections(array $allowedModules, array $held, array $permissions, string $path, string $query = ''): array
     {
         $definition = self::definition();
         $path       = self::normalize($path);
         $known      = self::modules();
-        $allowed    = array_flip($allowedModules);
-        $opens      = static fn (string $module): bool => isset($allowed[$module]) && self::holdsModule($module, $held, $permissions);
+        $opens      = static fn (string $module): bool => in_array($module, $allowedModules, true) && self::holdsModule($module, $held, $permissions);
         $visible    = [];
 
         foreach ($definition as $sectionKey => $section) {
             foreach ($section['groups'] as $groupIndex => $group) {
                 foreach ($group['items'] as $item) {
-                    if (! $opens($item['module'])) {
-                        continue;
+                    if (self::opens($item, $allowedModules, $held, $permissions)) {
+                        $visible[$sectionKey][$groupIndex][] = $item;
                     }
-
-                    if (isset($item['permission']) && ! in_array(strtolower($item['permission']), $held, true)) {
-                        continue;
-                    }
-
-                    if (($item['company'] ?? false) && ! in_array(BranchGuard::ALL_BRANCHES, $held, true)) {
-                        continue;
-                    }
-
-                    foreach ($item['also'] ?? [] as $other) {
-                        if (! $opens($other)) {
-                            continue 2;
-                        }
-                    }
-
-                    $visible[$sectionKey][$groupIndex][] = $item;
                 }
             }
         }
@@ -298,7 +349,7 @@ final class SidebarMenu
             }
         }
 
-        $activeId = self::activeItem($visible, $path);
+        $activeId = self::activeItem($visible, $path, $query);
         $sections = [];
 
         foreach ($definition as $sectionKey => $section) {
@@ -316,7 +367,7 @@ final class SidebarMenu
                     'items' => array_map(static fn (array $item): array => [
                         'id'     => $item['id'],
                         'label'  => lang($item['label']),
-                        'url'    => base_url($item['path']),
+                        'url'    => base_url($item['path']) . (isset($item['query']) ? '?' . $item['query'] : ''),
                         'active' => $item['id'] === $activeId,
                     ], $items),
                 ];
@@ -343,7 +394,7 @@ final class SidebarMenu
     /**
      * @param array<string, array<int, list<array<string, mixed>>>> $visible
      */
-    private static function activeItem(array $visible, string $path): ?string
+    private static function activeItem(array $visible, string $path, string $query): ?string
     {
         $best    = null;
         $bestLen = -1;
@@ -351,7 +402,7 @@ final class SidebarMenu
         foreach ($visible as $groups) {
             foreach ($groups as $items) {
                 foreach ($items as $item) {
-                    $length = self::matchLength($item, $path);
+                    $length = self::matchLength($item, $path, $query);
 
                     if ($length > $bestLen) {
                         $best    = $item['id'];
@@ -365,21 +416,40 @@ final class SidebarMenu
     }
 
     /**
-     * How much of the path the page accounts for, or -1 when it is not this page.
+     * How much of the path the page accounts for, or -1 when it is not this page. A page that is a view of another
+     * page's path counts one more when the query string asks for that view, so it wins over the page it views.
      *
      * @param array<string, mixed> $item
      */
-    private static function matchLength(array $item, string $path): int
+    private static function matchLength(array $item, string $path, string $query): int
     {
         if (in_array($path, $item['aliases'] ?? [], true)) {
             return strlen($path);
         }
 
-        if ($item['path'] === $path || str_starts_with($path, $item['path'] . '/')) {
+        if ($item['path'] !== $path && ! str_starts_with($path, $item['path'] . '/')) {
+            return -1;
+        }
+
+        if (! isset($item['query'])) {
             return strlen($item['path']);
         }
 
-        return -1;
+        return self::queryHolds($query, $item['query']) ? strlen($item['path']) + 1 : -1;
+    }
+
+    private static function queryHolds(string $query, string $wanted): bool
+    {
+        parse_str($query, $given);
+        parse_str($wanted, $required);
+
+        foreach ($required as $key => $value) {
+            if (! isset($given[$key]) || (is_array($value) ? array_diff($value, (array) $given[$key]) !== [] : $given[$key] !== $value)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'Bạn chưa chọn Chi phí nào',
     'one_or_multiple'            => 'Chi phí',
     'payment'                    => 'Kiểu thanh toán',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'Bắt đầu gõ tên của nhà cung cấp...',
     'successful_adding'          => 'Đã thêm thành công chi phí',
     'successful_deleted'         => 'Đã xóa thành công chi phí',

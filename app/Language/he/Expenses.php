@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'לא בחרת כל הוצאה',
     'one_or_multiple'            => 'הוצאה(ות)',
     'payment'                    => 'סוג תשלום',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'התחל להקליד את שם הספק ...',
     'successful_adding'          => 'הוצאה נוספה בהצלחה',
     'successful_deleted'         => 'הוצאה נמחקה בהצלחה',

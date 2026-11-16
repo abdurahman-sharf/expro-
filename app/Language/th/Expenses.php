@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'ท่านยังไม่ได้เลือกค่าใช้จ่าย',
     'one_or_multiple'            => 'ค่าใช้จ่าย',
     'payment'                    => 'ประเภทการชำระ',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'เริ่มต้นพิมพ์ชื่อผู้ผลิต...',
     'successful_adding'          => 'เพิ่มค่าใช้จ่ายสำเร็จ',
     'successful_deleted'         => 'ลบค่าใช้จ่ายสำเร็จ',

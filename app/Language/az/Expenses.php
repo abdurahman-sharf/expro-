@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'Siz heç bir xərc seçməmisiniz',
     'one_or_multiple'            => 'Xərc (lər)',
     'payment'                    => 'Ödəmə Növü',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'Təchizatçıın adını yazmağa başlayın ...',
     'successful_adding'          => 'Xərc uğurla əlavə edildi',
     'successful_deleted'         => 'Xərc uğurla silindi',

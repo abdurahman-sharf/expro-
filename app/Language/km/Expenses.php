@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'អ្នកមិនទាន់បានជ្រើរើសចំណាយណាមួយឡើយ',
     'one_or_multiple'            => 'ចំណាយ',
     'payment'                    => 'ប្រភេទបង់ប្រាក់',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => '',
     'successful_adding'          => 'បន្ថែមចំណាយបានជោគជ័យ',
     'successful_deleted'         => 'ការចំណាយលប់បានជោគជ័យ',

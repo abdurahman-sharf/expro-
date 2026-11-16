@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'هیچ خەرجییەکت هەڵنەبژاردووە',
     'one_or_multiple'            => 'خەرجی(ەکان)',
     'payment'                    => 'جۆری پارەدان',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'دەست بکە بە نووسینی ناوی دابینکەر...',
     'successful_adding'          => 'زیادکردنی خەرجی سەرکەوتوو بوو',
     'successful_deleted'         => 'سڕینەوەی خەرجی سەرکەوتوو بوو',

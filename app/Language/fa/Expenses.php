@@ -45,6 +45,7 @@ return [
     'none_selected'              => 'شما هیچ هزینه ای را انتخاب نکرده اید',
     'one_or_multiple'            => 'هزینه (ها)',
     'payment'                    => 'نوع پرداخت',
+    'payment_voucher'            => '',
     'start_typing_supplier_name' => 'شروع به تایپ کردن نام ارائه دهنده ...',
     'successful_adding'          => 'افزودن هزینه موفقیت آمیز است',
     'successful_deleted'         => 'حذف موفقیت آمیز',
