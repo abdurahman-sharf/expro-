@@ -2177,54 +2177,105 @@ input.flatpickr-input,
 }
 
 .acc-chart {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
-@media (min-width: 992px) {
-    .acc-chart {
-        grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
-        align-items: start;
-    }
+.acc-chart [hidden] {
+    display: none !important;
 }
 
-.acc-chart-tree {
-    padding: 12px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-md);
-    background: var(--surface);
-    max-height: 70vh;
-    overflow: auto;
+.acc-chart-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+}
+
+.acc-chart-search {
+    flex: 1 1 220px;
+    max-width: 360px;
+}
+
+.acc-hints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 20px;
+    margin: 0;
+    padding: 0;
+    color: var(--muted);
+    font-size: 13px;
+    list-style: none;
+}
+
+.acc-hints .bi {
+    color: var(--warning);
 }
 
 .acc-tree,
-.acc-tree ul {
+.acc-children {
     margin: 0;
     padding: 0;
     list-style: none;
 }
 
-.acc-tree ul {
-    padding-inline-start: 16px;
-    border-inline-start: 1px solid var(--line);
-    margin-inline-start: 8px;
+.acc-tree {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    padding: 6px;
 }
 
-.acc-tree-row {
+.acc-children {
+    margin-inline-start: 22px;
+    padding-inline-start: 10px;
+    border-inline-start: 1px dashed var(--line-strong);
+}
+
+.acc-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 2px;
+    gap: 4px 8px;
+    min-height: 44px;
+    padding: 4px 6px;
+    border-radius: var(--radius-sm);
 }
 
-.acc-tree-caret,
-.acc-tree-caret-space {
-    flex: 0 0 24px;
-    width: 24px;
-    height: 24px;
+.acc-row:hover {
+    background: var(--surface-2);
 }
 
-.acc-tree-caret {
+.acc-row.is-selected {
+    background: var(--blue-50);
+    box-shadow: inset 0 0 0 1px var(--blue-100);
+}
+
+.acc-row.is-inactive .acc-name,
+.acc-row.is-inactive .acc-balance {
+    color: var(--muted);
+}
+
+.acc-node.is-new > .acc-row {
+    animation: acc-new 4s ease-out;
+}
+
+@keyframes acc-new {
+    0%,
+    60% {
+        background: var(--success-bg);
+    }
+}
+
+.acc-caret,
+.acc-caret-space {
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+}
+
+.acc-caret {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2235,62 +2286,272 @@ input.flatpickr-input,
     color: var(--muted);
 }
 
-.acc-tree-caret:hover {
+.acc-caret:hover {
     background: var(--blue-50);
     color: var(--blue-700);
 }
 
-.acc-tree-caret .bi {
+.acc-caret .bi {
     transition: transform .15s ease;
 }
 
-.acc-tree-caret[aria-expanded="false"] .bi {
+.acc-caret[aria-expanded="false"] .bi {
     transform: rotate(-90deg);
 }
 
-:root[dir="rtl"] .acc-tree-caret[aria-expanded="false"] .bi {
+:root[dir="rtl"] .acc-caret[aria-expanded="false"] .bi {
     transform: rotate(90deg);
 }
 
-.acc-tree [hidden] {
-    display: none;
-}
-
-.acc-tree-link {
-    display: inline-block;
-    padding: 3px 8px;
+.acc-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
     border-radius: var(--radius-sm);
-    color: var(--text);
-    text-decoration: none;
-}
-
-.acc-tree-link:hover {
     background: var(--blue-50);
+    color: var(--blue-500);
 }
 
-.acc-tree-link.active {
-    background: var(--blue-100);
-    color: var(--blue-700);
-    font-weight: 600;
+.acc-icon.type-asset {
+    background: var(--blue-50);
+    color: var(--blue-500);
 }
 
-.acc-tree-link.is-inactive {
-    color: var(--muted);
-    text-decoration: line-through;
+.acc-icon.type-liability {
+    background: var(--warning-bg);
+    color: var(--warning);
+}
+
+.acc-icon.type-equity {
+    background: #efeafd;
+    color: #5230b5;
+}
+
+.acc-icon.type-revenue {
+    background: var(--success-bg);
+    color: var(--success);
+}
+
+.acc-icon.type-expense {
+    background: var(--danger-bg);
+    color: var(--danger);
 }
 
 .acc-code {
-    margin-inline-end: 4px;
-    color: var(--muted);
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text-2);
+    font-size: 12px;
     font-variant-numeric: tabular-nums;
 }
 
-.acc-chart-main {
+.acc-name {
+    flex: 1 1 160px;
     min-width: 0;
+    overflow-wrap: anywhere;
+    font-weight: 600;
 }
 
-.acc-tree-toggle {
-    justify-self: start;
+.acc-parent {
+    color: var(--muted);
+}
+
+.acc-count,
+.acc-count-space {
+    flex: 0 0 auto;
+    min-width: 28px;
+}
+
+.acc-count {
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--blue-100);
+    color: var(--blue-700);
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.acc-chips {
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 4px;
+    min-width: 116px;
+}
+
+.acc-chip {
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.acc-chip.is-on {
+    background: var(--success-bg);
+    color: var(--success);
+}
+
+.acc-chip.is-off {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--muted);
+}
+
+.acc-chip.is-system {
+    background: var(--blue-100);
+    color: var(--blue-700);
+}
+
+.acc-balance {
+    min-width: 96px;
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.acc-actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+    min-width: 252px;
+}
+
+.acc-act {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 4px 8px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--bs-link-color);
+    text-decoration: none;
+}
+
+.acc-act:hover {
+    background: var(--blue-50);
+    border-color: var(--blue-100);
+}
+
+.acc-act-add {
+    border-color: var(--blue-100);
+    font-weight: 600;
+}
+
+.acc-more {
+    display: none;
+    min-width: 44px;
+    min-height: 44px;
+    color: var(--muted);
+}
+
+.acc-linked {
+    padding: 4px 6px;
+}
+
+.acc-empty {
+    margin: 12px 6px;
+}
+
+.acc-results {
+    margin-top: 0;
+}
+
+@media (max-width: 767.98px) {
+    .acc-children {
+        margin-inline-start: 12px;
+        padding-inline-start: 6px;
+    }
+
+    .acc-row {
+        display: grid;
+        grid-template-columns: 28px 28px minmax(0, 1fr) auto auto;
+        grid-template-areas:
+            "caret icon name count more"
+            ". . code chips balance"
+            "actions actions actions actions actions";
+        align-items: center;
+        gap: 2px 6px;
+    }
+
+    .acc-caret,
+    .acc-caret-space {
+        grid-area: caret;
+    }
+
+    .acc-icon {
+        grid-area: icon;
+    }
+
+    .acc-name {
+        grid-area: name;
+    }
+
+    .acc-count,
+    .acc-count-space {
+        grid-area: count;
+    }
+
+    .acc-more {
+        display: inline-flex;
+        grid-area: more;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .acc-code {
+        grid-area: code;
+        justify-self: start;
+    }
+
+    .acc-chips {
+        grid-area: chips;
+        min-width: 0;
+    }
+
+    .acc-chip.is-on {
+        display: none;
+    }
+
+    .acc-balance {
+        grid-area: balance;
+        min-width: 0;
+    }
+
+    .acc-parent {
+        grid-column: 1 / -1;
+        padding-inline-start: 38px;
+    }
+
+    .acc-actions {
+        display: none;
+        grid-area: actions;
+        min-width: 0;
+        padding-block: 4px;
+    }
+
+    .acc-row.actions-open .acc-actions {
+        display: flex;
+    }
+
+    .acc-act {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .acc-chart-search {
+        max-width: none;
+    }
 }
 
 .acc-summary {
@@ -2585,7 +2846,10 @@ input.flatpickr-input,
         overflow: visible;
     }
 
-    .acc-chart-tree {
+    .acc-chart-bar,
+    .acc-hints,
+    .acc-actions,
+    .acc-more {
         display: none;
     }
 }

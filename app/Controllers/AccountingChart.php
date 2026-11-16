@@ -5,14 +5,23 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\AccountType;
+use App\Libraries\Accounting\ChartRowActions;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
 class AccountingChart extends AccountingController
 {
     private const SORTABLE = ['code', 'name', 'account_type', 'balance'];
+    private const PAGE     = 100;
+    private const FOUND    = 100;
+    private const OPEN_MAX = 500;
 
     private AccountService $accounts;
+
+    /**
+     * @var array{manage: bool, ledger: bool}|null
+     */
+    private ?array $rights = null;
 
     public function __construct()
     {
@@ -23,26 +32,65 @@ class AccountingChart extends AccountingController
 
     public function getIndex(): string
     {
-        $parentId = $this->selectedId();
+        $selectedId = $this->selectedId();
 
         return view('accounting_chart/manage', [
             'table_headers' => transform_headers($this->headers(), true, true),
-            'parent_id'     => $parentId,
-            'can_manage'    => $this->canManage(AccountingGuard::CHART_MANAGE),
+            'selected_id'   => $selectedId,
+            'can_manage'    => $this->rights()['manage'],
             'scope_notice'  => $this->scopeNoticeNeeded(),
-            'tree'          => $this->treeData($parentId),
-            'panel'         => $this->panelData($parentId),
+            'tree'          => $this->context($this->pathTo($selectedId), $selectedId),
         ]);
     }
 
-    public function getTree(): string
+    public function getNode(int $accountId): string
     {
-        return view('accounting_chart/tree', $this->treeData($this->selectedId()));
+        $account = $this->accounts->findFlagged($accountId);
+
+        if ($account === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $highlight = (int) $this->request->getGet('highlight');
+
+        return view('accounting_chart/node', [
+            'account' => $account,
+            'ctx'     => $this->context($this->openRequested() + $this->pathTo($highlight > 0 ? $highlight : null), null, $highlight > 0 ? $highlight : null),
+        ]);
     }
 
-    public function getPanel(): string
+    public function getBranch(int $parentId): string
     {
-        return view('accounting_chart/panel', $this->panelData($this->selectedId()) + ['can_manage' => $this->canManage(AccountingGuard::CHART_MANAGE)]);
+        $parent = $this->accounts->findFlagged($parentId);
+
+        if ($parent === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $offset = max(0, (int) $this->request->getGet('offset'));
+        $rows   = $this->accounts->entityChildren($parentId, $offset, self::PAGE);
+        $shown  = $offset + count($rows);
+        $total  = (int) $parent->entity_child_count;
+
+        return view('accounting_chart/branch', [
+            'rows'      => $rows,
+            'ctx'       => $this->context([]),
+            'parent_id' => $parentId,
+            'next'      => $shown < $total ? $shown : null,
+            'remaining' => max(0, $total - $shown),
+        ]);
+    }
+
+    public function getFind(): string
+    {
+        $term = trim((string) $this->request->getGet('search'));
+        $rows = $term === '' ? [] : $this->accounts->search($term, self::FOUND);
+
+        return view('accounting_chart/find', [
+            'rows'    => $rows,
+            'ctx'     => $this->context([]),
+            'limited' => count($rows) === self::FOUND,
+        ]);
     }
 
     public function getSearch(): ResponseInterface
@@ -55,7 +103,11 @@ class AccountingChart extends AccountingController
         $offset   = max(0, (int) $this->request->getGet('offset'));
 
         $balances = $this->accounts->balances($this->branchIds());
-        $accounts = $term !== '' ? $this->accounts->search($term, 200) : $this->accounts->children($parentId);
+        $accounts = match (true) {
+            $term !== ''                                    => $this->accounts->search($term, 200),
+            (string) $this->request->getGet('flat') === '1' => $this->accounts->structure(),
+            default                                         => $this->accounts->children($parentId),
+        };
 
         usort($accounts, fn (object $first, object $second): int => $order * $this->compare($first, $second, $sort, $balances));
 
@@ -88,16 +140,27 @@ class AccountingChart extends AccountingController
 
         $account  = $accountId === NEW_ENTRY ? null : $this->accountOrFail($accountId);
         $parentId = $account === null ? (int) $this->request->getGet('parent_id') : (int) $account->parent_id;
-        $groups   = array_values(array_filter($this->accounts->all(), static fn (object $item): bool => (int) $item->is_group === 1 && (int) $item->active === 1));
+        $groups   = array_values(array_filter($this->accounts->structure(), static fn (object $item): bool => (int) $item->is_group === 1 && (int) $item->active === 1));
+        $main     = $account === null && (string) $this->request->getGet('main') === '1';
 
-        if ($account === null && $parentId === 0 && $groups !== []) {
+        if ($main) {
+            $groups = array_values(array_filter($groups, static fn (object $item): bool => $item->parent_id === null));
+        }
+
+        $parentIds = array_map(static fn (object $item): int => (int) $item->account_id, $groups);
+
+        if ($account === null && ! in_array($parentId, $parentIds, true) && ($main || $parentId === 0) && $groups !== []) {
             $parentId = (int) $groups[0]->account_id;
         }
+
+        $locked = $account === null && ! $main && (string) $this->request->getGet('lock_parent') === '1' && in_array($parentId, $parentIds, true);
 
         return view('accounting_chart/form', [
             'account'        => $account,
             'groups'         => $groups,
             'parent_id'      => $parentId,
+            'main'           => $main,
+            'parent_locked'  => $locked,
             'suggested_code' => $account === null && $parentId > 0 && $this->accounts->find($parentId) !== null ? $this->accounts->suggestCode($parentId) : '',
             'used'           => $account !== null && $this->accounts->isUsed($accountId),
             'contra'         => $account !== null && $account->normal_balance !== AccountType::from($account->account_type)->normalBalance()->value,
@@ -200,7 +263,7 @@ class AccountingChart extends AccountingController
     {
         $names = [];
 
-        foreach ($this->accounts->all() as $account) {
+        foreach ($this->accounts->structure() as $account) {
             $names[(int) $account->account_id] = $account;
         }
 
@@ -235,57 +298,80 @@ class AccountingChart extends AccountingController
     }
 
     /**
-     * @return array{nodes: array<int|string, list<object>>, open: array<int, true>, selected_id: ?int}
+     * What the tree and its fragments are drawn from: the structure of the chart by parent, the balances, who may do
+     * what and which branches are open.
+     *
+     * @param array<int, true> $open
+     *
+     * @return array<string, mixed>
      */
-    private function treeData(?int $selectedId): array
+    private function context(array $open, ?int $selectedId = null, ?int $highlightId = null): array
     {
-        $byParent = [];
-        $byId     = [];
+        $nodes = [];
+        $byId  = [];
 
-        foreach ($this->accounts->all() as $account) {
-            $byParent[$account->parent_id === null ? 0 : (int) $account->parent_id][] = $account;
-            $byId[(int) $account->account_id]                                         = $account;
-        }
-
-        $open = [];
-
-        for ($current = $selectedId; $current !== null; $current = isset($byId[$current]) && $byId[$current]->parent_id !== null ? (int) $byId[$current]->parent_id : null) {
-            $open[$current] = true;
-        }
-
-        return ['nodes' => $byParent, 'open' => $open, 'selected_id' => $selectedId];
-    }
-
-    /**
-     * @return array{account: ?object, path: list<object>, balance: string}
-     */
-    private function panelData(?int $selectedId): array
-    {
-        if ($selectedId === null) {
-            return ['account' => null, 'path' => [], 'balance' => '0'];
-        }
-
-        $byId = [];
-
-        foreach ($this->accounts->all() as $account) {
-            $byId[(int) $account->account_id] = $account;
-        }
-
-        $path = [];
-
-        for ($current = $selectedId; $current !== null; $current = $byId[$current]->parent_id === null ? null : (int) $byId[$current]->parent_id) {
-            array_unshift($path, $byId[$current]);
+        foreach ($this->accounts->structure() as $account) {
+            $nodes[$account->parent_id === null ? 0 : (int) $account->parent_id][] = $account;
+            $byId[(int) $account->account_id]                                      = $account;
         }
 
         return [
-            'account' => $byId[$selectedId],
-            'path'    => $path,
-            'balance' => $this->accounts->balances($this->branchIds())[$selectedId]['balance'] ?? '0.0000',
+            'nodes'        => $nodes,
+            'by_id'        => $byId,
+            'open'         => $open,
+            'selected_id'  => $selectedId,
+            'highlight_id' => $highlightId,
+            'balances'     => $this->accounts->balances($this->branchIds()),
+            'can_manage'   => $this->rights()['manage'],
+            'can_ledger'   => $this->rights()['ledger'],
         ];
     }
 
     /**
-     * @param array<int, object> $accounts Every account by id, to show the parent of a search hit.
+     * @return array{manage: bool, ledger: bool} Whether the person may change the chart, and whether they may open the account statement.
+     */
+    private function rights(): array
+    {
+        return $this->rights ??= [
+            'manage' => $this->canManage(AccountingGuard::CHART_MANAGE),
+            'ledger' => $this->employee->has_module_grant('accounting_reports', $this->employeeId()),
+        ];
+    }
+
+    /**
+     * The account and the ones above it, which a link to the account leaves open.
+     *
+     * @return array<int, true>
+     */
+    private function pathTo(?int $accountId): array
+    {
+        $path = [];
+
+        for ($current = $accountId; $current !== null && ! isset($path[$current]); $current = ($this->accounts->find($current)?->parent_id) === null ? null : (int) $this->accounts->find($current)->parent_id) {
+            $path[$current] = true;
+        }
+
+        return $path;
+    }
+
+    /**
+     * @return array<int, true> The branches the person has open, as the screen sends them.
+     */
+    private function openRequested(): array
+    {
+        $open = [];
+
+        foreach (array_slice(explode(',', (string) $this->request->getGet('open')), 0, self::OPEN_MAX) as $id) {
+            if ((int) $id > 0) {
+                $open[(int) $id] = true;
+            }
+        }
+
+        return $open;
+    }
+
+    /**
+     * @param array<int, object> $accounts Every account of the structure by id, to show the parent of a search hit.
      *
      * @return array<string, mixed>
      */
@@ -296,50 +382,27 @@ class AccountingChart extends AccountingController
         $isGroup  = (int) $account->is_group === 1;
         $isSystem = (int) $account->is_system === 1;
         $active   = (int) $account->active === 1;
-
-        $parentName = $account->parent_id !== null && isset($accounts[(int) $account->parent_id]) ? $accounts[(int) $account->parent_id]->name : '';
+        $parent   = $account->parent_id !== null ? ($accounts[(int) $account->parent_id] ?? null) : null;
 
         $status = $this->badge($active ? 'active' : 'inactive') . ($isSystem ? ' ' . $this->badge('system') : '');
 
         return [
             'account_id' => $id,
             'code'       => $account->code,
-            'name'       => ($isGroup ? '<a href="' . esc(base_url("accounting_chart?parent={$id}"), 'attr') . '"><i class="bi bi-folder2" aria-hidden="true"></i> ' . $name . '</a>' : $name)
-                . ($showParent && $parentName !== '' ? ' <small class="text-body-secondary">' . esc($parentName) . '</small>' : ''),
+            'name'       => ($isGroup ? '<i class="bi bi-folder2" aria-hidden="true"></i> ' : '') . $name
+                . ($showParent && $parent !== null ? ' <small class="text-body-secondary">' . esc($parent->name) . '</small>' : ''),
             'account_type' => lang('Accounting.account_type_' . $account->account_type),
             'balance'      => $this->amountCell($this->formatAmount($balance)),
             'status'       => $status,
-            'edit'         => $this->actions($account),
+            'edit'         => view('accounting_chart/actions', [
+                'account' => $account,
+                'actions' => ChartRowActions::for(
+                    $account,
+                    $this->rights()['manage'],
+                    $this->rights()['ledger'],
+                    $parent === null || (int) $parent->active === 1,
+                ),
+            ]),
         ];
-    }
-
-    private function actions(object $account): string
-    {
-        if (! $this->canManage(AccountingGuard::CHART_MANAGE)) {
-            return '';
-        }
-
-        $id       = (int) $account->account_id;
-        $active   = (int) $account->active === 1;
-        $isSystem = (int) $account->is_system === 1;
-        $html     = anchor(
-            "accounting_chart/view/{$id}",
-            '<span class="bi bi-pencil-square" aria-hidden="true"></span>',
-            ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Accounting_chart.update')],
-        );
-
-        if ($active && ! $isSystem && ! (int) ($account->routed ?? 0)) {
-            $html .= '<button type="button" class="btn btn-link p-0 acc-action" data-acc-action="deactivate" data-acc-id="' . $id . '" title="' . esc(lang('Accounting_chart.deactivate'), 'attr') . '" aria-label="' . esc(lang('Accounting_chart.deactivate'), 'attr') . '"><span class="bi bi-slash-circle" aria-hidden="true"></span></button>';
-        }
-
-        if (! $active) {
-            $html .= '<button type="button" class="btn btn-link p-0 acc-action" data-acc-action="activate" data-acc-id="' . $id . '" title="' . esc(lang('Accounting_chart.activate'), 'attr') . '" aria-label="' . esc(lang('Accounting_chart.activate'), 'attr') . '"><span class="bi bi-check-circle" aria-hidden="true"></span></button>';
-        }
-
-        if (! $isSystem && ! (int) ($account->has_children ?? 0) && ! (int) ($account->used ?? 0) && ! (int) ($account->routed ?? 0)) {
-            $html .= '<button type="button" class="btn btn-link p-0 acc-action text-danger" data-acc-action="delete" data-acc-id="' . $id . '" title="' . esc(lang('Common.delete'), 'attr') . '" aria-label="' . esc(lang('Common.delete'), 'attr') . '"><span class="bi bi-trash" aria-hidden="true"></span></button>';
-        }
-
-        return $html;
     }
 }

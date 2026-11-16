@@ -4,6 +4,7 @@ namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -60,7 +61,8 @@ class AccountingChartControllerTest extends CIUnitTestCase
 
         $response = $this->get('/accounting_chart');
 
-        $response->assertDontSee('accounting_chart/view?parent_id');
+        $response->assertDontSee('data-href="accounting_chart/view');
+        $response->assertDontSee('acc-hints');
     }
 
     public function testGetIndex_OffersTheAddButtonWithTheManagePermission(): void
@@ -69,7 +71,8 @@ class AccountingChartControllerTest extends CIUnitTestCase
 
         $response = $this->get('/accounting_chart');
 
-        $response->assertSee('accounting_chart/view?parent_id');
+        $response->assertSee('data-href="accounting_chart/view?main=1"');
+        $response->assertSee('acc-hints');
     }
 
     public function testGetIndex_IsNotFoundWhileAccountingIsDisabled(): void
@@ -98,20 +101,6 @@ class AccountingChartControllerTest extends CIUnitTestCase
         $this->expectException(PageNotFoundException::class);
 
         $this->get('/accounting_chart?parent=999999');
-    }
-
-    public function testGetTree_ListsTheRootAccountsAndOpensTheSelectedBranch(): void
-    {
-        $this->actAs($this->employeeWithGrants(['accounting_chart']));
-        $assetsId = $this->accountIdByCode('1');
-        $childId  = $this->customAccount('11', '1110', 'Petty cash drawer');
-
-        $response = $this->get('/accounting_chart/tree?parent=' . $childId);
-
-        $response->assertStatus(200);
-        $response->assertSee('Petty cash drawer');
-        $response->assertSee('accounting_chart?parent=' . $assetsId);
-        $response->assertSee('aria-current="page"');
     }
 
     public function testGetSearch_ListsTheRootAccountsWithTheirBalances(): void
@@ -404,7 +393,7 @@ class AccountingChartControllerTest extends CIUnitTestCase
     {
         $this->actAs($this->employeeWithGrants(['accounting_chart', AccountingGuard::CHART_MANAGE], [1]));
 
-        $this->get('/accounting_chart')->assertDontSee('accounting_chart/view?parent_id');
+        $this->get('/accounting_chart')->assertDontSee('data-href="accounting_chart/view');
     }
 
     public function testGetIndex_ExplainsThatBalancesLeaveOutOtherBranches(): void
@@ -439,5 +428,339 @@ class AccountingChartControllerTest extends CIUnitTestCase
 
         $this->assertFalse($result['success']);
         $this->assertSame(0, $this->accountingDb()->table('accounting_accounts')->where('code', '1110')->countAllResults());
+    }
+
+    /**
+     * @return array{group: int, ids: list<int>}
+     */
+    private function customerAccounts(int $count, string $name = 'Lazy customer'): array
+    {
+        $service = new EntityAccountService();
+        $ids     = [];
+
+        for ($number = 1; $number <= $count; $number++) {
+            $ids[] = $service->ensure(EntityAccountService::CUSTOMER, 900000 + $number, "{$name} {$number}");
+        }
+
+        return ['group' => (int) (new AccountService())->find($ids[0])->parent_id, 'ids' => $ids];
+    }
+
+    private function manager(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart', AccountingGuard::CHART_MANAGE]));
+    }
+
+    public function testGetIndex_DrawsTheStructureAndLeavesTheAccountsOfEntitiesToBeLoadedOnDemand(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+        $this->customAccount('11', '1110', 'Petty cash drawer');
+        $customers = $this->customerAccounts(3);
+
+        $html = $this->get('/accounting_chart')->getBody();
+
+        $this->assertStringContainsString('Petty cash drawer', $html);
+        $this->assertStringNotContainsString('Lazy customer 1', $html);
+        $this->assertStringContainsString('accounting_chart/branch/' . $customers['group'] . '?offset=0', $html);
+        $this->assertStringContainsString(lang('Accounting_chart.show_linked', [3]), $html);
+    }
+
+    public function testGetIndex_OpensThePathToTheAccountOfTheLink(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+        $childId = $this->customAccount('11', '1110', 'Petty cash drawer');
+
+        $html = $this->get('/accounting_chart?parent=' . $childId)->getBody();
+
+        $this->assertMatchesRegularExpression('~data-account-id="' . $this->accountIdByCode('1') . '".*?aria-expanded="true"~s', $html);
+        $this->assertMatchesRegularExpression('~<div class="acc-row is-selected" aria-current="true">(?:(?!</li>).)*Petty cash drawer~s', $html);
+    }
+
+    public function testGetIndex_OpensTheGroupOfAnEntityAccountTheLinkNames(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+        $customers = $this->customerAccounts(2);
+
+        $html = $this->get('/accounting_chart?parent=' . $customers['ids'][0])->getBody();
+
+        $this->assertMatchesRegularExpression('~data-account-id="' . $customers['group'] . '"[^>]*>\s*<div class="acc-row[^"]*">\s*<button[^>]*aria-expanded="true"~s', $html);
+        $this->assertStringNotContainsString('Lazy customer 1', $html);
+    }
+
+    public function testGetNode_DrawsTheAccountWithItsBranchClosedUnlessAskedToKeepItOpen(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+        $this->customAccount('11', '1110', 'Petty cash drawer');
+        $assets = $this->accountIdByCode('1');
+
+        $closed = $this->get('/accounting_chart/node/' . $assets)->getBody();
+        $open   = $this->get('/accounting_chart/node/' . $assets . '?open=' . $assets)->getBody();
+
+        $this->assertStringContainsString('<ul class="acc-children" hidden>', $closed);
+        $this->assertStringContainsString('<ul class="acc-children">', $open);
+        $this->assertStringContainsString('Petty cash drawer', $open);
+    }
+
+    public function testGetNode_MarksTheAccountItWasAskedToHighlight(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+        $childId = $this->customAccount('11', '1110', 'Petty cash drawer');
+
+        $html = $this->get('/accounting_chart/node/' . $this->accountIdByCode('11') . '?highlight=' . $childId)->getBody();
+
+        $this->assertMatchesRegularExpression('~<li class="acc-node is-new" data-account-id="' . $childId . '"~', $html);
+        $this->assertMatchesRegularExpression('~data-account-id="' . $this->accountIdByCode('11') . '"[^>]*>\s*<div class="acc-row[^"]*">\s*<button[^>]*aria-expanded="true"~s', $html);
+    }
+
+    public function testGetNode_IsNotFoundForAnUnknownAccount(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_chart/node/999999');
+    }
+
+    public function testGetBranch_ListsAPageOfTheAccountsOfEntitiesAndOffersTheRest(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+        $customers = $this->customerAccounts(105);
+        $group     = $customers['group'];
+
+        $first  = $this->get("/accounting_chart/branch/{$group}?offset=0")->getBody();
+        $second = $this->get("/accounting_chart/branch/{$group}?offset=100")->getBody();
+
+        $this->assertSame(100, substr_count($first, '<li class="acc-node'));
+        $this->assertStringContainsString("accounting_chart/branch/{$group}?offset=100", $first);
+        $this->assertStringContainsString(lang('Accounting_chart.show_more', [5]), $first);
+        $this->assertSame(5, substr_count($second, '<li class="acc-node'));
+        $this->assertStringNotContainsString('acc-load', $second);
+    }
+
+    public function testGetBranch_ListsNoAccountThatBelongsToNoEntity(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+        $customers = $this->customerAccounts(2);
+        $this->customAccount($this->codeOf($customers['group']), $this->nextFreeCode($customers['group']), 'Manual account under customers');
+
+        $html = $this->get('/accounting_chart/branch/' . $customers['group'])->getBody();
+
+        $this->assertStringContainsString('Lazy customer 1', $html);
+        $this->assertStringNotContainsString('Manual account under customers', $html);
+    }
+
+    public function testGetBranch_ShowsTheBalanceOfEachAccountOfAnEntity(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+        $customers = $this->customerAccounts(1);
+
+        $html = $this->get('/accounting_chart/branch/' . $customers['group'])->getBody();
+
+        $this->assertStringContainsString('class="acc-balance"', $html);
+        $this->assertStringContainsString('Lazy customer 1', $html);
+    }
+
+    public function testGetBranch_IsNotFoundForAnUnknownAccount(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_chart/branch/999999');
+    }
+
+    public function testGetFind_FindsTheAccountOfAnEntityWithItsParentAndEscapesTheName(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+        $customers = $this->customerAccounts(1, '<b>Bold</b> customer');
+
+        $html = $this->get('/accounting_chart/find?search=customer')->getBody();
+
+        $this->assertStringContainsString('&lt;b&gt;Bold&lt;/b&gt; customer 1', $html);
+        $this->assertStringNotContainsString('<b>Bold', $html);
+        $this->assertStringContainsString('class="acc-parent"', $html);
+        $this->assertStringNotContainsString('class="acc-caret"', $html);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_accounts')->where('account_id', $customers['ids'][0])->countAllResults());
+    }
+
+    public function testGetFind_SaysSoWhenNothingMatches(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+
+        $html = $this->get('/accounting_chart/find?search=zzzzzz')->getBody();
+
+        $this->assertStringContainsString(lang('Accounting_chart.no_results'), $html);
+        $this->assertStringNotContainsString('acc-results', $html);
+    }
+
+    public function testGetFind_ListsNothingForAnEmptySearch(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+
+        $this->assertStringContainsString(lang('Accounting_chart.no_results'), $this->get('/accounting_chart/find?search=')->getBody());
+    }
+
+    public function testGetSearch_ListsEveryAccountOfTheStructureFlatAndNoAccountOfAnEntity(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+        $this->customAccount('11', '1110', 'Petty cash drawer');
+        $this->customerAccounts(2);
+
+        $result = $this->jsonOf($this->get('/accounting_chart/search?flat=1&limit=500'));
+        $names  = strip_tags(implode(' ', array_column($result['rows'], 'name')));
+
+        $this->assertContains('1', array_column($result['rows'], 'code'));
+        $this->assertContains('1110', array_column($result['rows'], 'code'));
+        $this->assertStringContainsString('Petty cash drawer', $names);
+        $this->assertStringNotContainsString('Lazy customer', $names);
+        $this->assertSame(
+            $this->accountingDb()->table('accounting_accounts')->where('entity_type IS NULL')->countAllResults(),
+            $result['total'],
+        );
+    }
+
+    public function testGetSearch_KeepsListingOnlyTheRootsWithoutTheFlatOption(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+        $this->customAccount('11', '1110', 'Petty cash drawer');
+
+        $codes = array_column($this->jsonOf($this->get('/accounting_chart/search'))['rows'], 'code');
+
+        $this->assertContains('1', $codes);
+        $this->assertNotContains('1110', $codes);
+    }
+
+    public function testGetSearch_OffersTheAccountStatementOnlyToWhoHoldsTheReportsModule(): void
+    {
+        $accountId = $this->customAccount('11', '1110', 'Petty cash drawer');
+
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+        $without = $this->jsonOf($this->get('/accounting_chart/search?search=drawer'));
+
+        $this->actAs($this->employeeWithGrants(['accounting_chart', 'accounting_reports']));
+        $with = $this->jsonOf($this->get('/accounting_chart/search?search=drawer'));
+
+        $this->assertStringNotContainsString('accounting_reports/ledger', html_entity_decode($without['rows'][0]['edit']));
+        $this->assertStringContainsString('accounting_reports/ledger?account=' . $accountId, html_entity_decode($with['rows'][0]['edit']));
+    }
+
+    public function testGetIndex_OffersTheAccountStatementOnEveryRowToWhoHoldsTheReportsModule(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart', 'accounting_reports']));
+
+        $html = $this->get('/accounting_chart')->getBody();
+
+        $this->assertStringContainsString('accounting_reports/ledger?account=' . $this->accountIdByCode('1'), $html);
+
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+
+        $this->assertStringNotContainsString('accounting_reports/ledger', $this->get('/accounting_chart')->getBody());
+    }
+
+    public function testGetIndex_OffersAddSubAccountOnlyOnAnActiveGroupToWhoManagesTheChart(): void
+    {
+        $this->manager();
+        $group   = $this->customAccount('11', '1110', 'Drawers', true);
+        $posting = $this->customAccount('11', '1111', 'Petty cash drawer');
+        $closed  = $this->customAccount('11', '1112', 'Closed drawers', true);
+        (new AccountService())->deactivate($closed);
+
+        $html = $this->get('/accounting_chart')->getBody();
+
+        $this->assertStringContainsString("accounting_chart/view?parent_id={$group}&amp;lock_parent=1", $html);
+        $this->assertStringNotContainsString("accounting_chart/view?parent_id={$posting}&amp;lock_parent=1", $html);
+        $this->assertStringNotContainsString("accounting_chart/view?parent_id={$closed}&amp;lock_parent=1", $html);
+
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+
+        $this->assertStringNotContainsString('lock_parent=1', $this->get('/accounting_chart')->getBody());
+    }
+
+    public function testGetIndex_OffersNoAddSubAccountToSomeoneLimitedToBranches(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart', AccountingGuard::CHART_MANAGE], [1]));
+
+        $this->assertStringNotContainsString('lock_parent=1', $this->get('/accounting_chart')->getBody());
+    }
+
+    public function testGetSearch_OffersNeitherDeactivateNorDeleteForAnAccountAnExpenseCategoryPointsAt(): void
+    {
+        $this->manager();
+        $accountId = $this->customAccount('11', '1110', 'Petty cash drawer');
+        $this->accountingDb()->table('expense_categories')->insert(['category_name' => 'Drawer costs ' . uniqid(), 'category_description' => '', 'deleted' => 0, 'account_id' => $accountId]);
+
+        $edit = html_entity_decode($this->jsonOf($this->get('/accounting_chart/search?search=drawer'))['rows'][0]['edit']);
+
+        $this->assertStringNotContainsString('data-acc-action="deactivate"', $edit);
+        $this->assertStringNotContainsString('data-acc-action="delete"', $edit);
+        $this->assertStringContainsString('accounting_chart/view/' . $accountId, $edit);
+    }
+
+    public function testGetView_OffersOnlyTheMainAccountsAsParentsForANewMainAccount(): void
+    {
+        $this->manager();
+
+        $html = $this->get('/accounting_chart/view?main=1')->getBody();
+
+        $this->assertStringContainsString('name="is_group" value="1"', $html);
+        $this->assertStringNotContainsString('type="radio"', $html);
+        $this->assertStringContainsString('value="' . $this->accountIdByCode('1') . '"', $html);
+        $this->assertStringNotContainsString('value="' . $this->accountIdByCode('11') . '"', $html);
+    }
+
+    public function testGetView_FixesTheParentOfANewSubAccountAndSuggestsItsCode(): void
+    {
+        $this->manager();
+        $parent = $this->accountIdByCode('11');
+
+        $html = $this->get("/accounting_chart/view?parent_id={$parent}&lock_parent=1")->getBody();
+
+        $this->assertStringContainsString('<input type="hidden" name="parent_id" id="parent_id" value="' . $parent . '"', $html);
+        $this->assertStringNotContainsString('<select name="parent_id"', $html);
+        $this->assertStringContainsString('name="is_group" value="0" checked', $html);
+        $this->assertStringContainsString('data-suggested="' . (new AccountService())->suggestCode($parent) . '"', $html);
+    }
+
+    public function testGetView_IgnoresTheFixedParentWhenItIsNotAnActiveGroup(): void
+    {
+        $this->manager();
+        $posting = $this->customAccount('11', '1110', 'Petty cash drawer');
+
+        $html = $this->get("/accounting_chart/view?parent_id={$posting}&lock_parent=1")->getBody();
+
+        $this->assertStringContainsString('<select name="parent_id"', $html);
+    }
+
+    public function testGetView_RefusesTheMainAccountFormToSomeoneLimitedToBranches(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart', AccountingGuard::CHART_MANAGE], [1]));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_chart/view?main=1');
+    }
+
+    public function testPostSave_CreatesASubAccountUnderTheFixedParentOnlyWithTheManagePermission(): void
+    {
+        $parent = $this->accountIdByCode('11');
+
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+        $refused = $this->jsonOf($this->post('/accounting_chart/save/-1', ['parent_id' => (string) $parent, 'code' => '1110', 'name' => 'Drawer', 'is_group' => '0']));
+
+        $this->manager();
+        $created = $this->jsonOf($this->post('/accounting_chart/save/-1', ['parent_id' => (string) $parent, 'code' => '1110', 'name' => 'Drawer', 'is_group' => '0']));
+
+        $this->assertFalse($refused['success']);
+        $this->assertTrue($created['success']);
+        $this->assertSame($parent, (int) (new AccountService())->find($created['id'])->parent_id);
+    }
+
+    private function codeOf(int $accountId): string
+    {
+        return (string) (new AccountService())->find($accountId)->code;
+    }
+
+    private function nextFreeCode(int $parentId): string
+    {
+        return (new AccountService())->suggestCode($parentId);
     }
 }

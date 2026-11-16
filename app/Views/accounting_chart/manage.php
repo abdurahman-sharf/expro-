@@ -1,17 +1,20 @@
 <?php
 /**
- * @var string   $table_headers
- * @var int|null $parent_id
- * @var bool     $can_manage
- * @var bool     $scope_notice
- * @var array    $tree
- * @var array    $panel
- * @var array    $config
+ * @var string               $table_headers
+ * @var int|null             $selected_id
+ * @var bool                 $can_manage
+ * @var bool                 $scope_notice
+ * @var array<string, mixed> $tree
+ * @var array                $config
  */
 $messages = [
     'activate'   => lang('Accounting_chart.confirm_activate'),
     'deactivate' => lang('Accounting_chart.confirm_deactivate'),
     'delete'     => lang('Accounting_chart.confirm_delete'),
+];
+$text = [
+    'loading'     => lang('Accounting_chart.loading'),
+    'load_failed' => lang('Accounting_chart.load_failed'),
 ];
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>
@@ -22,54 +25,30 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
     $(document).ready(function() {
         <?= view('partial/bootstrap_tables_locale') ?>
 
-        const selectedId = <?= (int) ($parent_id ?? 0) ?>;
-        const confirmations = <?= json_encode($messages, $jsonFlags) ?>;
-
-        table_support.init({
-            resource: 'accounting_chart',
-            headers: <?= $table_headers ?>,
-            pageSize: <?= $config['lines_per_page'] ?>,
-            uniqueId: 'account_id',
-            cardTitle: ['name'],
-            queryParams: function(params) {
-                return $.extend(params, {parent_id: selectedId});
+        accounting_chart.init({
+            selectedId: <?= (int) ($selected_id ?? 0) ?>,
+            confirmations: <?= json_encode($messages, $jsonFlags) ?>,
+            text: <?= json_encode($text, $jsonFlags) ?>,
+            table: function() {
+                table_support.init({
+                    resource: 'accounting_chart',
+                    headers: <?= $table_headers ?>,
+                    pageSize: <?= $config['lines_per_page'] ?>,
+                    uniqueId: 'account_id',
+                    cardTitle: ['name'],
+                    queryParams: function(params) {
+                        return $.extend(params, {flat: 1});
+                    }
+                });
             }
-        });
-
-        window.refreshAccountingChart = function() {
-            $('#chart_tree').load('accounting_chart/tree?parent=' + selectedId);
-            $('#chart_panel').load('accounting_chart/panel?parent=' + selectedId);
-            table_support.refresh();
-        };
-
-        $(document).on('click', '.acc-tree-caret', function() {
-            const expanded = $(this).attr('aria-expanded') === 'true';
-            $(this).attr('aria-expanded', expanded ? 'false' : 'true');
-            $(this).closest('li').children('ul').prop('hidden', expanded);
-        });
-
-        $(document).on('click', '.acc-action', function() {
-            const action = $(this).data('acc-action');
-            const id = $(this).data('acc-id');
-
-            if (!confirm(confirmations[action])) {
-                return;
-            }
-
-            $.post('accounting_chart/' + action + '/' + id, {}, function(response) {
-                toast_support.show(response.message, response.success ? 'success' : 'danger');
-                if (response.success) {
-                    window.refreshAccountingChart();
-                }
-            }, 'json');
         });
     });
 </script>
 
 <div id="title_bar" class="print_hide btn-toolbar">
     <?php if ($can_manage): ?>
-        <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc('accounting_chart/view?parent_id=' . (int) ($parent_id ?? 0), 'attr') ?>" title="<?= lang('Accounting_chart.new') ?>">
-            <span class="bi bi-plus-lg" aria-hidden="true">&nbsp;</span><?= lang('Accounting_chart.new') ?>
+        <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="accounting_chart/view?main=1" title="<?= esc(lang('Accounting_chart.add_main'), 'attr') ?>">
+            <span class="bi bi-plus-lg" aria-hidden="true">&nbsp;</span><?= lang('Accounting_chart.add_main') ?>
         </button>
     <?php endif; ?>
 </div>
@@ -80,26 +59,47 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
 <p class="text-secondary small mb-3" id="chart_nominal_note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= lang('Accounting_chart.nominal_note') ?></p>
 
-<div class="acc-chart">
-    <button class="btn btn-outline-secondary btn-sm acc-tree-toggle d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#chart_tree" aria-expanded="false" aria-controls="chart_tree">
-        <span class="bi bi-diagram-3" aria-hidden="true">&nbsp;</span><?= lang('Accounting_chart.tree') ?>
-    </button>
-
-    <aside id="chart_tree" class="acc-chart-tree collapse d-lg-block">
-        <?= view('accounting_chart/tree', $tree) ?>
-    </aside>
-
-    <section class="acc-chart-main">
-        <div id="chart_panel">
-            <?= view('accounting_chart/panel', $panel + ['can_manage' => $can_manage]) ?>
+<section class="acc-chart" id="acc_chart">
+    <div class="acc-chart-bar print_hide">
+        <div class="btn-group" role="group" id="chart_view_switch" aria-label="<?= esc(lang('Accounting_chart.view_switch'), 'attr') ?>">
+            <button type="button" class="btn btn-sm btn-outline-primary active" data-chart-view="tree" aria-pressed="true"><span class="bi bi-diagram-3" aria-hidden="true"></span> <?= lang('Accounting_chart.view_tree') ?></button>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-chart-view="table" aria-pressed="false"><span class="bi bi-table" aria-hidden="true"></span> <?= lang('Accounting_chart.view_table') ?></button>
         </div>
 
+        <div class="acc-chart-search" id="chart_search_box">
+            <label class="visually-hidden" for="chart_search"><?= lang('Accounting_chart.search') ?></label>
+            <input type="search" id="chart_search" class="form-control form-control-sm" placeholder="<?= esc(lang('Accounting_chart.search'), 'attr') ?>" autocomplete="off">
+        </div>
+
+        <div class="btn-group" role="group" id="chart_tree_tools">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="chart_expand_all"><span class="bi bi-arrows-expand" aria-hidden="true"></span> <?= lang('Accounting_chart.expand_all') ?></button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="chart_collapse_all"><span class="bi bi-arrows-collapse" aria-hidden="true"></span> <?= lang('Accounting_chart.collapse_all') ?></button>
+        </div>
+    </div>
+
+    <?php if ($can_manage): ?>
+        <ul class="acc-hints print_hide">
+            <li><span class="bi bi-lightbulb" aria-hidden="true"></span> <?= lang('Accounting_chart.hint_add_child') ?></li>
+            <li><span class="bi bi-lightbulb" aria-hidden="true"></span> <?= lang('Accounting_chart.hint_code') ?></li>
+        </ul>
+    <?php endif; ?>
+
+    <div id="chart_tree_view">
+        <div id="chart_results" aria-live="polite" hidden></div>
+        <ul class="acc-tree" id="chart_tree_root">
+            <?php foreach ($tree['nodes'][0] ?? [] as $root): ?>
+                <?= view('accounting_chart/node', ['account' => $root, 'ctx' => $tree]) ?>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+
+    <div id="chart_table_view" hidden>
         <div id="toolbar"></div>
 
         <div id="table_holder">
             <table id="table"></table>
         </div>
-    </section>
-</div>
+    </div>
+</section>
 
 <?= view('partial/footer') ?>

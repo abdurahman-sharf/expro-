@@ -792,4 +792,142 @@ class AccountServiceTest extends CIUnitTestCase
         $this->service->delete($accountId, $this->limitedChartManager());
         $this->assertNotNull($this->service->find($accountId));
     }
+
+    /**
+     * @return list<int>
+     */
+    private function customerAccountsUnder(int $count): array
+    {
+        $entities = new EntityAccountService();
+        $ids      = [];
+
+        for ($number = 1; $number <= $count; $number++) {
+            $ids[] = $entities->ensure(EntityAccountService::CUSTOMER, 900000 + $number, "Lazy customer {$number}");
+        }
+
+        return $ids;
+    }
+
+    private function flagsOf(int $accountId): object
+    {
+        return $this->service->findFlagged($accountId);
+    }
+
+    public function testStructure_ListsTheAccountsThatBelongToNoEntity(): void
+    {
+        $this->customAccount('11', '1110', 'Petty cash drawer');
+        $entityIds = $this->customerAccountsUnder(3);
+
+        $ids = array_map(static fn (object $account): int => (int) $account->account_id, $this->service->structure());
+
+        $this->assertContains($this->accountIdByCode('1'), $ids);
+        $this->assertContains($this->accountIdByCode('1110'), $ids);
+        $this->assertSame([], array_intersect($entityIds, $ids));
+        $this->assertSame(
+            $this->accountingDb()->table('accounting_accounts')->where('entity_type IS NULL')->countAllResults(),
+            count($ids),
+        );
+    }
+
+    public function testStructure_CountsTheChildrenOfAGroupApartFromTheAccountsOfEntities(): void
+    {
+        $entityIds = $this->customerAccountsUnder(3);
+        $group     = (int) $this->service->find($entityIds[0])->parent_id;
+        $this->customAccount($this->service->find($group)->code, $this->service->suggestCode($group), 'Manual account');
+
+        $row = array_values(array_filter($this->service->structure(), static fn (object $account): bool => (int) $account->account_id === $group))[0];
+
+        $this->assertSame(1, (int) $row->child_count);
+        $this->assertSame(3, (int) $row->entity_child_count);
+        $this->assertSame(1, (int) $row->has_children);
+    }
+
+    public function testEntityChildren_ListsAPageOfTheAccountsOfEntitiesInCodeOrder(): void
+    {
+        $entityIds = $this->customerAccountsUnder(5);
+        $group     = (int) $this->service->find($entityIds[0])->parent_id;
+        $this->customAccount($this->service->find($group)->code, $this->service->suggestCode($group), 'Manual account');
+
+        $first  = $this->service->entityChildren($group, 0, 2);
+        $second = $this->service->entityChildren($group, 2, 2);
+        $last   = $this->service->entityChildren($group, 4, 2);
+
+        $this->assertSame($entityIds, array_map(static fn (object $account): int => (int) $account->account_id, [...$first, ...$second, ...$last]));
+        $this->assertSame([2, 2, 1], [count($first), count($second), count($last)]);
+        $this->assertSame([], $this->service->entityChildren($group, 5, 2));
+    }
+
+    public function testEntityChildren_ListsNothingForAGroupWithoutThem(): void
+    {
+        $this->assertSame([], $this->service->entityChildren($this->accountIdByCode('11'), 0, 100));
+    }
+
+    public function testChildren_FlagsAnAccountAnExpenseCategoryPointsAtAsRouted(): void
+    {
+        $accountId = $this->customAccount('11', '1110', 'Petty cash drawer');
+
+        $this->assertSame(0, (int) $this->flagsOf($accountId)->routed);
+
+        $this->accountingDb()->table('expense_categories')->insert(['category_name' => 'Drawer costs ' . uniqid(), 'category_description' => '', 'deleted' => 0, 'account_id' => $accountId]);
+
+        $this->assertSame(1, (int) $this->flagsOf($accountId)->routed);
+        $this->assertTrue($this->service->isRouted($accountId));
+    }
+
+    public function testChildren_FlagsAnAccountARevenueCategoryPointsAtAsRouted(): void
+    {
+        $accountId = $this->customAccount('11', '1110', 'Petty cash drawer');
+        $this->accountingDb()->table('revenue_categories')->insert(['category_name' => 'Drawer income ' . uniqid(), 'category_description' => '', 'deleted' => 0, 'account_id' => $accountId]);
+
+        $this->assertSame(1, (int) $this->flagsOf($accountId)->routed);
+        $this->assertTrue($this->service->isRouted($accountId));
+    }
+
+    public function testChildren_FlagsAnAccountATaxLiabilityPointsAtAsRouted(): void
+    {
+        $accountId = $this->customAccount('11', '1110', 'Petty cash drawer');
+        $this->accountingDb()->table('tax_definitions')->insert(['tax_name' => 'Drawer tax ' . uniqid(), 'tax_included' => 0, 'liability_account_id' => $accountId]);
+
+        $this->assertSame(1, (int) $this->flagsOf($accountId)->routed);
+        $this->assertTrue($this->service->isRouted($accountId));
+    }
+
+    public function testChildren_FlagsAnAccountAnItemRoutingPointsAtAsRouted(): void
+    {
+        $accountId = $this->customAccount('11', '1110', 'Petty cash drawer');
+        $itemId    = $this->createTestItem();
+        $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => 'sales.revenue', 'account_id' => $accountId]);
+
+        $this->assertSame(1, (int) $this->flagsOf($accountId)->routed);
+        $this->assertTrue($this->service->isRouted($accountId));
+    }
+
+    public function testChildren_FlagsAnAccountOfTheRoutingTableAsRouted(): void
+    {
+        $accountId = $this->accountId('cash');
+
+        $this->assertSame((int) $this->service->isRouted($accountId), (int) $this->flagsOf($accountId)->routed);
+    }
+
+    public function testChildren_FlagsTheActiveChildrenOfAGroup(): void
+    {
+        $group = $this->customAccount('11', '1110', 'Drawers', true);
+        $child = (new AccountService())->create(['parent_id' => $group, 'code' => '11101', 'name' => 'Drawer one']);
+
+        $this->assertSame(1, (int) $this->flagsOf($group)->has_active_children);
+
+        $this->service->deactivate($child);
+
+        $this->assertSame(0, (int) $this->flagsOf($group)->has_active_children);
+        $this->assertSame(1, (int) $this->flagsOf($group)->has_children);
+    }
+
+    public function testChildren_FlagsAnAccountWithJournalLinesAsUsed(): void
+    {
+        $this->assertSame(0, (int) $this->flagsOf($this->accountId('cash'))->used);
+
+        (new JournalService())->postNew($this->journalInput('100.00'));
+
+        $this->assertSame(1, (int) $this->flagsOf($this->accountId('cash'))->used);
+    }
 }

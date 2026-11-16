@@ -3,6 +3,8 @@
  * @var object|null           $account
  * @var list<object>          $groups
  * @var int                   $parent_id
+ * @var bool                  $main
+ * @var bool                  $parent_locked
  * @var string                $suggested_code
  * @var bool                  $used
  * @var bool                  $contra
@@ -21,22 +23,36 @@ $jsonFlags  = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
     <fieldset id="account_fields">
         <div class="form-grid">
             <?php if ($isNew): ?>
-                <div class="field span-all">
-                    <span class="form-label"><?= lang('Accounting_chart.kind') ?></span>
-                    <div class="field-control">
-                        <label class="choice"><input type="radio" class="form-check-input" name="is_group" value="0" checked> <?= lang('Accounting_chart.kind_posting') ?></label>
-                        <label class="choice"><input type="radio" class="form-check-input" name="is_group" value="1"> <?= lang('Accounting_chart.kind_group') ?></label>
+                <?php if ($main): ?>
+                    <input type="hidden" name="is_group" value="1">
+                    <p class="form-text span-all"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= lang('Accounting_chart.main_hint') ?></p>
+                <?php else: ?>
+                    <div class="field span-all">
+                        <span class="form-label"><?= lang('Accounting_chart.kind') ?></span>
+                        <div class="field-control">
+                            <label class="choice"><input type="radio" class="form-check-input" name="is_group" value="0" checked> <?= lang('Accounting_chart.kind_posting') ?></label>
+                            <label class="choice"><input type="radio" class="form-check-input" name="is_group" value="1"> <?= lang('Accounting_chart.kind_group') ?></label>
+                        </div>
                     </div>
-                </div>
+                <?php endif; ?>
 
                 <div class="field span-all">
-                    <?= form_label(lang('Accounting_chart.parent'), 'parent_id', ['class' => 'form-label text-danger required']) ?>
+                    <?= form_label(lang($main ? 'Accounting_chart.main_type' : 'Accounting_chart.parent'), 'parent_id', ['class' => 'form-label text-danger required']) ?>
                     <div class="field-control">
-                        <select name="parent_id" id="parent_id" class="form-select form-select-sm">
+                        <?php if ($parent_locked): ?>
                             <?php foreach ($groups as $group): ?>
-                                <option value="<?= (int) $group->account_id ?>" data-type="<?= esc($group->account_type, 'attr') ?>"<?= (int) $group->account_id === $parent_id ? ' selected' : '' ?>><?= esc($group->code . ' - ' . $group->name) ?></option>
+                                <?php if ((int) $group->account_id === $parent_id): ?>
+                                    <input type="hidden" name="parent_id" id="parent_id" value="<?= (int) $group->account_id ?>" data-type="<?= esc($group->account_type, 'attr') ?>">
+                                    <span class="form-control-plaintext acc-parent-fixed"><bdi dir="ltr"><?= esc($group->code) ?></bdi> <?= esc($group->name) ?> <small class="text-body-secondary">(<?= esc(lang('Accounting.account_type_' . $group->account_type)) ?>)</small></span>
+                                <?php endif; ?>
                             <?php endforeach; ?>
-                        </select>
+                        <?php else: ?>
+                            <select name="parent_id" id="parent_id" class="form-select form-select-sm">
+                                <?php foreach ($groups as $group): ?>
+                                    <option value="<?= (int) $group->account_id ?>" data-type="<?= esc($group->account_type, 'attr') ?>"<?= (int) $group->account_id === $parent_id ? ' selected' : '' ?>><?= esc($group->code . ' - ' . $group->name) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endif; ?>
@@ -95,7 +111,7 @@ $jsonFlags  = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             if (!isNew) {
                 return;
             }
-            const type = $('#parent_id option:selected').data('type');
+            const type = $('#parent_id').is('select') ? $('#parent_id option:selected').data('type') : $('#parent_id').data('type');
             const base = natural[type];
             const flipped = $('#contra').is(':checked') ? (base === 'debit' ? 'credit' : 'debit') : base;
             $('#direction_text').text(base ? directions[flipped] : '');
@@ -124,10 +140,7 @@ $jsonFlags  = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                 $(form).ajaxSubmit({
                     success: function(response) {
                         dialog_support.hide();
-                        table_support.handle_submit('accounting_chart', response);
-                        if (response.success && window.refreshAccountingChart) {
-                            window.refreshAccountingChart();
-                        }
+                        accounting_chart.saved(response, <?= $isNew ? "\$('#parent_id').val()" : (int) $parent_id ?>);
                     },
                     dataType: 'json'
                 });

@@ -401,22 +401,56 @@ final class AccountService
     }
 
     /**
+     * The accounts of the chart that belong to no customer, supplier, location or treasury, which is the
+     * structure a person arranges, with the flags the screen needs.
+     *
+     * @return list<object>
+     */
+    public function structure(): array
+    {
+        return $this->flagged('a.entity_type IS NULL', []);
+    }
+
+    /**
+     * A page of the sub-accounts that belong to an entity under a group, in code order.
+     *
+     * @return list<object>
+     */
+    public function entityChildren(int $parentId, int $offset, int $limit): array
+    {
+        return $this->flagged('a.parent_id = ? AND a.entity_type IS NOT NULL', [$parentId], $limit, max(0, $offset));
+    }
+
+    /**
      * @param list<int> $params
      *
      * @return list<object>
      */
-    private function flagged(string $where, array $params, ?int $limit = null): array
+    private function flagged(string $where, array $params, ?int $limit = null, int $offset = 0): array
     {
         $accounts = $this->db->prefixTable('accounting_accounts');
         $lines    = $this->db->prefixTable('accounting_journal_lines');
         $routing  = $this->db->prefixTable('accounting_routing');
-        $limitSql = $limit === null ? '' : ' LIMIT ' . max(1, $limit);
+        $expenses = $this->db->prefixTable('expense_categories');
+        $revenues = $this->db->prefixTable('revenue_categories');
+        $taxes    = $this->db->prefixTable('tax_definitions');
+        $items    = $this->db->prefixTable('item_routing_accounts');
+        $stamps   = $this->db->prefixTable('sales_items_taxes');
+        $limitSql = $limit === null ? '' : ' LIMIT ' . max(1, $limit) . ($offset > 0 ? ' OFFSET ' . $offset : '');
 
         return $this->db->query(
-            "SELECT a.account_id, a.parent_id, a.code, a.name, a.account_type, a.normal_balance, a.is_group, a.is_system, a.active,
+            "SELECT a.account_id, a.parent_id, a.code, a.name, a.account_type, a.normal_balance, a.is_group, a.is_system, a.active, a.entity_type,
                 EXISTS (SELECT 1 FROM {$accounts} c WHERE c.parent_id = a.account_id) AS has_children,
+                EXISTS (SELECT 1 FROM {$accounts} c WHERE c.parent_id = a.account_id AND c.active = 1) AS has_active_children,
+                (SELECT COUNT(*) FROM {$accounts} c WHERE c.parent_id = a.account_id AND c.entity_type IS NULL) AS child_count,
+                (SELECT COUNT(*) FROM {$accounts} c WHERE c.parent_id = a.account_id AND c.entity_type IS NOT NULL) AS entity_child_count,
                 EXISTS (SELECT 1 FROM {$lines} l WHERE l.account_id = a.account_id) AS used,
-                EXISTS (SELECT 1 FROM {$routing} r WHERE r.account_id = a.account_id) AS routed
+                (EXISTS (SELECT 1 FROM {$routing} r WHERE r.account_id = a.account_id)
+                    OR EXISTS (SELECT 1 FROM {$expenses} e WHERE e.account_id = a.account_id)
+                    OR EXISTS (SELECT 1 FROM {$revenues} v WHERE v.account_id = a.account_id)
+                    OR EXISTS (SELECT 1 FROM {$taxes} t WHERE t.liability_account_id = a.account_id)
+                    OR EXISTS (SELECT 1 FROM {$items} i WHERE i.account_id = a.account_id)) AS routed,
+                EXISTS (SELECT 1 FROM {$stamps} s WHERE s.liability_account_id = a.account_id) AS stamped
              FROM {$accounts} a
              WHERE {$where}
              ORDER BY a.code ASC{$limitSql}",

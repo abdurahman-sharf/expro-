@@ -610,8 +610,9 @@ $routes->group('accounting_periods', static function (RouteCollection $routes) u
 
 $routes->group('accounting_chart', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingChart::getIndex');
-    $routes->get('tree', 'AccountingChart::getTree');
-    $routes->get('panel', 'AccountingChart::getPanel');
+    $routes->get('node/(:num)', 'AccountingChart::getNode/$1');
+    $routes->get('branch/(:num)', 'AccountingChart::getBranch/$1');
+    $routes->get('find', 'AccountingChart::getFind');
     $routes->get('search', 'AccountingChart::getSearch');
     $routes->get('row/(:num)', 'AccountingChart::getRow/$1');
     $routes->get('view', 'AccountingChart::getView');
