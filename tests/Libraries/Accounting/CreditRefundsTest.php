@@ -27,6 +27,8 @@ use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Accounting\OperationsHold;
+use App\Libraries\Accounting\PostingError;
 
 /**
  * Paying a customer back the credit they hold and being paid back the credit held with a supplier: a
@@ -1358,5 +1360,17 @@ class CreditRefundsTest extends CIUnitTestCase
         $this->assertSame('100.00', $this->freeSupplierCredit());
         $this->assertRefundsTie(CreditRefunds::SUPPLIER);
         $this->assertSupplierTies();
+    }
+
+    public function testRefund_RefusesWhileOperationsAreFrozen(): void
+    {
+        $this->advance();
+        $this->setConfigValue(OperationsHold::KEY, json_encode(['since' => '2026-11-16 10:00:00', 'by' => 1, 'reason' => 'Fixing the routing']));
+
+        try {
+            $this->assertSame(PostingError::OperationsHeld, $this->refusal(fn () => $this->refund())->error);
+        } finally {
+            $this->setConfigValue(OperationsHold::KEY, '');
+        }
     }
 }

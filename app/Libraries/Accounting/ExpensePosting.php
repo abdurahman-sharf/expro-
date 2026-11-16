@@ -22,6 +22,7 @@ final class ExpensePosting
 {
     private BaseConnection $db;
     private AccountingSettings $settings;
+    private OperationsHold $hold;
     private DocumentJournals $journals;
     private ExpensePostingBuilder $builder;
     private TreasuryService $treasuries;
@@ -34,6 +35,7 @@ final class ExpensePosting
         $this->db         = $db ?? Database::connect();
         $this->branches   = $branches ?? new BranchGuard($this->db);
         $this->settings   = new AccountingSettings($this->db);
+        $this->hold       = new OperationsHold($this->db);
         $this->journals   = new DocumentJournals($this->db, $this->branches);
         $this->builder    = new ExpensePostingBuilder(new RoutingResolver($this->db));
         $this->treasuries = new TreasuryService($this->db, null, $this->branches);
@@ -125,7 +127,12 @@ final class ExpensePosting
             return JournalChange::None;
         }
 
-        $wanted   = ! $expense->deleted && $this->follows($expense->date);
+        $wanted = ! $expense->deleted && $this->follows($expense->date);
+
+        if ($wanted) {
+            $this->hold->assertOpen();
+        }
+
         $revision = $this->journals->nextRevision(ExpensePostingBuilder::SOURCE, $expenseId);
         $draft    = $wanted ? $this->builder->expense($expense, $revision, $actorId) : null;
         $drafts   = $draft === null ? [] : $this->crossBranch->drafts($draft, $expense->treasuryId, $expense->treasuryBranchId);

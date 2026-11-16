@@ -25,6 +25,7 @@ use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
 use Tests\Support\ParityCaseTrait;
+use App\Libraries\Accounting\OperationsHold;
 
 /**
  * What an expense puts in the books, through the real expense model: one journal inside the save
@@ -1970,5 +1971,17 @@ class ExpensePostingTest extends CIUnitTestCase
     private function postedDebit(string $source, int $sourceId): string
     {
         return bcadd($this->accountingDb()->table('accounting_journal_lines l')->selectSum('l.debit', 'total')->join('accounting_journals j', 'j.journal_id = l.journal_id')->where(['j.source_type' => $source, 'j.source_id' => $sourceId, 'j.status' => 'posted'])->get()->getRow()->total, '0', 2);
+    }
+
+    public function testSaveValue_RefusesANewExpenseWhileOperationsAreFrozen(): void
+    {
+        $this->setConfigValue(OperationsHold::KEY, json_encode(['since' => '2026-11-16 10:00:00', 'by' => 1, 'reason' => 'Fixing the routing']));
+
+        try {
+            $this->assertNull($this->saveExpense($this->expenseData('100.00', '0', 'Cash', null, date('Y-m-d') . ' 09:00:00')));
+            $this->assertRefused(PostingError::OperationsHeld);
+        } finally {
+            $this->setConfigValue(OperationsHold::KEY, '');
+        }
     }
 }

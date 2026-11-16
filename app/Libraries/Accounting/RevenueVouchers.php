@@ -55,6 +55,10 @@ final class RevenueVouchers
      */
     public function save(array $input, ?int $revenueId = null, ?int $employeeId = null): int
     {
+        if ($revenueId === null) {
+            (new OperationsHold($this->db))->assertOpen();
+        }
+
         $data = $this->validated($input);
 
         return $this->attempt(fn (): int => $this->transactional(function () use ($data, $input, $revenueId, $employeeId): int {

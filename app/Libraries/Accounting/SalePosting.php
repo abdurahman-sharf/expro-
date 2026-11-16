@@ -28,6 +28,7 @@ final class SalePosting
     private SalePostingBuilder $builder;
     private StockLedger $stock;
     private AccountingSettings $settings;
+    private OperationsHold $hold;
     private PeriodGuard $periods;
     private CrossBranchPayments $crossBranch;
 
@@ -39,6 +40,7 @@ final class SalePosting
         $this->loader   = new SaleLoader($this->db);
         $this->stock    = new StockLedger($this->db);
         $this->settings = new AccountingSettings($this->db);
+        $this->hold     = new OperationsHold($this->db);
         $this->periods  = new PeriodGuard($this->db);
         $this->builder  = SalePostingBuilder::forDatabase($this->db);
 
@@ -74,6 +76,8 @@ final class SalePosting
         if (! $this->follows($sale)) {
             return;
         }
+
+        $this->hold->assertOpen();
 
         $this->transactional(function () use ($sale, $employeeId): void {
             $sale = $this->withRates($sale);
@@ -124,6 +128,8 @@ final class SalePosting
         if (! $this->follows($sale) || $this->activeJournal(SalePostingBuilder::SOURCE_SALE, $saleId, JournalEntryType::Revenue) === null) {
             return;
         }
+
+        $this->hold->assertOpen();
 
         $this->transactional(function () use ($sale, $employeeId): void {
             $sale = $this->withRates($sale);

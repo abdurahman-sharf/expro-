@@ -26,6 +26,7 @@ final class CashupPosting
 
     private BaseConnection $db;
     private AccountingSettings $settings;
+    private OperationsHold $hold;
     private DocumentJournals $journals;
     private CashupPostingBuilder $builder;
     private CashupExpectation $expectation;
@@ -38,6 +39,7 @@ final class CashupPosting
         $this->db          = $db ?? Database::connect();
         $this->branches    = $branches ?? new BranchGuard($this->db);
         $this->settings    = new AccountingSettings($this->db);
+        $this->hold        = new OperationsHold($this->db);
         $this->journals    = new DocumentJournals($this->db, $this->branches);
         $this->builder     = new CashupPostingBuilder(new RoutingResolver($this->db));
         $this->expectation = new CashupExpectation($this->db);
@@ -171,7 +173,12 @@ final class CashupPosting
             return JournalChange::None;
         }
 
-        $wanted   = ! $cashup->deleted && $this->follows($cashup->date);
+        $wanted = ! $cashup->deleted && $this->follows($cashup->date);
+
+        if ($wanted) {
+            $this->hold->assertOpen();
+        }
+
         $revision = $this->journals->nextRevision(CashupPostingBuilder::SOURCE, $cashupId);
         $draft    = $wanted ? $this->builder->difference($cashup, $revision, $actorId) : null;
         $change   = $this->journals->sync(CashupPostingBuilder::SOURCE, $cashupId, $draft, $actorId, 'Cash-up #' . $cashupId . ($cashup->deleted ? ' deleted' : ' changed'));

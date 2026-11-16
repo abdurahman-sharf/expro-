@@ -9,7 +9,9 @@ use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalSettings;
+use App\Libraries\Accounting\OperationsHold;
 use App\Libraries\Accounting\PaymentType;
+use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Pricing\SalesControlSettings;
@@ -51,7 +53,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->resetJournalSettings();
         $this->clearJournals();
         $this->accountingDb()->table('app_config')->where('key', ShippingCompanies::ENABLED_KEY)->delete();
-        $this->accountingDb()->table('app_config')->where('key', 'accounting_activation')->delete();
+        $this->accountingDb()->table('app_config')->whereIn('key', ['accounting_activation', 'accounting_operations_hold'])->delete();
         $this->accountingDb()->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping', 'accounting_shipping_tax_percent', 'accounting_debit_note', 'accounting_journal_description_sales', 'accounting_journal_description_purchases'])->delete();
 
         parent::tearDown();
@@ -770,15 +772,130 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertFalse((new AccountingSettings())->isEnabled());
     }
 
-    public function testPostDisable_TurnsAccountingOff(): void
+    public function testPostDisable_TakesBackTurningAccountingOnWhenTheWordIsTyped(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->clearJournals();
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_settings/disable', ['confirm' => ' ' . lang('Accounting_settings.undo_word') . ' ']));
+
+        $this->assertTrue($result['success']);
+        $this->assertFalse((new AccountingSettings())->isEnabled());
+    }
+
+    public function testPostDisable_ChangesNothingWhenTheWordTypedIsWrongOrMissing(): void
     {
         $this->setConfigValue('accounting_enabled', '1');
         $this->manager();
 
-        $result = $this->jsonOf($this->post('/accounting_settings/disable'));
+        $wrong   = $this->jsonOf($this->post('/accounting_settings/disable', ['confirm' => 'yes']));
+        $missing = $this->jsonOf($this->post('/accounting_settings/disable'));
+
+        $this->assertFalse($wrong['success']);
+        $this->assertFalse($missing['success']);
+        $this->assertTrue((new AccountingSettings())->isEnabled());
+    }
+
+    public function testPostDisable_RefusesOnceTheBooksHoldAJournal(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->clearJournals();
+        (new PostingService())->post($this->balancedDraft());
+        $this->manager();
+
+        try {
+            $result = $this->jsonOf($this->post('/accounting_settings/disable', ['confirm' => lang('Accounting_settings.undo_word')]));
+        } finally {
+            $this->clearJournals();
+        }
+
+        $this->assertFalse($result['success']);
+        $this->assertTrue((new AccountingSettings())->isEnabled());
+    }
+
+    public function testGetIndex_OffersTheUndoOnlyBeforeTheFirstJournalAndNeverAPlainSwitchOff(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->clearJournals();
+        $this->manager();
+
+        $response = $this->get('/accounting_settings');
+
+        $response->assertSee('data-settings-action="disable"');
+        $response->assertSee(lang('Accounting_settings.undo_button'));
+        $response->assertDontSee('>' . lang('Accounting_settings.disable') . '<');
+
+        (new PostingService())->post($this->balancedDraft());
+
+        try {
+            $locked = $this->get('/accounting_settings');
+        } finally {
+            $this->clearJournals();
+        }
+
+        $locked->assertDontSee('data-settings-action="disable"');
+        $locked->assertSee(lang('Accounting_settings.books_in_use'));
+    }
+
+    public function testPostHold_FreezesOperationsWithAReasonAndRefusesWithoutOne(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->manager();
+
+        $refused = $this->jsonOf($this->post('/accounting_settings/hold', ['reason' => '  ']));
+        $frozen  = $this->jsonOf($this->post('/accounting_settings/hold', ['reason' => 'Fixing the routing']));
+
+        $this->assertFalse($refused['success']);
+        $this->assertTrue($frozen['success']);
+        $this->assertSame('Fixing the routing', (new OperationsHold())->state()['reason']);
+
+        $this->get('/accounting_settings')->assertSee('Fixing the routing');
+    }
+
+    public function testPostHold_RefusesSomeoneLimitedToBranches(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->manager([1]);
+
+        $result = $this->jsonOf($this->post('/accounting_settings/hold', ['reason' => 'Fixing']));
+
+        $this->assertFalse($result['success']);
+        $this->assertFalse((new OperationsHold())->isOn());
+    }
+
+    public function testPostReleaseHold_LiftsTheFreezeOnceNothingStopsAPosting(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $person = $this->manager();
+        (new OperationsHold())->engage('Fixing the routing', $person);
+
+        $result = $this->jsonOf($this->post('/accounting_settings/release_hold'));
 
         $this->assertTrue($result['success']);
-        $this->assertFalse((new AccountingSettings())->isEnabled());
+        $this->assertFalse((new OperationsHold())->isOn());
+    }
+
+    public function testPostReleaseHold_KeepsTheFreezeAndSaysWhatStopsAPosting(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $person = $this->manager();
+        (new OperationsHold())->engage('Fixing the routing', $person);
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.cogs')->update(['account_id' => null]);
+
+        $result = $this->jsonOf($this->post('/accounting_settings/release_hold'));
+
+        $this->assertFalse($result['success']);
+        $this->assertTrue((new OperationsHold())->isOn());
+    }
+
+    public function testGetIndex_ShowsTheFreezeBannerOnEveryPageWhileOperationsAreFrozen(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $person = $this->manager();
+        (new OperationsHold())->engage('Fixing the routing', $person);
+
+        $this->get('/accounting_settings')->assertSee('id="operations_hold_banner"');
     }
 
     public function testPostFirstYear_CreatesTheYearThatCoversTheStartDate(): void

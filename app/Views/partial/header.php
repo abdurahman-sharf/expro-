@@ -54,3 +54,7 @@ $pageTitle = navigationPageTitle($controller_name ?? '');
             </header>
 
             <main id="app-main" class="app-main" tabindex="-1">
+                <?php $operationsHold = json_decode((string) ($config['accounting_operations_hold'] ?? ''), true); ?>
+                <?php if (is_array($operationsHold) && isset($operationsHold['reason'])): ?>
+                    <div class="alert alert-danger" role="alert" id="operations_hold_banner"><span class="bi bi-pause-circle" aria-hidden="true"></span> <?= esc(lang('Accounting_settings.hold_banner', [(string) $operationsHold['reason']])) ?></div>
+                <?php endif; ?>

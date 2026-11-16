@@ -71,6 +71,7 @@ final class SupplierAdvances
     public function pay(int $supplierId, string $amount, string $date, string $paymentType, ?int $treasuryId = null, string $reference = '', string $note = '', ?int $employeeId = null): int
     {
         $this->guard->require(AccountingGuard::PAYABLES_MANAGE, $employeeId);
+        (new OperationsHold($this->db))->assertOpen();
 
         $amount = $this->amount($amount);
         $date   = SupplierPaymentDate::entered($date, null, (new AccountingSettings($this->db))->startDate());

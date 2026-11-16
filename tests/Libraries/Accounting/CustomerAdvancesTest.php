@@ -24,6 +24,8 @@ use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityCaseTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Accounting\OperationsHold;
+use App\Libraries\Accounting\PostingError;
 
 /**
  * Money a customer pays with no invoice behind it: one journal that debits the treasury and credits
@@ -775,5 +777,16 @@ class CustomerAdvancesTest extends CIUnitTestCase
         $this->advances->cancel($advance, 'entered twice', $second);
 
         $this->assertSame('cancelled', (string) $this->accountingDb()->table('customer_advances')->select('status')->where('advance_id', $advance)->get()->getRow()->status);
+    }
+
+    public function testReceive_RefusesWhileOperationsAreFrozen(): void
+    {
+        $this->setConfigValue(OperationsHold::KEY, json_encode(['since' => '2026-11-16 10:00:00', 'by' => 1, 'reason' => 'Fixing the routing']));
+
+        try {
+            $this->assertSame(PostingError::OperationsHeld, $this->refusal(fn () => $this->receive())->error);
+        } finally {
+            $this->setConfigValue(OperationsHold::KEY, '');
+        }
     }
 }

@@ -39,6 +39,7 @@ use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\PurchaseGoldenTrait;
 use Tests\Support\StockUnitsFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use App\Libraries\Accounting\OperationsHold;
 
 /**
  * What a purchase puts in the books, through the real purchase model: the goods and the tax in,
@@ -5362,6 +5363,21 @@ class ReceivingPostingTest extends CIUnitTestCase
 
         foreach ((new StockLedger())->reconcile() as $location) {
             $this->assertSame(bcadd($location['movements_value'], '0', 2), bcadd($location['account_balance'], '0', 2));
+        }
+    }
+
+    public function testPostCompleted_RefusesANewPurchaseWhileOperationsAreFrozenAndLeavesNothing(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->setConfigValue(OperationsHold::KEY, json_encode(['since' => '2026-11-16 10:00:00', 'by' => 1, 'reason' => 'Fixing the routing']));
+
+        try {
+            $receivings = $this->countRows('receivings');
+
+            $this->assertRefusedWith(PostingError::OperationsHeld, $this->buy([$this->purchaseLine($itemId, 0, '20', '100', '15')], -1, lang('Sales.cash')));
+            $this->assertSame($receivings, $this->countRows('receivings'));
+        } finally {
+            $this->setConfigValue(OperationsHold::KEY, '');
         }
     }
 }

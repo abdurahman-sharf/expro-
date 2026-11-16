@@ -38,8 +38,9 @@
  * @var list<array{name: string, username: string, permissions: list<string>, all_branches: bool, branches: list<string>}>                                                                                                $holders
  */
 $messages = [
-    'enable'  => lang('Accounting_settings.confirm_enable'),
-    'disable' => lang('Accounting_settings.confirm_disable'),
+    'disable'      => lang('Accounting_settings.confirm_undo', [lang('Accounting_settings.undo_word')]),
+    'hold'         => lang('Accounting_settings.confirm_hold'),
+    'release_hold' => lang('Accounting_settings.confirm_release'),
 ];
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>
@@ -102,8 +103,26 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             send('accounting_settings/first_year', $(this).serialize(), true);
         });
 
+        $('#hold_form').on('submit', function(event) {
+            event.preventDefault();
+
+            if (confirm(confirmations.hold)) {
+                send('accounting_settings/hold', $(this).serialize(), true);
+            }
+        });
+
         $('[data-settings-action]').on('click', function() {
             const action = $(this).data('settings-action');
+
+            if (action === 'disable') {
+                const typed = window.prompt(confirmations.disable);
+
+                if (typed !== null) {
+                    send('accounting_settings/disable', {confirm: typed}, true);
+                }
+
+                return;
+            }
 
             if (confirm(confirmations[action])) {
                 send('accounting_settings/' + action, {}, true);
@@ -154,8 +173,11 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         <?php endif; ?>
 
         <?php if ($can_manage): ?>
-            <?php if ($enabled): ?>
-                <button type="button" class="btn btn-outline-danger btn-sm" data-settings-action="disable"><?= lang('Accounting_settings.disable') ?></button>
+            <?php if ($enabled && $locked): ?>
+                <p class="text-body-secondary small"><?= lang('Accounting_settings.books_in_use') ?></p>
+            <?php elseif ($enabled): ?>
+                <button type="button" class="btn btn-outline-danger btn-sm" data-settings-action="disable"><?= lang('Accounting_settings.undo_button') ?></button>
+                <span class="text-body-secondary small"><?= lang('Accounting_settings.undo_help') ?></span>
             <?php else: ?>
                 <?php $unfinished = $activation !== null && ! $activation['done']; ?>
                 <?php if ($unfinished): ?>
@@ -165,6 +187,28 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             <?php endif; ?>
         <?php endif; ?>
     </section>
+
+    <?php if ($enabled && $can_manage): ?>
+        <section class="acc-setup-card" aria-labelledby="hold_title">
+            <h2 id="hold_title" class="acc-setup-title"><?= lang('Accounting_settings.hold_title') ?></h2>
+            <p class="text-body-secondary small"><?= lang('Accounting_settings.hold_help') ?></p>
+
+            <?php if ($hold !== null): ?>
+                <p class="text-danger"><span class="bi bi-pause-circle-fill" aria-hidden="true"></span> <?= esc(lang('Accounting_settings.hold_active', [$hold['since'], $hold['by'], $hold['reason']])) ?></p>
+                <button type="button" class="btn btn-success btn-sm" data-settings-action="release_hold"><?= lang('Accounting_settings.hold_release') ?></button>
+            <?php else: ?>
+                <form id="hold_form" class="app-form" novalidate>
+                    <div class="field">
+                        <label class="form-label" for="hold_reason"><?= lang('Accounting_settings.hold_reason') ?></label>
+                        <div class="field-control">
+                            <input type="text" name="reason" id="hold_reason" class="form-control form-control-sm" maxlength="200" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-outline-danger btn-sm"><?= lang('Accounting_settings.hold_engage') ?></button>
+                </form>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
 
     <section class="acc-setup-card" aria-labelledby="general_title">
         <h2 id="general_title" class="acc-setup-title"><?= lang('Accounting_settings.general_title') ?></h2>

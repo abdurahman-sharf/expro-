@@ -23,6 +23,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
 use Tests\Support\ParityCaseTrait;
+use App\Libraries\Accounting\OperationsHold;
 
 /**
  * The receipt voucher: money received into a treasury that is not a sale. Each voucher has one
@@ -750,5 +751,19 @@ class RevenueVouchersTest extends CIUnitTestCase
         $this->assertInstanceOf(PostingException::class, $failure);
         $this->assertSame(PostingError::FxNotSupported, $failure->error);
         $this->assertSame('revenue', $failure->context['what']);
+    }
+
+    public function testSave_RefusesANewVoucherWhileOperationsAreFrozenButStillChangesAnExistingOne(): void
+    {
+        $id = $this->save();
+
+        $this->setConfigValue(OperationsHold::KEY, json_encode(['since' => '2026-11-16 10:00:00', 'by' => 1, 'reason' => 'Fixing the routing']));
+
+        try {
+            $this->assertSame(PostingError::OperationsHeld, $this->refusal(fn () => $this->save())->error);
+            $this->assertSame($id, $this->save(['description' => 'changed while frozen'], $id));
+        } finally {
+            $this->setConfigValue(OperationsHold::KEY, '');
+        }
     }
 }

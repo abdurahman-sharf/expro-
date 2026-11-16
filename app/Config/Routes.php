@@ -89,6 +89,8 @@ $routes->group('accounting_settings', static function (RouteCollection $routes):
     $routes->post('activation_step', 'AccountingSetup::postActivationStep');
     $routes->post('enable', 'AccountingSetup::postEnable');
     $routes->post('disable', 'AccountingSetup::postDisable');
+    $routes->post('hold', 'AccountingSetup::postHold');
+    $routes->post('release_hold', 'AccountingSetup::postReleaseHold');
 });
 
 $routes->group('accounting_routing', static function (RouteCollection $routes): void {

@@ -12,6 +12,7 @@ use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalDescriptionTemplate;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PaymentType;
+use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\ReadinessCode;
 use App\Libraries\Accounting\ReadinessIssue;
 use App\Libraries\Accounting\RoutingKey;
@@ -407,6 +408,26 @@ class AccountingSettingsTest extends CIUnitTestCase
 
         $this->assertFalse($this->settings->isEnabled());
         $this->assertSame(2, $this->countRows('accounting_audit_log'));
+    }
+
+    public function testDisable_RefusesOnceTheBooksHoldAJournalAndLeavesAccountingOn(): void
+    {
+        $this->completeTheSettings();
+        $employee = $this->employeeWithGrants([AccountingGuard::SETTINGS_MANAGE]);
+        $this->settings->enable($employee);
+        $this->clearJournals();
+        (new PostingService())->post($this->balancedDraft());
+
+        try {
+            $this->settings->disable($employee);
+            $this->fail('Expected the refusal.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::DisableBooksInUse, $exception->error);
+        } finally {
+            $this->clearJournals();
+        }
+
+        $this->assertTrue($this->settings->isEnabled());
     }
 
     private function manager(?array $branchIds = null): int

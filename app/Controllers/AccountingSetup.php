@@ -9,6 +9,7 @@ use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\FiscalYearService;
 use App\Libraries\Accounting\JournalDescriptionTemplate;
 use App\Libraries\Accounting\JournalSettings;
+use App\Libraries\Accounting\OperationsHold;
 use App\Libraries\Accounting\ReadinessCode;
 use App\Libraries\Accounting\ReadinessIssue;
 use App\Libraries\Accounting\SensitivePermissions;
@@ -50,6 +51,7 @@ class AccountingSetup extends AccountingController
 
     private AccountingSettings $settings;
     private AccountingActivation $activation;
+    private OperationsHold $hold;
     private FiscalYearService $years;
     private SalesControlSettings $controls;
     private JournalSettings $journalSettings;
@@ -62,6 +64,7 @@ class AccountingSetup extends AccountingController
         $this->settings          = new AccountingSettings(null, null, $this->branchGuard());
         $this->years             = new FiscalYearService(null, null, $this->branchGuard());
         $this->activation        = new AccountingActivation(null, $this->settings, $this->years, null, null, $this->branchGuard());
+        $this->hold              = new OperationsHold(null, null, $this->branchGuard());
         $this->controls          = new SalesControlSettings();
         $this->journalSettings   = new JournalSettings(null, null, $this->branchGuard());
         $this->shippingCompanies = new ShippingCompanies(null, null, $this->branchGuard());
@@ -79,6 +82,8 @@ class AccountingSetup extends AccountingController
             'issues'                        => array_map(fn (ReadinessIssue $issue): string => $this->describe($issue), $inspection === null ? $issues : $inspection['blockers']),
             'automatic_steps'               => $inspection === null ? [] : $this->automaticSteps($inspection['automatic']),
             'activation'                    => $this->activation->status(),
+            'hold'                          => $this->holdForView(),
+            'undo_word'                     => lang('Accounting_settings.undo_word'),
             'notices'                       => array_map(fn (ReadinessIssue $issue): string => $this->describe($issue), $this->settings->notices()),
             'routing_url'                   => $this->can('accounting_routing') ? base_url('accounting_routing') : null,
             'currency'                      => $this->settings->baseCurrency(),
@@ -397,11 +402,62 @@ class AccountingSetup extends AccountingController
 
     public function postDisable(): ResponseInterface
     {
+        $malformed = $this->refuseNonText('confirm');
+
+        if ($malformed !== null) {
+            return $malformed;
+        }
+
+        if (mb_strtolower(trim((string) $this->request->getPost('confirm'))) !== mb_strtolower(lang('Accounting_settings.undo_word'))) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Accounting_settings.undo_word_wrong'), 'id' => NEW_ENTRY]);
+        }
+
         return $this->attempt(function (): array {
             $this->settings->disable($this->employeeId());
 
             return ['success' => true, 'message' => lang('Accounting_settings.disabled_now'), 'id' => 1];
         });
+    }
+
+    public function postHold(): ResponseInterface
+    {
+        $malformed = $this->refuseNonText('reason');
+
+        if ($malformed !== null) {
+            return $malformed;
+        }
+
+        return $this->attempt(function (): array {
+            $this->hold->engage((string) $this->request->getPost('reason'), $this->employeeId());
+
+            return ['success' => true, 'message' => lang('Accounting_settings.hold_engaged_now'), 'id' => 1];
+        });
+    }
+
+    public function postReleaseHold(): ResponseInterface
+    {
+        return $this->attemptActivation(function (): array {
+            $this->hold->release($this->employeeId());
+
+            return ['success' => true, 'message' => lang('Accounting_settings.hold_released_now'), 'id' => 1];
+        });
+    }
+
+    /**
+     * @return array{since: string, by: string, reason: string}|null
+     */
+    private function holdForView(): ?array
+    {
+        $state = $this->hold->state();
+
+        if ($state === null) {
+            return null;
+        }
+
+        $person = $this->employee->get_info($state['by']);
+        $name   = trim(($person->first_name ?? '') . ' ' . ($person->last_name ?? ''));
+
+        return ['since' => $this->formatDateTime($state['since']), 'by' => $name !== '' ? $name : '#' . $state['by'], 'reason' => $state['reason']];
     }
 
     private function refuseNonText(string ...$names): ?ResponseInterface

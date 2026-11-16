@@ -627,4 +627,9 @@ enum AccountingError: string
     case ActivationUnconfirmed     = 'activation_unconfirmed';
     case ActivationUnknown         = 'activation_unknown';
     case ActivationVerification    = 'activation_verification';
+    case DisableBooksInUse         = 'disable_books_in_use';
+    case HoldActive                = 'hold_active';
+    case HoldInactive              = 'hold_inactive';
+    case HoldNeedsAccounting       = 'hold_needs_accounting';
+    case HoldReasonRequired        = 'hold_reason_required';
 }

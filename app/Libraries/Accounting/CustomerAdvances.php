@@ -64,6 +64,7 @@ final class CustomerAdvances
     public function receive(int $customerId, string $amount, string $date, string $paymentType, ?int $treasuryId = null, string $reference = '', string $note = '', ?int $employeeId = null, ?string $requestKey = null): int
     {
         $this->guard->require(AccountingGuard::RECEIVABLES_MANAGE, $employeeId);
+        (new OperationsHold($this->db))->assertOpen();
 
         $amount     = $this->cash->amount($amount);
         $date       = SupplierPaymentDate::entered($date, null, (new AccountingSettings($this->db))->startDate());

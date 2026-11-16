@@ -66,6 +66,7 @@ use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\ShelfFixtureTrait;
 use Tests\Support\StockUnitsFixtureTrait;
 use Tests\Support\WorkerRequestTrait;
+use App\Libraries\Accounting\OperationsHold;
 
 /**
  * The cycle of a sale through the books, driven through the real sale model: what is posted when a
@@ -8204,5 +8205,39 @@ class SalePostingTest extends CIUnitTestCase
         $register->pickBatch($line, '');
 
         $this->assertArrayNotHasKey('tracking', $register->get_cart()[$line]);
+    }
+
+    public function testSaveValue_RefusesANewSaleWhileOperationsAreFrozenAndLeavesNoSale(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $this->setConfigValue(OperationsHold::KEY, json_encode(['since' => '2026-11-16 10:00:00', 'by' => 1, 'reason' => 'Fixing the routing']));
+
+        try {
+            $sales = $this->countSales();
+
+            $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '816.50')]));
+            $this->assertSame($sales, $this->countSales());
+            $this->assertSame(PostingError::OperationsHeld, $this->failure()->error);
+            $this->assertSame(0, $this->countJournals());
+        } finally {
+            $this->setConfigValue(OperationsHold::KEY, '');
+        }
+    }
+
+    public function testCancel_StaysOpenWhileOperationsAreFrozen(): void
+    {
+        $item   = $this->item('10.00');
+        $saleId = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00')], SALE_TYPE_POS);
+
+        $this->setConfigValue(OperationsHold::KEY, json_encode(['since' => '2026-11-16 10:00:00', 'by' => 1, 'reason' => 'Fixing the routing']));
+
+        try {
+            (new SalePosting())->cancel($saleId);
+
+            $this->assertSame(COMPLETED, (int) $this->accountingDb()->table('sales')->where('sale_id', $saleId)->get()->getRow()->sale_status);
+            $this->assertFalse((new SalePosting())->isPosted($saleId));
+        } finally {
+            $this->setConfigValue(OperationsHold::KEY, '');
+        }
     }
 }

@@ -23,6 +23,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
+use App\Libraries\Accounting\OperationsHold;
 
 /**
  * What a cash-up puts in the books, through the real cash-up model: only the difference between
@@ -966,6 +967,19 @@ class CashupPostingTest extends CIUnitTestCase
         } else {
             $this->assertSame(1, $this->postedJournals($cashupId), 'The count went last, so the cash-up stands again');
             $this->assertSame('20.00', $this->balanceOf($this->accountId('cash_difference')));
+        }
+    }
+
+    public function testSaveValue_RefusesANewCashupWhileOperationsAreFrozen(): void
+    {
+        $this->aDayOfCash();
+        $this->setConfigValue(OperationsHold::KEY, json_encode(['since' => '2026-11-16 10:00:00', 'by' => 1, 'reason' => 'Fixing the routing']));
+
+        try {
+            $this->assertNull($this->saveCashup($this->cashupData('485.50')));
+            $this->assertSame(PostingError::OperationsHeld, $this->failure()->error);
+        } finally {
+            $this->setConfigValue(OperationsHold::KEY, '');
         }
     }
 }

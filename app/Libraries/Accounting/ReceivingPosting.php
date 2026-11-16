@@ -27,6 +27,7 @@ final class ReceivingPosting
     private ReceivingPostingBuilder $builder;
     private StockLedger $ledger;
     private AccountingSettings $settings;
+    private OperationsHold $hold;
     private PeriodGuard $periods;
     private CrossBranchPayments $crossBranch;
 
@@ -38,6 +39,7 @@ final class ReceivingPosting
         $this->loader   = new ReceivingLoader($this->db);
         $this->ledger   = new StockLedger($this->db);
         $this->settings = new AccountingSettings($this->db);
+        $this->hold     = new OperationsHold($this->db);
         $this->periods  = new PeriodGuard($this->db);
         $this->builder  = new ReceivingPostingBuilder(new RoutingResolver($this->db), $this->ledger, fn (): int => (new Currencies($this->db))->baseDecimals());
 
@@ -74,6 +76,8 @@ final class ReceivingPosting
             return;
         }
 
+        $this->hold->assertOpen();
+
         $this->transactional(function () use ($purchase, $employeeId): void {
             $this->postPurchase($purchase, $employeeId);
             $this->postPayment($purchase, $employeeId);
@@ -95,6 +99,8 @@ final class ReceivingPosting
         if ($purchase === null || ! $this->holdsPayments($purchase)) {
             return;
         }
+
+        $this->hold->assertOpen();
 
         $this->transactional(function () use ($purchase, $employeeId): void {
             $purchase = $this->withRates($purchase);

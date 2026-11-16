@@ -61,4 +61,5 @@ enum PostingError: string
     case FxAccountsMissing     = 'fx_accounts_missing';
     case FxNotSupported        = 'fx_not_supported';
     case TreasuryCurrency      = 'treasury_currency';
+    case OperationsHeld        = 'operations_held';
 }

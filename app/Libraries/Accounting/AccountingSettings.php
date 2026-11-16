@@ -398,6 +398,10 @@ final class AccountingSettings
     {
         $this->requireManage($employeeId);
 
+        if ($this->isLocked()) {
+            throw new AccountingException(AccountingError::DisableBooksInUse, 'Accounting cannot be turned off once the books hold a journal.');
+        }
+
         $this->config->save([self::ENABLED_KEY => '0']);
         $this->audit->write('settings', null, 'accounting_disabled', $employeeId, JournalOrigin::User);
     }

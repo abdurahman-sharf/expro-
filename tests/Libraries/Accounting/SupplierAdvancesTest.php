@@ -26,6 +26,8 @@ use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Accounting\OperationsHold;
+use App\Libraries\Accounting\PostingError;
 
 /**
  * A payment to a supplier that belongs to no purchase, and what a supplier owed us or we owed
@@ -839,5 +841,16 @@ class SupplierAdvancesTest extends CIUnitTestCase
 
         $this->assertSame(AccountingError::OpeningNotFound, $this->refusal(fn () => $this->advances->cancelOpening($opening, 'by a stranger', $second))->error);
         $this->assertNull($this->advances->branchOf(SupplierAdvances::OPENING_TYPE, $opening, $second));
+    }
+
+    public function testPay_RefusesWhileOperationsAreFrozen(): void
+    {
+        $this->setConfigValue(OperationsHold::KEY, json_encode(['since' => '2026-11-16 10:00:00', 'by' => 1, 'reason' => 'Fixing the routing']));
+
+        try {
+            $this->assertSame(PostingError::OperationsHeld, $this->refusal(fn () => $this->advances->pay($this->supplierId, '300.00', '2026-10-20', 'Cash', null, 'CHQ1', 'on account', $this->clerk))->error);
+        } finally {
+            $this->setConfigValue(OperationsHold::KEY, '');
+        }
     }
 }

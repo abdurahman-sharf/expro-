@@ -75,6 +75,7 @@ final class CreditRefunds
     public function refund(int $partyId, string $amount, string $date, string $paymentType, ?int $treasuryId = null, string $reference = '', string $note = '', ?int $employeeId = null, ?string $requestKey = null): int
     {
         $this->guard->require($this->permission(), $employeeId);
+        (new OperationsHold($this->db))->assertOpen();
 
         $amount     = $this->cash->amount($amount);
         $date       = SupplierPaymentDate::entered($date, null, (new AccountingSettings($this->db))->startDate());
