@@ -14,12 +14,14 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Tests\Support\AccountingControllerFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\NoAccessAssertionTrait;
 
 class AccountingOpeningControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingControllerFixtureTrait;
     use ItemFixtureTrait;
+    use NoAccessAssertionTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -115,9 +117,9 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         return $this->accountingDb()->table('accounting_journals')->where('source_type', OpeningStock::SOURCE)->countAllResults();
     }
 
-    public function testGetIndex_ShowsTheGridToAUserWithTheModuleGrant(): void
+    public function testGetIndex_ShowsTheGridToAUserWhoManagesTheOpeningBalances(): void
     {
-        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+        $this->manager();
 
         $response = $this->get('/accounting_periods/opening');
 
@@ -125,11 +127,11 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $response->assertSee('opening_form');
     }
 
-    public function testGetIndex_OffersTheButtonsOnlyToSomeoneWhoManagesOpeningBalances(): void
+    public function testGetIndex_RefusesSomeoneWhoDoesNotManageTheOpeningBalancesAndOffersTheButtonsToWhoDoes(): void
     {
         $this->actAs($this->employeeWithGrants(['accounting_periods']));
 
-        $this->get('/accounting_periods/opening')->assertDontSee('id="save_draft"');
+        $this->assertNoAccess($this->get('/accounting_periods/opening'), 'accounting_periods', AccountingGuard::OPENING_MANAGE);
 
         $this->manager();
 
@@ -290,7 +292,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('2026-01-31', $result['message']);
     }
 
-    public function testPostPost_RefusesABranchOutsideTheEmployeesScopeAndAMissingPermission(): void
+    public function testPostPost_RefusesABranchOutsideTheEmployeesScopeAndSomeoneWithoutThePermission(): void
     {
         $second = $this->createBranch('B2');
         $this->manager([1]);
@@ -299,7 +301,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
 
         $this->actAs($this->employeeWithGrants(['accounting_periods']));
 
-        $this->assertFalse($this->jsonOf($this->post('/accounting_periods/opening/post', $this->form()))['success']);
+        $this->assertNoAccess($this->post('/accounting_periods/opening/post', $this->form()), 'accounting_periods', AccountingGuard::OPENING_MANAGE);
         $this->assertSame(0, $this->countRows('accounting_journals'));
     }
 
@@ -327,7 +329,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $this->assertNull((new OpeningBalanceService())->state(1, null)['posted']);
     }
 
-    public function testGetReverseForm_IsNotFoundWithoutAPostedOpeningOrWithoutThePermission(): void
+    public function testGetReverseForm_IsNotFoundWithoutAPostedOpeningAndRefusesWithoutThePermission(): void
     {
         $this->manager();
 
@@ -344,20 +346,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
 
         $this->actAs($this->employeeWithGrants(['accounting_periods']));
 
-        $this->expectException(PageNotFoundException::class);
-
-        $this->get('/accounting_periods/opening/reverse_form?branch=1');
-    }
-
-    public function testGetIndex_ExplainsWhoGrantsThePermissionToSomeoneWhoCannotManage(): void
-    {
-        $this->actAs($this->employeeWithGrants(['accounting_periods']));
-
-        $this->get('/accounting_periods/opening')->assertSee(lang('Accounting_periods.permission_note'));
-
-        $this->manager();
-
-        $this->get('/accounting_periods/opening')->assertDontSee(lang('Accounting_periods.permission_note'));
+        $this->assertNoAccess($this->get('/accounting_periods/opening/reverse_form?branch=1'), 'accounting_periods', AccountingGuard::OPENING_MANAGE);
     }
 
     public function testGetIndex_ListsTheStockLocationsOfTheBranchWithTheirStateAndLeavesOtherBranchesOut(): void
@@ -375,19 +364,15 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $response->assertDontSee('Other branch store');
     }
 
-    public function testGetIndex_OffersThePostButtonsOnlyToSomeoneWhoManagesOpeningBalancesForStock(): void
+    public function testGetIndex_OffersThePostButtonsToSomeoneWhoManagesOpeningBalancesForStock(): void
     {
         $this->shelves('50.00', '10');
-        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+        $this->manager();
 
         $response = $this->get('/accounting_periods/opening');
 
         $response->assertSee('id="stock_location_1"');
-        $response->assertDontSee('stock-post" data-location');
-
-        $this->manager();
-
-        $this->get('/accounting_periods/opening')->assertSee('stock-post" data-location="1"');
+        $response->assertSee('stock-post" data-location="1"');
     }
 
     public function testGetIndex_ExplainsWhatKeepsALocationFromBeingPosted(): void
@@ -460,9 +445,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $this->shelves('50.00', '10');
         $this->actAs($this->employeeWithGrants(['accounting_periods']));
 
-        $result = $this->stockPost();
-
-        $this->assertFalse($result['success']);
+        $this->assertNoAccess($this->post('/accounting_periods/opening/stock/post', ['branch_id' => '1', 'location_id' => '1']), 'accounting_periods', AccountingGuard::OPENING_MANAGE);
         $this->assertSame(0, $this->openingStockJournals());
         $this->assertSame(0, $this->accountingDb()->table('accounting_stock_entries')->countAllResults());
     }
@@ -511,7 +494,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('accounting_stock_entries')->countAllResults());
     }
 
-    public function testGetStockReverseForm_IsNotFoundWithoutPostedOpeningStockOrWithoutThePermission(): void
+    public function testGetStockReverseForm_IsNotFoundWithoutPostedOpeningStockAndRefusesWithoutThePermission(): void
     {
         $this->manager();
         $this->shelves('50.00', '10');
@@ -529,9 +512,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
 
         $this->actAs($this->employeeWithGrants(['accounting_periods']));
 
-        $this->expectException(PageNotFoundException::class);
-
-        $this->get('/accounting_periods/opening/stock/reverse_form?location=1');
+        $this->assertNoAccess($this->get('/accounting_periods/opening/stock/reverse_form?location=1'), 'accounting_periods', AccountingGuard::OPENING_MANAGE);
     }
 
     public function testGetStockReverseForm_IsNotFoundForALocationOfABranchOutsideTheEmployeesScope(): void
@@ -578,9 +559,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
 
         $this->actAs($this->employeeWithGrants(['accounting_periods']));
 
-        $result = $this->jsonOf($this->post('/accounting_periods/opening/stock/reverse', ['branch_id' => '1', 'location_id' => '1', 'date' => '2026-01-05', 'reason' => 'No right']));
-
-        $this->assertFalse($result['success']);
+        $this->assertNoAccess($this->post('/accounting_periods/opening/stock/reverse', ['branch_id' => '1', 'location_id' => '1', 'date' => '2026-01-05', 'reason' => 'No right']), 'accounting_periods', AccountingGuard::OPENING_MANAGE);
         $this->assertSame($journals, $this->countRows('accounting_journals'));
         $this->assertNotNull((new OpeningStock())->plan(1, null)->activeRevision);
     }
@@ -605,10 +584,6 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
     public function testGetIndex_OffersToPostTheDifferencesOfALocationThatCannotPostAnythingElse(): void
     {
         $this->shelves('3.00', '-3');
-        $this->actAs($this->employeeWithGrants(['accounting_periods']));
-
-        $this->get('/accounting_periods/opening')->assertDontSee('differences_form?location=1');
-
         $this->manager();
 
         $response = $this->get('/accounting_periods/opening');
@@ -633,7 +608,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $response->assertSee('name="with_differences" value="1"');
     }
 
-    public function testGetStockDifferencesForm_IsNotFoundWithoutDifferencesWithoutThePermissionAndForAPostedLocation(): void
+    public function testGetStockDifferencesForm_IsNotFoundWithoutDifferencesAndForAPostedLocationAndRefusesWithoutThePermission(): void
     {
         $this->manager();
         $this->shelves('50.00', '10');
@@ -660,9 +635,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
 
         $this->actAs($this->employeeWithGrants(['accounting_periods']));
 
-        $this->expectException(PageNotFoundException::class);
-
-        $this->get('/accounting_periods/opening/stock/differences_form?location=1');
+        $this->assertNoAccess($this->get('/accounting_periods/opening/stock/differences_form?location=1'), 'accounting_periods', AccountingGuard::OPENING_MANAGE);
     }
 
     public function testPostStockPost_SaysHowManyLocationsAreStillPartlyPostedAndPostsTheItemsLeftOutOnlyWhenAskedToWithAReason(): void
@@ -704,9 +677,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $this->shelves('3.00', '-3');
         $this->actAs($this->employeeWithGrants(['accounting_periods']));
 
-        $result = $this->jsonOf($this->post('/accounting_periods/opening/stock/post', ['branch_id' => '1', 'location_id' => '1', 'with_differences' => '1', 'reason' => 'Counted']));
-
-        $this->assertFalse($result['success']);
+        $this->assertNoAccess($this->post('/accounting_periods/opening/stock/post', ['branch_id' => '1', 'location_id' => '1', 'with_differences' => '1', 'reason' => 'Counted']), 'accounting_periods', AccountingGuard::OPENING_MANAGE);
         $this->assertSame(0, $this->openingStockJournals());
         $this->assertSame(0, $this->accountingDb()->table('accounting_stock_entries')->countAllResults());
     }
@@ -716,7 +687,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['cost_price' => $cost]);
     }
 
-    public function testGetIndex_OffersToPostAgainAtTheCurrentCostOnlyForPostedStockToSomeoneWhoManages(): void
+    public function testGetIndex_OffersToPostAgainAtTheCurrentCostOnlyForPostedStock(): void
     {
         $this->manager();
         $this->shelves('50.00', '10');
@@ -729,10 +700,6 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
 
         $listing->assertSee('stock-reprice');
         $listing->assertSee('reprice_form?location=1');
-
-        $this->actAs($this->employeeWithGrants(['accounting_periods']));
-
-        $this->get('/accounting_periods/opening')->assertDontSee('stock-reprice');
     }
 
     public function testGetStockRepriceForm_ShowsTheCostBeforeAndAfterTheRevisionsAndAskForAReason(): void
@@ -811,7 +778,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $response->assertDontSee('opening_stock_reprice_form');
     }
 
-    public function testGetStockRepriceForm_IsNotFoundWithoutPostedStockWithoutThePermissionAndOutsideTheScope(): void
+    public function testGetStockRepriceForm_IsNotFoundWithoutPostedStockAndOutsideTheScopeAndRefusesWithoutThePermission(): void
     {
         $this->manager();
         $this->shelves('50.00', '10');
@@ -839,9 +806,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
 
         $this->actAs($this->employeeWithGrants(['accounting_periods']));
 
-        $this->expectException(PageNotFoundException::class);
-
-        $this->get('/accounting_periods/opening/stock/reprice_form?location=1');
+        $this->assertNoAccess($this->get('/accounting_periods/opening/stock/reprice_form?location=1'), 'accounting_periods', AccountingGuard::OPENING_MANAGE);
     }
 
     public function testPostStockReprice_PostsTheOpeningStockAgainAtTheCurrentCostWithAReasonAndOnlyOnce(): void
@@ -881,9 +846,7 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
 
         $this->actAs($this->employeeWithGrants(['accounting_periods']));
 
-        $refused = $this->jsonOf($this->post('/accounting_periods/opening/stock/reprice', ['branch_id' => '1', 'location_id' => '1', 'plan' => $plan, 'reason' => 'No right']));
-
-        $this->assertFalse($refused['success']);
+        $this->assertNoAccess($this->post('/accounting_periods/opening/stock/reprice', ['branch_id' => '1', 'location_id' => '1', 'plan' => $plan, 'reason' => 'No right']), 'accounting_periods', AccountingGuard::OPENING_MANAGE);
 
         [, $location] = $this->otherBranchLocation();
         $other        = $this->shelves('50.00', '10', $location);

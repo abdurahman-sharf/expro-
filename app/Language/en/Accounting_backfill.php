@@ -78,7 +78,6 @@ return [
     'outside_years_notice'                       => '{0} documents fall outside every fiscal year (dated {1} to {2}) and are refused. Create the fiscal years {3} to {4}, then cancel this batch and make a new one.',
     'outside_years_permission'                   => 'Creating fiscal years needs the permission to manage the periods and every branch. Ask someone who has it.',
     'pages'                                      => 'Pages',
-    'permission_note'                            => 'Previewing, approving and cancelling batches needs the sensitive permission for the retroactive posting.',
     'preview_continues'                          => 'The preview is not finished: run it again to go on.',
     'preview_run'                                => 'Run the preview',
     'previewed'                                  => 'The preview is ready.',

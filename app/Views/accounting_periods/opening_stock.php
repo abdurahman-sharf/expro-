@@ -3,7 +3,6 @@
  * @var list<array{location_id: int, name: string, items: int, units: string, value: string, status: string, status_label: string, posted: bool, settleable: bool, messages: list<string>}> $stock
  * @var list<string>                                                                                                                                                                        $deleted_stock
  * @var int                                                                                                                                                                                 $branch_id
- * @var bool                                                                                                                                                                                $can_manage
  * @var string                                                                                                                                                                              $start_date
  * @var bool                                                                                                                                                                                $has_start
  */
@@ -66,15 +65,15 @@ $ready = count(array_filter($stock, static fn (array $row): bool => $row['status
                             <td data-label="<?= esc(lang('Accounting_periods.opening_stock_value'), 'attr') ?>" class="acc-amount"><bdi dir="ltr"><?= esc($row['value']) ?></bdi></td>
                             <td data-label="<?= esc(lang('Accounting_periods.opening_stock_status'), 'attr') ?>"><span class="badge <?= $badge($row['status']) ?>"><?= esc($row['status_label']) ?></span></td>
                             <td class="acc-line-actions">
-                                <?php if ($can_manage && $row['status'] === 'postable'): ?>
+                                <?php if ($row['status'] === 'postable'): ?>
                                     <button type="button" class="btn btn-primary btn-sm stock-post" data-location="<?= (int) $row['location_id'] ?>"><?= lang('Accounting_periods.opening_stock_post') ?></button>
                                 <?php endif; ?>
-                                <?php if ($can_manage && $row['settleable']): ?>
+                                <?php if ($row['settleable']): ?>
                                     <button type="button" class="btn btn-outline-primary btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_periods.opening_stock_post'), 'attr') ?>" data-href="<?= esc('accounting_periods/opening/stock/differences_form?location=' . (int) $row['location_id'], 'attr') ?>" title="<?= esc(lang('Accounting_periods.opening_stock_differences_title'), 'attr') ?>">
                                         <span class="bi bi-exclamation-triangle" aria-hidden="true">&nbsp;</span><?= lang('Accounting_periods.opening_stock_differences_action') ?>
                                     </button>
                                 <?php endif; ?>
-                                <?php if ($can_manage && $row['posted']): ?>
+                                <?php if ($row['posted']): ?>
                                     <button type="button" class="btn btn-outline-primary btn-sm modal-dlg modal-dlg-wide stock-reprice" data-btn-submit="<?= esc(lang('Accounting_periods.opening_stock_reprice_submit'), 'attr') ?>" data-href="<?= esc('accounting_periods/opening/stock/reprice_form?location=' . (int) $row['location_id'], 'attr') ?>" title="<?= esc(lang('Accounting_periods.opening_stock_reprice_title'), 'attr') ?>">
                                         <span class="bi bi-currency-exchange" aria-hidden="true">&nbsp;</span><?= lang('Accounting_periods.opening_stock_reprice_action') ?>
                                     </button>
@@ -89,47 +88,45 @@ $ready = count(array_filter($stock, static fn (array $row): bool => $row['status
             </table>
         </div>
 
-        <?php if ($can_manage && $ready > 1): ?>
+        <?php if ($ready > 1): ?>
             <button type="button" id="stock_post_all" class="btn btn-outline-primary btn-sm print_hide"><span class="bi bi-check2-circle" aria-hidden="true">&nbsp;</span><?= lang('Accounting_periods.opening_stock_post_all') ?></button>
         <?php endif; ?>
 
-        <?php if ($can_manage): ?>
-            <script type="text/javascript">
-                $(document).ready(function() {
-                    const text = <?= json_encode(['confirm' => lang('Accounting_periods.opening_stock_confirm_post'), 'failed' => lang('Accounting_journals.request_failed')], $jsonFlags) ?>;
-                    let busy = false;
+        <script type="text/javascript">
+            $(document).ready(function() {
+                const text = <?= json_encode(['confirm' => lang('Accounting_periods.opening_stock_confirm_post'), 'failed' => lang('Accounting_journals.request_failed')], $jsonFlags) ?>;
+                let busy = false;
 
-                    const post = function(locationId) {
-                        if (busy || !confirm(text.confirm)) {
+                const post = function(locationId) {
+                    if (busy || !confirm(text.confirm)) {
+                        return;
+                    }
+
+                    busy = true;
+                    $('#stock_message_box').empty();
+
+                    $.post('accounting_periods/opening/stock/post', {branch_id: <?= (int) $branch_id ?>, location_id: locationId}, function(response) {
+                        if (response.success) {
+                            window.location.href = response.redirect;
                             return;
                         }
-
-                        busy = true;
-                        $('#stock_message_box').empty();
-
-                        $.post('accounting_periods/opening/stock/post', {branch_id: <?= (int) $branch_id ?>, location_id: locationId}, function(response) {
-                            if (response.success) {
-                                window.location.href = response.redirect;
-                                return;
-                            }
-                            $('#stock_message_box').append($('<li></li>').text(response.message));
-                            toast_support.show(response.message, 'danger');
-                        }, 'json').fail(function() {
-                            $('#stock_message_box').append($('<li></li>').text(text.failed));
-                        }).always(function() {
-                            busy = false;
-                        });
-                    };
-
-                    $('#stock_table').on('click', '.stock-post', function() {
-                        post($(this).data('location'));
+                        $('#stock_message_box').append($('<li></li>').text(response.message));
+                        toast_support.show(response.message, 'danger');
+                    }, 'json').fail(function() {
+                        $('#stock_message_box').append($('<li></li>').text(text.failed));
+                    }).always(function() {
+                        busy = false;
                     });
+                };
 
-                    $('#stock_post_all').on('click', function() {
-                        post(0);
-                    });
+                $('#stock_table').on('click', '.stock-post', function() {
+                    post($(this).data('location'));
                 });
-            </script>
-        <?php endif; ?>
+
+                $('#stock_post_all').on('click', function() {
+                    post(0);
+                });
+            });
+        </script>
     <?php endif; ?>
 </section>

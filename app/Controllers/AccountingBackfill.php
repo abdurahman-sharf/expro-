@@ -31,6 +31,7 @@ class AccountingBackfill extends AccountingController
     public function __construct()
     {
         parent::__construct('accounting_periods');
+        $this->requireGrant(AccountingGuard::BACKFILL_MANAGE);
 
         $this->backfill = new BackfillService(null, null, $this->branchGuard());
         $this->years    = new FiscalYearService(null, null, $this->branchGuard());
@@ -38,12 +39,9 @@ class AccountingBackfill extends AccountingController
 
     public function getIndex(): string
     {
-        $canRun = $this->can(AccountingGuard::BACKFILL_MANAGE);
-
         return view('accounting_periods/backfill', [
-            'canRun'     => $canRun,
-            'batches'    => $canRun ? $this->backfill->batches($this->employeeId()) : [],
-            'blockers'   => $canRun ? $this->backfill->approvalBlockers($this->employeeId()) : [],
+            'batches'    => $this->backfill->batches($this->employeeId()),
+            'blockers'   => $this->backfill->approvalBlockers($this->employeeId()),
             'notice'     => session()->getFlashdata('accounting_notice'),
             'date'       => fn (string $value): string => $this->formatDate($value),
             'amount'     => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
@@ -53,8 +51,6 @@ class AccountingBackfill extends AccountingController
 
     public function getNewForm(): string
     {
-        $this->requirePermission();
-
         return view('accounting_periods/backfill_new_form', [
             'branches' => $this->branchOptions(),
             'families' => BackfillFamily::ordered(),
@@ -294,17 +290,8 @@ class AccountingBackfill extends AccountingController
         return $page <= $last ? [$page, $rows] : [$last, $fetch(($last - 1) * self::PAGE_SIZE)];
     }
 
-    private function requirePermission(): void
-    {
-        if (! $this->can(AccountingGuard::BACKFILL_MANAGE)) {
-            throw PageNotFoundException::forPageNotFound();
-        }
-    }
-
     private function visibleBatch(int $batchId): BackfillBatch
     {
-        $this->requirePermission();
-
         try {
             return $this->backfill->batch($batchId, $this->employeeId());
         } catch (AccountingException|BranchException) {

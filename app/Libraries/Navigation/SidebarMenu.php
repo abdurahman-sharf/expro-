@@ -182,6 +182,26 @@ final class SidebarMenu
     }
 
     /**
+     * A page of the menu by its id, with the rule that decides who may open it.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function page(string $id): ?array
+    {
+        foreach (self::definition() as $section) {
+            foreach ($section['groups'] as $group) {
+                foreach ($group['items'] as $page) {
+                    if ($page['id'] === $id) {
+                        return $page;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Every module the menu names, in the order of the sections.
      *
      * @return list<string>

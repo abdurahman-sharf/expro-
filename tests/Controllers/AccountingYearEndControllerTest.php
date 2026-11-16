@@ -15,6 +15,7 @@ use ReflectionClass;
 use Tests\Support\AccountingControllerFixtureTrait;
 use Tests\Support\ReportFixtureTrait;
 use Tests\Support\CsvResponseTrait;
+use Tests\Support\NoAccessAssertionTrait;
 
 /**
  * @internal
@@ -25,6 +26,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
     use AccountingControllerFixtureTrait;
     use ReportFixtureTrait;
     use CsvResponseTrait;
+    use NoAccessAssertionTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -95,22 +97,25 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->get('/accounting_periods/year_end');
     }
 
-    public function testGetIndex_ShowsTheClosingsButNoPreviewToAUserWithoutThePermission(): void
+    public function testGetIndex_RefusesAUserWithoutThePermissionToCloseTheYear(): void
+    {
+        $this->readyYear();
+        $this->closer(null, false);
+
+        $this->assertNoAccess($this->get('/accounting_periods/year_end'), 'accounting_periods', AccountingGuard::YEAR_END_CLOSE);
+    }
+
+    public function testGetIndex_ShowsTheClosingsAndTheButtonToTakeOneBackToWhoMayCloseTheYear(): void
     {
         $this->readyYear();
         $this->closer();
         (new YearEndClosing())->approve(1, $this->yearId(), $this->fingerprint(1), $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]));
 
-        $this->closer(null, false);
-
         $response = $this->get('/accounting_periods/year_end');
 
         $response->assertStatus(200);
-        $response->assertSee('year_end_permission_note');
         $response->assertSee('year_end_closings_table');
-        $response->assertDontSee('year_end_preview');
-        $response->assertDontSee('year_end_approve');
-        $response->assertDontSee('year-end-reverse');
+        $response->assertSee('year-end-reverse');
     }
 
     public function testGetIndex_SelectsTheLatestYearThatHasEnded(): void
@@ -376,17 +381,13 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testGetApproveForm_IsNotFoundWithoutThePermissionAndWhenThereIsNothingToApprove(): void
+    public function testGetApproveForm_RefusesWithoutThePermissionAndIsNotFoundWhenThereIsNothingToApprove(): void
     {
         $this->readyYear();
+        $fingerprint = $this->fingerprint();
         $this->closer(null, false);
 
-        try {
-            $this->get('/accounting_periods/year_end/approve_form?year=' . $this->yearId() . '&scope=company&fingerprint=' . $this->fingerprint());
-            $this->fail('The form must be hidden without the permission.');
-        } catch (PageNotFoundException) {
-            $this->addToAssertionCount(1);
-        }
+        $this->assertNoAccess($this->get('/accounting_periods/year_end/approve_form?year=' . $this->yearId() . '&scope=company&fingerprint=' . $fingerprint), 'accounting_periods', AccountingGuard::YEAR_END_CLOSE);
 
         $this->closer();
         $this->accountingDb()->table('accounting_closed_periods')->truncate();
@@ -426,10 +427,9 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $fingerprint = $this->fingerprint();
         $this->closer(null, false);
 
-        $result = $this->jsonOf($this->post('/accounting_periods/year_end/approve', ['year' => $this->yearId(), 'scope' => 'company', 'fingerprint' => $fingerprint]));
+        $response = $this->post('/accounting_periods/year_end/approve', ['year' => $this->yearId(), 'scope' => 'company', 'fingerprint' => $fingerprint]);
 
-        $this->assertFalse($result['success']);
-        $this->assertSame(lang('Accounting.error_permission_denied'), $result['message']);
+        $this->assertNoAccess($response, 'accounting_periods', AccountingGuard::YEAR_END_CLOSE);
         $this->assertSame(0, $this->countRows('accounting_year_end_closings'));
     }
 
@@ -535,7 +535,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_periods.year_end_reverse_warning'));
     }
 
-    public function testGetReverseForm_IsNotFoundWithoutThePermissionForAClosingTakenBackAndForABranchOutsideTheScope(): void
+    public function testGetReverseForm_RefusesWithoutThePermissionAndIsNotFoundForAClosingTakenBackAndForABranchOutsideTheScope(): void
     {
         $this->readyYear();
         $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
@@ -545,12 +545,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->closer(null, false);
 
         foreach ([$closing, 99999] as $id) {
-            try {
-                $this->get('/accounting_periods/year_end/reverse_form/' . $id);
-                $this->fail('The form must be hidden.');
-            } catch (PageNotFoundException) {
-                $this->addToAssertionCount(1);
-            }
+            $this->assertNoAccess($this->get('/accounting_periods/year_end/reverse_form/' . $id), 'accounting_periods', AccountingGuard::YEAR_END_CLOSE);
         }
 
         $this->closer([$this->second]);
@@ -609,7 +604,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
 
         $this->closer(null, false);
 
-        $this->assertSame(lang('Accounting.error_permission_denied'), $this->jsonOf($this->post('/accounting_periods/year_end/reverse/' . $closing, ['reason' => 'Why']))['message']);
+        $this->assertNoAccess($this->post('/accounting_periods/year_end/reverse/' . $closing, ['reason' => 'Why']), 'accounting_periods', AccountingGuard::YEAR_END_CLOSE);
 
         $this->closer([$this->second]);
 
@@ -681,18 +676,12 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testGetCsv_IsNotFoundWithoutThePermissionToCloseAndForABranchOutsideTheScopeAndWhileAccountingIsOff(): void
+    public function testGetCsv_RefusesWithoutThePermissionToCloseAndIsNotFoundForABranchOutsideTheScopeAndWhileAccountingIsOff(): void
     {
         $this->readyYear();
         $this->closer(null, false);
 
-        try {
-            $this->get('/accounting_periods/year_end/csv?year=' . $this->yearId() . '&scope=company');
-
-            $this->fail('A user without the permission is not given the preview');
-        } catch (PageNotFoundException) {
-            $this->assertTrue(true);
-        }
+        $this->assertNoAccess($this->get('/accounting_periods/year_end/csv?year=' . $this->yearId() . '&scope=company'), 'accounting_periods', AccountingGuard::YEAR_END_CLOSE);
 
         $this->closer([1]);
 
