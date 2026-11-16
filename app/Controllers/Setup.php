@@ -15,7 +15,9 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 class Setup extends BaseController
 {
-    private const FIELDS = [
+    private const DEFAULT_LANGUAGE = 'ar-EG:arabic';
+    private const DEFAULT_COUNTRY  = 'EG';
+    private const FIELDS           = [
         FirstRun::LANGUAGE => ['language', 'country', 'timezone', 'currency_code', 'currency_symbol', 'currency_decimals'],
         FirstRun::COMPANY  => ['company', 'address', 'phone', 'email', 'tax_id'],
         FirstRun::BRANCH   => ['branch_name', 'location_name'],
@@ -41,7 +43,7 @@ class Setup extends BaseController
         $current   = $run->currentStep();
         $requested = $this->request->getGet('step');
         $step      = is_string($requested) && in_array($requested, [...FirstRun::STEPS, FirstRun::FINISH], true) && (($progress[$requested] ?? false) || $requested === $current || $current === FirstRun::FINISH) ? $requested : $current;
-        $values    = $run->values();
+        $values    = $progress[FirstRun::LANGUAGE] ? $run->values() : $this->firstVisitDefaults($run->values());
         $language  = explode(':', $values['language'])[0] ?: 'en';
 
         return view('setup/wizard', [
@@ -142,6 +144,25 @@ class Setup extends BaseController
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, string> $values
+     *
+     * @return array<string, string>
+     */
+    private function firstVisitDefaults(array $values): array
+    {
+        $egypt = Regions::find(self::DEFAULT_COUNTRY);
+
+        return [
+            'language'          => self::DEFAULT_LANGUAGE,
+            'country'           => self::DEFAULT_COUNTRY,
+            'timezone'          => $egypt['timezone'],
+            'currency_code'     => $egypt['currency'],
+            'currency_symbol'   => $egypt['symbol'],
+            'currency_decimals' => (string) $egypt['decimals'],
+        ] + $values;
     }
 
     private function personId(): int

@@ -122,7 +122,7 @@ return [
     'sales_shipping'                           => 'Shipping on sales documents',
     'sales_shipping_desc'                      => 'Lets an invoice, a quote or a credit note carry a shipping charge with its own revenue account and, when asked, a tax. Off until turned on.',
     'saved'                                    => 'The settings were saved.',
-    'settings_manage'                          => 'Turn accounting on and off and change its currency and start date',
+    'settings_manage'                          => 'Turn accounting on, freeze operations and change its currency and start date',
     'shipping_company_account'                 => 'Account of what is owed to the company',
     'shipping_company_account_hint'            => 'Optional. With an account, the shipping charge of a sale that names this company is credited to it instead of to shipping revenue. A leaf liability account that is on, used by one company only.',
     'shipping_company_actions'                 => 'Actions',

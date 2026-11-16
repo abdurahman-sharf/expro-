@@ -55,7 +55,7 @@ npm run smoke -- --langs ar --viewports 390x844,1440x900 --only items,sales-regi
 | `--compare FILE` | | print regressions against a stored baseline |
 | `--fail-on-regression` | off | exit with 1 when `--compare` finds regressions |
 
-Credentials come from `UI_USER` and `UI_PASS` (default to the application's initial `admin` account). The run switches the application language and restores the original one at the end.
+Credentials come from `UI_USER` and `UI_PASS` (default `admin` / `pointofsale`). A new installation has no shared account any more, so `npm run setup` makes the owner of the empty database with `php spark setup:dev-owner` (development and testing environments only) and gives it those credentials. The run switches the application language and restores the original one at the end.
 
 `screens.json` holds 189 screens: besides the original groups it has **49 screens of waves 3 to 8** in the group `accounting-w9` (the sales, payment and profit reports, cheques, fixed assets, currencies, stock documents, the order-to-cash and purchase documents, recurring documents, price lists, integrations and roles); a `branches` entry that repeated the screen already in the group `office` was removed, so every id is unique. `seed.sql` grants `admin` every permission that is not tied to a stock location, **otherwise those screens only reached the page that says there is no access: status 200 and zero `axe` violations do not mean that the screen was rendered** (check the final URL, for example with `curl -L`). The pass of wave 9 (112 accounting screen ids, 360px, Arabic and English, 226 visits) was clean after four groups of violations were fixed; 768px, 1440px, the dialogs of waves 3 to 8 and the old screens outside the accounting menu were not run.
 

@@ -114,6 +114,13 @@ class OwnerSetupControllerTest extends CIUnitTestCase
         $response->assertDontSee('id="login-form"');
     }
 
+    public function testGetLogin_CarriesTheCsrfTokenInTheOwnerForm(): void
+    {
+        $body = (string) $this->get('/login')->response()->getBody();
+
+        $this->assertStringContainsString('name="' . config('Security')->tokenName . '"', $body);
+    }
+
     public function testGetLogin_ShowsTheOrdinaryLoginOnceTheOwnerExists(): void
     {
         $this->setInstallState(InstallState::PENDING_SETUP);
@@ -208,7 +215,12 @@ class OwnerSetupControllerTest extends CIUnitTestCase
 
         $this->post('/owner_setup', $wrong)->assertStatus(422);
         $this->post('/owner_setup', $wrong)->assertStatus(422);
-        $this->post('/owner_setup', $this->form())->assertStatus(429);
+        $blocked = $this->post('/owner_setup', $this->form(['first_name' => 'Huda']));
+
+        $blocked->assertStatus(429);
+        $blocked->assertSee('id="owner-form"');
+        $blocked->assertSee(lang('Login.too_many_attempts'));
+        $blocked->assertSee('value="Huda"');
         $this->assertTrue((new InstallState())->needsOwner());
     }
 }

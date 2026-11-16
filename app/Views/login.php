@@ -281,6 +281,12 @@ $formStyle = $config['login_form'] ?? '';
                         },
                         success: function(response) {
                             if (response.success) {
+                                if (APP_STATE.isNewInstall) {
+                                    window.location.reload();
+
+                                    return;
+                                }
+
                                 APP_STATE.isNewInstall = false;
                                 APP_STATE.isLatest = true;
                                 showMigrationSuccess();

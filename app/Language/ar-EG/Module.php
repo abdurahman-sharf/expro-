@@ -30,7 +30,7 @@ return [
     'accounting_routing'            => 'توجيه الحسابات',
     'accounting_routing_desc'       => 'اختر الحساب الذي يُرحَّل إليه كل جزء من البيع.',
     'accounting_settings'           => 'إعدادات المحاسبة',
-    'accounting_settings_desc'      => 'تشغيل المحاسبة أو إيقافها وضبط عملتها وتاريخ بدئها.',
+    'accounting_settings_desc'      => 'تشغيل المحاسبة وضبط عملتها وتاريخ بدئها، وتجميد العمليات عند الحاجة إلى إصلاح.',
     'accounting_treasuries'         => 'الخزائن',
     'accounting_treasuries_desc'    => 'اطّلع على ما تحتويه كل خزينة وحساب بنكي، وحوِّل المال بينها، واختر الخزينة التي يعمل منها كل موظف.',
     'admin_cashups'                 => '',

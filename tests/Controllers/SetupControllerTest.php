@@ -86,6 +86,17 @@ class SetupControllerTest extends CIUnitTestCase
         $response->assertDontSee('data-step="company"');
     }
 
+    public function testGetIndex_StartsFromArabicAndEgyptUntilTheFirstStepIsSaved(): void
+    {
+        $response = $this->withSession($this->owner())->get('setup');
+
+        $body = (string) $response->response()->getBody();
+
+        $this->assertStringContainsString('<option value="ar-EG&#x3A;arabic" selected>', $body);
+        $this->assertStringContainsString('<option value="EG" data-currency="EGP"', $body);
+        $response->assertSee('value="EGP"');
+    }
+
     public function testGetIndex_OpensTheNextStepOnceOneIsSaved(): void
     {
         (new FirstRun())->saveLanguage($this->language(), InstallState::OWNER_ID);

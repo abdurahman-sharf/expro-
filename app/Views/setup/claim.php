@@ -31,6 +31,7 @@ $value = static fn (string $name): string => esc($old[$name] ?? '', 'attr');
 
         <main class="login-panel">
             <?= form_open('owner_setup', ['id' => 'owner-form', 'class' => 'login-card', 'autocomplete' => 'off']) ?>
+            <?= csrf_field() ?>
             <h1 class="login-heading"><?= esc(lang('Owner_setup.title')) ?></h1>
             <p class="text-secondary"><?= esc(lang('Owner_setup.intro')) ?></p>
 
