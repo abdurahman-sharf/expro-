@@ -1,6 +1,7 @@
 <?php
 
 use App\Libraries\Navigation\SidebarMenu;
+use App\Libraries\Organization\BranchGuard;
 use App\Models\Employee;
 use Config\Database;
 
@@ -60,18 +61,26 @@ const NAVIGATION_FALLBACK_ICON = 'bi-grid';
 
 /**
  * Arranges the modules the user holds a grant for into the sections of the menu, one entry per module: the tiles of
- * the start page and the quick search read it. The sidebar itself is navigationSections().
+ * the start page and the quick search read it. The sidebar itself is navigationSections(). A module whose first page
+ * needs the whole company is left out for a person who works in some branches only, as the page would refuse them.
  *
- * @param array  $allowedModules Rows of the modules table the user holds a grant for.
- * @param string $activeModule   Module id of the page being shown.
+ * @param array    $allowedModules Rows of the modules table the user holds a grant for.
+ * @param string   $activeModule   Module id of the page being shown.
+ * @param int|null $personId       Person whose branches decide, the one signed in when null.
  *
  * @return array<int, array{label: string, items: array<int, array{id: string, label: string, url: string, icon: string, active: bool}>}>
  */
-function navigationGroups(array $allowedModules, string $activeModule): array
+function navigationGroups(array $allowedModules, string $activeModule, ?int $personId = null): array
 {
+    $personId ??= (int) session('person_id');
+    $withheld  = (new BranchGuard())->isUnrestricted($personId) ? [] : SidebarMenu::companyModules();
     $itemsById = [];
 
     foreach ($allowedModules as $module) {
+        if (in_array($module->module_id, $withheld, true)) {
+            continue;
+        }
+
         $itemsById[$module->module_id] = [
             'id'     => $module->module_id,
             'label'  => lang("Module.{$module->module_id}"),
@@ -195,15 +204,16 @@ function settingsSections(): array
  *
  * @param array        $allowedModules      Rows of the modules table the user holds a grant for.
  * @param list<string> $reportPermissionIds Permission ids of the reports the user may open.
+ * @param int|null     $personId            Person whose branches decide, the one signed in when null.
  *
  * @return list<array{type: string, label: string, group: string, url: string, icon: string}>
  */
-function navigationSearchIndex(array $allowedModules, array $reportPermissionIds): array
+function navigationSearchIndex(array $allowedModules, array $reportPermissionIds, ?int $personId = null): array
 {
     $entries   = [];
     $moduleIds = array_map(static fn (object $module): string => $module->module_id, $allowedModules);
 
-    foreach (navigationGroups($allowedModules, '') as $group) {
+    foreach (navigationGroups($allowedModules, '', $personId) as $group) {
         foreach ($group['items'] as $item) {
             $entries[] = ['type' => 'module', 'label' => $item['label'], 'group' => $group['label'], 'url' => $item['url'], 'icon' => $item['icon']];
         }

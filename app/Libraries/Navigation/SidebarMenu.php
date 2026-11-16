@@ -170,6 +170,29 @@ final class SidebarMenu
     }
 
     /**
+     * The modules whose first page answers "not found" to an employee limited to some branches, so that the tile of the
+     * start page and the quick search do not offer them to one.
+     *
+     * @return list<string>
+     */
+    public static function companyModules(): array
+    {
+        $modules = [];
+
+        foreach (self::definition() as $section) {
+            foreach ($section['groups'] as $group) {
+                foreach ($group['items'] as $item) {
+                    if (($item['company'] ?? false) && $item['path'] === $item['module']) {
+                        $modules[] = $item['module'];
+                    }
+                }
+            }
+        }
+
+        return $modules;
+    }
+
+    /**
      * The module ids that open one tile each on the start page, by section, in the order of the menu.
      *
      * @return array<string, list<string>>

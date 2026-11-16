@@ -334,6 +334,11 @@ final class SidebarMenuTest extends CIUnitTestCase
         $this->assertSame([], $unlisted);
     }
 
+    public function testCompanyModules_ListsTheModulesWhoseFirstPageNeedsTheWholeCompany(): void
+    {
+        $this->assertSame(['accounting_receivables', 'accounting_payables'], SidebarMenu::companyModules());
+    }
+
     public function testTilesBySection_PlacesEveryModuleOfTheMenuOnce(): void
     {
         $placed = array_merge(...array_values(SidebarMenu::tilesBySection()));

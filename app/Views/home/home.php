@@ -1,6 +1,7 @@
 <?php
 /**
  * @var array  $allowed_modules
+ * @var object $user_info
  * @var string $first_name
  * @var ?array $sales
  * @var ?array $top_items
@@ -121,7 +122,7 @@ $delta = static function (?float $value): string {
     </div>
 <?php endif; ?>
 
-<?php foreach (navigationGroups($allowed_modules, 'home') as $groupIndex => $group): ?>
+<?php foreach (navigationGroups($allowed_modules, 'home', (int) $user_info->person_id) as $groupIndex => $group): ?>
     <?php $items = array_filter($group['items'], static fn (array $item): bool => $item['id'] !== 'home'); ?>
     <?php if ($items !== []): ?>
         <section class="mb-4" aria-labelledby="home-group-<?= $groupIndex ?>">

@@ -209,6 +209,43 @@ class NavigationHelperTest extends CIUnitTestCase
         $this->assertTrue($item['active']);
     }
 
+    public function testNavigationGroups_LeavesOutTheBalancesOfCustomersAndSuppliersForAnEmployeeLimitedToBranches(): void
+    {
+        $limited = $this->employeeWithGrants([], [1]);
+        $modules = $this->modules('accounting_receivables', 'accounting_payables', 'accounting_journals');
+
+        $this->assertSame([['accounting_journals']], $this->itemIds(navigationGroups($modules, 'home', $limited)));
+    }
+
+    public function testNavigationGroups_KeepsTheBalancesOfCustomersAndSuppliersForAnEmployeeOfTheWholeCompany(): void
+    {
+        $company = $this->employeeWithGrants([], null);
+        $modules = $this->modules('accounting_receivables', 'accounting_payables', 'accounting_journals');
+
+        $this->assertEqualsCanonicalizing(['accounting_receivables', 'accounting_payables', 'accounting_journals'], array_merge(...$this->itemIds(navigationGroups($modules, 'home', $company))));
+    }
+
+    public function testNavigationGroups_ReadsTheEmployeeSignedInWhenNoneIsGiven(): void
+    {
+        $modules = $this->modules('accounting_receivables');
+
+        session()->set('person_id', $this->employeeWithGrants([], [1]));
+        $this->assertSame([], navigationGroups($modules, 'home'));
+
+        session()->set('person_id', $this->employeeWithGrants([], null));
+        $this->assertSame([['accounting_receivables']], $this->itemIds(navigationGroups($modules, 'home')));
+    }
+
+    public function testNavigationSearchIndex_LeavesOutTheBalancesOfCustomersAndSuppliersForAnEmployeeLimitedToBranches(): void
+    {
+        $modules = $this->modules('accounting_receivables', 'accounting_payables', 'accounting_journals');
+        $urls    = static fn (int $personId): array => array_column(navigationSearchIndex($modules, [], $personId), 'url');
+
+        $this->assertSame([base_url('accounting_journals')], $urls($this->employeeWithGrants([], [1])));
+        $this->assertContains(base_url('accounting_receivables'), $urls($this->employeeWithGrants([], null)));
+        $this->assertContains(base_url('accounting_payables'), $urls($this->employeeWithGrants([], null)));
+    }
+
     public function testNavigationSearchIndex_OffersTheReportsOfTheBooksBehindTheirPermissionAndOnlyWhileAccountingIsOn(): void
     {
         session()->set('person_id', $this->employeeWithGrants([], null));

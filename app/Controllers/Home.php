@@ -48,7 +48,7 @@ class Home extends Secure_Controller
         $modules  = $this->module->getAllowedModules($personId)->getResult();
         $grants   = array_column($this->employee->get_employee_grants($personId), 'permission_id');
 
-        return $this->response->setJSON(navigationSearchIndex($modules, $grants));
+        return $this->response->setJSON(navigationSearchIndex($modules, $grants, $personId));
     }
 
     /**
