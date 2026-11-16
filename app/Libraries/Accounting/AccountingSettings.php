@@ -12,6 +12,8 @@ use DateTimeImmutable;
 
 final class AccountingSettings
 {
+    use RunsInTransaction;
+
     private const ENABLED_KEY          = 'accounting_enabled';
     private const BASE_CURRENCY_KEY    = 'accounting_base_currency';
     private const START_DATE_KEY       = 'accounting_start_date';
@@ -377,14 +379,19 @@ final class AccountingSettings
     {
         $this->requireManage($employeeId);
 
-        $issues = $this->readiness();
+        $this->transactional(function () use ($employeeId): void {
+            $issues = $this->readiness();
 
-        if ($issues !== []) {
-            throw new AccountingNotReadyException($issues);
-        }
+            if ($issues !== []) {
+                throw new AccountingNotReadyException($issues);
+            }
 
-        $this->config->save([self::ENABLED_KEY => '1']);
-        $this->audit->write('settings', null, 'accounting_enabled', $employeeId, JournalOrigin::User);
+            if (! $this->config->save([self::ENABLED_KEY => '1'])) {
+                throw new AccountingException(AccountingError::WriteFailed, 'The change could not be saved.');
+            }
+
+            $this->audit->write('settings', null, 'accounting_enabled', $employeeId, JournalOrigin::User);
+        });
     }
 
     public function disable(?int $employeeId = null): void

@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingActivation;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingNotReadyException;
 use App\Libraries\Accounting\AccountingSettings;
@@ -14,6 +15,7 @@ use App\Libraries\Accounting\SensitivePermissions;
 use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Models\Price_list;
+use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\ResponseInterface;
 
 class AccountingSetup extends AccountingController
@@ -47,6 +49,7 @@ class AccountingSetup extends AccountingController
     ];
 
     private AccountingSettings $settings;
+    private AccountingActivation $activation;
     private FiscalYearService $years;
     private SalesControlSettings $controls;
     private JournalSettings $journalSettings;
@@ -58,6 +61,7 @@ class AccountingSetup extends AccountingController
 
         $this->settings          = new AccountingSettings(null, null, $this->branchGuard());
         $this->years             = new FiscalYearService(null, null, $this->branchGuard());
+        $this->activation        = new AccountingActivation(null, $this->settings, $this->years, null, null, $this->branchGuard());
         $this->controls          = new SalesControlSettings();
         $this->journalSettings   = new JournalSettings(null, null, $this->branchGuard());
         $this->shippingCompanies = new ShippingCompanies(null, null, $this->branchGuard());
@@ -65,12 +69,16 @@ class AccountingSetup extends AccountingController
 
     public function getIndex(): string
     {
-        $issues    = $this->settings->readiness();
-        $needsYear = $this->needsFirstYear($issues);
+        $enabled    = $this->settings->isEnabled();
+        $inspection = $enabled ? null : $this->activation->inspect();
+        $issues     = $inspection === null ? $this->settings->readiness() : [...$inspection['automatic'], ...$inspection['blockers']];
+        $needsYear  = $this->needsFirstYear($issues);
 
         return view('accounting_settings/manage', [
-            'enabled'                       => $this->settings->isEnabled(),
-            'issues'                        => array_map(fn (ReadinessIssue $issue): string => $this->describe($issue), $issues),
+            'enabled'                       => $enabled,
+            'issues'                        => array_map(fn (ReadinessIssue $issue): string => $this->describe($issue), $inspection === null ? $issues : $inspection['blockers']),
+            'automatic_steps'               => $inspection === null ? [] : $this->automaticSteps($inspection['automatic']),
+            'activation'                    => $this->activation->status(),
             'notices'                       => array_map(fn (ReadinessIssue $issue): string => $this->describe($issue), $this->settings->notices()),
             'routing_url'                   => $this->can('accounting_routing') ? base_url('accounting_routing') : null,
             'currency'                      => $this->settings->baseCurrency(),
@@ -280,6 +288,95 @@ class AccountingSetup extends AccountingController
         });
     }
 
+    public function getActivate(): string
+    {
+        if (! $this->canManageSettings()) {
+            throw new RedirectException('no_access/accounting_settings/' . AccountingGuard::SETTINGS_MANAGE);
+        }
+
+        $status     = $this->activation->status();
+        $inspection = $this->activation->inspect();
+
+        if ($inspection['enabled'] && ($status === null || $status['done'])) {
+            throw new RedirectException('accounting_settings');
+        }
+
+        $codes = array_map(static fn (ReadinessIssue $issue): ReadinessCode => $issue->code, $inspection['automatic']);
+
+        return view('accounting_settings/activate', [
+            'status'          => $status,
+            'enabled'         => $inspection['enabled'],
+            'locked'          => $inspection['locked'],
+            'currency'        => $inspection['currency'],
+            'currency_source' => $inspection['currency_source'],
+            'start_date'      => $inspection['start_date'],
+            'needs_years'     => $this->hasAnyCode($codes, ReadinessCode::NoFiscalYear, ReadinessCode::StartDateOutsideFiscalYear),
+            'entities'        => $inspection['entities_missing'],
+            'has_documents'   => $inspection['has_documents'],
+            'impact'          => $inspection['impact'],
+            'payment_types'   => $inspection['payment_types'],
+            'blockers'        => array_map(fn (ReadinessIssue $issue): string => $this->describe($issue), $inspection['blockers']),
+            'routing_url'     => $this->can('accounting_routing') ? base_url('accounting_routing') : null,
+            'steps'           => [AccountingActivation::STEP_YEARS, AccountingActivation::STEP_SETTINGS, AccountingActivation::STEP_ENTITIES, AccountingActivation::STEP_COMMIT, AccountingActivation::STEP_VERIFY],
+            'ack_impact'      => AccountingActivation::ACK_IMPACT,
+            'ack_documents'   => AccountingActivation::ACK_DOCUMENTS,
+            'ack_payments'    => AccountingActivation::ACK_PAYMENT_TYPES,
+        ]);
+    }
+
+    public function getActivationImpact(): ResponseInterface
+    {
+        $refusal = $this->managerRefusal();
+        $date    = $this->request->getGet('date');
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
+        if (! is_string($date)) {
+            return $this->malformed();
+        }
+
+        return $this->attempt(fn (): array => ['success' => true, 'message' => '', 'id' => 1, 'impact' => $this->activation->impactFor($date)]);
+    }
+
+    public function postActivationBegin(): ResponseInterface
+    {
+        $refusal = $this->managerRefusal();
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
+        $malformed = $this->refuseNonText('currency', 'start_date');
+
+        if ($malformed !== null) {
+            return $malformed;
+        }
+
+        $acknowledged = $this->request->getPost('ack');
+        $acknowledged = is_array($acknowledged) ? array_values(array_filter($acknowledged, 'is_string')) : [];
+
+        return $this->attemptActivation(fn (): array => ['success' => true, 'message' => '', 'id' => 1, 'run' => $this->activation->begin($this->employeeId(), (string) $this->request->getPost('currency'), (string) $this->request->getPost('start_date'), $acknowledged)]);
+    }
+
+    public function postActivationStep(): ResponseInterface
+    {
+        $refusal = $this->managerRefusal();
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
+        $malformed = $this->refuseNonText('run_id');
+
+        if ($malformed !== null) {
+            return $malformed;
+        }
+
+        return $this->attemptActivation(fn (): array => ['success' => true, 'message' => '', 'id' => 1, 'run' => $this->activation->step((string) $this->request->getPost('run_id'), $this->employeeId())]);
+    }
+
     public function postEnable(): ResponseInterface
     {
         try {
@@ -323,6 +420,75 @@ class AccountingSetup extends AccountingController
     private function canManageSettings(): bool
     {
         return $this->canManage(AccountingGuard::SETTINGS_MANAGE);
+    }
+
+    /**
+     * @param list<ReadinessCode> $codes
+     */
+    private function hasAnyCode(array $codes, ReadinessCode ...$wanted): bool
+    {
+        foreach ($wanted as $code) {
+            if (in_array($code, $codes, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function managerRefusal(): ?ResponseInterface
+    {
+        return $this->canManageSettings() ? null : $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Accounting.error_permission_denied'), 'id' => NEW_ENTRY]);
+    }
+
+    private function malformed(): ResponseInterface
+    {
+        return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => lang('Accounting_settings.malformed_request'), 'id' => NEW_ENTRY]);
+    }
+
+    /**
+     * @param callable(): array<string, mixed> $action
+     */
+    private function attemptActivation(callable $action): ResponseInterface
+    {
+        try {
+            return $this->attempt($action);
+        } catch (AccountingNotReadyException $exception) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => lang('Accounting_settings.not_ready') . ' ' . implode(' ', array_map(fn (ReadinessIssue $issue): string => $this->describe($issue), $exception->issues)),
+                'id'      => NEW_ENTRY,
+            ]);
+        }
+    }
+
+    /**
+     * What the run settles by itself, in the words the settings screen uses.
+     *
+     * @param list<ReadinessIssue> $automatic
+     *
+     * @return list<string>
+     */
+    private function automaticSteps(array $automatic): array
+    {
+        $codes = array_map(static fn (ReadinessIssue $issue): ReadinessCode => $issue->code, $automatic);
+        $steps = [];
+
+        if ($this->hasAnyCode($codes, ReadinessCode::BaseCurrencyMissing, ReadinessCode::StartDateMissing)) {
+            $steps[] = lang('Accounting_activation.auto_settings');
+        }
+
+        if ($this->hasAnyCode($codes, ReadinessCode::NoFiscalYear, ReadinessCode::StartDateOutsideFiscalYear)) {
+            $steps[] = lang('Accounting_activation.auto_years');
+        }
+
+        foreach ($automatic as $issue) {
+            if ($issue->code === ReadinessCode::EntityAccountsMissing) {
+                $steps[] = lang('Accounting_activation.auto_entities', [(string) $issue->subject]);
+            }
+        }
+
+        return $steps;
     }
 
     /**

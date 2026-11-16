@@ -1,14 +1,15 @@
 <?php
 /**
- * @var array  $allowed_modules
- * @var object $user_info
+ * @var array                      $allowed_modules
+ * @var object                     $user_info
  * @var list<array<string, mixed>> $shortcuts
- * @var string $first_name
- * @var ?array $sales
- * @var ?array $top_items
- * @var ?array $low_stock
- * @var ?float $expenses_month
- * @var array  $config
+ * @var string                     $first_name
+ * @var bool                       $activation_banner
+ * @var ?array                     $sales
+ * @var ?array                     $top_items
+ * @var ?array                     $low_stock
+ * @var ?float                     $expenses_month
+ * @var array                      $config
  */
 use App\Libraries\Navigation\QuickActions;
 
@@ -34,6 +35,14 @@ $delta = static function (?float $value): string {
 <?php endif; ?>
 
 <h2 class="dash-welcome"><?= lang('Common.welcome') ?> <?= esc($first_name) ?></h2>
+
+<?php if ($activation_banner): ?>
+    <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2" role="status" id="activation_banner">
+        <span class="bi bi-journal-check" aria-hidden="true"></span>
+        <span class="flex-grow-1"><?= lang('Accounting_activation.banner_text') ?></span>
+        <a class="btn btn-sm btn-warning" href="<?= esc(site_url('accounting_settings/activate'), 'attr') ?>"><?= lang('Accounting_activation.banner_action') ?></a>
+    </div>
+<?php endif; ?>
 
 <section class="home-shortcuts" id="home_shortcuts" aria-labelledby="home_shortcuts_title" data-person="<?= (int) $user_info->person_id ?>" data-max="<?= QuickActions::MAX_PINNED ?>">
     <div class="home-shortcuts-head">

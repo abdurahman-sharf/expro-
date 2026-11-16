@@ -3,6 +3,7 @@
 namespace Tests\Controllers;
 
 use App\Controllers\AccountingSetup;
+use App\Libraries\Accounting\AccountingActivation;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\EntityAccountService;
@@ -50,6 +51,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->resetJournalSettings();
         $this->clearJournals();
         $this->accountingDb()->table('app_config')->where('key', ShippingCompanies::ENABLED_KEY)->delete();
+        $this->accountingDb()->table('app_config')->where('key', 'accounting_activation')->delete();
         $this->accountingDb()->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping', 'accounting_shipping_tax_percent', 'accounting_debit_note', 'accounting_journal_description_sales', 'accounting_journal_description_purchases'])->delete();
 
         parent::tearDown();
@@ -90,19 +92,19 @@ class AccountingSetupControllerTest extends CIUnitTestCase
 
         $viewer = $this->get('/accounting_settings');
 
-        $viewer->assertDontSee('data-settings-action="enable"');
+        $viewer->assertDontSee('accounting_settings/activate');
         $viewer->assertDontSee('btn-primary btn-sm">' . lang('Common.submit'));
 
         $this->manager();
 
-        $this->get('/accounting_settings')->assertSee('data-settings-action="enable"');
+        $this->get('/accounting_settings')->assertSee('accounting_settings/activate');
     }
 
     public function testGetIndex_HidesTheButtonsFromSomeoneLimitedToBranches(): void
     {
         $this->manager([1]);
 
-        $this->get('/accounting_settings')->assertDontSee('data-settings-action="enable"');
+        $this->get('/accounting_settings')->assertDontSee('accounting_settings/activate');
     }
 
     public function testGetIndex_ListsWhatIsMissingBeforeAccountingCanBeTurnedOn(): void
@@ -115,10 +117,11 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $response = $this->get('/accounting_settings');
 
         $response->assertSee('acc-readiness');
-        $response->assertSee(lang('Accounting_settings.readiness_base_currency_missing'));
-        $response->assertSee(lang('Accounting_settings.readiness_no_fiscal_year'));
+        $response->assertSee(lang('Accounting_activation.auto_settings'));
+        $response->assertSee(lang('Accounting_activation.auto_years'));
+        $response->assertDontSee(lang('Accounting_settings.readiness_base_currency_missing'));
         $response->assertSee('id="first_year_form"');
-        $response->assertSee('disabled>' . lang('Accounting_settings.enable'));
+        $response->assertDontSee('disabled>' . lang('Accounting_settings.enable'));
     }
 
     public function testGetIndex_LinksToTheRoutingScreenOnlyForSomeoneWhoCanOpenIt(): void
@@ -140,7 +143,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $response = $this->get('/accounting_settings');
 
         $response->assertSee(lang('Accounting_settings.readiness_payment_type_unrouted', [PaymentType::Cash->value]));
-        $response->assertSee('disabled>' . lang('Accounting_settings.enable'));
+        $response->assertSee('accounting_settings/activate');
     }
 
     public function testGetIndex_ListsNoticesWithoutDisablingTheButton(): void
@@ -153,7 +156,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
             $response = $this->get('/accounting_settings');
 
             $response->assertSee(lang('Accounting_settings.readiness_notices_title'));
-            $response->assertDontSee('disabled>' . lang('Accounting_settings.enable'));
+            $response->assertSee('accounting_settings/activate');
         } finally {
             $this->accountingDb()->table('sales')->where('sale_id', $saleId)->delete();
         }
@@ -165,7 +168,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
 
         $response = $this->get('/accounting_settings');
 
-        $response->assertSee(lang('Accounting_settings.ready'));
+        $response->assertSee(lang('Accounting_settings.activation_ready'));
         $response->assertDontSee('id="first_year_form"');
     }
 
@@ -1378,5 +1381,202 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertFalse($this->jsonOf($this->post('/accounting_settings/save_shipping_companies', ['enabled' => '1']))['success']);
         $this->assertSame([], (new ShippingCompanies())->all());
         $this->assertFalse((new ShippingCompanies())->enabled());
+    }
+
+    private function insertSale(string $time): void
+    {
+        $this->accountingDb()->table('sales')->insert(['comment' => 'activation-controller-test', 'sale_time' => $time, 'sale_status' => COMPLETED, 'employee_id' => 1]);
+    }
+
+    private function removeInsertedSales(): void
+    {
+        $this->accountingDb()->table('sales')->where('comment', 'activation-controller-test')->delete();
+    }
+
+    public function testGetIndex_OffersTheWizardToSomeoneWhoManagesTheSettings(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $this->get('/accounting_settings')->assertDontSee('accounting_settings/activate');
+
+        $this->manager();
+
+        $response = $this->get('/accounting_settings');
+
+        $response->assertSee('accounting_settings/activate');
+        $response->assertSee(lang('Accounting_settings.activation_open'));
+        $response->assertDontSee('disabled>' . lang('Accounting_settings.enable'));
+    }
+
+    public function testGetIndex_OffersToCarryOnARunThatWasLeftUnfinished(): void
+    {
+        $person = $this->manager();
+        (new AccountingActivation())->begin($person, 'SAR', '2026-11-01', [AccountingActivation::ACK_IMPACT]);
+
+        $this->get('/accounting_settings')->assertSee(lang('Accounting_settings.activation_resume'));
+    }
+
+    public function testGetActivate_ShowsTheWizardWithTheSuggestedCurrencyAndDate(): void
+    {
+        $this->setConfigValue('accounting_base_currency', 'EGP');
+        $this->setConfigValue('accounting_start_date', '2026-03-01');
+        $this->manager();
+
+        $response = $this->get('/accounting_settings/activate');
+
+        $response->assertStatus(200);
+        $response->assertSee('activation_wizard');
+        $response->assertSee('value="EGP"');
+        $response->assertSee('value="2026-03-01"');
+    }
+
+    public function testGetActivate_RedirectsSomeoneWhoMayNotManageTheSettings(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $this->get('/accounting_settings/activate')->assertRedirect();
+    }
+
+    public function testGetActivate_RedirectsSomeoneLimitedToBranches(): void
+    {
+        $this->manager([1]);
+
+        $this->get('/accounting_settings/activate')->assertRedirect();
+    }
+
+    public function testGetActivate_SendsThemBackWhenAccountingIsAlreadyOn(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->manager();
+
+        $this->get('/accounting_settings/activate')->assertRedirect();
+    }
+
+    public function testGetActivate_OffersToResumeARunThatWasLeftUnfinished(): void
+    {
+        $person = $this->manager();
+        (new AccountingActivation())->begin($person, 'SAR', '2026-11-01', [AccountingActivation::ACK_IMPACT]);
+
+        $this->get('/accounting_settings/activate')->assertSee('id="resume_run"');
+    }
+
+    public function testGetActivate_ListsWhatOnlyAPersonCanSettleAndBlocksContinuing(): void
+    {
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.cogs')->update(['account_id' => null]);
+        $this->manager();
+
+        $response = $this->get('/accounting_settings/activate');
+
+        $response->assertSee(lang('Accounting_activation.blockers_title'));
+        $response->assertSee('id="notices_next" disabled');
+    }
+
+    public function testGetActivationImpact_CountsTheDocumentsAroundTheDate(): void
+    {
+        $this->manager();
+        $this->insertSale('2026-05-01 10:00:00');
+        $this->insertSale('2026-07-01 10:00:00');
+
+        try {
+            $result = $this->jsonOf($this->get('/accounting_settings/activation_impact', ['date' => '2026-06-01']));
+        } finally {
+            $this->removeInsertedSales();
+        }
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(1, $result['impact']['before']['sales']);
+        $this->assertSame(1, $result['impact']['from']['sales']);
+    }
+
+    public function testGetActivationImpact_RefusesADateThatIsNotADate(): void
+    {
+        $this->manager();
+
+        $result = $this->jsonOf($this->get('/accounting_settings/activation_impact', ['date' => '2026-13-45']));
+
+        $this->assertFalse($result['success']);
+    }
+
+    public function testGetActivationImpact_RefusesSomeoneWhoMayNotManageTheSettings(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $this->get('/accounting_settings/activation_impact', ['date' => '2026-06-01'])->assertStatus(403);
+    }
+
+    public function testPostActivationBegin_OpensTheRunWhenTheImpactIsAcknowledged(): void
+    {
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_settings/activation_begin', ['currency' => 'SAR', 'start_date' => '2026-11-01', 'ack' => [AccountingActivation::ACK_IMPACT]]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(['running', 'years'], [$result['run']['status'], $result['run']['step']]);
+        $this->assertFalse((new AccountingSettings())->isEnabled());
+    }
+
+    public function testPostActivationBegin_RefusesWithoutTheAcknowledgement(): void
+    {
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_settings/activation_begin', ['currency' => 'SAR', 'start_date' => '2026-11-01']));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString(AccountingActivation::ACK_IMPACT, $result['message']);
+        $this->assertNull((new AccountingActivation())->status());
+    }
+
+    public function testPostActivationBegin_RefusesSomeoneLimitedToBranches(): void
+    {
+        $this->manager([1]);
+
+        $this->post('/accounting_settings/activation_begin', ['currency' => 'SAR', 'start_date' => '2026-11-01', 'ack' => [AccountingActivation::ACK_IMPACT]])->assertStatus(403);
+        $this->assertNull((new AccountingActivation())->status());
+    }
+
+    public function testPostActivationBegin_RefusesAValueThatIsNotText(): void
+    {
+        $this->manager();
+
+        $this->post('/accounting_settings/activation_begin', ['currency' => ['SAR'], 'start_date' => '2026-11-01'])->assertStatus(400);
+    }
+
+    public function testPostActivationStep_RunsToTheEndAndTurnsAccountingOn(): void
+    {
+        $this->setConfigValue('accounting_start_date', '');
+        $this->accountingDb()->table('accounting_fiscal_years')->where('company_id', 1)->delete();
+        $person = $this->manager();
+        $run    = (new AccountingActivation())->begin($person, 'SAR', '2026-11-01', [AccountingActivation::ACK_IMPACT]);
+
+        $result = [];
+
+        for ($turn = 0; $turn < 20; $turn++) {
+            $result = $this->jsonOf($this->post('/accounting_settings/activation_step', ['run_id' => $run['run_id']]));
+
+            $this->assertTrue($result['success']);
+
+            if ($result['run']['done']) {
+                break;
+            }
+        }
+
+        $this->assertTrue($result['run']['done']);
+        $this->assertTrue((new AccountingSettings())->isEnabled());
+    }
+
+    public function testPostActivationStep_RefusesARunThatIsNotTheOneInProgress(): void
+    {
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_settings/activation_step', ['run_id' => '0000000000000000']));
+
+        $this->assertFalse($result['success']);
+    }
+
+    public function testPostActivationStep_RefusesSomeoneWhoMayNotManageTheSettings(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $this->post('/accounting_settings/activation_step', ['run_id' => '0000000000000000'])->assertStatus(403);
     }
 }

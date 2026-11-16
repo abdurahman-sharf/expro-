@@ -622,4 +622,9 @@ enum AccountingError: string
     case PortalPasswordInvalid     = 'portal_password_invalid';
     case PortalPasswordWrong       = 'portal_password_wrong';
     case PortalLocked              = 'portal_locked';
+    case ActivationAlreadyOn       = 'activation_already_on';
+    case ActivationBusy            = 'activation_busy';
+    case ActivationUnconfirmed     = 'activation_unconfirmed';
+    case ActivationUnknown         = 'activation_unknown';
+    case ActivationVerification    = 'activation_verification';
 }

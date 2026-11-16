@@ -2,9 +2,12 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Dashboard_lib;
 use App\Libraries\Organization\BranchContext;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Security\PasswordPolicy;
 use App\Libraries\Security\SecurityAudit;
 use App\Models\Employee;
@@ -26,6 +29,14 @@ class Home extends Secure_Controller
         parent::__construct('home');
     }
 
+    private function offersActivation(int $personId): bool
+    {
+        return ! (new AccountingSettings())->isEnabled()
+            && $this->employee->has_module_grant('accounting_settings', $personId)
+            && $this->employee->has_grant(AccountingGuard::SETTINGS_MANAGE, $personId)
+            && (new BranchGuard(null, $this->employee))->isUnrestricted($personId);
+    }
+
     public function getIndex(): string
     {
         $employee  = $this->employee->get_logged_in_employee_info();
@@ -34,12 +45,13 @@ class Home extends Secure_Controller
         $granted   = fn (string $permission): bool => $this->employee->has_grant($permission, $personId);
 
         return view('home/home', [
-            'first_name'     => $employee->first_name,
-            'shortcuts'      => quickActionsFor($this->global_view_data['allowed_modules'] ?? [], $personId),
-            'sales'          => $granted('reports_sales') ? $dashboard->sales() : null,
-            'top_items'      => $granted('reports_items') ? $dashboard->topItems() : null,
-            'low_stock'      => $granted('reports_inventory') ? $dashboard->lowStock() : null,
-            'expenses_month' => $granted('reports_expenses_categories') ? $dashboard->expensesThisMonth() : null,
+            'first_name'        => $employee->first_name,
+            'activation_banner' => $this->offersActivation($personId),
+            'shortcuts'         => quickActionsFor($this->global_view_data['allowed_modules'] ?? [], $personId),
+            'sales'             => $granted('reports_sales') ? $dashboard->sales() : null,
+            'top_items'         => $granted('reports_items') ? $dashboard->topItems() : null,
+            'low_stock'         => $granted('reports_inventory') ? $dashboard->lowStock() : null,
+            'expenses_month'    => $granted('reports_expenses_categories') ? $dashboard->expensesThisMonth() : null,
         ]);
     }
 

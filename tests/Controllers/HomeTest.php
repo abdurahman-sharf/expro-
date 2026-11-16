@@ -896,6 +896,74 @@ class HomeTest extends CIUnitTestCase
         $response->assertDontSee('data-shortcut-id="add_journal"');
     }
 
+    /**
+     * @param list<string> $permissionIds
+     */
+    private function homeManagerOfTheSettings(array $permissionIds = ['accounting_settings', 'acc_settings_manage', BranchGuard::ALL_BRANCHES]): int
+    {
+        return $this->createNonAdminEmployee(['grants' => array_map(
+            static fn (string $permissionId): array => ['permission_id' => $permissionId, 'menu_group' => 'home'],
+            ['home', ...$permissionIds],
+        )]);
+    }
+
+    public function testGetIndex_OffersTheActivationToAManagerWhileAccountingIsOff(): void
+    {
+        $previous = $this->accountingSwitch();
+        $this->turnAccounting('0');
+        $this->loginAs($this->homeManagerOfTheSettings());
+
+        try {
+            $response = $this->get('/home');
+
+            $response->assertSee('id="activation_banner"');
+            $response->assertSee('accounting_settings/activate');
+        } finally {
+            $this->turnAccounting($previous);
+        }
+    }
+
+    public function testGetIndex_LeavesOutTheActivationBannerOnceAccountingIsOn(): void
+    {
+        $previous = $this->accountingSwitch();
+        $this->turnAccounting('1');
+        $this->loginAs($this->homeManagerOfTheSettings());
+
+        try {
+            $this->get('/home')->assertDontSee('id="activation_banner"');
+        } finally {
+            $this->turnAccounting($previous);
+        }
+    }
+
+    public function testGetIndex_LeavesOutTheActivationBannerForSomeoneWhoMayNotManageTheSettings(): void
+    {
+        $previous = $this->accountingSwitch();
+        $this->turnAccounting('0');
+        $this->loginAs($this->homeManagerOfTheSettings(['accounting_settings', BranchGuard::ALL_BRANCHES]));
+
+        try {
+            $this->get('/home')->assertDontSee('id="activation_banner"');
+        } finally {
+            $this->turnAccounting($previous);
+        }
+    }
+
+    public function testGetIndex_LeavesOutTheActivationBannerForSomeoneLimitedToBranches(): void
+    {
+        $previous = $this->accountingSwitch();
+        $this->turnAccounting('0');
+        $limited = $this->homeManagerOfTheSettings(['accounting_settings', 'acc_settings_manage']);
+        Config::connect()->table('employee_branches')->insert(['person_id' => $limited, 'branch_id' => 1, 'is_default' => 1]);
+        $this->loginAs($limited);
+
+        try {
+            $this->get('/home')->assertDontSee('id="activation_banner"');
+        } finally {
+            $this->turnAccounting($previous);
+        }
+    }
+
     public function testGetIndex_KeepsTheSupportLinkForAnEmployeeWhoMayOpenNoShortcut(): void
     {
         $employeeId = $this->createNonAdminEmployee(['grants' => [['permission_id' => 'home', 'menu_group' => 'home']]]);

@@ -162,6 +162,56 @@ final class FiscalYearService
     }
 
     /**
+     * Creates the first fiscal year, the calendar year that holds the start date of the books, when the company has
+     * none. It is part of turning accounting on, and the person who does that has been shown to hold the permission
+     * for it, so no other permission is asked here; the audit names that person. A year that covers the date already
+     * is returned as it is, so a repeated call changes nothing.
+     *
+     * @throws AccountingException
+     */
+    public function createFirst(string $startDate, ?int $employeeId = null): int
+    {
+        if (! $this->isDate($startDate)) {
+            throw new AccountingException(AccountingError::InvalidDate, 'The start date must be a valid Y-m-d date.');
+        }
+
+        return $this->transactional(function () use ($startDate, $employeeId): int {
+            $this->locks->holdCompany();
+
+            $covering = $this->covering($startDate);
+
+            if ($covering !== null) {
+                return (int) $covering->fiscal_year_id;
+            }
+
+            if ($this->last() !== null) {
+                throw new AccountingException(AccountingError::StartDateOutsideFiscalYear, 'The start date must fall in a fiscal year.', ['date' => $startDate]);
+            }
+
+            $calendarYear = substr($startDate, 0, 4);
+            $start        = "{$calendarYear}-01-01";
+            $end          = "{$calendarYear}-12-31";
+            $name         = $this->nameFor($start, $end);
+
+            $this->db->table('accounting_fiscal_years')->insert([
+                'company_id'  => CompanyContext::id(),
+                'name'        => $name,
+                'start_date'  => $start,
+                'end_date'    => $end,
+                'description' => null,
+                'status'      => 'open',
+                'created_by'  => $employeeId,
+            ]);
+
+            $fiscalYearId = (int) $this->db->insertID();
+
+            $this->audit->write('fiscal_year', $fiscalYearId, 'created', $employeeId, $employeeId === null ? JournalOrigin::System : JournalOrigin::User, ['name' => $name, 'start' => $start, 'end' => $end]);
+
+            return $fiscalYearId;
+        });
+    }
+
+    /**
      * The name and description can always change. The dates change only at the edges of the
      * calendar, only while no journal and no closing lies in the part given up.
      *

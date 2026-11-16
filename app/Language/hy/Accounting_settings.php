@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'activation_auto_title'                    => '',
+    'activation_open'                          => '',
+    'activation_ready'                         => '',
+    'activation_resume'                        => '',
+    'activation_unfinished'                    => '',
     'auto_year'                                => '',
     'auto_year_desc'                           => '',
     'backfill_enabled'                         => '',

@@ -332,7 +332,22 @@ final class EntityAccountService
      */
     public function fill(?int $employeeId = null): array
     {
-        $created = [];
+        return $this->fillWithin(INF, $employeeId)['created'];
+    }
+
+    /**
+     * Opens the missing sub-accounts until the time given has passed, and says how many entities still lack one.
+     * Each account is its own transaction, so a stop between two accounts leaves nothing half open, and a later
+     * call carries on from the entities that are still missing.
+     *
+     * @return array{created: array<string, int>, remaining: int}
+     *
+     * @throws AccountingException
+     */
+    public function fillWithin(float $seconds, ?int $employeeId = null): array
+    {
+        $created  = [];
+        $deadline = microtime(true) + $seconds;
 
         foreach (self::kinds() as $kind) {
             if (! $this->isAutomatic($kind)) {
@@ -345,13 +360,17 @@ final class EntityAccountService
                 $rows = $this->missingBuilder($kind)->select($this->nameSelect($kind) . ' AS entity_name, ' . $this->idColumn($kind) . ' AS entity_id', false)->orderBy($this->idColumn($kind), 'ASC')->limit(self::CHUNK)->get()->getResult();
 
                 foreach ($rows as $row) {
+                    if (microtime(true) >= $deadline) {
+                        return ['created' => $created, 'remaining' => array_sum($this->missingCounts())];
+                    }
+
                     $this->ensure($kind, (int) $row->entity_id, (string) $row->entity_name, $employeeId);
                     $created[$kind]++;
                 }
             } while (count($rows) === self::CHUNK);
         }
 
-        return $created;
+        return ['created' => $created, 'remaining' => array_sum($this->missingCounts())];
     }
 
     private function accountRow(string $kind, int $entityId): ?object

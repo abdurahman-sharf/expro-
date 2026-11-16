@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'activation_auto_title'                    => 'The wizard will do this for you:',
+    'activation_open'                          => 'Turn accounting on',
+    'activation_ready'                         => 'Nothing blocks turning accounting on. The wizard takes you through the rest.',
+    'activation_resume'                        => 'Carry on turning accounting on',
+    'activation_unfinished'                    => 'A run of turning accounting on was left unfinished ({0}).',
     'auto_year'                                => 'Create the next fiscal year automatically',
     'auto_year_desc'                           => 'When a journal is dated just after the last fiscal year, the next year is created with the same length. Turn this off to add years yourself.',
     'backfill_enabled'                         => 'Retroactive posting',
@@ -78,7 +83,7 @@ return [
     'picker_threshold_desc'                    => 'Screens that list every account, customer or supplier show a search box instead once there are more entries than this. Smaller shops keep the full list. Default 200.',
     'readiness_base_currency_missing'          => 'Set the base currency.',
     'readiness_cashups_unposted'               => '{0} cash-up(s) are not in the books and will not be posted until the back-posting phase.',
-    'readiness_entity_accounts_missing'        => '{0} customer, supplier or stock location account(s) are not opened yet. Run "php spark accounting:fill_accounts".',
+    'readiness_entity_accounts_missing'        => '{0} customer, supplier or stock location account(s) are not opened yet. The wizard that turns accounting on opens them for you.',
     'readiness_expenses_unposted'              => '{0} expense(s) are not in the books and will not be posted until the back-posting phase.',
     'readiness_item_account_invalid'           => '{0} item(s) name an account for their sales that is inactive, a group or reserved. Fix them on the item form before turning accounting on.',
     'readiness_no_accounts'                    => 'The chart of accounts is empty.',

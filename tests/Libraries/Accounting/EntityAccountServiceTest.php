@@ -533,6 +533,53 @@ class EntityAccountServiceTest extends CIUnitTestCase
         $this->assertSame([], $this->service->missingCounts());
     }
 
+    public function testFillWithin_OpensEverythingAndReportsNothingRemainingWhenTheTimeIsEnough(): void
+    {
+        $this->insertCustomer();
+        $this->insertSupplier();
+
+        $result = $this->service->fillWithin(60.0);
+
+        $this->assertSame(1, $result['created'][EntityAccountService::CUSTOMER]);
+        $this->assertSame(1, $result['created'][EntityAccountService::SUPPLIER]);
+        $this->assertSame(0, $result['remaining']);
+        $this->assertSame([], $this->service->missingCounts());
+    }
+
+    public function testFillWithin_StopsWhenTheTimeIsUpAndReportsWhatRemains(): void
+    {
+        $this->service->fill();
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->insertCustomer('Customer', (string) $i);
+        }
+
+        $result = $this->service->fillWithin(0.0);
+
+        $this->assertSame(0, $result['created'][EntityAccountService::CUSTOMER]);
+        $this->assertSame(5, $result['remaining']);
+        $this->assertSame([EntityAccountService::CUSTOMER => 5], $this->service->missingCounts());
+    }
+
+    public function testFillWithin_CarriesOnFromWhatIsStillMissingWithoutCreatingAnythingTwice(): void
+    {
+        $this->service->fill();
+
+        for ($i = 0; $i < 4; $i++) {
+            $this->insertCustomer('Customer', (string) $i);
+        }
+
+        $this->service->fillWithin(0.0);
+        $first  = $this->service->fillWithin(60.0);
+        $before = $this->countRows('accounting_accounts');
+        $second = $this->service->fillWithin(60.0);
+
+        $this->assertSame(4, $first['created'][EntityAccountService::CUSTOMER]);
+        $this->assertSame(0, $first['remaining']);
+        $this->assertSame(0, $second['created'][EntityAccountService::CUSTOMER]);
+        $this->assertSame($before, $this->countRows('accounting_accounts'));
+    }
+
     public function testIntegration_ACustomerASupplierAndALocationSavedThroughTheModelsEachGetExactlyOneAccount(): void
     {
         $customer = model(Customer::class);

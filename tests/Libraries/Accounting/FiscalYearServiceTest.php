@@ -460,6 +460,49 @@ class FiscalYearServiceTest extends CIUnitTestCase
         $this->assertSame([], $this->names());
     }
 
+    public function testCreateFirst_CreatesTheCalendarYearThatHoldsTheStartDateAndNamesTheEmployee(): void
+    {
+        $employee = $this->employeeWithGrants([]);
+
+        $id = $this->service->createFirst('2026-11-16', $employee);
+
+        $year  = $this->accountingDb()->table('accounting_fiscal_years')->where('fiscal_year_id', $id)->get()->getRow();
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'fiscal_year')->where('entity_id', $id)->get()->getRow();
+
+        $this->assertSame(['2026', '2026-01-01', '2026-12-31', 'open'], [$year->name, $year->start_date, $year->end_date, $year->status]);
+        $this->assertSame((string) $employee, (string) $year->created_by);
+        $this->assertSame('created', $audit->action);
+        $this->assertSame((string) $employee, (string) $audit->employee_id);
+        $this->assertSame('user', $audit->origin);
+    }
+
+    public function testCreateFirst_AsksNoPermissionBecauseTheCallerHasAlreadyShownTheRightToTurnAccountingOn(): void
+    {
+        $this->assertGreaterThan(0, $this->service->createFirst('2026-03-01', $this->employeeWithGrants([])));
+    }
+
+    public function testCreateFirst_ReturnsTheYearThatCoversTheDateAndCreatesNoOther(): void
+    {
+        $first = $this->service->createFirst('2026-11-16');
+        $again = $this->service->createFirst('2026-02-01');
+
+        $this->assertSame($first, $again);
+        $this->assertSame(['2026'], $this->names());
+    }
+
+    public function testCreateFirst_RefusesADateOutsideTheYearsThatAlreadyExist(): void
+    {
+        $this->year('2026', '2026-01-01', '2026-12-31');
+
+        $this->assertFailsWith(AccountingError::StartDateOutsideFiscalYear, fn () => $this->service->createFirst('2025-06-01'));
+        $this->assertSame(['2026'], $this->names());
+    }
+
+    public function testCreateFirst_RefusesADateThatIsNotADate(): void
+    {
+        $this->assertFailsWith(AccountingError::InvalidDate, fn () => $this->service->createFirst('2026-13-45'));
+    }
+
     public function testCreateThrough_IsSafeToRunAgain(): void
     {
         $this->year('2024', '2024-01-01', '2024-12-31');

@@ -33,6 +33,8 @@
  * @var bool                                                                                                                                                                                                              $can_manage
  * @var array{name: string, start_date: string, end_date: string}|null                                                                                                                                                    $first_year
  * @var bool                                                                                                                                                                                                              $can_first_year
+ * @var list<string>                                                                                                                                                                                                      $a
+ * @var array<string, mixed>|null                                                                                                                                                                                         $a
  * @var list<array{name: string, username: string, permissions: list<string>, all_branches: bool, branches: list<string>}>                                                                                                $holders
  */
 $messages = [
@@ -118,8 +120,17 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         </p>
         <p class="text-body-secondary small"><?= lang($enabled ? 'Accounting_settings.enabled_desc' : 'Accounting_settings.disabled_desc') ?></p>
 
+        <?php if ($automatic_steps !== []): ?>
+            <p class="mb-1"><?= lang('Accounting_settings.activation_auto_title') ?></p>
+            <ul class="acc-readiness">
+                <?php foreach ($automatic_steps as $step): ?>
+                    <li><span class="bi bi-magic text-primary" aria-hidden="true"></span> <?= esc($step) ?></li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+
         <?php if ($issues === []): ?>
-            <p class="acc-ready"><span class="bi bi-check-circle-fill text-success" aria-hidden="true"></span> <?= lang('Accounting_settings.ready') ?></p>
+            <p class="acc-ready"><span class="bi bi-check-circle-fill text-success" aria-hidden="true"></span> <?= lang($enabled ? 'Accounting_settings.ready' : 'Accounting_settings.activation_ready') ?></p>
         <?php else: ?>
             <p class="mb-1"><?= lang('Accounting_settings.readiness_title') ?></p>
             <ul class="acc-readiness">
@@ -146,7 +157,11 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             <?php if ($enabled): ?>
                 <button type="button" class="btn btn-outline-danger btn-sm" data-settings-action="disable"><?= lang('Accounting_settings.disable') ?></button>
             <?php else: ?>
-                <button type="button" class="btn btn-primary btn-sm" data-settings-action="enable"<?= $issues === [] ? '' : ' disabled' ?>><?= lang('Accounting_settings.enable') ?></button>
+                <?php $unfinished = $activation !== null && ! $activation['done']; ?>
+                <?php if ($unfinished): ?>
+                    <p class="text-warning small"><?= lang('Accounting_settings.activation_unfinished', [lang('Accounting_activation.step_name_' . $activation['step'])]) ?></p>
+                <?php endif; ?>
+                <a class="btn btn-primary btn-sm" href="<?= esc(site_url('accounting_settings/activate'), 'attr') ?>"><?= lang($unfinished ? 'Accounting_settings.activation_resume' : 'Accounting_settings.activation_open') ?></a>
             <?php endif; ?>
         <?php endif; ?>
     </section>

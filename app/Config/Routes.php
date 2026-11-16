@@ -83,6 +83,10 @@ $routes->group('accounting_settings', static function (RouteCollection $routes):
     $routes->post('save_shipping_company/(:num)', 'AccountingSetup::postSaveShippingCompany/$1');
     $routes->post('toggle_shipping_company/(:num)', 'AccountingSetup::postToggleShippingCompany/$1');
     $routes->post('first_year', 'AccountingSetup::postFirstYear');
+    $routes->get('activate', 'AccountingSetup::getActivate');
+    $routes->get('activation_impact', 'AccountingSetup::getActivationImpact');
+    $routes->post('activation_begin', 'AccountingSetup::postActivationBegin');
+    $routes->post('activation_step', 'AccountingSetup::postActivationStep');
     $routes->post('enable', 'AccountingSetup::postEnable');
     $routes->post('disable', 'AccountingSetup::postDisable');
 });
