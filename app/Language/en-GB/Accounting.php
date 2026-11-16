@@ -176,6 +176,8 @@ return [
     'action_scope_changed'                       => 'Employee branches changed',
     'action_security_settings_changed'           => 'Security settings changed',
     'action_settings_updated'                    => 'Settings changed',
+    'action_setup_completed'                     => 'Company setup finished',
+    'action_setup_step_saved'                    => 'Company setup step saved',
     'action_status_changed'                      => 'Status changed',
     'action_stock_location_activated'            => 'Stock location activated',
     'action_stock_location_deactivated'          => 'Stock location deactivated',

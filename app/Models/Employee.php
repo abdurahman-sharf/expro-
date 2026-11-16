@@ -7,6 +7,7 @@ use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
 use App\Libraries\Security\PasswordPolicy;
 use App\Libraries\Security\SecurityAudit;
+use App\Libraries\Setup\InstallState;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Session\Session;
 use stdClass;
@@ -19,6 +20,7 @@ use stdClass;
 class Employee extends Person
 {
     public const MUST_CHANGE_KEY   = 'must_change_password';
+    public const SETUP_PENDING_KEY = 'setup_pending';
     public const UNKNOWN_USER_HASH = '$2y$10$ZFdSLBi1mAZ01oVRRa8nYecLSEvWXHuuSWdfrrcrP8ZzQAHD4nbzC';
 
     public Session $session;
@@ -429,6 +431,7 @@ class Employee extends Person
                 }
                 $this->session->set('person_id', $row->person_id);
                 $this->flagInstallerPassword($password);
+                $this->flagPendingSetup();
                 $this->audit()->loginSucceeded((int) $row->person_id, $this->address());
 
                 return true;
@@ -459,6 +462,34 @@ class Employee extends Person
         } else {
             $this->session->remove(self::MUST_CHANGE_KEY);
         }
+    }
+
+    private function flagPendingSetup(): void
+    {
+        if ((new InstallState($this->db))->needsSetup()) {
+            $this->session->set(self::SETUP_PENDING_KEY, true);
+        } else {
+            $this->session->remove(self::SETUP_PENDING_KEY);
+        }
+    }
+
+    /**
+     * Whether the installation is still in its first setup, which the database confirms on every call for a session
+     * that was flagged at sign-in, so that a flag that is out of date holds nobody back.
+     */
+    public function setupPending(): bool
+    {
+        if ((int) $this->session->get('person_id') === 0 || $this->session->get(self::SETUP_PENDING_KEY) !== true) {
+            return false;
+        }
+
+        $pending = (new InstallState($this->db))->needsSetup();
+
+        if (! $pending) {
+            $this->session->remove(self::SETUP_PENDING_KEY);
+        }
+
+        return $pending;
     }
 
     /**

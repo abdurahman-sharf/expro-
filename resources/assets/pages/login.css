@@ -45,6 +45,15 @@
     width: min(400px, 100%);
 }
 
+.setup-card {
+    width: min(640px, 100%);
+}
+
+.setup-card .acc-wizard-steps a {
+    color: inherit;
+    text-decoration: none;
+}
+
 .login-company-logo {
     max-width: 160px;
     max-height: 64px;

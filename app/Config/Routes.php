@@ -19,6 +19,13 @@ $routes->post('login', 'Login::index');
 $routes->post('migrate', 'Login::migrate');
 $routes->post('owner_setup', 'OwnerSetup::postClaim');
 
+$routes->get('setup', 'Setup::getIndex');
+$routes->post('setup/language', 'Setup::postLanguage');
+$routes->post('setup/company', 'Setup::postCompany');
+$routes->post('setup/branch', 'Setup::postBranch');
+$routes->post('setup/tax', 'Setup::postTax');
+$routes->post('setup/finish', 'Setup::postFinish');
+
 $routes->add('no_access/index/(:segment)', 'No_access::index/$1');
 $routes->add('no_access/index/(:segment)/(:segment)', 'No_access::index/$1/$2');
 

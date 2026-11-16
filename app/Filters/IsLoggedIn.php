@@ -12,6 +12,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 class IsLoggedIn implements FilterInterface
 {
     private const PASSWORD_PATHS = ['home/mustchangepassword', 'home/save', 'home/logout'];
+    private const SETUP_PATHS    = ['setup', 'home/logout', 'accounting_settings/activation_impact', 'accounting_settings/activation_begin', 'accounting_settings/activation_step'];
 
     public function before(RequestInterface $request, $arguments = null)
     {
@@ -42,7 +43,22 @@ class IsLoggedIn implements FilterInterface
             throw new RedirectException('home/mustChangePassword');
         }
 
+        if (! $this->isSetupPath($path) && $employee->setupPending()) {
+            if ($request->isAJAX()) {
+                return service('response')
+                    ->setStatusCode(403)
+                    ->setJSON(['success' => false, 'message' => lang('Setup.must_finish')]);
+            }
+
+            throw new RedirectException('setup');
+        }
+
         return null;
+    }
+
+    private function isSetupPath(string $path): bool
+    {
+        return in_array($path, self::SETUP_PATHS, true) || str_starts_with($path, 'setup/');
     }
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)

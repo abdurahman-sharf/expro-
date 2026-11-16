@@ -62,9 +62,10 @@ First of all, if you're seeing the message `system folder missing` after launchi
    - set `setup.code` in `.env` before the first visit when you install by script, and use that value.
 
    Type the code, then choose your own name, username, email and password. You are signed in as the owner with every module and permission, and the code stops working. Use HTTPS so the password is not sent in the clear.
-9. If everything works, then set the `CI_ENVIRONMENT` variable to `production` in the .env file
-10. Enjoy!
-11. Oops, an issue? Please make sure you read the FAQ, wiki page, and you checked open and closed issues on GitHub. PHP `display_errors` is disabled by default. Create an` app/Config/.env` file from the `.env.example` to enable it in a development environment.
+9. The first sign-in then opens the setup of the company: language and country, company data, the main branch and stock location, tax, and accounting (turned on there, with a start date you confirm). Each step is saved when you finish it, so you can come back after a dropped connection and continue where you stopped.
+10. If everything works, then set the `CI_ENVIRONMENT` variable to `production` in the .env file
+11. Enjoy!
+12. Oops, an issue? Please make sure you read the FAQ, wiki page, and you checked open and closed issues on GitHub. PHP `display_errors` is disabled by default. Create an` app/Config/.env` file from the `.env.example` to enable it in a development environment.
 
 ## Local install using Docker
 

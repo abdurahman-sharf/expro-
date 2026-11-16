@@ -176,6 +176,8 @@ return [
     'action_scope_changed'                       => 'تغيير فروع الموظف',
     'action_security_settings_changed'           => 'تغيير إعدادات أمنية',
     'action_settings_updated'                    => 'تغيير الإعدادات',
+    'action_setup_completed'                     => 'انتهت تهيئة الشركة',
+    'action_setup_step_saved'                    => 'حُفظت خطوة من تهيئة الشركة',
     'action_status_changed'                      => 'تغيّرت الحالة',
     'action_stock_location_activated'            => 'تم تفعيل موقع مخزون',
     'action_stock_location_deactivated'          => 'تم تعطيل موقع مخزون',

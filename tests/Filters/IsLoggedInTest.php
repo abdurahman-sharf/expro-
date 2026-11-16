@@ -232,4 +232,77 @@ final class IsLoggedInTest extends CIUnitTestCase
 
         $result->assertStatus(200);
     }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function setupSession(int $personId): array
+    {
+        return ['person_id' => $personId, Employee::SETUP_PENDING_KEY => true];
+    }
+
+    private function employeeWhoMayOpenCustomers(): int
+    {
+        return $this->createEmployee(grants: [['permission_id' => 'home', 'menu_group' => 'home'], ['permission_id' => 'office', 'menu_group' => 'home'], ['permission_id' => 'customers', 'menu_group' => 'home']]);
+    }
+
+    private function holdTheInstallationInItsSetup(callable $test): void
+    {
+        $this->db->table('app_config')->replace(['key' => 'install_state', 'value' => 'pending_setup']);
+
+        try {
+            $test();
+        } finally {
+            $this->db->table('app_config')->where('key', 'install_state')->delete();
+        }
+    }
+
+    public function testBefore_SendsAnEmployeeOfAnInstallationInItsSetupToTheSetup(): void
+    {
+        $this->holdTheInstallationInItsSetup(function (): void {
+            $result = $this->withSession($this->setupSession($this->createEmployee()))->get('customers');
+
+            $result->assertRedirect();
+            $this->assertStringEndsWith('setup', $result->getRedirectUrl());
+        });
+    }
+
+    public function testBefore_AnswersAnAjaxRequestDuringTheSetupWithAForbiddenStatus(): void
+    {
+        $this->holdTheInstallationInItsSetup(function (): void {
+            $result = $this->withSession($this->setupSession($this->createEmployee()))->withHeaders(['X-Requested-With' => 'XMLHttpRequest'])->get('customers/search');
+
+            $result->assertStatus(403);
+            $this->assertSame(lang('Setup.must_finish'), json_decode($result->getJSON(), true)['message']);
+        });
+    }
+
+    public function testBefore_LetsTheSetupItsActivationAndTheSignOutThrough(): void
+    {
+        $this->holdTheInstallationInItsSetup(function (): void {
+            $personId = $this->createEmployee();
+
+            foreach (['home/logout', 'accounting_settings/activation_impact'] as $path) {
+                $result = $this->withSession($this->setupSession($personId))->get($path);
+
+                $this->assertStringNotContainsString('setup', (string) $result->getRedirectUrl(), $path);
+            }
+
+            $this->withSession($this->setupSession($personId))->get('setup')->assertStatus(200);
+        });
+    }
+
+    public function testBefore_NeverHoldsASessionThatWasNotFlaggedAtSignIn(): void
+    {
+        $this->holdTheInstallationInItsSetup(function (): void {
+            $this->withSession(['person_id' => $this->employeeWhoMayOpenCustomers()])->get('customers')->assertStatus(200);
+        });
+    }
+
+    public function testBefore_DropsAFlagThatIsOutOfDateOnceTheSetupIsDone(): void
+    {
+        $this->withSession($this->setupSession($this->employeeWhoMayOpenCustomers()))->get('customers')->assertStatus(200);
+
+        $this->assertNull(session()->get(Employee::SETUP_PENDING_KEY));
+    }
 }

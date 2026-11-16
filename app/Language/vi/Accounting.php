@@ -176,6 +176,8 @@ return [
     'action_scope_changed'                       => '',
     'action_security_settings_changed'           => '',
     'action_settings_updated'                    => '',
+    'action_setup_completed'                     => '',
+    'action_setup_step_saved'                    => '',
     'action_status_changed'                      => '',
     'action_stock_location_activated'            => '',
     'action_stock_location_deactivated'          => '',

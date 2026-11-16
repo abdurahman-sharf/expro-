@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingActivation;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingNotReadyException;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\ActivationScreen;
 use App\Libraries\Accounting\FiscalYearService;
 use App\Libraries\Accounting\JournalDescriptionTemplate;
 use App\Libraries\Accounting\JournalSettings;
@@ -299,34 +300,13 @@ class AccountingSetup extends AccountingController
             throw new RedirectException('no_access/accounting_settings/' . AccountingGuard::SETTINGS_MANAGE);
         }
 
-        $status     = $this->activation->status();
-        $inspection = $this->activation->inspect();
+        $data = (new ActivationScreen($this->activation))->data($this->can('accounting_routing') ? base_url('accounting_routing') : null);
 
-        if ($inspection['enabled'] && ($status === null || $status['done'])) {
+        if ($data['enabled'] && ($data['status'] === null || $data['status']['done'])) {
             throw new RedirectException('accounting_settings');
         }
 
-        $codes = array_map(static fn (ReadinessIssue $issue): ReadinessCode => $issue->code, $inspection['automatic']);
-
-        return view('accounting_settings/activate', [
-            'status'          => $status,
-            'enabled'         => $inspection['enabled'],
-            'locked'          => $inspection['locked'],
-            'currency'        => $inspection['currency'],
-            'currency_source' => $inspection['currency_source'],
-            'start_date'      => $inspection['start_date'],
-            'needs_years'     => $this->hasAnyCode($codes, ReadinessCode::NoFiscalYear, ReadinessCode::StartDateOutsideFiscalYear),
-            'entities'        => $inspection['entities_missing'],
-            'has_documents'   => $inspection['has_documents'],
-            'impact'          => $inspection['impact'],
-            'payment_types'   => $inspection['payment_types'],
-            'blockers'        => array_map(fn (ReadinessIssue $issue): string => $this->describe($issue), $inspection['blockers']),
-            'routing_url'     => $this->can('accounting_routing') ? base_url('accounting_routing') : null,
-            'steps'           => [AccountingActivation::STEP_YEARS, AccountingActivation::STEP_SETTINGS, AccountingActivation::STEP_ENTITIES, AccountingActivation::STEP_COMMIT, AccountingActivation::STEP_VERIFY],
-            'ack_impact'      => AccountingActivation::ACK_IMPACT,
-            'ack_documents'   => AccountingActivation::ACK_DOCUMENTS,
-            'ack_payments'    => AccountingActivation::ACK_PAYMENT_TYPES,
-        ]);
+        return view('accounting_settings/activate', $data);
     }
 
     public function getActivationImpact(): ResponseInterface

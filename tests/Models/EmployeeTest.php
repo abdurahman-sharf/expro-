@@ -1020,4 +1020,55 @@ class EmployeeTest extends CIUnitTestCase
 
         $this->assertCount($before, $this->sessionEntries('employee_logout'));
     }
+
+    private function whileTheSetupIs(string $state, callable $test): void
+    {
+        $this->db->table('app_config')->replace(['key' => 'install_state', 'value' => $state]);
+
+        try {
+            $test();
+        } finally {
+            $this->db->table('app_config')->where('key', 'install_state')->delete();
+        }
+    }
+
+    public function testLogin_FlagsTheSessionWhileTheInstallationIsInItsSetup(): void
+    {
+        $username = 'setup-' . uniqid();
+        $this->createEmployee(username: $username);
+
+        $this->whileTheSetupIs('pending_setup', function () use ($username): void {
+            $model = model(Employee::class);
+            $model->login($username, 'password123');
+
+            $this->assertTrue(session()->get(Employee::SETUP_PENDING_KEY));
+            $this->assertTrue($model->setupPending());
+        });
+    }
+
+    public function testLogin_DoesNotFlagTheSessionOfAnInstallationThatIsSetUp(): void
+    {
+        $username = 'done-' . uniqid();
+        $this->createEmployee(username: $username);
+
+        $this->whileTheSetupIs('complete', function () use ($username): void {
+            $model = model(Employee::class);
+            $model->login($username, 'password123');
+
+            $this->assertNull(session()->get(Employee::SETUP_PENDING_KEY));
+            $this->assertFalse($model->setupPending());
+        });
+    }
+
+    public function testSetupPending_AnswersNoAndTakesTheFlagAwayOnceTheSetupIsDone(): void
+    {
+        $username = 'late-' . uniqid();
+        $this->createEmployee(username: $username);
+        $model = model(Employee::class);
+
+        $this->whileTheSetupIs('pending_setup', fn () => $model->login($username, 'password123'));
+
+        $this->assertFalse($model->setupPending());
+        $this->assertNull(session()->get(Employee::SETUP_PENDING_KEY));
+    }
 }
