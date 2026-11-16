@@ -31,6 +31,9 @@ case "$status" in
     *) echo "Login POST returned $status; is the app running against database $DB_NAME?" >&2; exit 1 ;;
 esac
 
+echo "Making the owner of the empty installation"
+(cd "$HERE/../.." && MYSQL_DB_NAME="$DB_NAME" CI_ENVIRONMENT=development php spark setup:dev-owner --username "${UI_USER:-admin}" --password "${UI_PASS:-pointofsale}")
+
 echo "Loading fixtures"
 $MYSQL --default-character-set=utf8mb4 "$DB_NAME" < "$HERE/seed.sql"
 

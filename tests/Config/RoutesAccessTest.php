@@ -35,7 +35,7 @@ final class RoutesAccessTest extends CIUnitTestCase
     use EmployeeFixtureTrait;
     use DatabaseFingerprintTrait;
 
-    private const PUBLIC_ROUTES             = ['', 'login', 'migrate'];
+    private const PUBLIC_ROUTES             = ['', 'login', 'migrate', 'owner_setup'];
     private const OPEN_TO_A_CUSTOMERS_CLERK = '~^(GET|POST) (home|office|customers|customer_classifications|exports|no_access|secure_Controller|accounting_lookup)(/|$)~';
     private const GUARDED_POSTS             = '~^(accounting_[a-z_]+|roles|branches|integrations|api_keys|customer_portal|employees|config)(/|$)~';
     private const DELEGATED_TO_THE_SERVICE  = ['POST accounting_journals/post_drafts', 'POST accounting_journals/delete_drafts'];

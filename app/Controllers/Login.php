@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Libraries\MigrationPreflight;
 use App\Libraries\MY_Migration;
+use App\Libraries\Setup\InstallState;
 use App\Libraries\WebMigration;
 use App\Models\Employee;
 use CodeIgniter\HTTP\RedirectResponse;
@@ -55,6 +56,10 @@ class Login extends BaseController
                 'config'          => $config,
                 'validation'      => $validation,
             ];
+
+            if ($data['isLatest'] && ! $data['isNewInstall'] && (new InstallState())->needsOwner()) {
+                return view('setup/claim', ['error' => null, 'old' => []]);
+            }
 
             if ($this->request->getMethod() !== 'POST') {
                 $data['migrationRefusal'] = $data['isLatest'] ? null : (new MigrationPreflight())->refusal();

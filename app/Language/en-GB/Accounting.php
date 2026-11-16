@@ -123,6 +123,8 @@ return [
     'action_opening_stock_reversed'              => 'Opening stock reversed',
     'action_operations_held'                     => 'Operations frozen',
     'action_operations_released'                 => 'Operations freeze lifted',
+    'action_owner_claim_failed'                  => 'Owner account sign-up failed',
+    'action_owner_claimed'                       => 'Owner account created',
     'action_party_contacts_changed'              => 'Contact list changed',
     'action_party_contacts_hidden'               => 'Contact list hidden with its party',
     'action_payment_methods_updated'             => 'Payment methods of the register changed',

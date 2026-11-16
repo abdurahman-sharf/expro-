@@ -56,6 +56,22 @@ final class SecurityAudit
         });
     }
 
+    public function ownerClaimed(int $personId, string $address): void
+    {
+        $this->record(self::EMPLOYEE_ENTITY, $personId, 'owner_claimed', $personId, JournalOrigin::User, ['address' => $this->printable($address)]);
+    }
+
+    public function ownerClaimFailed(string $address): void
+    {
+        $this->attempt(function () use ($address): void {
+            if ($this->limiter->hit('owner-claim-failed:' . substr(hash('sha256', $address), 0, 32)) > 1) {
+                return;
+            }
+
+            $this->audit->write(self::EMPLOYEE_ENTITY, null, 'owner_claim_failed', null, JournalOrigin::System, ['address' => $this->printable($address)]);
+        });
+    }
+
     public function logout(int $personId): void
     {
         $this->record(self::SESSION_ENTITY, $personId, 'employee_logout', $personId, JournalOrigin::User);

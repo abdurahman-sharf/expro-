@@ -123,6 +123,8 @@ return [
     'action_opening_stock_reversed'              => '',
     'action_operations_held'                     => '',
     'action_operations_released'                 => '',
+    'action_owner_claim_failed'                  => '',
+    'action_owner_claimed'                       => '',
     'action_party_contacts_changed'              => '',
     'action_party_contacts_hidden'               => '',
     'action_payment_methods_updated'             => '',

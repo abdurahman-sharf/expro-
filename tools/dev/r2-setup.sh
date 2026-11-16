@@ -13,6 +13,7 @@ M="mysql -h127.0.0.1 -uadmin --default-character-set=utf8mb4"
 case "$DB" in ospos_test_*) ;; *) echo "refusing database $DB" >&2; exit 1;; esac
 $M -e "DROP DATABASE IF EXISTS \`$DB\`; CREATE DATABASE \`$DB\` CHARACTER SET utf8mb4"
 curl -sS -o /dev/null -X POST "$BASE/login" -d "username=admin&password=pointofsale"
+(cd "$ROOT" && CI_ENVIRONMENT=development MYSQL_DB_NAME="$DB" php spark setup:dev-owner --username admin --password "${R2_ADMIN_PASSWORD:-pointofsale}")
 python3 - "$ROOT/tools/ui-smoke/seed.sql" <<'PY' > /tmp/r2-seed.sql
 import sys
 s = open(sys.argv[1]).read()

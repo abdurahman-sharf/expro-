@@ -123,6 +123,8 @@ return [
     'action_opening_stock_reversed'              => 'عُكس المخزون الافتتاحي',
     'action_operations_held'                     => 'تجميد العمليات',
     'action_operations_released'                 => 'رفع تجميد العمليات',
+    'action_owner_claim_failed'                  => 'فشل إنشاء حساب المالك',
+    'action_owner_claimed'                       => 'إنشاء حساب المالك',
     'action_party_contacts_changed'              => 'تغيّرت قائمة الاتصال',
     'action_party_contacts_hidden'               => 'أُخفيت قائمة الاتصال مع طرفها',
     'action_payment_methods_updated'             => 'تغيّرت طرق دفع نقطة البيع',

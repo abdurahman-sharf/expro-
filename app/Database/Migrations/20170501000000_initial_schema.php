@@ -2,6 +2,7 @@
 
 namespace App\Database\Migrations;
 
+use App\Libraries\Setup\InstallState;
 use CodeIgniter\Database\Migration;
 
 class Migration_Initial_Schema extends Migration
@@ -26,6 +27,10 @@ class Migration_Initial_Schema extends Migration
     {
         helper('migration');
         executeScript(APPPATH . 'Database/Migrations/sqlscripts/initial_schema.sql');
+
+        if (ENVIRONMENT !== 'testing') {
+            (new InstallState($this->db))->initializeFreshInstall();
+        }
     }
 
     /**

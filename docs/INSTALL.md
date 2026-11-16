@@ -55,10 +55,13 @@ First of all, if you're seeing the message `system folder missing` after launchi
 4. If `.env` does not exist, copy `.env.example` to `.env`.
 5. Open `.env` and modify credentials to connect to your database if needed.
 6. The database schema will be automatically created when you first access the application. Migrations run automatically on fresh installs.
-7. Go to your install `public` dir via the browser.
-8. Log in using
-   - Username: admin
-   - Password: pointofsale
+7. Go to your install `public` dir via the browser and let it build the database.
+8. A new installation has no default username or password. The login page asks for the **owner setup code**, which only the person with access to the server can read:
+   - Open the file `writable/setup/owner-code.txt` on the server (it is readable by the web server user only and is not served to browsers), or
+   - run `php spark setup:code` in the installation folder, which prints a new code and makes older ones useless, or
+   - set `setup.code` in `.env` before the first visit when you install by script, and use that value.
+
+   Type the code, then choose your own name, username, email and password. You are signed in as the owner with every module and permission, and the code stops working. Use HTTPS so the password is not sent in the clear.
 9. If everything works, then set the `CI_ENVIRONMENT` variable to `production` in the .env file
 10. Enjoy!
 11. Oops, an issue? Please make sure you read the FAQ, wiki page, and you checked open and closed issues on GitHub. PHP `display_errors` is disabled by default. Create an` app/Config/.env` file from the `.env.example` to enable it in a development environment.

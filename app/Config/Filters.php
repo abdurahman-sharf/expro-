@@ -86,7 +86,7 @@ class Filters extends BaseFilters
         'before' => [
             'transport',
             'honeypot',
-            'isLoggedIn' => ['except' => ['login', 'migrate', 'portal', 'portal/*', 'api/*']],
+            'isLoggedIn' => ['except' => ['login', 'migrate', 'owner_setup', 'portal', 'portal/*', 'api/*']],
             'csrf'       => ['except' => ['login', 'migrate']],
             'invalidchars',
         ],
@@ -123,7 +123,7 @@ class Filters extends BaseFilters
      * @var array<string, array<string, list<string>>>
      */
     public array $filters = [
-        'throttle' => ['before' => ['login', 'migrate']],
+        'throttle' => ['before' => ['login', 'migrate', 'owner_setup']],
 
         'portalguard' => ['before' => ['portal', 'portal/*']],
         'csrf'        => ['before' => ['portal', 'portal/*']],
