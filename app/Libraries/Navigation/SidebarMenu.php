@@ -2,6 +2,8 @@
 
 namespace App\Libraries\Navigation;
 
+use App\Libraries\Organization\BranchGuard;
+
 /**
  * The sidebar: eight sections, each with the pages that exist for its job, arranged by what a person does with
  * them and not by the module that holds them. A section or page shows only to a person who can open what it
@@ -22,7 +24,8 @@ final class SidebarMenu
     /**
      * Each section: icon, the path prefixes that keep it open for a page the menu does not list by name, and its
      * groups. A page: id, the module whose grant opens it, its path, and optionally the permission it asks for as
-     * well, the other modules it asks for, and further paths that count as the page itself.
+     * well, the other modules it asks for, whether it answers "not found" to an employee who is limited to some
+     * branches, and further paths that count as the page itself.
      *
      * @return array<string, array{icon: string, also: list<string>, groups: list<array{label: ?string, items: list<array<string, mixed>>}>}>
      */
@@ -49,10 +52,10 @@ final class SidebarMenu
                 ]],
                 ['label' => 'Module.nav_group_customers', 'items' => [
                     $page('customers', 'customers', 'customers', 'Module.customers'),
-                    $page('accounting_receivables', 'accounting_receivables', 'accounting_receivables', 'Module.accounting_receivables'),
+                    $page('accounting_receivables', 'accounting_receivables', 'accounting_receivables', 'Module.accounting_receivables', ['company' => true]),
                     $page('receivables_payments', 'accounting_receivables', 'accounting_receivables/payments', 'Module.nav_receivables_payments'),
-                    $page('receivables_credit_notes', 'accounting_receivables', 'accounting_receivables/credit_notes', 'Module.nav_receivables_credit_notes'),
-                    $page('receivables_aged', 'accounting_receivables', 'accounting_receivables/aged_ledger', 'Module.nav_receivables_aged'),
+                    $page('receivables_credit_notes', 'accounting_receivables', 'accounting_receivables/credit_notes', 'Module.nav_receivables_credit_notes', ['company' => true]),
+                    $page('receivables_aged', 'accounting_receivables', 'accounting_receivables/aged_ledger', 'Module.nav_receivables_aged', ['company' => true]),
                     $page('accounting_debit_notes', 'accounting_debit_notes', 'accounting_debit_notes', 'Module.nav_debit_notes'),
                     $page('messages', 'messages', 'messages', 'Module.messages'),
                 ]],
@@ -67,10 +70,10 @@ final class SidebarMenu
                 ]],
                 ['label' => 'Module.nav_group_suppliers', 'items' => [
                     $page('suppliers', 'suppliers', 'suppliers', 'Module.suppliers'),
-                    $page('accounting_payables', 'accounting_payables', 'accounting_payables', 'Module.accounting_payables'),
+                    $page('accounting_payables', 'accounting_payables', 'accounting_payables', 'Module.accounting_payables', ['company' => true]),
                     $page('payables_payments', 'accounting_payables', 'accounting_payables/payments', 'Module.nav_payables_payments'),
                     $page('payables_debit_notes', 'accounting_payables', 'accounting_payables/debit_notes', 'Module.nav_payables_debit_notes'),
-                    $page('payables_aged', 'accounting_payables', 'accounting_payables/aged_ledger', 'Module.nav_payables_aged'),
+                    $page('payables_aged', 'accounting_payables', 'accounting_payables/aged_ledger', 'Module.nav_payables_aged', ['company' => true]),
                 ]],
             ]],
             'inventory' => ['icon' => 'bi-box-seam', 'also' => [], 'groups' => [
@@ -247,6 +250,10 @@ final class SidebarMenu
                     }
 
                     if (isset($item['permission']) && ! in_array(strtolower($item['permission']), $held, true)) {
+                        continue;
+                    }
+
+                    if (($item['company'] ?? false) && ! in_array(BranchGuard::ALL_BRANCHES, $held, true)) {
                         continue;
                     }
 

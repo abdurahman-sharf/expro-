@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Navigation;
 
 use App\Libraries\Navigation\SidebarMenu;
+use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Roles\RoleGrants;
 use App\Models\Employee;
 use App\Models\Module;
@@ -165,6 +166,7 @@ final class SidebarMenuTest extends CIUnitTestCase
         }
 
         $everything = $this->everyPermissionId();
+        $balances   = ['accounting_receivables', 'accounting_payables', ...($own['accounting_receivables'] ?? []), ...($own['accounting_payables'] ?? [])];
         $half       = array_slice($modules, 0, intdiv(count($modules), 2));
         $rest       = array_slice($modules, intdiv(count($modules), 2));
 
@@ -178,6 +180,8 @@ final class SidebarMenuTest extends CIUnitTestCase
             'the permissions of a role'                         => $this->employeeHoldingThroughARole($oneEach),
             'half of the modules directly, half through a role' => $this->employeeWithRoles([$this->createRole(array_values(array_diff($rest, RoleGrants::forbidden())))], $half),
             'only the sales cycle'                              => $this->employeeHolding(['sales', 'customers', ...($own['sales'] ?? []), ...($own['customers'] ?? [])]),
+            'the balances of a branch'                          => $this->employeeHolding($balances),
+            'the balances of the company'                       => $this->employeeHolding([...$balances, BranchGuard::ALL_BRANCHES]),
         ];
     }
 
@@ -207,6 +211,10 @@ final class SidebarMenuTest extends CIUnitTestCase
             }
 
             if (isset($page['permission']) && ! $employee->has_grant($page['permission'], $personId)) {
+                continue;
+            }
+
+            if (($page['company'] ?? false) && ! (new BranchGuard())->isUnrestricted($personId)) {
                 continue;
             }
 
@@ -366,6 +374,17 @@ final class SidebarMenuTest extends CIUnitTestCase
         $this->assertSame(['config', 'integrations'], $this->itemIds(SidebarMenu::sections(['integrations', 'config'], ['integrations', 'config'], [], 'home')));
     }
 
+    public function testSections_OffersTheBalancesAndAgedDebtsOnlyToWhoWorksForTheWholeCompany(): void
+    {
+        $modules = ['accounting_receivables', 'accounting_payables'];
+        $held    = ['accounting_receivables', 'accounting_payables'];
+        $kept    = ['receivables_payments', 'payables_payments', 'payables_debit_notes'];
+        $whole   = ['accounting_receivables', 'receivables_payments', 'receivables_credit_notes', 'receivables_aged', 'accounting_payables', 'payables_payments', 'payables_debit_notes', 'payables_aged'];
+
+        $this->assertSame($kept, $this->itemIds(SidebarMenu::sections($modules, $held, [], 'home')));
+        $this->assertEqualsCanonicalizing($whole, $this->itemIds(SidebarMenu::sections($modules, [...$held, BranchGuard::ALL_BRANCHES], [], 'home')));
+    }
+
     public function testSections_AppendsAModuleTheMenuDoesNotNameToTheLastGroupOfSettings(): void
     {
         $sections = SidebarMenu::sections(['config', 'custom_module'], ['config', 'custom_module'], [], 'home');
@@ -379,7 +398,7 @@ final class SidebarMenuTest extends CIUnitTestCase
     public function testSections_MarksTheMostSpecificPageAsTheActiveOne(): void
     {
         $modules = ['accounting_receivables', 'sales'];
-        $held    = ['accounting_receivables', 'sales', 'reports_sales'];
+        $held    = ['accounting_receivables', 'sales', 'reports_sales', BranchGuard::ALL_BRANCHES];
 
         $this->assertSame(['receivables_aged'], $this->activeIds(SidebarMenu::sections($modules, $held, [], 'accounting_receivables/aged_ledger')));
         $this->assertSame(['accounting_receivables'], $this->activeIds(SidebarMenu::sections($modules, $held, [], 'accounting_receivables/view/12')));
