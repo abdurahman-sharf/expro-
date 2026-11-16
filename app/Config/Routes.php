@@ -426,6 +426,7 @@ foreach (['customer_classifications' => 'Customer_classifications', 'item_brands
 
 $routes->group('accounting_reports', static function (RouteCollection $routes) use ($reportFiles): void {
     $routes->get('/', 'AccountingReports::getIndex');
+    $routes->get('overview', 'AccountingOverview::getIndex');
     $routes->get('trial_balance', 'AccountingReports::getIndex');
     $routes->get('csv', 'AccountingReports::getCsv');
     $reportFiles($routes, 'AccountingReports::getCsv', 'Accounting_reports.trial_balance');

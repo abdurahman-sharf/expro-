@@ -120,6 +120,7 @@ final class SidebarMenu
             ]],
             'ledger' => ['icon' => 'bi-journal-bookmark', 'also' => [], 'groups' => [
                 ['label' => 'Module.nav_group_books', 'items' => [
+                    $page('accounting_overview', 'accounting_reports', 'accounting_reports/overview', 'Module.nav_overview'),
                     $page('accounting_chart', 'accounting_chart', 'accounting_chart', 'Module.nav_chart_tree'),
                     $page('ledger', 'accounting_reports', 'accounting_reports/ledger', 'Module.nav_account_statement'),
                     $page('accounting_journals', 'accounting_journals', 'accounting_journals', 'Module.accounting_journals'),

@@ -115,6 +115,7 @@ return [
     'nav_inter_branch'              => 'التسويات بين الفروع',
     'nav_ledger'                    => 'الأستاذ العام',
     'nav_opening_balances'          => 'الأرصدة الافتتاحية',
+    'nav_overview'                  => 'نظرة عامة',
     'nav_payables_aged'             => 'أعمار ديون الموردين',
     'nav_payables_debit_notes'      => 'إشعارات الموردين والمرتجعات',
     'nav_payables_payments'         => 'مدفوعات الموردين',

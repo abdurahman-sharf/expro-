@@ -115,6 +115,7 @@ return [
     'nav_inter_branch'              => 'Inter-branch settlements',
     'nav_ledger'                    => 'General ledger',
     'nav_opening_balances'          => 'Opening balances',
+    'nav_overview'                  => 'Overview',
     'nav_payables_aged'             => 'Supplier aging',
     'nav_payables_debit_notes'      => 'Supplier notes and returns',
     'nav_payables_payments'         => 'Supplier payments',

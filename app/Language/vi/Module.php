@@ -115,6 +115,7 @@ return [
     'nav_inter_branch'              => '',
     'nav_ledger'                    => '',
     'nav_opening_balances'          => '',
+    'nav_overview'                  => '',
     'nav_payables_aged'             => '',
     'nav_payables_debit_notes'      => '',
     'nav_payables_payments'         => '',

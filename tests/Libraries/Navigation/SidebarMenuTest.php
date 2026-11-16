@@ -407,6 +407,26 @@ final class SidebarMenuTest extends CIUnitTestCase
         $this->assertSame(['sales'], $this->activeIds(SidebarMenu::sections($modules, $held, [], 'sales/receipt/5')));
     }
 
+    public function testSections_StartsTheBooksWithTheOverviewOfTheGeneralAccounts(): void
+    {
+        $books = SidebarMenu::definition()['ledger']['groups'][0]['items'];
+
+        $this->assertSame('accounting_overview', $books[0]['id']);
+        $this->assertSame('accounting_reports/overview', $books[0]['path']);
+
+        $ledger = array_values(array_filter(SidebarMenu::sections(['accounting_reports'], ['accounting_reports'], [], 'home'), static fn (array $section): bool => $section['key'] === 'ledger'))[0];
+
+        $this->assertSame(['accounting_overview', 'ledger', 'trial_balance'], array_column($ledger['groups'][0]['items'], 'id'));
+    }
+
+    public function testSections_OffersTheOverviewToWhoHoldsTheReportsModuleAndMarksItApartFromTheTrialBalance(): void
+    {
+        $this->assertContains('accounting_overview', $this->itemIds(SidebarMenu::sections(['accounting_reports'], ['accounting_reports'], [], 'home')));
+        $this->assertNotContains('accounting_overview', $this->itemIds(SidebarMenu::sections(['accounting_chart'], ['accounting_chart'], [], 'home')));
+        $this->assertSame(['accounting_overview'], $this->activeIds(SidebarMenu::sections(['accounting_reports'], ['accounting_reports'], [], 'accounting_reports/overview')));
+        $this->assertSame(['trial_balance'], $this->activeIds(SidebarMenu::sections(['accounting_reports'], ['accounting_reports'], [], 'accounting_reports')));
+    }
+
     public function testSections_MarksTheStartPageForTheRootPath(): void
     {
         $this->assertSame(['home'], $this->activeIds(SidebarMenu::sections(['home', 'sales'], ['home', 'sales'], [], '')));
