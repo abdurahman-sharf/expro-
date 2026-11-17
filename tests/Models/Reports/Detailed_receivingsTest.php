@@ -208,6 +208,8 @@ class Detailed_receivingsTest extends CIUnitTestCase
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
 
         $this->assertSame([$mine], $this->receivingsSeenById($own));
+        $this->assertSame('25.00', $this->boughtSeenBy('own', $own));
+        $this->assertSame('335.00', $this->boughtSeenBy('all'));
     }
 
     public function testGetData_KeepsTheLimitToTheBranchesBesideTheLimitToOwnRecords(): void

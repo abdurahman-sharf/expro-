@@ -58,6 +58,15 @@
   ]
  },
  {
+  "name": "G07 a receiving that names no employee is shown to an own-records employee",
+  "file": "app/Models/Receiving.php",
+  "find": "$where .= ' AND receivings.employee_id = ' . $cut;",
+  "replace": "$where .= ' AND (receivings.employee_id = ' . $cut . ' OR receivings.employee_id = 0)';",
+  "tests": [
+   "tests/Models/Reports/Detailed_receivingsTest.php"
+  ]
+ },
+ {
   "name": "H01 the page of the report is not cut for an own-records employee",
   "file": "app/Models/Receiving.php",
   "find": "$where .= ' AND receivings.employee_id = ' . $cut;",
