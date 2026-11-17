@@ -74,6 +74,7 @@ final class BuiltAssetsTest extends CIUnitTestCase
             $this->assertStringContainsString($option, $script, "the served script does not know the table option {$option}");
         }
 
+        $this->assertStringContainsString('formatRequestFailed()', $script, 'a failed action of a row says nothing in the served script');
         $this->assertMatchesRegularExpression('/\.row-options[^{]*\{/', $styles, 'the button of the options of a row has no style in the served styles');
         $this->assertMatchesRegularExpression('/\.purchase-sums[^{]*\{/', $styles, 'the totals of the list of purchases have no style in the served styles');
     }

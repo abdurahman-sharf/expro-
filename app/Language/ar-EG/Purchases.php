@@ -49,6 +49,7 @@ return [
     'purchase_status'        => 'حالة الشراء',
     'return_of'              => 'مرتجع من {0}',
     'row_options'            => 'خيارات {0}',
+    'scope_own_records'      => 'تُعرض المستندات التي أنشأتها أنت فقط.',
     'status_fully_returned'  => 'مرتجعة كليًا',
     'status_has_returns'     => 'بها مرتجعات',
     'status_partly_returned' => 'مرتجعة جزئيًا',

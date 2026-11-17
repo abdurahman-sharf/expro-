@@ -287,7 +287,9 @@
                     } else {
                         $.notify(response.message, {type: 'danger'});
                     }
-                }, "json");
+                }, "json").fail(function () {
+                    $.notify($.fn.bootstrapTable.defaults.formatRequestFailed(), {type: 'danger'});
+                });
             } else {
                 return false;
             }

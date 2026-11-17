@@ -164,7 +164,7 @@ $routes->group('purchases', static function (RouteCollection $routes) use ($repo
     $routes->get('/', 'Purchases::getIndex');
     $routes->get('search', 'Purchases::getSearch');
     $routes->get('sums', 'Purchases::getSums');
-    $routes->get('row/(:num)', 'Purchases::getRow/$1');
+    $routes->get('row/(:entry)', 'Purchases::getRow/$1');
     $routes->get('suppliers', 'Purchases::getSuppliers');
     $routes->get('csv', 'Purchases::getCsv');
     $reportFiles($routes, 'Purchases::getCsv', 'Purchases.title');

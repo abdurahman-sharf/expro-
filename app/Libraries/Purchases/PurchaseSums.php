@@ -11,8 +11,8 @@ use App\Libraries\Accounting\SaleAmounts;
 final readonly class PurchaseSums
 {
     /**
-     * @param array<string, array{count: int, net: numeric-string, returns: numeric-string, paid: numeric-string, due: numeric-string}> $byCurrency
-     * @param string|null                                                                                                               $refusal    The language key of why nothing was added up, when it was not.
+     * @param array<string, array{count: int, decimals: int|null, net: numeric-string, returns: numeric-string, paid: numeric-string, due: numeric-string}> $byCurrency Decimals are those of a foreign currency and null for the base.
+     * @param string|null                                                                                                                                   $refusal    The language key of why nothing was added up, when it was not.
      */
     public function __construct(
         public array $byCurrency,
@@ -29,7 +29,7 @@ final readonly class PurchaseSums
 
         foreach ($rows as $row) {
             $key = $row->currencyCode ?? '';
-            $sums[$key] ??= ['count' => 0, 'net' => '0', 'returns' => '0', 'paid' => '0', 'due' => '0'];
+            $sums[$key] ??= ['count' => 0, 'decimals' => $row->isForeign() ? $row->decimals : null, 'net' => '0', 'returns' => '0', 'paid' => '0', 'due' => '0'];
 
             $sums[$key]['count']++;
             $sums[$key]['net'] = bcadd($sums[$key]['net'], $row->signedTotal(), SaleAmounts::SCALE);

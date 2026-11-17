@@ -2,6 +2,7 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Roles\RoleService;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -121,6 +122,88 @@ final class PurchasesControllerTest extends FamilyReportTestCase
         $this->assertStringContainsString('"2026-01-31"', $body);
         $this->assertMatchesRegularExpression('/<option value="partly_returned" selected>/', $body);
         $this->assertMatchesRegularExpression('/<option value="unpaid" selected>/', $body);
+    }
+
+    public function testGetIndex_FillsTheMissingDayOfALinkAndPutsABackwardsRangeRightWay(): void
+    {
+        $this->reader();
+
+        $from = $this->get('/purchases?date_from=2026-01-05')->getBody();
+        $to   = $this->get('/purchases?date_to=2026-02-10')->getBody();
+        $swap = $this->get('/purchases?date_from=2026-03-01&date_to=2026-02-01')->getBody();
+
+        $this->assertStringContainsString('const initialFrom = "2026-01-05";', $from);
+        $this->assertStringContainsString('const initialTo = "' . date('Y-m-d') . '";', $from);
+        $this->assertStringContainsString('const initialFrom = "2026-02-01";', $to);
+        $this->assertStringContainsString('const initialTo = "2026-02-10";', $to);
+        $this->assertStringContainsString('const initialFrom = "2026-02-01";', $swap);
+        $this->assertStringContainsString('const initialTo = "2026-03-01";', $swap);
+    }
+
+    public function testGetIndex_NamesTheSupplierOfALinkAndTheNumberOfOneWhoHasNoDocumentToSee(): void
+    {
+        $ids = $this->market();
+        $this->reader();
+
+        $known   = html_entity_decode($this->get('/purchases?supplier_id=' . $ids['second'])->getBody());
+        $unknown = html_entity_decode($this->get('/purchases?supplier_id=987654')->getBody());
+
+        $this->assertStringContainsString('id="f_supplier_name"', $known);
+        $this->assertMatchesRegularExpression('/id="f_supplier_name"[^>]*value="Najd Trading"/', $known);
+        $this->assertMatchesRegularExpression('/id="f_supplier_name"[^>]*value="#987654"/', $unknown);
+    }
+
+    public function testGetIndex_AsksForTheConfirmationOfDeletingAReceiving(): void
+    {
+        $this->reader();
+
+        $body = html_entity_decode($this->get('/purchases')->getBody());
+
+        $this->assertStringContainsString(lang('Receivings.confirm_delete'), $body);
+        $this->assertStringNotContainsString(lang('Reports.confirm_delete'), $body);
+    }
+
+    public function testGetIndex_TellsAnOwnOnlyReaderSoAndHidesTheOldReportThatKnowsNoSuchLimit(): void
+    {
+        $second   = $this->createBranch('B2', 'Second branch');
+        $personId = $this->reader([], [1, $second]);
+
+        $all = html_entity_decode($this->get('/purchases')->getBody());
+
+        $this->assertStringContainsString('id="legacy_report"', $all);
+        $this->assertStringNotContainsString(lang('Purchases.scope_own_records'), $all);
+
+        (new RoleService())->setRecordScope($personId, 'own', null);
+
+        $own = html_entity_decode($this->get('/purchases')->getBody());
+
+        $this->assertStringContainsString(lang('Purchases.scope_own_records'), $own);
+        $this->assertStringNotContainsString('id="legacy_report"', $own);
+        $this->assertSame(lang('Purchases.scope_own_records'), $this->csvRows($this->get('/purchases/csv'))[1][0]);
+    }
+
+    public function testGetSums_AndGetCsv_KeepTheDecimalsOfAForeignCurrency(): void
+    {
+        $this->enableDollars();
+
+        $currencies = new Currencies();
+        $currencies->setActive('JPY', true);
+        $currencies->rates()->add(['currency_code' => 'JPY', 'rate' => '0.025', 'effective_date' => $this->daysAgo(30)]);
+
+        $this->grantPurchaseDate();
+        $this->purchases->useCurrency('JPY');
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($this->item('0.00'), 0, '3', '1234')], -1, null, null, null, date('Y-m-d', strtotime('-10 days'))));
+        $this->purchases->useCurrency('');
+        $this->reader();
+
+        $html = html_entity_decode($this->json('/purchases/sums')['html']);
+        $rows = $this->csvRows($this->get('/purchases/csv'));
+        $last = $rows[count($rows) - 1];
+
+        $this->assertStringContainsString('3,702', $html);
+        $this->assertStringNotContainsString('3,702.00', $html);
+        $this->assertSame(lang('Purchases.sums_net') . ' (JPY)', $last[0]);
+        $this->assertSame('3702', $last[1]);
     }
 
     private function holdTheModuleButNotThePermission(): void

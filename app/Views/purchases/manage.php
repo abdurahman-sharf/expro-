@@ -14,6 +14,7 @@ use App\Libraries\Purchases\PurchaseInvoiceFilters;
  * @var list<int>              $page_sizes
  * @var int                    $page_size
  * @var bool                   $can_receive
+ * @var bool                   $legacy_report
  * @var int                    $employee_id
  * @var array<string, mixed>   $csv_query
  * @var array                  $config
@@ -34,12 +35,13 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         const picker = $('#daterangepicker').data('daterangepicker');
         const initialFrom = <?= json_encode($filters->dateFrom, $jsonFlags) ?>;
         const initialTo = <?= json_encode($filters->dateTo, $jsonFlags) ?>;
+        const failed = <?= json_encode(lang('Common.request_failed'), $jsonFlags) ?>;
 
         const showRange = function(from, to) {
-            start_date = from;
-            end_date = to;
             picker.setStartDate(moment(from, 'YYYY-MM-DD'));
             picker.setEndDate(moment(to, 'YYYY-MM-DD'));
+            start_date = picker.startDate.format('YYYY-MM-DD');
+            end_date = picker.endDate.format('YYYY-MM-DD');
             $('#daterangepicker').val(picker.startDate.format(picker.locale.format) + picker.locale.separator + picker.endDate.format(picker.locale.format));
         };
 
@@ -51,21 +53,32 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         initialFrom && initialTo ? showRange(initialFrom, initialTo) : thisMonth();
 
         const filterValues = function() {
-            return {
+            const values = {
                 date_from: String(start_date).slice(0, 10),
                 date_to: String(end_date).slice(0, 10),
                 supplier_id: $('#f_supplier').val(),
                 status: $('#f_status').val(),
-                payment: $('#f_payment').val(),
-                branches: $('.f-branch:checked').map(function() {
-                    return this.value;
-                }).get()
+                payment: $('#f_payment').val()
             };
+            const boxes = $('.f-branch');
+            const chosen = boxes.filter(':checked');
+
+            if (boxes.length > 0) {
+                values.branches = (chosen.length > 0 ? chosen : boxes).map(function() {
+                    return this.value;
+                }).get();
+            }
+
+            return values;
+        };
+
+        const searchText = function() {
+            return $('#table').bootstrapTable('getOptions').searchText || '';
         };
 
         const fileQuery = function() {
             const sort = $('#table').bootstrapTable('getOptions');
-            return $.param($.extend(filterValues(), {search: $('.search-input').val() || '', sort: sort.sortName || '', order: sort.sortOrder || ''}), true);
+            return $.param($.extend(filterValues(), {search: searchText(), sort: sort.sortName || '', order: sort.sortOrder || ''}));
         };
 
         const showActive = function() {
@@ -78,7 +91,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
         const syncAddress = function() {
             try {
-                history.replaceState(null, '', location.pathname + '?' + $.param(filterValues(), true));
+                history.replaceState(null, '', location.pathname + '?' + $.param(filterValues()));
             } catch (error) {
                 // the address bar is only a convenience
             }
@@ -91,24 +104,40 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         };
 
         let sumsFor = '';
+        let sumsAsked = 0;
 
-        const loadSums = function() {
-            const query = $.param(filterValues(), true);
+        const loadSums = function(force) {
+            const values = $.extend(filterValues(), {search: searchText()});
+            const query = $.param(values);
 
-            if (query === sumsFor) {
+            if (force !== true && query === sumsFor) {
                 return;
             }
 
             sumsFor = query;
+            const asked = ++sumsAsked;
             $('#purchase_sums').attr('aria-busy', 'true');
-            $.get('purchases/sums', filterValues(), function(response) {
-                $('#purchase_sums').attr('aria-busy', 'false').html(response.success ? response.html : '<p class="text-body-secondary mb-0">' + $('<div>').text(response.message).html() + '</p>');
+            $.get('purchases/sums', values, function(response) {
+                if (asked === sumsAsked) {
+                    $('#purchase_sums').attr('aria-busy', 'false').html(response.success ? response.html : '<p class="text-body-secondary mb-0">' + $('<div>').text(response.message).html() + '</p>');
+                }
             }, 'json').fail(function() {
-                $('#purchase_sums').attr('aria-busy', 'false').empty();
+                if (asked === sumsAsked) {
+                    sumsFor = '';
+                    $('#purchase_sums').attr('aria-busy', 'false').empty();
+                }
             });
         };
 
         table_support.submit_handler(<?= json_encode(site_url('purchases/row'), $jsonFlags) ?>);
+
+        const submitRow = table_support.handle_submit;
+
+        table_support.handle_submit = function(resource, response) {
+            response && response.success && loadSums(true);
+
+            return submitRow.call(table_support, resource, response);
+        };
 
         table_support.init({
             resource: 'purchases',
@@ -138,14 +167,22 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             onLoadError: function(status, response) {
                 const message = response && response.responseJSON && response.responseJSON.message;
 
-                message && $.notify(message, {type: 'danger'});
+                links();
+                sumsFor = '';
+                sumsAsked++;
+                $('#purchase_sums').attr('aria-busy', 'false').empty();
+                $.notify(message || failed, {type: 'danger'});
             }
         });
 
         const refresh = function() {
+            if ($('.f-branch').length > 0 && $('.f-branch:checked').length === 0) {
+                $('.f-branch').prop('checked', true);
+            }
+
             showActive();
             syncAddress();
-            table_support.refresh();
+            $('#table').bootstrapTable('refresh', {pageNumber: 1});
         };
 
         $('#purchase_filters').on('submit', function(event) {
@@ -153,18 +190,25 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             refresh();
         });
 
-        $('#daterangepicker').on('apply.daterangepicker', refresh);
+        $('#daterangepicker').on('apply.daterangepicker', function() {
+            start_date = picker.startDate.format('YYYY-MM-DD');
+            end_date = picker.endDate.format('YYYY-MM-DD');
+            refresh();
+        });
 
         $('#f_status, #f_payment').on('change', refresh);
 
         $('#filters_reset').on('click', function() {
             $('#f_supplier').val('');
             $('#f_supplier_name').val('');
+            pickedName = '';
             $('#f_status, #f_payment').val('');
             $('.f-branch').prop('checked', true);
             thisMonth();
             refresh();
         });
+
+        let pickedName = $('#f_supplier_name').val();
 
         $('#f_supplier_name').autocomplete({
             minLength: 1,
@@ -176,11 +220,13 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                 }, 'json');
             },
             select: function(event, ui) {
+                pickedName = ui.item.value;
                 $('#f_supplier').val(ui.item.id);
                 refresh();
             }
         }).on('input', function() {
-            if ($(this).val() === '' && $('#f_supplier').val() !== '') {
+            if ($('#f_supplier').val() !== '' && $(this).val() !== pickedName) {
+                pickedName = '';
                 $('#f_supplier').val('');
                 refresh();
             }
@@ -188,6 +234,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
         $('#page_size').on('change', function() {
             $('#table').bootstrapTable('refreshOptions', {pageSize: parseInt(this.value, 10)});
+            $('#page_size').trigger('focus');
         });
 
         $('#print_list').on('click', function() {
@@ -195,22 +242,37 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         });
 
         $('#table').on('click', '[data-purchase-action="delete"]', function() {
-            table_support.do_delete('receivings', String($(this).data('id')));
+            sumsFor = '';
+            table_support.do_delete('receivings', [String($(this).data('id'))]);
         });
 
         $('#table').on('click', '[data-purchase-action="debit_note"]', function() {
-            $.post('receivings/debitNote/' + $(this).data('id'), function(response) {
-                response.success ? (window.location = response.redirect) : $.notify(response.message, {type: 'danger'});
-            }, 'json');
+            const button = $(this).prop('disabled', true);
+
+            $.post('receivings/debitNote/' + button.data('id'), function(response) {
+                if (response.success) {
+                    window.location = response.redirect;
+
+                    return;
+                }
+
+                button.prop('disabled', false);
+                $.notify(response.message, {type: 'danger'});
+            }, 'json').fail(function() {
+                button.prop('disabled', false);
+                $.notify(failed, {type: 'danger'});
+            });
         });
 
         showActive();
     });
 </script>
 
-<div id="title_bar" class="print_hide btn-toolbar">
-    <a class="btn btn-outline-secondary btn-sm" id="legacy_report" href="<?= esc(site_url('reports/detailed_receivings'), 'attr') ?>"><span class="bi bi-file-earmark-text" aria-hidden="true">&nbsp;</span><?= lang('Purchases.legacy_report') ?></a>
-</div>
+<?php if ($legacy_report): ?>
+    <div id="title_bar" class="print_hide btn-toolbar">
+        <a class="btn btn-outline-secondary btn-sm" id="legacy_report" href="<?= esc(site_url('reports/detailed_receivings'), 'attr') ?>"><span class="bi bi-file-earmark-text" aria-hidden="true">&nbsp;</span><?= lang('Purchases.legacy_report') ?></a>
+    </div>
+<?php endif; ?>
 
 <?php if ($scope_label !== null): ?>
     <div class="alert alert-info mx-2" role="note" id="scope_label"><?= esc($scope_label) ?></div>
@@ -289,7 +351,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                     <a class="btn btn-outline-secondary btn-sm" id="export_xlsx" href="<?= esc(site_url('purchases/xlsx') . '?' . http_build_query($csv_query), 'attr') ?>"><span class="bi bi-file-earmark-excel" aria-hidden="true">&nbsp;</span><?= lang('Purchases.export_excel') ?></a>
                     <a class="btn btn-outline-secondary btn-sm" id="export_pdf" href="<?= esc(site_url('purchases/pdf') . '?' . http_build_query($csv_query), 'attr') ?>"><span class="bi bi-file-earmark-pdf" aria-hidden="true">&nbsp;</span><?= lang('Purchases.export_pdf') ?></a>
                 </div>
-                <a class="btn btn-outline-secondary btn-sm" id="print_list" href="#" role="button"><span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Purchases.print') ?></a>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="print_list"><span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Purchases.print') ?></button>
             </div>
         </div>
 

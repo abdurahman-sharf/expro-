@@ -35,6 +35,14 @@ final class PurchaseInvoiceFiltersTest extends CIUnitTestCase
         $this->assertSame('', $filters->payment);
     }
 
+    public function testFromInput_SwapsADateRangeGivenBackwards(): void
+    {
+        $filters = PurchaseInvoiceFilters::fromInput(['date_from' => '2026-11-17', 'date_to' => '2026-11-01']);
+
+        $this->assertSame('2026-11-01', $filters->dateFrom);
+        $this->assertSame('2026-11-17', $filters->dateTo);
+    }
+
     public function testFromInput_ReadsOnlyTextWhenARequestGivesAnArray(): void
     {
         $filters = PurchaseInvoiceFilters::fromInput(['status' => ['received'], 'payment' => ['paid'], 'supplier_id' => ['5'], 'search' => ['x'], 'date_from' => ['2026-01-01']]);
@@ -50,12 +58,5 @@ final class PurchaseInvoiceFiltersTest extends CIUnitTestCase
         $this->assertTrue((new PurchaseInvoiceFilters(status: 'fully_returned'))->needsFigures());
         $this->assertFalse((new PurchaseInvoiceFilters(status: 'has_returns', supplierId: 3, search: 'x'))->needsFigures());
         $this->assertFalse((new PurchaseInvoiceFilters())->needsFigures());
-    }
-
-    public function testActive_CountsTheFiltersOfTheCardThatAreSet(): void
-    {
-        $this->assertSame(0, (new PurchaseInvoiceFilters(search: 'x'))->active());
-        $this->assertSame(1, (new PurchaseInvoiceFilters(dateFrom: '2026-01-01', dateTo: '2026-01-31'))->active());
-        $this->assertSame(4, (new PurchaseInvoiceFilters('2026-01-01', null, 2, 'return', 'paid'))->active());
     }
 }

@@ -40,8 +40,8 @@
  {
   "name": "G05 a wildcard typed in the search matches everything",
   "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
-  "find": "$like     = '%' . $this->db->escapeLikeString($filters->search) . '%';",
-  "replace": "$like     = '%' . $filters->search . '%';",
+  "find": "return '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term) . '%';",
+  "replace": "return '%' . $term . '%';",
   "tests": [
    "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
   ]
@@ -143,8 +143,8 @@
  {
   "name": "G16 the suppliers offered are not cut down to the branches of the reader",
   "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
-  "find": "[$where, $bindings] = $this->conditions($branchIds, new PurchaseInvoiceFilters(), $viewerId);\n\n        $name",
-  "replace": "[$where, $bindings] = $this->conditions(null, new PurchaseInvoiceFilters(), $viewerId);\n\n        $name",
+  "find": "[$where, $bindings] = $this->conditions($branchIds, new PurchaseInvoiceFilters(supplierId: $supplierId), $viewerId);",
+  "replace": "[$where, $bindings] = $this->conditions(null, new PurchaseInvoiceFilters(supplierId: $supplierId), $viewerId);",
   "tests": [
    "tests/Libraries/Purchases/PurchaseInvoiceListTest.php",
    "tests/Controllers/PurchasesControllerTest.php"
@@ -189,7 +189,7 @@
  {
   "name": "G21 a purchase is marked overdue while the books are off",
   "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
-  "find": "$overdue = $books && $read['figures'] !== null ? $figures->daysOverdue($this->today) : 0;",
+  "find": "$overdue = $books && ($read['figures'] !== null || $code !== null) ? $figures->daysOverdue($this->today) : 0;",
   "replace": "$overdue = $figures->daysOverdue($this->today);",
   "tests": [
    "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
@@ -220,6 +220,133 @@
   "replace": "$page('purchase_invoices', 'reports', 'purchases', 'Module.nav_purchase_invoices'),",
   "tests": [
    "tests/Libraries/Navigation/SidebarMenuTest.php"
+  ]
+ },
+ {
+  "name": "G25 a name with a quote is searched with the quote escaped twice",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "$like     = $this->like($filters->search);",
+  "replace": "$like     = '%' . $this->db->escapeLikeString($filters->search) . '%';",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G26 the supplier of a link is looked up among the first ten only",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "new PurchaseInvoiceFilters(supplierId: $supplierId), $viewerId);",
+  "replace": "new PurchaseInvoiceFilters(), $viewerId);",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G27 the documents of one day always run newest first",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "return \"doc_date {$way}, r.receiving_time {$way}, r.receiving_id {$way}\";",
+  "replace": "return \"doc_date {$way}, doc_date DESC, r.receiving_id DESC\";",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G28 a foreign purchase is never overdue",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "($read['figures'] !== null || $code !== null)",
+  "replace": "$read['figures'] !== null",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G29 the decimals of a currency are looked up for every document",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "$known[$code] ??= $currencies->decimalsOf($code)",
+  "replace": "$currencies->decimalsOf($code)",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G30 the totals forget the decimals of a foreign currency",
+  "file": "app/Libraries/Purchases/PurchaseSums.php",
+  "find": "'decimals' => $row->isForeign() ? $row->decimals : null,",
+  "replace": "'decimals' => null,",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php",
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G31 an own-only reader is told the figures are the whole company",
+  "file": "app/Controllers/Purchases.php",
+  "find": "return $this->ownRecordsOnly() ? lang('Purchases.scope_own_records') : $this->scopeLabel($scope);",
+  "replace": "return $this->scopeLabel($scope);",
+  "tests": [
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G32 the old report is offered to an own-only reader",
+  "file": "app/Controllers/Purchases.php",
+  "find": "'legacy_report'  => ! $this->ownRecordsOnly(),",
+  "replace": "'legacy_report'  => true,",
+  "tests": [
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G33 the delete asks the confirmation of the reports",
+  "file": "app/Controllers/Purchases.php",
+  "find": "'editable'       => 'receivings',",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G34 the controller does not look the supplier of a link up by its id",
+  "file": "app/Controllers/Purchases.php",
+  "find": "$this->personId(), $supplierId);",
+  "replace": "$this->personId());",
+  "tests": [
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G35 a range given backwards is left backwards",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceFilters.php",
+  "find": "[$from, $to] = [$to, $from];",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceFiltersTest.php"
+  ]
+ },
+ {
+  "name": "G36 the row of a purchase takes a number of any length",
+  "file": "app/Config/Routes.php",
+  "find": "$routes->get('row/(:entry)', 'Purchases::getRow/$1');",
+  "replace": "$routes->get('row/(:num)', 'Purchases::getRow/$1');",
+  "tests": [
+   "tests/Config/RoutesTest.php"
+  ]
+ },
+ {
+  "name": "G37 the sums of the file are kept to two decimals",
+  "file": "app/Controllers/Purchases.php",
+  "find": "$decimals = $sum['decimals'] ?? 2;",
+  "replace": "$decimals = 2;",
+  "tests": [
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G38 a link with only an end day starts this month whatever the end",
+  "file": "app/Controllers/Purchases.php",
+  "find": "$from = $filters->dateFrom ?? substr($to, 0, 8) . '01';",
+  "replace": "$from = $filters->dateFrom ?? date('Y-m-01');",
+  "tests": [
+   "tests/Controllers/PurchasesControllerTest.php"
   ]
  }
 ]

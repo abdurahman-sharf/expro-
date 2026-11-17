@@ -49,6 +49,7 @@ return [
     'purchase_status'        => 'Purchase status',
     'return_of'              => 'Return of {0}',
     'row_options'            => 'Options of {0}',
+    'scope_own_records'      => 'Only the documents you made are shown.',
     'status_fully_returned'  => 'Fully returned',
     'status_has_returns'     => 'Has returns',
     'status_partly_returned' => 'Partly returned',

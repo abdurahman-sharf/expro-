@@ -40,6 +40,9 @@
         formatAllRows: function() {
             return "<?= lang('Bootstrap_tables.all') ?>";
         },
+        formatRequestFailed: function() {
+            return "<?= lang('Common.request_failed') ?>";
+        },
         formatConfirmAction: function(action) {
             if (action == "delete") {
                 return "<?= lang(ucfirst($editable ?? $controller_name) . '.confirm_delete') ?>";

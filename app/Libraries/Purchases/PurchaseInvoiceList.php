@@ -151,16 +151,16 @@ final class PurchaseInvoiceList
      *
      * @return list<array{id: int, name: string}>
      */
-    public function suppliers(?array $branchIds, string $term, ?int $viewerId = null): array
+    public function suppliers(?array $branchIds, string $term, ?int $viewerId = null, int $supplierId = 0): array
     {
-        [$where, $bindings] = $this->conditions($branchIds, new PurchaseInvoiceFilters(), $viewerId);
+        [$where, $bindings] = $this->conditions($branchIds, new PurchaseInvoiceFilters(supplierId: $supplierId), $viewerId);
 
         $name = $this->supplierName();
         $where .= ($where === '' ? 'WHERE' : ' AND') . ' r.supplier_id IS NOT NULL';
 
         if ($term !== '') {
             $where .= " AND {$name} LIKE ? ESCAPE '!'";
-            $bindings[] = '%' . $this->db->escapeLikeString($term) . '%';
+            $bindings[] = $this->like($term);
         }
 
         $rows = $this->db->query(
@@ -169,6 +169,11 @@ final class PurchaseInvoiceList
         )->getResult();
 
         return array_map(static fn (object $row): array => ['id' => (int) $row->id, 'name' => (string) $row->name], $rows);
+    }
+
+    private function like(string $term): string
+    {
+        return '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term) . '%';
     }
 
     /**
@@ -248,6 +253,10 @@ final class PurchaseInvoiceList
     {
         $column = self::SORTS[$sort] ?? self::SORTS['date'];
         $way    = strtolower($order) === 'asc' ? 'ASC' : 'DESC';
+
+        if ($sort === 'date' || ! isset(self::SORTS[$sort])) {
+            return "doc_date {$way}, r.receiving_time {$way}, r.receiving_id {$way}";
+        }
 
         return "{$column} {$way}, doc_date DESC, r.receiving_id DESC";
     }
@@ -332,7 +341,7 @@ final class PurchaseInvoiceList
         }
 
         if ($filters->search !== '') {
-            $like     = '%' . $this->db->escapeLikeString($filters->search) . '%';
+            $like     = $this->like($filters->search);
             $escape   = "ESCAPE '!'";
             $where[]  = "(n.number LIKE ? {$escape} OR CONCAT('RECV ', r.receiving_id) LIKE ? {$escape} OR r.reference LIKE ? {$escape} OR {$this->supplierName()} LIKE ? {$escape} OR TRIM(CONCAT(COALESCE(ep.first_name, ''), ' ', COALESCE(ep.last_name, ''))) LIKE ? {$escape} OR r.comment LIKE ? {$escape})";
             $bindings = [...$bindings, $like, $like, $like, $like, $like, $like];
@@ -405,7 +414,7 @@ final class PurchaseInvoiceList
                 $figures ??= new PurchaseFigures($id, (string) $row->doc_date, $total, $read['paid'], '0.0000', $returned[$id] ?? '0.0000', $row->due_date === null ? (string) $row->doc_date : (string) $row->due_date);
                 $state   = $figures->paymentState();
                 $returns = $figures->returnState();
-                $overdue = $books && $read['figures'] !== null ? $figures->daysOverdue($this->today) : 0;
+                $overdue = $books && ($read['figures'] !== null || $code !== null) ? $figures->daysOverdue($this->today) : 0;
             }
 
             $list[$id] = new PurchaseInvoiceRow(
@@ -483,6 +492,7 @@ final class PurchaseInvoiceList
     private function decimalsOf(array $rows): array
     {
         $decimals   = [];
+        $known      = [];
         $currencies = null;
 
         foreach ($rows as $row) {
@@ -491,7 +501,8 @@ final class PurchaseInvoiceList
             }
 
             $currencies ??= new Currencies($this->db);
-            $decimals[(int) $row->receiving_id] = $currencies->decimalsOf((string) $row->currency_code);
+            $code                               = (string) $row->currency_code;
+            $decimals[(int) $row->receiving_id] = $known[$code] ??= $currencies->decimalsOf($code);
         }
 
         return $decimals;

@@ -49,6 +49,7 @@ return [
     'purchase_status'        => '',
     'return_of'              => '',
     'row_options'            => '',
+    'scope_own_records'      => '',
     'status_fully_returned'  => '',
     'status_has_returns'     => '',
     'status_partly_returned' => '',

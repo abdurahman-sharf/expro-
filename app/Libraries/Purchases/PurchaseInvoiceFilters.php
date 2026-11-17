@@ -27,10 +27,16 @@ final readonly class PurchaseInvoiceFilters
 
         $status  = $text('status');
         $payment = $text('payment');
+        $from    = self::day($text('date_from'));
+        $to      = self::day($text('date_to'));
+
+        if ($from !== null && $to !== null && $from > $to) {
+            [$from, $to] = [$to, $from];
+        }
 
         return new self(
-            self::day($text('date_from')),
-            self::day($text('date_to')),
+            $from,
+            $to,
             ctype_digit($text('supplier_id')) ? (int) $text('supplier_id') : 0,
             in_array($status, self::STATUSES, true) ? $status : '',
             in_array($payment, self::PAYMENTS, true) ? $payment : '',
@@ -44,14 +50,6 @@ final readonly class PurchaseInvoiceFilters
     public function needsFigures(): bool
     {
         return $this->payment !== '' || $this->status === 'partly_returned' || $this->status === 'fully_returned';
-    }
-
-    /**
-     * How many of the filters of the card are set, for the card to say while it is folded.
-     */
-    public function active(): int
-    {
-        return count(array_filter([$this->dateFrom !== null || $this->dateTo !== null, $this->supplierId > 0, $this->status !== '', $this->payment !== ''], static fn (bool $set): bool => $set));
     }
 
     private static function day(string $text): ?string

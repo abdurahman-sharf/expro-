@@ -168,7 +168,7 @@ final class PurchaseInvoiceRows
             '<li><a class="dropdown-item" href="' . esc(site_url("receivings/receipt/{$id}"), 'attr') . '">' . esc(lang('Purchases.action_receipt')) . '</a></li>',
             '<li><a class="dropdown-item" href="' . esc(site_url("receivings/print/{$id}"), 'attr') . '" target="_blank" rel="noopener">' . esc(lang('Purchases.action_print')) . '</a></li>',
             '<li><a class="dropdown-item" href="' . esc(site_url("receivings/pdf/{$id}"), 'attr') . '">' . esc(lang('Purchases.action_pdf')) . '</a></li>',
-            '<li><a class="dropdown-item modal-dlg" href="' . esc(site_url("receivings/edit/{$id}"), 'attr') . '" data-btn-submit="' . esc(lang('Common.submit'), 'attr') . '">' . esc(lang('Purchases.action_edit')) . '</a></li>',
+            '<li><a class="dropdown-item modal-dlg" href="' . esc(site_url("receivings/edit/{$id}"), 'attr') . '" title="' . esc(lang('Purchases.action_edit'), 'attr') . '" data-btn-submit="' . esc(lang('Common.submit'), 'attr') . '">' . esc(lang('Purchases.action_edit')) . '</a></li>',
         ];
 
         if (! $row->isReturn() && $row->supplierId !== null && $row->returnState !== ReturnState::Full) {

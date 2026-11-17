@@ -67,6 +67,7 @@ class RoutesTest extends CIUnitTestCase
             'an account'    => ['accounting_chart/view/abc'],
             'a cost center' => ['accounting_cost_centers/view/abc'],
             'a number too big for an id' => ['branches/view/9999999999999999999'],
+            'a purchase row too big for an id' => ['purchases/row/99999999999999999999'],
         ];
     }
 

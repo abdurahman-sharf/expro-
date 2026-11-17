@@ -11,6 +11,7 @@ use App\Libraries\Purchases\PurchaseInvoiceList;
 use App\Libraries\Purchases\PurchaseInvoiceRow;
 use App\Libraries\Purchases\PurchaseInvoiceRows;
 use App\Libraries\Purchases\PurchaseSums;
+use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
@@ -47,20 +48,18 @@ class Purchases extends Secure_Controller
         }
 
         $scope   = $this->requestedScope();
-        $filters = PurchaseInvoiceFilters::fromInput($this->request->getGet());
-
-        if ($this->request->getGet('date_from') === null && $this->request->getGet('date_to') === null) {
-            $filters = new PurchaseInvoiceFilters(date('Y-m-01'), date('Y-m-d'), $filters->supplierId, $filters->status, $filters->payment, $filters->search);
-        }
+        $filters = $this->withDays(PurchaseInvoiceFilters::fromInput($this->request->getGet()));
 
         return view('purchases/manage', [
             'page_title'     => lang('Purchases.title'),
+            'editable'       => 'receivings',
             'table_headers'  => transform_headers(PurchaseInvoiceRows::headers($scope->choosable()), true, false),
             'branches'       => $this->branchChoices($scope),
             'selected'       => $scope->ids,
-            'scope_label'    => $this->scopeLabel($scope),
+            'scope_label'    => $this->scopeNote($scope),
             'filters'        => $filters,
             'supplier_label' => $filters->supplierId > 0 ? $this->supplierLabel($scope, $filters->supplierId) : '',
+            'legacy_report'  => ! $this->ownRecordsOnly(),
             'statuses'       => $this->statuses(),
             'payments'       => $this->payments(),
             'page_sizes'     => self::PAGE_SIZES,
@@ -153,7 +152,7 @@ class Purchases extends Secure_Controller
         $handle     = fopen('php://temp', 'r+b');
 
         $this->csvRow($handle, [lang('Purchases.title')]);
-        $this->csvRow($handle, [$this->scopeLabel($scope) ?? lang('Purchases.all_purchases')]);
+        $this->csvRow($handle, [$this->scopeNote($scope) ?? lang('Purchases.all_purchases')]);
         $this->csvRow($handle, PurchaseInvoiceRows::csvHeader($withBranch));
 
         foreach ($rows as $row) {
@@ -161,7 +160,9 @@ class Purchases extends Secure_Controller
         }
 
         foreach (PurchaseSums::of($rows)->byCurrency as $currency => $sum) {
-            $this->csvRow($handle, [lang('Purchases.sums_net') . ($currency === '' ? '' : ' (' . $currency . ')'), number_format((float) $sum['net'], 2, '.', ''), lang('Purchases.sums_paid'), number_format((float) $sum['paid'], 2, '.', ''), lang('Purchases.sums_due'), number_format((float) $sum['due'], 2, '.', '')]);
+            $decimals = $sum['decimals'] ?? 2;
+
+            $this->csvRow($handle, [lang('Purchases.sums_net') . ($currency === '' ? '' : ' (' . $currency . ')'), number_format((float) $sum['net'], $decimals, '.', ''), lang('Purchases.sums_paid'), number_format((float) $sum['paid'], $decimals, '.', ''), lang('Purchases.sums_due'), number_format((float) $sum['due'], $decimals, '.', '')]);
         }
 
         return $this->response
@@ -208,13 +209,31 @@ class Purchases extends Secure_Controller
 
     private function supplierLabel(ReportScope $scope, int $supplierId): string
     {
-        foreach ($this->list->suppliers($this->branchesOf($scope), '', $this->personId()) as $supplier) {
-            if ($supplier['id'] === $supplierId) {
-                return $supplier['name'];
-            }
+        $found = $this->list->suppliers($this->branchesOf($scope), '', $this->personId(), $supplierId);
+
+        return $found === [] ? '#' . $supplierId : $found[0]['name'];
+    }
+
+    private function ownRecordsOnly(): bool
+    {
+        return (new RecordScope())->ownOnly($this->personId());
+    }
+
+    private function scopeNote(ReportScope $scope): ?string
+    {
+        return $this->ownRecordsOnly() ? lang('Purchases.scope_own_records') : $this->scopeLabel($scope);
+    }
+
+    private function withDays(PurchaseInvoiceFilters $filters): PurchaseInvoiceFilters
+    {
+        if ($filters->dateFrom !== null && $filters->dateTo !== null) {
+            return $filters;
         }
 
-        return '';
+        $to   = $filters->dateTo ?? max(date('Y-m-d'), (string) $filters->dateFrom);
+        $from = $filters->dateFrom ?? substr($to, 0, 8) . '01';
+
+        return new PurchaseInvoiceFilters($from, $to, $filters->supplierId, $filters->status, $filters->payment, $filters->search);
     }
 
     /**
@@ -272,17 +291,17 @@ class Purchases extends Secure_Controller
             $label = $currency === '' ? '' : '<span class="badge text-bg-secondary">' . esc(lang('Purchases.sums_foreign', [$currency])) . '</span> ';
             $html .= '<p class="purchase-sums">' . $label
                 . esc(lang('Purchases.sums_documents')) . ' <bdi dir="ltr">' . (int) $sum['count'] . '</bdi> · '
-                . esc(lang('Purchases.sums_net')) . ' <bdi dir="ltr">' . esc($this->sumText($sum['net'])) . '</bdi> · '
-                . esc(lang('Purchases.sums_returns')) . ' <bdi dir="ltr">' . esc($this->sumText($sum['returns'])) . '</bdi> · '
-                . esc(lang('Purchases.sums_paid')) . ' <bdi dir="ltr">' . esc($this->sumText($sum['paid'])) . '</bdi> · '
-                . esc(lang('Purchases.sums_due')) . ' <bdi dir="ltr">' . esc($this->sumText($sum['due'])) . '</bdi></p>';
+                . esc(lang('Purchases.sums_net')) . ' <bdi dir="ltr">' . esc($this->sumText($sum['net'], $sum['decimals'])) . '</bdi> · '
+                . esc(lang('Purchases.sums_returns')) . ' <bdi dir="ltr">' . esc($this->sumText($sum['returns'], $sum['decimals'])) . '</bdi> · '
+                . esc(lang('Purchases.sums_paid')) . ' <bdi dir="ltr">' . esc($this->sumText($sum['paid'], $sum['decimals'])) . '</bdi> · '
+                . esc(lang('Purchases.sums_due')) . ' <bdi dir="ltr">' . esc($this->sumText($sum['due'], $sum['decimals'])) . '</bdi></p>';
         }
 
         return $html;
     }
 
-    private function sumText(string $amount): string
+    private function sumText(string $amount, ?int $decimals): string
     {
-        return to_currency_no_money($amount);
+        return $decimals === null ? to_currency_no_money($amount) : number_format((float) $amount, $decimals, '.', ',');
     }
 }

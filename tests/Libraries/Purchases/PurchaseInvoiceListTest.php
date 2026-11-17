@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Purchases;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\PaymentState;
 use App\Libraries\Accounting\ReceivingType;
 use App\Libraries\Accounting\ReturnState;
@@ -433,6 +434,106 @@ final class PurchaseInvoiceListTest extends FamilyReportTestCase
         $this->assertSame(['', 'USD'], array_keys($sums));
         $this->assertAmount('100.00', $sums['']['net']);
         $this->assertAmount('200.00', $sums['USD']['net']);
+    }
+
+    public function testSearch_FindsASupplierWhoseNameHoldsAQuoteOrABackslash(): void
+    {
+        $apostrophe = $this->purchaseOf('10.00', $this->anotherSupplier("Men's Wear"));
+        $backslash  = $this->purchaseOf('20.00', $this->anotherSupplier('Back\\slash Ltd'));
+        $quoted     = $this->purchaseOf('30.00', $this->anotherSupplier('Quote "Q" Co'));
+
+        $this->assertSame([$apostrophe], $this->idsOf($this->listed(['search' => "Men's"])));
+        $this->assertSame([$backslash], $this->idsOf($this->listed(['search' => 'Back\\slash'])));
+        $this->assertSame([$quoted], $this->idsOf($this->listed(['search' => 'Quote "Q"'])));
+        $this->assertSame([['id' => (int) $this->accountingDb()->table('receivings')->where('receiving_id', $apostrophe)->get()->getRow()->supplier_id, 'name' => "Men's Wear"]], $this->list->suppliers(null, "Men's", $this->employeeId));
+    }
+
+    public function testSuppliers_FindsOneByItsIdWhateverItsRankByName(): void
+    {
+        $last = 0;
+
+        foreach (range(1, 12) as $number) {
+            $last = $this->anotherSupplier(sprintf('Sup %02d', $number));
+            $this->purchaseOf('10.00', $last);
+        }
+
+        $this->assertCount(10, $this->list->suppliers(null, '', $this->employeeId));
+        $this->assertSame([['id' => $last, 'name' => 'Sup 12']], $this->list->suppliers(null, '', $this->employeeId, $last));
+        $this->assertSame([], $this->list->suppliers([], '', $this->employeeId, $last));
+    }
+
+    public function testSearch_ListsTheDocumentsOfOneDayInTheOrderAsked(): void
+    {
+        $first  = $this->purchaseDated('10.00', '2026-02-10');
+        $second = $this->purchaseDated('10.00', '2026-02-10');
+        $third  = $this->purchaseDated('10.00', '2026-02-10');
+        $before = $this->purchaseDated('10.00', '2026-02-09');
+
+        $this->assertSame([$before, $first, $second, $third], $this->orderOf($this->listed([], null, 'date', 'asc')));
+        $this->assertSame([$third, $second, $first, $before], $this->orderOf($this->listed([], null, 'date', 'desc')));
+    }
+
+    public function testSearch_MarksAForeignPurchaseOverdueLikeTheSupplierAccountDoes(): void
+    {
+        $this->enableDollars();
+
+        $late = $this->foreignPurchase('4', '50.00', null, 28);
+
+        $this->assertGreaterThan(0, $this->rowOf($late)->overdueDays);
+        $this->assertSame([$late], $this->idsOf($this->listed(['payment' => 'overdue'])));
+
+        $this->withBooks(false, function () use ($late): void {
+            $this->assertSame(0, $this->rowOf($late)->overdueDays);
+        });
+    }
+
+    public function testSearch_ReadsTheDecimalsOfEachCurrencyOnceWhateverTheNumberOfDocuments(): void
+    {
+        $this->enableDollars();
+
+        $db        = $this->accountingDb();
+        $questions = static fn (): int => (int) $db->query("SHOW SESSION STATUS LIKE 'Questions'")->getRow()->Value;
+        $asked     = [];
+
+        foreach ([1, 5] as $count) {
+            while ((int) $db->table('receivings')->where('currency_code', 'USD')->countAllResults() < $count) {
+                $this->foreignPurchase('1', '10.00');
+            }
+
+            $before        = $questions();
+            $page          = $this->list->search(null, new PurchaseInvoiceFilters(), 'date', 'desc', 25, 0, $this->employeeId);
+            $asked[$count] = $questions() - $before - 1;
+
+            $this->assertCount($count, array_filter($page->rows, static fn (PurchaseInvoiceRow $row): bool => $row->currencyCode === 'USD'));
+        }
+
+        $this->assertLessThanOrEqual($asked[1] + 6, $asked[5], 'four more foreign documents must not cost a lookup of their currency each');
+    }
+
+    public function testSums_KeepTheDecimalsOfAForeignCurrencyAndNoneForTheBase(): void
+    {
+        $this->enableDollars();
+
+        $currencies = new Currencies();
+        $currencies->setActive('JPY', true);
+        $currencies->rates()->add(['currency_code' => 'JPY', 'rate' => '0.025', 'effective_date' => $this->daysAgo(30)]);
+
+        $this->grantPurchaseDate();
+        $this->purchases->useCurrency('JPY');
+
+        $yen = $this->buy([$this->purchaseLine($this->item('0.00'), 0, '3', '1234')], -1, null, null, null, date('Y-m-d', strtotime('-10 days')));
+
+        $this->assertGreaterThan(0, $yen);
+
+        $this->purchases->useCurrency('');
+        $this->foreignPurchase('1', '10.00');
+        $this->purchaseOf('100.00');
+
+        $sums = $this->list->sums(null, new PurchaseInvoiceFilters(), $this->employeeId)->byCurrency;
+
+        $this->assertSame(0, $sums['JPY']['decimals']);
+        $this->assertSame(2, $sums['USD']['decimals']);
+        $this->assertNull($sums['']['decimals']);
     }
 
     public function testSearch_AsksTheSameFewQueriesWhateverThePageSize(): void
