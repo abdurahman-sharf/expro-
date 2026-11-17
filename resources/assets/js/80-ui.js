@@ -6,12 +6,16 @@
         });
     };
 
-    const phoneQuery = window.matchMedia('(min-width: 640px)');
+    const drawerQuery = window.matchMedia('(min-width: 1100px)');
+
+    const hideDrawer = function() {
+        const drawer = document.getElementById('app-sidebar');
+        drawer && bootstrap.Offcanvas.getInstance(drawer)?.hide();
+    };
 
     const closeDrawerWhenWide = function(event) {
         if (event.matches) {
-            const drawer = document.getElementById('app-sidebar');
-            drawer && bootstrap.Offcanvas.getInstance(drawer)?.hide();
+            hideDrawer();
         }
     };
 
@@ -21,11 +25,12 @@
 
     $(function() {
         initTooltips();
-        phoneQuery.addEventListener('change', closeDrawerWhenWide);
+        drawerQuery.addEventListener('change', closeDrawerWhenWide);
 
-        $('#app-sidebar').on('click', '.app-nav-link', function() {
-            const drawer = document.getElementById('app-sidebar');
-            bootstrap.Offcanvas.getInstance(drawer)?.hide();
+        $('#app-sidebar').on('click', '.app-nav-link, .app-user-link', function(event) {
+            if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
+                hideDrawer();
+            }
         });
     });
 

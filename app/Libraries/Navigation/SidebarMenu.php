@@ -18,16 +18,20 @@ final class SidebarMenu
      * The section the tile of a module on the start page belongs to, for the modules that appear in more than one.
      */
     private const TILE_SECTION = [
-        'accounting_reports' => 'reports',
-        'reports'            => 'reports',
+        'accounting_receivables' => 'customers',
+        'accounting_reports'     => 'reports',
+        'config'                 => self::SETTINGS,
+        'integrations'           => self::SETTINGS,
+        'reports'                => 'reports',
     ];
 
     /**
      * Each section: icon, the path prefixes that keep it open for a page the menu does not list by name, and its
      * groups. A page: id, the module whose grant opens it, its path, and optionally the permission it asks for as
      * well, the other modules it asks for, whether it answers "not found" to an employee who is limited to some
-     * branches, whether it needs accounting to be on, a query string that makes it a view of another page's path, and
-     * further paths that count as the page itself.
+     * branches, whether it needs accounting to be on, a query string that makes it a view of another page's path, the
+     * tab of a page that it opens (a fragment, which only the browser sees) and further paths that count as the page
+     * itself.
      *
      * @return array<string, array{icon: string, also: list<string>, groups: list<array{label: ?string, items: list<array<string, mixed>>}>}>
      */
@@ -42,29 +46,48 @@ final class SidebarMenu
                     $page('notifications', 'notifications', 'notifications', 'Module.notifications'),
                 ]],
             ]],
-            'parties' => ['icon' => 'bi-people', 'also' => [], 'groups' => [
-                ['label' => 'Module.nav_group_customers', 'items' => [
-                    $page('customers', 'customers', 'customers', 'Module.customers'),
-                    $page('accounting_receivables', 'accounting_receivables', 'accounting_receivables', 'Module.accounting_receivables', ['company' => true]),
+            'sales' => ['icon' => 'bi-cart3', 'also' => [], 'groups' => [
+                ['label' => null, 'items' => [
+                    $page('sales_log', 'sales', 'sales/manage', 'Module.nav_sales_invoices', ['permission' => 'reports_sales']),
+                    $page('sales', 'sales', 'sales', 'Module.nav_pos_new'),
+                    $page('sales_documents', 'sales', 'sales/documents', 'Module.nav_sales_documents', ['permission' => 'reports_sales']),
+                    $page('customer_orders', 'customer_orders', 'customer_orders', 'Module.customer_orders'),
+                    $page('recurring_invoices', 'recurring_invoices', 'recurring_invoices', 'Module.recurring_invoices'),
                     $page('receivables_credit_notes', 'accounting_receivables', 'accounting_receivables/credit_notes', 'Module.nav_receivables_credit_notes', ['company' => true]),
+                    $page('accounting_debit_notes', 'accounting_debit_notes', 'accounting_debit_notes', 'Module.nav_customer_debit_notes'),
+                    $page('receivables_payments', 'accounting_receivables', 'accounting_receivables/payments', 'Module.nav_receivables_payments'),
+                    $page('collected_invoices', 'accounting_reports', 'accounting_reports/net_position', 'Module.nav_collected_invoices', ['permission' => 'reports_sales', 'query' => 'status[]=paid']),
+                    $page('giftcards', 'giftcards', 'giftcards', 'Module.giftcards'),
+                ]],
+            ]],
+            'customers' => ['icon' => 'bi-people', 'also' => [], 'groups' => [
+                ['label' => null, 'items' => [
+                    $page('customers', 'customers', 'customers', 'Module.customers'),
+                    $page('customer_classifications', 'customers', 'customer_classifications', 'Lookups.customer_classification_title'),
+                    $page('accounting_receivables', 'accounting_receivables', 'accounting_receivables', 'Module.accounting_receivables', ['company' => true]),
                     $page('receivables_aged', 'accounting_receivables', 'accounting_receivables/aged_ledger', 'Module.nav_receivables_aged', ['company' => true]),
-                    $page('accounting_debit_notes', 'accounting_debit_notes', 'accounting_debit_notes', 'Module.nav_debit_notes'),
-                ]],
-                ['label' => 'Module.nav_group_suppliers', 'items' => [
-                    $page('suppliers', 'suppliers', 'suppliers', 'Module.suppliers'),
-                    $page('accounting_payables', 'accounting_payables', 'accounting_payables', 'Module.accounting_payables', ['company' => true]),
-                    $page('payables_debit_notes', 'accounting_payables', 'accounting_payables/debit_notes', 'Module.nav_payables_debit_notes'),
-                    $page('payables_aged', 'accounting_payables', 'accounting_payables/aged_ledger', 'Module.nav_payables_aged', ['company' => true]),
-                ]],
-                ['label' => 'Module.nav_group_communication', 'items' => [
                     $page('messages', 'messages', 'messages', 'Module.messages'),
+                ]],
+            ]],
+            'inventory' => ['icon' => 'bi-box-seam', 'also' => [], 'groups' => [
+                ['label' => null, 'items' => [
+                    $page('items', 'items', 'items', 'Module.items'),
+                    $page('item_kits', 'item_kits', 'item_kits', 'Module.item_kits'),
+                    $page('attributes', 'attributes', 'attributes', 'Module.nav_attributes'),
+                    $page('item_brands', 'items', 'item_brands', 'Lookups.item_brand_title'),
+                    $page('stock_units', 'stock_units', 'stock_units', 'Module.stock_units'),
+                    $page('price_lists', 'price_lists', 'price_lists', 'Module.price_lists'),
+                ]],
+                ['label' => 'Module.nav_group_stock', 'items' => [
+                    $page('stock_documents', 'stock_documents', 'stock_documents', 'Module.nav_stock_permits'),
+                    $page('stocktakes', 'stock_documents', 'stock_documents/stocktakes', 'Module.nav_stocktakes'),
+                    $page('stock_requests', 'stock_documents', 'stock_documents/requests', 'Module.nav_stock_requests'),
+                    $page('warehouses', 'config', 'config', 'Config.location_configuration', ['fragment' => 'stock_tab']),
                 ]],
             ]],
             'purchases' => ['icon' => 'bi-bag', 'also' => [], 'groups' => [
                 ['label' => 'Module.nav_group_purchase_invoices', 'items' => [
                     $page('purchase_invoices', 'reports', 'reports/detailed_receivings', 'Module.nav_purchase_invoices', ['permission' => 'reports_receivings']),
-                ]],
-                ['label' => 'Module.nav_group_purchase_new', 'items' => [
                     $page('receivings', 'receivings', 'receivings', 'Module.nav_purchase_new'),
                 ]],
                 ['label' => 'Module.nav_group_purchase_cycle', 'items' => [
@@ -73,62 +96,44 @@ final class SidebarMenu
                     $page('supplier_quotations', 'supplier_quotations', 'supplier_quotations', 'Module.supplier_quotations'),
                     $page('purchase_orders', 'purchase_orders', 'purchase_orders', 'Module.purchase_orders'),
                 ]],
-            ]],
-            'sales' => ['icon' => 'bi-cart3', 'also' => [], 'groups' => [
-                ['label' => 'Module.nav_group_sales_invoices', 'items' => [
-                    $page('sales_log', 'sales', 'sales/manage', 'Module.nav_sales_invoices', ['permission' => 'reports_sales']),
-                    $page('sales_documents', 'sales', 'sales/documents', 'Module.nav_sales_documents', ['permission' => 'reports_sales']),
-                ]],
-                ['label' => 'Module.nav_group_pos', 'items' => [
-                    $page('sales', 'sales', 'sales', 'Module.nav_pos_new'),
-                ]],
-                ['label' => 'Module.nav_group_sales_orders', 'items' => [
-                    $page('customer_orders', 'customer_orders', 'customer_orders', 'Module.customer_orders'),
-                    $page('recurring_invoices', 'recurring_invoices', 'recurring_invoices', 'Module.recurring_invoices'),
-                    $page('price_lists', 'price_lists', 'price_lists', 'Module.price_lists'),
-                    $page('giftcards', 'giftcards', 'giftcards', 'Module.giftcards'),
-                ]],
-            ]],
-            'vouchers' => ['icon' => 'bi-receipt-cutoff', 'also' => [], 'groups' => [
-                ['label' => 'Module.nav_group_receipt_vouchers', 'items' => [
-                    $page('receipt_vouchers', 'receipt_vouchers', 'receipt_vouchers', 'Module.receipt_vouchers', ['accounting' => true]),
-                    $page('receivables_payments', 'accounting_receivables', 'accounting_receivables/payments', 'Module.nav_customer_receipts'),
-                    $page('revenue_categories', 'revenue_categories', 'revenue_categories', 'Module.revenue_categories', ['accounting' => true]),
-                ]],
-                ['label' => 'Module.nav_group_payment_vouchers', 'items' => [
+                ['label' => 'Module.nav_group_suppliers', 'items' => [
+                    $page('suppliers', 'suppliers', 'suppliers', 'Module.suppliers'),
+                    $page('accounting_payables', 'accounting_payables', 'accounting_payables', 'Module.accounting_payables', ['company' => true]),
+                    $page('payables_aged', 'accounting_payables', 'accounting_payables/aged_ledger', 'Module.nav_payables_aged', ['company' => true]),
+                    $page('payables_debit_notes', 'accounting_payables', 'accounting_payables/debit_notes', 'Module.nav_payables_debit_notes'),
                     $page('payables_payments', 'accounting_payables', 'accounting_payables/payments', 'Module.nav_payables_payments'),
                 ]],
             ]],
-            'expenses' => ['icon' => 'bi-cash-coin', 'also' => [], 'groups' => [
-                ['label' => null, 'items' => [
+            'finance' => ['icon' => 'bi-wallet2', 'also' => [], 'groups' => [
+                ['label' => 'Module.nav_group_finance_flows', 'items' => [
                     $page('expenses', 'expenses', 'expenses', 'Module.nav_expenses_with_vouchers'),
                     $page('expenses_categories', 'expenses_categories', 'expenses_categories', 'Module.expenses_categories'),
                     $page('recurring_expenses', 'recurring_expenses', 'recurring_expenses', 'Module.recurring_expenses'),
+                    $page('receipt_vouchers', 'receipt_vouchers', 'receipt_vouchers', 'Module.receipt_vouchers', ['accounting' => true]),
+                    $page('revenue_categories', 'revenue_categories', 'revenue_categories', 'Module.revenue_categories', ['accounting' => true]),
                 ]],
-            ]],
-            'accounts' => ['icon' => 'bi-bank', 'also' => [], 'groups' => [
-                ['label' => null, 'items' => [
+                ['label' => 'Module.nav_group_finance_treasury', 'items' => [
                     $page('accounting_treasuries', 'accounting_treasuries', 'accounting_treasuries', 'Module.nav_treasuries'),
                     $page('treasury_transfers', 'accounting_treasuries', 'accounting_treasuries/transfers', 'Module.nav_transfers'),
                     $page('accounting_cheques', 'accounting_cheques', 'accounting_cheques', 'Module.accounting_cheques'),
-                    $page('bank_reconciliation', 'accounting_treasuries', 'accounting_treasuries/bank', 'Module.nav_bank_reconciliation'),
+                    $page('bank_reconciliation', 'accounting_treasuries', 'accounting_treasuries/bank', 'Module.nav_bank_reconciliation', ['permission' => 'acc_bank_reconcile']),
                     $page('inter_branch', 'accounting_treasuries', 'accounting_treasuries/inter_branch', 'Module.nav_inter_branch'),
                     $page('cashups', 'cashups', 'cashups', 'Module.cashups'),
-                    $page('collected_invoices', 'accounting_reports', 'accounting_reports/net_position', 'Module.nav_collected_invoices', ['permission' => 'reports_sales', 'query' => 'status[]=paid']),
-                    $page('cash_flow', 'accounting_reports', 'accounting_statements/cash_flow', 'Module.nav_cash_flow'),
                 ]],
             ]],
             'ledger' => ['icon' => 'bi-journal-bookmark', 'also' => [], 'groups' => [
                 ['label' => 'Module.nav_group_books', 'items' => [
                     $page('accounting_overview', 'accounting_reports', 'accounting_reports/overview', 'Module.nav_overview'),
                     $page('accounting_chart', 'accounting_chart', 'accounting_chart', 'Module.nav_chart_tree'),
-                    $page('ledger', 'accounting_reports', 'accounting_reports/ledger', 'Module.nav_account_statement'),
+                    $page('journal_new', 'accounting_journals', 'accounting_journals/new', 'Accounting_journals.new', ['permission' => 'acc_journals_draft']),
                     $page('accounting_journals', 'accounting_journals', 'accounting_journals', 'Module.accounting_journals'),
+                    $page('ledger', 'accounting_reports', 'accounting_reports/ledger', 'Module.nav_account_statement'),
                     $page('trial_balance', 'accounting_reports', 'accounting_reports/trial_balance', 'Module.nav_trial_balance', ['aliases' => ['accounting_reports']]),
                 ]],
                 ['label' => 'Module.nav_group_statements', 'items' => [
                     $page('balance_sheet', 'accounting_reports', 'accounting_statements/balance_sheet', 'Module.nav_balance_sheet'),
                     $page('income_statement', 'accounting_reports', 'accounting_statements/income_statement', 'Module.nav_income_statement'),
+                    $page('cash_flow', 'accounting_reports', 'accounting_statements/cash_flow', 'Module.nav_cash_flow'),
                     $page('tax_report', 'accounting_reports', 'accounting_reports/tax', 'Module.nav_tax_report'),
                 ]],
                 ['label' => 'Module.nav_group_posting', 'items' => [
@@ -138,44 +143,46 @@ final class SidebarMenu
                     $page('closings', 'accounting_periods', 'accounting_periods/closings', 'Module.nav_close_periods'),
                     $page('year_end', 'accounting_periods', 'accounting_periods/year_end', 'Module.nav_year_end', ['permission' => 'acc_year_end_close']),
                     $page('opening', 'accounting_periods', 'accounting_periods/opening', 'Module.nav_opening_balances', ['permission' => 'acc_opening_manage']),
+                    $page('accounting_assets', 'accounting_assets', 'accounting_assets', 'Module.accounting_assets'),
                 ]],
                 ['label' => 'Module.nav_group_accounting_settings', 'items' => [
                     $page('accounting_cost_centers', 'accounting_cost_centers', 'accounting_cost_centers', 'Module.accounting_cost_centers'),
                     $page('accounting_currencies', 'accounting_currencies', 'accounting_currencies', 'Module.accounting_currencies'),
-                    $page('accounting_assets', 'accounting_assets', 'accounting_assets', 'Module.accounting_assets'),
                     $page('accounting_ai', 'accounting_ai', 'accounting_ai', 'Module.accounting_ai'),
                     $page('accounting_settings', 'accounting_settings', 'accounting_settings', 'Module.accounting_settings'),
                     $page('accounting_routing', 'accounting_routing', 'accounting_routing', 'Module.accounting_routing'),
                     $page('accounting_einvoicing', 'accounting_einvoicing', 'accounting_einvoicing', 'Module.accounting_einvoicing'),
                 ]],
             ]],
-            'inventory' => ['icon' => 'bi-box-seam', 'also' => [], 'groups' => [
+            'employees' => ['icon' => 'bi-person-badge', 'also' => [], 'groups' => [
                 ['label' => null, 'items' => [
-                    $page('items', 'items', 'items', 'Module.items'),
-                    $page('item_kits', 'item_kits', 'item_kits', 'Module.item_kits'),
-                    $page('attributes', 'attributes', 'attributes', 'Module.nav_attributes'),
-                    $page('stock_units', 'stock_units', 'stock_units', 'Module.stock_units'),
-                ]],
-                ['label' => 'Module.nav_group_stock', 'items' => [
-                    $page('stock_documents', 'stock_documents', 'stock_documents', 'Module.nav_stock_permits'),
-                    $page('stocktakes', 'stock_documents', 'stock_documents/stocktakes', 'Module.nav_stocktakes'),
-                    $page('stock_requests', 'stock_documents', 'stock_documents/requests', 'Module.nav_stock_requests'),
+                    $page('employees', 'employees', 'employees', 'Module.employees'),
+                    $page('roles', 'roles', 'roles', 'Module.roles'),
                 ]],
             ]],
             'reports' => ['icon' => 'bi-bar-chart-line', 'also' => ['accounting_reports', 'accounting_statements'], 'groups' => [
                 ['label' => null, 'items' => [
                     $page('reports', 'reports', 'reports', 'Module.nav_reports_hub'),
+                    $page('activity_log', 'accounting_journals', 'accounting_journals/audit', 'Accounting_journals.audit_title', ['permission' => 'acc_journals_audit', 'aliases' => ['accounting_journals/failures']]),
+                ]],
+            ]],
+            'templates' => ['icon' => 'bi-file-earmark-text', 'also' => [], 'groups' => [
+                ['label' => null, 'items' => [
+                    $page('receipt_templates', 'config', 'config', 'Config.receipt_configuration', ['fragment' => 'receipt_tab']),
+                    $page('invoice_templates', 'config', 'config', 'Config.invoice_configuration', ['fragment' => 'invoice_tab']),
+                    $page('barcode_labels', 'config', 'config', 'Config.barcode_configuration', ['fragment' => 'barcode_tab']),
+                    $page('notification_rules', 'integrations', 'integrations/rules', 'Integrations.notification_rules', ['permission' => 'acc_integrations_manage', 'also' => ['config']]),
                 ]],
             ]],
             self::SETTINGS => ['icon' => 'bi-gear', 'also' => [], 'groups' => [
                 ['label' => null, 'items' => [
                     $page('config', 'config', 'config', 'Module.config'),
                     $page('branches', 'branches', 'branches', 'Module.branches'),
-                    $page('employees', 'employees', 'employees', 'Module.employees'),
-                    $page('roles', 'roles', 'roles', 'Module.roles'),
                     $page('taxes', 'taxes', 'taxes', 'Module.taxes'),
-                    $page('custom_fields', 'custom_fields', 'custom_fields', 'Module.custom_fields'),
+                    $page('payment_methods', 'integrations', 'integrations/payment_methods', 'Integrations.payment_methods', ['permission' => 'acc_integrations_manage', 'also' => ['config']]),
+                    $page('api_keys', 'integrations', 'api_keys', 'Integrations.api_keys', ['permission' => 'api_keys_manage', 'company' => true, 'also' => ['config']]),
                     $page('integrations', 'integrations', 'integrations', 'Module.integrations', ['also' => ['config']]),
+                    $page('custom_fields', 'custom_fields', 'custom_fields', 'Module.custom_fields'),
                 ]],
             ]],
         ];
@@ -245,7 +252,9 @@ final class SidebarMenu
     }
 
     /**
-     * The module ids that open one tile each on the start page, by section, in the order of the menu.
+     * The module ids that open one tile each on the start page, by section, in the order of the menu. A module takes
+     * its tile in the section of its first page, unless TILE_SECTION names another for it: then it takes it at its
+     * first page in that section, or at the end of that section when the section has none of its pages.
      *
      * @return array<string, list<string>>
      */
@@ -266,20 +275,24 @@ final class SidebarMenu
                         continue;
                     }
 
-                    $seen[$module] = true;
-                    $home          = self::TILE_SECTION[$module] ?? $sectionKey;
+                    $home = self::TILE_SECTION[$module] ?? $sectionKey;
 
-                    if ($home === $sectionKey) {
-                        $tiles[$sectionKey][] = $module;
-                    } else {
-                        $deferred[$home][] = $module;
+                    if ($home !== $sectionKey) {
+                        $deferred[$home][$module] = true;
+
+                        continue;
                     }
+
+                    $seen[$module]        = true;
+                    $tiles[$sectionKey][] = $module;
+
+                    unset($deferred[$home][$module]);
                 }
             }
         }
 
         foreach ($deferred as $home => $modules) {
-            $tiles[$home] = [...$tiles[$home], ...$modules];
+            $tiles[$home] = [...$tiles[$home], ...array_keys($modules)];
         }
 
         return $tiles;
@@ -349,7 +362,7 @@ final class SidebarMenu
      * @param string                      $query          Query string of the page being shown, for the pages that are a view of another page's path.
      * @param bool                        $accountingOn   See opens().
      *
-     * @return list<array{key: string, label: string, icon: string, active: bool, groups: list<array{label: ?string, items: list<array{id: string, label: string, url: string, active: bool}>}>}>
+     * @return list<array{key: string, label: string, icon: string, active: bool, direct: bool, groups: list<array{label: ?string, items: list<array{id: string, label: string, url: string, fragment: ?string, active: bool}>}>}>
      */
     public static function sections(array $allowedModules, array $held, array $permissions, string $path, string $query = '', bool $accountingOn = true): array
     {
@@ -392,15 +405,17 @@ final class SidebarMenu
                 $groups[] = [
                     'label' => $label === null ? null : lang($label),
                     'items' => array_map(static fn (array $item): array => [
-                        'id'     => $item['id'],
-                        'label'  => lang($item['label']),
-                        'url'    => base_url($item['path']) . (isset($item['query']) ? '?' . $item['query'] : ''),
-                        'active' => $item['id'] === $activeId,
+                        'id'       => $item['id'],
+                        'label'    => lang($item['label']),
+                        'url'      => base_url($item['path']) . (isset($item['query']) ? '?' . $item['query'] : '') . (isset($item['fragment']) ? '#' . $item['fragment'] : ''),
+                        'fragment' => $item['fragment'] ?? null,
+                        'active'   => $item['id'] === $activeId,
                     ], $items),
                 ];
             }
 
-            $active = $activeId !== null && in_array($activeId, array_column(array_merge(...array_column($groups, 'items')), 'id'), true);
+            $items  = array_merge(...array_column($groups, 'items'));
+            $active = $activeId !== null && in_array($activeId, array_column($items, 'id'), true);
 
             if (! $active && $activeId === null) {
                 $active = self::keepsOpen($section['also'], $path);
@@ -411,6 +426,7 @@ final class SidebarMenu
                 'label'  => lang("Module.nav_section_{$sectionKey}"),
                 'icon'   => $section['icon'],
                 'active' => $active,
+                'direct' => count($items) === 1,
                 'groups' => $groups,
             ];
         }
@@ -444,12 +460,18 @@ final class SidebarMenu
 
     /**
      * How much of the path the page accounts for, or -1 when it is not this page. A page that is a view of another
-     * page's path counts one more when the query string asks for that view, so it wins over the page it views.
+     * page's path counts one more when the query string asks for that view, so it wins over the page it views. A tab
+     * of a page is never chosen here, because the server does not see the fragment: the page it belongs to is, and the
+     * browser then marks the tab.
      *
      * @param array<string, mixed> $item
      */
     private static function matchLength(array $item, string $path, string $query): int
     {
+        if (isset($item['fragment'])) {
+            return -1;
+        }
+
         if (in_array($path, $item['aliases'] ?? [], true)) {
             return strlen($path);
         }

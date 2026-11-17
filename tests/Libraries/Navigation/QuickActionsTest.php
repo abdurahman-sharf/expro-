@@ -169,6 +169,14 @@ final class QuickActionsTest extends CIUnitTestCase
         }
     }
 
+    public function testCatalog_NamesTheShortcutsToTheCustomerAndSupplierPaymentsLikeThePagesOfTheMenu(): void
+    {
+        $labels = array_column(QuickActions::catalog(), 'label', 'id');
+
+        $this->assertSame(SidebarMenu::page('receivables_payments')['label'], $labels['customer_receipts']);
+        $this->assertSame(SidebarMenu::page('payables_payments')['label'], $labels['supplier_payments']);
+    }
+
     public function testCatalog_PointsEveryShortcutAtARouteOfAnExistingController(): void
     {
         foreach (QuickActions::catalog() as $action) {

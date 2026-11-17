@@ -58,7 +58,7 @@ class NavigationHelperTest extends CIUnitTestCase
     {
         $groups = navigationGroups($this->modules('config', 'sales', 'home', 'items', 'receivings'), 'sales');
 
-        $this->assertSame([['home'], ['receivings'], ['sales'], ['items'], ['config']], $this->itemIds($groups));
+        $this->assertSame([['home'], ['sales'], ['items'], ['receivings'], ['config']], $this->itemIds($groups));
     }
 
     public function testNavigationGroups_OmitsGroupsWithoutAllowedModules(): void
@@ -71,9 +71,9 @@ class NavigationHelperTest extends CIUnitTestCase
 
     public function testNavigationGroups_AppendsUnknownModulesToAdministration(): void
     {
-        $groups = navigationGroups($this->modules('employees', 'custom_module'), 'home');
+        $groups = navigationGroups($this->modules('config', 'custom_module'), 'home');
 
-        $this->assertSame([['employees', 'custom_module']], $this->itemIds($groups));
+        $this->assertSame([['config', 'custom_module']], $this->itemIds($groups));
     }
 
     public function testNavigationGroups_MarksOnlyTheActiveModule(): void
@@ -179,11 +179,11 @@ class NavigationHelperTest extends CIUnitTestCase
         $this->assertNotContains('setting', array_column($entries, 'type'));
     }
 
-    public function testNavigationGroups_PutsTheRegisterOfPurchasesBeforeTheFourDocumentsOfTheCycleInTheOrderOfTheChainAndTheSupplierApart(): void
+    public function testNavigationGroups_PutsTheRegisterOfPurchasesBeforeTheFourDocumentsOfTheCycleInTheOrderOfTheChainAndTheSupplierAfterThem(): void
     {
         $groups = navigationGroups($this->modules('purchase_orders', 'receivings', 'supplier_quotations', 'quotation_requests', 'purchase_requests', 'suppliers'), 'purchase_orders');
 
-        $this->assertSame([['suppliers'], ['receivings', 'purchase_requests', 'quotation_requests', 'supplier_quotations', 'purchase_orders']], $this->itemIds($groups));
+        $this->assertSame([['receivings', 'purchase_requests', 'quotation_requests', 'supplier_quotations', 'purchase_orders', 'suppliers']], $this->itemIds($groups));
     }
 
     public function testNavigationGroups_ShowsOnlyTheDocumentsOfThePurchaseCycleTheEmployeeMayOpenWithAnIconAndTheirOwnAddress(): void

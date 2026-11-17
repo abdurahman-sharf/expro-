@@ -42,7 +42,7 @@ final class QuickActions
             $action('sales_invoices', self::PAGE, 'sales/manage', 'Module.nav_sales_invoices', 'bi-card-list', 'blue', 'sales', ['permission' => 'reports_sales']),
             $action('drafts_quotes', self::PAGE, 'sales/documents', 'Module.nav_sales_documents', 'bi-file-earmark-ruled', 'orange', 'sales', ['permission' => 'reports_sales']),
             $action('purchase_invoices', self::PAGE, 'reports/detailed_receivings', 'Module.nav_purchase_invoices', 'bi-journal-text', 'indigo', 'reports', ['permission' => 'reports_receivings']),
-            $action('customer_receipts', self::PAGE, 'accounting_receivables/payments', 'Module.nav_customer_receipts', 'bi-cash-coin', 'green', 'accounting_receivables', ['accounting' => true]),
+            $action('customer_receipts', self::PAGE, 'accounting_receivables/payments', 'Module.nav_receivables_payments', 'bi-cash-coin', 'green', 'accounting_receivables', ['accounting' => true]),
             $action('supplier_payments', self::PAGE, 'accounting_payables/payments', 'Module.nav_payables_payments', 'bi-wallet2', 'purple', 'accounting_payables', ['accounting' => true]),
             $action('cashups', self::PAGE, 'cashups', 'Module.cashups', 'bi-cash-coin', 'teal', 'cashups'),
             $action('chart_tree', self::PAGE, 'accounting_chart', 'Module.nav_chart_tree', 'bi-diagram-3', 'indigo', 'accounting_chart', ['accounting' => true]),

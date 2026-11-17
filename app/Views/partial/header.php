@@ -18,7 +18,6 @@ $pageTitle = navigationPageTitle($controller_name ?? '');
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#042359">
-    <script>try{var d=document.documentElement;if(matchMedia('(min-width:640px)').matches&&(matchMedia('(max-width:1099.98px)').matches||localStorage.getItem('expro.nav.rail')==='true')){d.classList.add('nav-rail')}}catch(e){}</script>
     <link rel="icon" href="<?= assetUrl('img/favicon.ico') ?>">
     <link rel="apple-touch-icon" href="<?= assetUrl('img/apple-touch-icon.png') ?>">
     <link rel="stylesheet" href="<?= assetUrl(isRtl() ? 'css/bootstrap.rtl.min.css' : 'css/bootstrap.min.css') ?>">

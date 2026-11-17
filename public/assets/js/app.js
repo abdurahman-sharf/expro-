@@ -2225,12 +2225,16 @@ function number_sorter(a, b) {
         });
     };
 
-    const phoneQuery = window.matchMedia('(min-width: 640px)');
+    const drawerQuery = window.matchMedia('(min-width: 1100px)');
+
+    const hideDrawer = function() {
+        const drawer = document.getElementById('app-sidebar');
+        drawer && bootstrap.Offcanvas.getInstance(drawer)?.hide();
+    };
 
     const closeDrawerWhenWide = function(event) {
         if (event.matches) {
-            const drawer = document.getElementById('app-sidebar');
-            drawer && bootstrap.Offcanvas.getInstance(drawer)?.hide();
+            hideDrawer();
         }
     };
 
@@ -2240,11 +2244,12 @@ function number_sorter(a, b) {
 
     $(function() {
         initTooltips();
-        phoneQuery.addEventListener('change', closeDrawerWhenWide);
+        drawerQuery.addEventListener('change', closeDrawerWhenWide);
 
-        $('#app-sidebar').on('click', '.app-nav-link', function() {
-            const drawer = document.getElementById('app-sidebar');
-            bootstrap.Offcanvas.getInstance(drawer)?.hide();
+        $('#app-sidebar').on('click', '.app-nav-link, .app-user-link', function(event) {
+            if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
+                hideDrawer();
+            }
         });
     });
 
@@ -2281,127 +2286,210 @@ function number_sorter(a, b) {
 ;
 (function($) {
 
-    const OPEN_KEY = 'expro.nav.open';
-    const RAIL_KEY = 'expro.nav.rail';
-    const root = document.documentElement;
-    const wide = window.matchMedia('(min-width: 640px)');
-    const tablet = window.matchMedia('(min-width: 640px) and (max-width: 1099.98px)');
+    const LEGACY_KEYS = ['expro.nav.open', 'expro.nav.rail'];
+    const FRAGMENT = /^#([a-z]+_tab)$/;
+    const OPEN = 'is-open';
 
-    const read = function(key) {
+    const forgetLegacyState = function() {
         try {
-            return JSON.parse(localStorage.getItem(key));
-        } catch (error) {
-            return null;
-        }
-    };
-
-    const write = function(key, value) {
-        try {
-            localStorage.setItem(key, JSON.stringify(value));
-        } catch (error) {
-            // the menu works without a memory
-        }
-    };
-
-    const isRail = function() {
-        return root.classList.contains('nav-rail');
-    };
-
-    const closeFlyouts = function(except) {
-        $('.app-nav-section.is-flyout').not(except || null).each(function() {
-            $(this).removeClass('is-flyout').find('.app-nav-toggle').attr('aria-expanded', 'false');
-        });
-    };
-
-    const applyRail = function() {
-        const rail = wide.matches && (tablet.matches || read(RAIL_KEY) === true);
-        const button = $('.app-sidebar-collapse');
-
-        root.classList.toggle('nav-rail', rail);
-        closeFlyouts();
-
-        button
-            .attr('aria-pressed', rail ? 'true' : 'false')
-            .attr('title', button.data(rail ? 'label-expand' : 'label-collapse'))
-            .find('.app-nav-text').text(button.data(rail ? 'label-expand' : 'label-collapse'));
-
-        $('.app-nav-section').each(function() {
-            const open = $(this).hasClass('is-open');
-            $(this).find('.app-nav-toggle').attr('aria-expanded', !rail && open ? 'true' : 'false');
-        });
-    };
-
-    const rememberOpen = function() {
-        write(OPEN_KEY, $('.app-nav-section.is-open').map(function() {
-            return this.dataset.navSection;
-        }).get());
-    };
-
-    const placeFlyout = function($section) {
-        const toggle = $section.find('.app-nav-toggle')[0].getBoundingClientRect();
-        const panel = $section.find('.app-nav-panel')[0];
-        const room = window.innerHeight - panel.offsetHeight - 8;
-
-        $section[0].style.setProperty('--nav-fly-top', Math.max(8, Math.min(toggle.top, room)) + 'px');
-    };
-
-    $(function() {
-        const remembered = read(OPEN_KEY);
-
-        if (Array.isArray(remembered)) {
-            $('.app-nav-section').each(function() {
-                if (remembered.indexOf(this.dataset.navSection) !== -1) {
-                    $(this).addClass('is-open');
-                }
+            LEGACY_KEYS.forEach(function(key) {
+                localStorage.removeItem(key);
             });
+        } catch (error) {
+            // a browser without storage has nothing to forget
         }
+    };
 
-        applyRail();
+    const nav = function() {
+        return $('.app-nav');
+    };
 
-        wide.addEventListener('change', applyRail);
-        tablet.addEventListener('change', applyRail);
+    const sections = function() {
+        return $('.app-nav-section');
+    };
 
-        $('.app-nav').on('click', '.app-nav-toggle', function() {
-            const $section = $(this).closest('.app-nav-section');
+    const headings = function() {
+        return $('.app-nav-heading').children('.app-nav-toggle, .app-nav-link');
+    };
 
-            if (isRail()) {
-                const opening = !$section.hasClass('is-flyout');
+    const initialKey = function() {
+        return nav().attr('data-nav-open') || null;
+    };
 
-                closeFlyouts($section);
-                $section.toggleClass('is-flyout', opening);
-                $(this).attr('aria-expanded', opening ? 'true' : 'false');
+    const setOpen = function(key) {
+        sections().each(function() {
+            const $toggle = $(this).children('.app-nav-heading').children('.app-nav-toggle');
 
-                if (opening) {
-                    placeFlyout($section);
-                }
-
+            if (!$toggle.length) {
                 return;
             }
 
-            const open = !$section.hasClass('is-open');
+            const open = key !== null && this.dataset.navSection === key;
 
-            $section.toggleClass('is-open', open);
-            $(this).attr('aria-expanded', open ? 'true' : 'false');
-            rememberOpen();
+            $(this).toggleClass(OPEN, open);
+            $toggle.attr('aria-expanded', open ? 'true' : 'false');
+            $(this).children('.app-nav-panel').prop('hidden', !open);
         });
+    };
 
-        $('.app-sidebar-collapse').on('click', function() {
-            write(RAIL_KEY, !isRail());
-            applyRail();
-        });
+    const revealSection = function($section) {
+        const box = nav()[0].getBoundingClientRect();
+        const rect = $section[0].getBoundingClientRect();
 
-        $(document).on('click', function(event) {
-            if (isRail() && !$(event.target).closest('.app-nav-section').length) {
-                closeFlyouts();
+        if (rect.bottom > box.bottom) {
+            nav()[0].scrollTop += Math.min(rect.bottom - box.bottom, rect.top - box.top);
+        } else if (rect.top < box.top) {
+            nav()[0].scrollTop -= box.top - rect.top;
+        }
+    };
+
+    const revealLink = function($link) {
+        if (!$link.length || !nav().length) {
+            return;
+        }
+
+        const box = nav()[0].getBoundingClientRect();
+        const rect = $link[0].getBoundingClientRect();
+
+        if (rect.top < box.top || rect.bottom > box.bottom) {
+            nav()[0].scrollTop += rect.top - box.top - Math.max(0, (box.height - rect.height) / 2);
+        }
+    };
+
+    const markCurrent = function($link) {
+        $('.app-nav-link.active').removeClass('active').removeAttr('aria-current');
+        sections().removeClass('has-active');
+        $link.addClass('active').attr('aria-current', 'page');
+        $link.closest('.app-nav-section').addClass('has-active');
+    };
+
+    const onThisPage = function() {
+        const strip = function(path) {
+            return path.replace(/\/+$/, '').toLowerCase();
+        };
+
+        return function() {
+            return strip(this.pathname) === strip(window.location.pathname);
+        };
+    }();
+
+    const syncFragment = function(hash) {
+        const $tabs = $('.app-nav-link[data-nav-fragment]').filter(onThisPage);
+
+        if (!$tabs.length) {
+            return;
+        }
+
+        const match = FRAGMENT.exec(typeof hash === 'string' ? hash : window.location.hash);
+        const $target = match
+            ? $tabs.filter(function() {
+                return this.dataset.navFragment === match[1];
+            })
+            : $();
+        const $link = $target.length
+            ? $target.first()
+            : $('.app-nav-link').not('[data-nav-fragment]').filter(onThisPage).first();
+
+        if (!$link.length) {
+            return;
+        }
+
+        markCurrent($link);
+        setOpen($link.closest('.app-nav-section')[0].dataset.navSection);
+        revealLink($link);
+    };
+
+    const sync = function() {
+        setOpen(initialKey());
+        syncFragment();
+    };
+
+    const moveBetweenHeadings = function(event) {
+        const $all = headings();
+        const index = $all.index(event.target);
+
+        if (index === -1) {
+            return false;
+        }
+
+        const last = $all.length - 1;
+        const next = {
+            ArrowDown: index === last ? 0 : index + 1,
+            ArrowUp: index === 0 ? last : index - 1,
+            Home: 0,
+            End: last
+        }[event.key];
+
+        if (next === undefined) {
+            return false;
+        }
+
+        event.preventDefault();
+        $all.eq(next).trigger('focus');
+
+        return true;
+    };
+
+    const closeWithEscape = function(event) {
+        const $open = sections().filter('.' + OPEN);
+
+        if (event.key !== 'Escape' || !$open.length) {
+            return false;
+        }
+
+        const inside = $.contains($open[0], event.target);
+
+        setOpen(null);
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (inside) {
+            $open.children('.app-nav-heading').children('.app-nav-toggle').trigger('focus');
+        }
+
+        return true;
+    };
+
+    window.exproNav = {sync: sync};
+
+    forgetLegacyState();
+
+    $(function() {
+        sync();
+        revealLink($('.app-nav-link.active').first());
+
+        nav().on('click', '.app-nav-toggle', function() {
+            const $section = $(this).closest('.app-nav-section');
+            const open = $section.hasClass(OPEN);
+
+            setOpen(open ? null : $section[0].dataset.navSection);
+
+            if (!open) {
+                revealSection($section);
             }
         });
 
-        $(document).on('keydown', function(event) {
-            if (event.key === 'Escape' && $('.app-nav-section.is-flyout').length) {
-                const $toggle = $('.app-nav-section.is-flyout .app-nav-toggle').first();
+        nav().on('keydown', function(event) {
+            if (!closeWithEscape(event)) {
+                moveBetweenHeadings(event);
+            }
+        });
 
-                closeFlyouts();
-                $toggle.trigger('focus');
+        $(window).on('hashchange', function() {
+            syncFragment();
+        });
+
+        $(document).on('shown.bs.tab', '.settings-link', function(event) {
+            syncFragment($(event.target).attr('data-bs-target'));
+        });
+
+        $('#app-sidebar').on('shown.bs.offcanvas', function() {
+            revealLink($('.app-nav-link.active').first());
+        });
+
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted) {
+                sync();
             }
         });
     });
