@@ -129,7 +129,7 @@ function navigationGroups(array $allowedModules, string $activeModule, ?int $per
  * @param int|null $personId       Person whose grants decide, the one signed in when null.
  * @param string   $query          Query string of the page being shown.
  *
- * @return list<array{key: string, label: string, icon: string, active: bool, groups: list<array{label: ?string, items: list<array{id: string, label: string, url: string, active: bool}>}>}>
+ * @return list<array{key: string, label: string, icon: string, active: bool, direct: bool, groups: list<array{label: ?string, items: list<array{id: string, label: string, url: string, fragment: ?string, active: bool}>}>}>
  */
 function navigationSections(array $allowedModules, string $path, ?int $personId = null, string $query = ''): array
 {

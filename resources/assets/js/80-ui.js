@@ -27,10 +27,14 @@
         initTooltips();
         drawerQuery.addEventListener('change', closeDrawerWhenWide);
 
-        $('#app-sidebar').on('click', '.app-nav-link, .app-user-link', function(event) {
+        $('#app-sidebar').on('click', '.app-nav-link', function(event) {
             if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
                 hideDrawer();
             }
+        });
+
+        $('#app-sidebar').on('click', '.app-user-link', function() {
+            hideDrawer();
         });
     });
 

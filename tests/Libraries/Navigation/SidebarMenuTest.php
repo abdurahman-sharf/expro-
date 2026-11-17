@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Navigation;
 
+use App\Libraries\Accounting\OperationalReports\NetPositionReport;
 use App\Libraries\Navigation\SidebarMenu;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Roles\RoleGrants;
@@ -205,12 +206,40 @@ final class SidebarMenuTest extends CIUnitTestCase
         }
     }
 
-    public function testDefinition_AddsOnlyTheElevenPagesThatExistedButWereNotListed(): void
+    public function testDefinition_AddsOnlyTheElevenUnlistedPagesAndTheViewOfTheReturnedInvoices(): void
     {
         $before = array_keys(require __DIR__ . '/../../Support/SidebarMenuBeforeNav4.php');
         $added  = array_values(array_diff(array_column($this->definedPages(), 'id'), $before));
 
-        $this->assertEqualsCanonicalizing(['customer_classifications', 'item_brands', 'warehouses', 'journal_new', 'activity_log', 'receipt_templates', 'invoice_templates', 'barcode_labels', 'notification_rules', 'payment_methods', 'api_keys'], $added);
+        $this->assertEqualsCanonicalizing(['customer_classifications', 'item_brands', 'warehouses', 'journal_new', 'activity_log', 'receipt_templates', 'invoice_templates', 'barcode_labels', 'notification_rules', 'payment_methods', 'api_keys', 'returned_invoices'], $added);
+    }
+
+    public function testDefinition_PinsTheGateOfEachPageThatWasListedForTheFirstTime(): void
+    {
+        $gates = [
+            'customer_classifications' => ['module' => 'customers', 'path' => 'customer_classifications'],
+            'item_brands'              => ['module' => 'items', 'path' => 'item_brands'],
+            'warehouses'               => ['module' => 'config', 'path' => 'config', 'fragment' => 'stock_tab'],
+            'journal_new'              => ['module' => 'accounting_journals', 'path' => 'accounting_journals/new', 'permission' => 'acc_journals_draft'],
+            'activity_log'             => ['module' => 'accounting_journals', 'path' => 'accounting_journals/audit', 'permission' => 'acc_journals_audit', 'aliases' => ['accounting_journals/failures']],
+            'receipt_templates'        => ['module' => 'config', 'path' => 'config', 'fragment' => 'receipt_tab'],
+            'invoice_templates'        => ['module' => 'config', 'path' => 'config', 'fragment' => 'invoice_tab'],
+            'barcode_labels'           => ['module' => 'config', 'path' => 'config', 'fragment' => 'barcode_tab'],
+            'notification_rules'       => ['module' => 'integrations', 'path' => 'integrations/rules', 'permission' => 'acc_integrations_manage', 'also' => ['config']],
+            'payment_methods'          => ['module' => 'integrations', 'path' => 'integrations/payment_methods', 'permission' => 'acc_integrations_manage', 'also' => ['config']],
+            'api_keys'                 => ['module' => 'integrations', 'path' => 'api_keys', 'permission' => 'api_keys_manage', 'company' => true, 'also' => ['config']],
+            'returned_invoices'        => ['module' => 'accounting_reports', 'path' => 'accounting_reports/net_position', 'permission' => 'reports_sales', 'query' => 'status[]=returned&status[]=partial_return'],
+        ];
+
+        $now = array_column($this->definedPages(), null, 'id');
+
+        foreach ($gates as $id => $gate) {
+            $this->assertArrayHasKey($id, $now, $id);
+
+            foreach (['module', 'path', 'permission', 'company', 'accounting', 'also', 'query', 'fragment', 'aliases'] as $key) {
+                $this->assertSame($gate[$key] ?? null, $now[$id][$key] ?? null, "{$id}.{$key}");
+            }
+        }
     }
 
     public function testDefinition_OpensEveryTabItLinksToOnThePageOfTheSettings(): void
@@ -239,8 +268,8 @@ final class SidebarMenuTest extends CIUnitTestCase
         $counts   = array_map(fn (array $section): int => count($this->itemIds([$section])), $sections);
 
         $this->assertSame(['home', 'sales', 'customers', 'inventory', 'purchases', 'finance', 'ledger', 'employees', 'reports', 'templates', 'settings'], $this->sectionKeys($sections));
-        $this->assertSame([2, 10, 5, 10, 11, 11, 23, 2, 2, 4, 7], $counts);
-        $this->assertSame(87, array_sum($counts));
+        $this->assertSame([2, 11, 5, 10, 11, 11, 23, 2, 2, 4, 7], $counts);
+        $this->assertSame(88, array_sum($counts));
     }
 
     public function testDefinition_NamesEveryPageAndSectionInArabic(): void
@@ -438,6 +467,37 @@ final class SidebarMenuTest extends CIUnitTestCase
         $this->assertSame(['collected_invoices'], $this->activeIds($sections));
     }
 
+    public function testSections_OffersTheReturnedInvoicesWithTheSalesReportsPermissionAndMarksThemByTheirQuery(): void
+    {
+        $modules = ['accounting_reports'];
+
+        $this->assertNotContains('returned_invoices', $this->itemIds(SidebarMenu::sections($modules, ['accounting_reports'], [], 'home')));
+
+        $held     = ['accounting_reports', 'reports_sales'];
+        $returned = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=returned&status[]=partial_return');
+        $paid     = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=paid');
+
+        $this->assertContains('returned_invoices', $this->itemIds($returned));
+        $this->assertSame(['returned_invoices'], $this->activeIds($returned));
+        $this->assertSame(['collected_invoices'], $this->activeIds($paid));
+        $this->assertSame(['sales'], array_column(array_filter($returned, static fn (array $section): bool => $section['active']), 'key'));
+    }
+
+    public function testDefinition_AsksTheNetPositionOnlyForStatesItKnows(): void
+    {
+        $asked = [];
+
+        foreach ($this->definedPages() as $page) {
+            if (($page['path'] === 'accounting_reports/net_position') && isset($page['query'])) {
+                parse_str($page['query'], $query);
+                array_push($asked, ...$query['status']);
+            }
+        }
+
+        $this->assertSame(['paid', 'returned', 'partial_return'], $asked);
+        $this->assertSame([], array_diff($asked, NetPositionReport::STATES));
+    }
+
     public function testSections_NamesTheEveryPostingAndClosingPageApartInTheirOwnGroup(): void
     {
         $held     = ['accounting_journals', 'acc_journals_post', 'accounting_periods', 'acc_backfill_manage', 'acc_year_end_close', 'acc_opening_manage'];
@@ -590,7 +650,7 @@ final class SidebarMenuTest extends CIUnitTestCase
         $this->assertNull($tabs['config']);
     }
 
-    public function testSections_RendersASectionWithOnePageAsADirectLink(): void
+    public function testSections_MarksASectionWithOnePageAsDirect(): void
     {
         $alone = SidebarMenu::sections(['notifications'], ['notifications'], [], 'home');
         $both  = SidebarMenu::sections(['home', 'notifications'], ['home', 'notifications'], [], 'home');
@@ -599,7 +659,28 @@ final class SidebarMenuTest extends CIUnitTestCase
         $this->assertSame([false], array_column($both, 'direct'));
     }
 
-    public function testSections_NamesTheActivityLogAndKeepsItCurrentOnTheFailuresOfThePosting(): void
+    public function testSections_KeepsTheTaxesCurrentOnTheScreenOfTheTaxDefinitions(): void
+    {
+        $sections = SidebarMenu::sections(['taxes'], ['taxes'], [], 'tax_definitions');
+
+        $this->assertSame(['taxes'], $this->activeIds($sections));
+        $this->assertSame(['settings'], array_column(array_filter($sections, static fn (array $section): bool => $section['active']), 'key'));
+    }
+
+    public function testSections_KeepsTheSettingsCurrentAndTheTabOfTheStockApartForSomeoneWhoHoldsOnlyTheSettings(): void
+    {
+        $sections = SidebarMenu::sections(['config'], ['config'], [], 'config');
+
+        $this->assertSame(['config'], $this->activeIds($sections));
+
+        $inventory = array_values(array_filter($sections, static fn (array $section): bool => $section['key'] === 'inventory'));
+
+        $this->assertTrue($inventory[0]['direct']);
+        $this->assertSame('stock_tab', $inventory[0]['groups'][0]['items'][0]['fragment']);
+        $this->assertFalse($inventory[0]['active']);
+    }
+
+    public function testSections_KeepsTheActivityLogCurrentOnTheFailuresOfThePosting(): void
     {
         $modules = ['accounting_journals'];
         $held    = ['accounting_journals', 'acc_journals_audit'];
@@ -615,7 +696,7 @@ final class SidebarMenuTest extends CIUnitTestCase
     public function testSections_ShowsToEveryKindOfHolderTheSamePagesTheMenuShowedBeforeAndTheListedOnes(): void
     {
         $before     = require __DIR__ . '/../../Support/SidebarMenuBeforeNav4.php';
-        $added      = ['customer_classifications', 'item_brands', 'warehouses', 'journal_new', 'activity_log', 'receipt_templates', 'invoice_templates', 'barcode_labels', 'notification_rules', 'payment_methods', 'api_keys'];
+        $added      = ['customer_classifications', 'item_brands', 'warehouses', 'journal_new', 'activity_log', 'receipt_templates', 'invoice_templates', 'barcode_labels', 'notification_rules', 'payment_methods', 'api_keys', 'returned_invoices'];
         $every      = SidebarMenu::modules();
         $permits    = array_values(array_unique(array_filter(array_column($this->definedPages(), 'permission'))));
         $accounting = ['accounting_chart', 'accounting_journals', 'accounting_periods', 'accounting_reports', 'accounting_treasuries', 'accounting_receivables', 'accounting_payables', 'accounting_cheques', 'accounting_assets'];

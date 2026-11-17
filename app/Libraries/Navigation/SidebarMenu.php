@@ -57,6 +57,7 @@ final class SidebarMenu
                     $page('accounting_debit_notes', 'accounting_debit_notes', 'accounting_debit_notes', 'Module.nav_customer_debit_notes'),
                     $page('receivables_payments', 'accounting_receivables', 'accounting_receivables/payments', 'Module.nav_receivables_payments'),
                     $page('collected_invoices', 'accounting_reports', 'accounting_reports/net_position', 'Module.nav_collected_invoices', ['permission' => 'reports_sales', 'query' => 'status[]=paid']),
+                    $page('returned_invoices', 'accounting_reports', 'accounting_reports/net_position', 'Module.nav_returned_invoices', ['permission' => 'reports_sales', 'query' => 'status[]=returned&status[]=partial_return']),
                     $page('giftcards', 'giftcards', 'giftcards', 'Module.giftcards'),
                 ]],
             ]],
@@ -178,7 +179,7 @@ final class SidebarMenu
                 ['label' => null, 'items' => [
                     $page('config', 'config', 'config', 'Module.config'),
                     $page('branches', 'branches', 'branches', 'Module.branches'),
-                    $page('taxes', 'taxes', 'taxes', 'Module.taxes'),
+                    $page('taxes', 'taxes', 'taxes', 'Module.taxes', ['aliases' => ['tax_definitions']]),
                     $page('payment_methods', 'integrations', 'integrations/payment_methods', 'Integrations.payment_methods', ['permission' => 'acc_integrations_manage', 'also' => ['config']]),
                     $page('api_keys', 'integrations', 'api_keys', 'Integrations.api_keys', ['permission' => 'api_keys_manage', 'company' => true, 'also' => ['config']]),
                     $page('integrations', 'integrations', 'integrations', 'Module.integrations', ['also' => ['config']]),

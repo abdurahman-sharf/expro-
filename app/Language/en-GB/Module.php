@@ -131,6 +131,7 @@ return [
     'nav_receivables_credit_notes'  => 'Returns and credit notes',
     'nav_receivables_payments'      => 'Customer payments',
     'nav_reports_hub'               => 'Reports center',
+    'nav_returned_invoices'         => 'Returned invoices',
     'nav_sales_documents'           => 'Drafts and quotes',
     'nav_sales_invoices'            => 'Sales invoices',
     'nav_sales_log'                 => 'Sales log',

@@ -2246,10 +2246,14 @@ function number_sorter(a, b) {
         initTooltips();
         drawerQuery.addEventListener('change', closeDrawerWhenWide);
 
-        $('#app-sidebar').on('click', '.app-nav-link, .app-user-link', function(event) {
+        $('#app-sidebar').on('click', '.app-nav-link', function(event) {
             if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
                 hideDrawer();
             }
+        });
+
+        $('#app-sidebar').on('click', '.app-user-link', function() {
+            hideDrawer();
         });
     });
 
@@ -2344,7 +2348,7 @@ function number_sorter(a, b) {
     };
 
     const revealLink = function($link) {
-        if (!$link.length || !nav().length) {
+        if (!$link.length || !nav().length || !$link[0].getClientRects().length) {
             return;
         }
 
@@ -2365,7 +2369,7 @@ function number_sorter(a, b) {
 
     const onThisPage = function() {
         const strip = function(path) {
-            return path.replace(/\/+$/, '').toLowerCase();
+            return path.replace(/\/index\.php(?=\/|$)/i, '').replace(/\/+$/, '').toLowerCase();
         };
 
         return function() {
@@ -2405,6 +2409,10 @@ function number_sorter(a, b) {
     };
 
     const moveBetweenHeadings = function(event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) {
+            return false;
+        }
+
         const $all = headings();
         const index = $all.index(event.target);
 
@@ -2433,7 +2441,7 @@ function number_sorter(a, b) {
     const closeWithEscape = function(event) {
         const $open = sections().filter('.' + OPEN);
 
-        if (event.key !== 'Escape' || !$open.length) {
+        if (event.key !== 'Escape' || !$open.length || nav().closest('[aria-modal="true"]').length) {
             return false;
         }
 
@@ -2476,7 +2484,11 @@ function number_sorter(a, b) {
         });
 
         $(window).on('hashchange', function() {
-            syncFragment();
+            const match = FRAGMENT.exec(window.location.hash);
+
+            if (match && document.querySelector('.settings-content > .tab-pane#' + match[1])) {
+                syncFragment();
+            }
         });
 
         $(document).on('shown.bs.tab', '.settings-link', function(event) {

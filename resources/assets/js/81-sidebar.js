@@ -58,7 +58,7 @@
     };
 
     const revealLink = function($link) {
-        if (!$link.length || !nav().length) {
+        if (!$link.length || !nav().length || !$link[0].getClientRects().length) {
             return;
         }
 
@@ -79,7 +79,7 @@
 
     const onThisPage = function() {
         const strip = function(path) {
-            return path.replace(/\/+$/, '').toLowerCase();
+            return path.replace(/\/index\.php(?=\/|$)/i, '').replace(/\/+$/, '').toLowerCase();
         };
 
         return function() {
@@ -119,6 +119,10 @@
     };
 
     const moveBetweenHeadings = function(event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) {
+            return false;
+        }
+
         const $all = headings();
         const index = $all.index(event.target);
 
@@ -147,7 +151,7 @@
     const closeWithEscape = function(event) {
         const $open = sections().filter('.' + OPEN);
 
-        if (event.key !== 'Escape' || !$open.length) {
+        if (event.key !== 'Escape' || !$open.length || nav().closest('[aria-modal="true"]').length) {
             return false;
         }
 
@@ -190,7 +194,11 @@
         });
 
         $(window).on('hashchange', function() {
-            syncFragment();
+            const match = FRAGMENT.exec(window.location.hash);
+
+            if (match && document.querySelector('.settings-content > .tab-pane#' + match[1])) {
+                syncFragment();
+            }
         });
 
         $(document).on('shown.bs.tab', '.settings-link', function(event) {

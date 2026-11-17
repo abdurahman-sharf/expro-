@@ -32,7 +32,7 @@ foreach ($sections as $section) {
                 <?php $only = $section['groups'][0]['items'][0]; ?>
                 <section class="app-nav-section is-direct<?= $section['active'] ? ' has-active' : '' ?>" data-nav-section="<?= $section['key'] ?>">
                     <h2 class="app-nav-heading">
-                        <a class="app-nav-link app-nav-top<?= $only['active'] ? ' active' : '' ?>" href="<?= esc($only['url'], 'attr') ?>" data-nav-id="<?= $only['id'] ?>"<?= $only['label'] !== $section['label'] ? ' title="' . esc($only['label'], 'attr') . '"' : '' ?><?= $only['active'] ? ' aria-current="page"' : '' ?>>
+                        <a class="app-nav-link app-nav-top<?= $only['active'] ? ' active' : '' ?>" href="<?= esc($only['url'], 'attr') ?>" data-nav-id="<?= esc($only['id'], 'attr') ?>"<?= $only['fragment'] !== null ? ' data-nav-fragment="' . esc($only['fragment'], 'attr') . '"' : '' ?><?= $only['label'] !== $section['label'] ? ' title="' . esc($only['label'], 'attr') . '"' : '' ?><?= $only['active'] ? ' aria-current="page"' : '' ?>>
                             <i class="bi <?= $section['icon'] ?> app-nav-icon" aria-hidden="true"></i>
                             <span class="app-nav-text"><?= esc($section['label']) ?></span>
                         </a>
@@ -56,7 +56,7 @@ foreach ($sections as $section) {
                             <ul class="app-nav-list">
                                 <?php foreach ($group['items'] as $item): ?>
                                     <li>
-                                        <a class="app-nav-link<?= $item['active'] ? ' active' : '' ?>" href="<?= esc($item['url'], 'attr') ?>" data-nav-id="<?= $item['id'] ?>"<?= $item['fragment'] !== null ? ' data-nav-fragment="' . esc($item['fragment'], 'attr') . '"' : '' ?><?= $item['active'] ? ' aria-current="page"' : '' ?>>
+                                        <a class="app-nav-link<?= $item['active'] ? ' active' : '' ?>" href="<?= esc($item['url'], 'attr') ?>" data-nav-id="<?= esc($item['id'], 'attr') ?>"<?= $item['fragment'] !== null ? ' data-nav-fragment="' . esc($item['fragment'], 'attr') . '"' : '' ?><?= $item['active'] ? ' aria-current="page"' : '' ?>>
                                             <span class="app-nav-text"><?= esc($item['label']) ?></span>
                                         </a>
                                     </li>

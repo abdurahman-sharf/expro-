@@ -131,6 +131,7 @@ return [
     'nav_receivables_credit_notes'  => 'المرتجعات والإشعارات الدائنة',
     'nav_receivables_payments'      => 'مدفوعات العملاء',
     'nav_reports_hub'               => 'مركز التقارير',
+    'nav_returned_invoices'         => 'الفواتير المرتجعة',
     'nav_sales_documents'           => 'المسودات وعروض الأسعار',
     'nav_sales_invoices'            => 'فواتير المبيعات',
     'nav_sales_log'                 => 'سجل المبيعات',

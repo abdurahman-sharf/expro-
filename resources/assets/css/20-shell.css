@@ -127,8 +127,11 @@
 
 .app-nav-heading > .app-nav-link {
     min-height: 44px;
-    color: #d2d7e1;
     font-weight: 600;
+}
+
+.app-nav-heading > .app-nav-link.active {
+    font-weight: 700;
 }
 
 .app-nav-toggle {
@@ -332,7 +335,8 @@
     padding: 24px;
 }
 
-.app-main:focus {
+.app-main:focus,
+.app-sidebar:focus-visible {
     outline: 0;
 }
 
@@ -415,6 +419,8 @@
 @media (max-width: 1099.98px) {
     .app-menu-toggle {
         display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
 }
 
