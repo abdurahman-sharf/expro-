@@ -193,6 +193,7 @@ final class SidebarMenuTest extends CIUnitTestCase
         $decided = [
             'bank_reconciliation' => ['permission' => 'acc_bank_reconcile'],
             'collected_invoices'  => ['query' => 'status[]=paid&show=1'],
+            'purchase_invoices'   => ['path' => 'purchases'],
         ];
 
         $this->assertCount(76, $before);
@@ -397,7 +398,7 @@ final class SidebarMenuTest extends CIUnitTestCase
         $this->assertSame([lang('Module.nav_group_purchase_invoices'), lang('Module.nav_group_purchase_cycle')], array_column($groups, 'label'));
         $this->assertSame(['purchase_invoices', 'receivings'], array_column($groups[0]['items'], 'id'));
         $this->assertSame(['purchase_orders'], array_column($groups[1]['items'], 'id'));
-        $this->assertSame(base_url('reports/detailed_receivings'), $groups[0]['items'][0]['url']);
+        $this->assertSame(base_url('purchases'), $groups[0]['items'][0]['url']);
     }
 
     public function testSections_PutsTheSuppliersAndTheirPaymentsAfterThePurchaseCycle(): void

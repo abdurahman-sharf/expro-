@@ -160,6 +160,16 @@ $routes->group('accounting_payables', static function (RouteCollection $routes) 
     $routes->post('refund/(:num)', 'AccountingPayables::postRefund/$1');
 });
 
+$routes->group('purchases', static function (RouteCollection $routes) use ($reportFiles): void {
+    $routes->get('/', 'Purchases::getIndex');
+    $routes->get('search', 'Purchases::getSearch');
+    $routes->get('sums', 'Purchases::getSums');
+    $routes->get('row/(:num)', 'Purchases::getRow/$1');
+    $routes->get('suppliers', 'Purchases::getSuppliers');
+    $routes->get('csv', 'Purchases::getCsv');
+    $reportFiles($routes, 'Purchases::getCsv', 'Purchases.title');
+});
+
 $routes->group('accounting_cheques', static function (RouteCollection $routes) use ($reportFiles): void {
     $routes->get('/', 'AccountingCheques::getIndex');
     $routes->get('search', 'AccountingCheques::getSearch');

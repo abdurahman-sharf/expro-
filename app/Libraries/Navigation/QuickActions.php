@@ -41,7 +41,7 @@ final class QuickActions
             $action('add_journal', self::PAGE, 'accounting_journals/new', 'Common.shortcut_add_journal', 'bi-journal-plus', 'indigo', 'accounting_journals', ['default' => 12, 'permission' => 'acc_journals_draft', 'accounting' => true]),
             $action('sales_invoices', self::PAGE, 'sales/manage', 'Module.nav_sales_invoices', 'bi-card-list', 'blue', 'sales', ['permission' => 'reports_sales']),
             $action('drafts_quotes', self::PAGE, 'sales/documents', 'Module.nav_sales_documents', 'bi-file-earmark-ruled', 'orange', 'sales', ['permission' => 'reports_sales']),
-            $action('purchase_invoices', self::PAGE, 'reports/detailed_receivings', 'Module.nav_purchase_invoices', 'bi-journal-text', 'indigo', 'reports', ['permission' => 'reports_receivings']),
+            $action('purchase_invoices', self::PAGE, 'purchases', 'Module.nav_purchase_invoices', 'bi-journal-text', 'indigo', 'reports', ['permission' => 'reports_receivings']),
             $action('customer_receipts', self::PAGE, 'accounting_receivables/payments', 'Module.nav_receivables_payments', 'bi-cash-coin', 'green', 'accounting_receivables', ['accounting' => true]),
             $action('supplier_payments', self::PAGE, 'accounting_payables/payments', 'Module.nav_payables_payments', 'bi-wallet2', 'purple', 'accounting_payables', ['accounting' => true]),
             $action('cashups', self::PAGE, 'cashups', 'Module.cashups', 'bi-cash-coin', 'teal', 'cashups'),

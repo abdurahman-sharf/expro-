@@ -344,9 +344,9 @@
             });
         });
         if (actionFields.length) {
-            columns.push({
+            const rowActions = {
                 field: 'row_actions',
-                title: '',
+                title: options.rowActionsTitle || '',
                 switchable: false,
                 sortable: false,
                 escape: false,
@@ -356,7 +356,8 @@
                         return row[field] || '';
                     }).join('');
                 }
-            });
+            };
+            options.rowActionsFirst === true ? columns.unshift(rowActions) : columns.push(rowActions);
         }
         $('#table')
             .addClass("table-hover")
@@ -371,12 +372,12 @@
             search: options.resource || false,
             showColumns: true,
             clickToSelect: true,
-            showExport: true,
+            showExport: options.showExport !== false,
             mobileResponsive: true,
             minWidth: columns.length > 8 ? 1100 : 640,
             exportDataType: 'basic',
-            exportTypes: ['json', 'xml', 'csv', 'txt', 'sql', 'excel'],
-            buttons: pdf_export.buttons(false),
+            exportTypes: options.exportTypes || ['json', 'xml', 'csv', 'txt', 'sql', 'excel'],
+            buttons: options.buttons || pdf_export.buttons(false),
             exportOptions: {
                 fileName: options.resource.replace(/.*\/(.*?)$/g, '$1') + "_" + export_suffix
             },

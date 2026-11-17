@@ -88,7 +88,7 @@ final class SidebarMenu
             ]],
             'purchases' => ['icon' => 'bi-bag', 'also' => [], 'groups' => [
                 ['label' => 'Module.nav_group_purchase_invoices', 'items' => [
-                    $page('purchase_invoices', 'reports', 'reports/detailed_receivings', 'Module.nav_purchase_invoices', ['permission' => 'reports_receivings']),
+                    $page('purchase_invoices', 'reports', 'purchases', 'Module.nav_purchase_invoices', ['permission' => 'reports_receivings']),
                     $page('receivings', 'receivings', 'receivings', 'Module.nav_purchase_new'),
                 ]],
                 ['label' => 'Module.nav_group_purchase_cycle', 'items' => [

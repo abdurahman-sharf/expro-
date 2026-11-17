@@ -1419,6 +1419,26 @@ input.flatpickr-input,
     white-space: nowrap;
 }
 
+.row-options {
+    min-height: 32px;
+    white-space: nowrap;
+}
+
+#table .dropdown-menu {
+    min-width: 11rem;
+}
+
+.purchase-sums {
+    margin-block: 0 .25rem;
+}
+
+@media (pointer: coarse) {
+    .row-options,
+    #table .dropdown-item {
+        min-height: 44px;
+    }
+}
+
 .home-shortcuts {
     margin-block-end: 24px;
     padding: 16px;

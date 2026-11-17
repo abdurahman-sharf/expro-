@@ -4,8 +4,9 @@
  * @var array  $allowed_modules
  * @var string $controller_name
  * @var array  $config
+ * @var string $page_title
  */
-$pageTitle = navigationPageTitle($controller_name ?? '');
+$pageTitle = ($page_title ?? '') !== '' ? $page_title : navigationPageTitle($controller_name ?? '');
 ?>
 
 <!doctype html>
