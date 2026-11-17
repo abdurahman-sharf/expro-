@@ -573,7 +573,7 @@ class AccountingChartControllerTest extends CIUnitTestCase
         $this->actAs($this->employeeWithGrants(['accounting_chart']));
         $customers = $this->customerAccounts(1, '<b>Bold</b> customer');
 
-        $html = $this->get('/accounting_chart/find?search=customer')->getBody();
+        $html = $this->get('/accounting_chart/find?search=customer')->response()->getBody();
 
         $this->assertStringContainsString('&lt;b&gt;Bold&lt;/b&gt; customer 1', $html);
         $this->assertStringNotContainsString('<b>Bold', $html);
