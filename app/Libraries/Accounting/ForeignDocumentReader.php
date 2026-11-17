@@ -46,13 +46,18 @@ final class ForeignDocumentReader
     }
 
     /**
-     * @param list<int>|null $branchIds Null reads every branch and an empty list none.
+     * @param list<int>|null $branchIds  Null reads every branch and an empty list none.
+     * @param int|null       $employeeId Reads only the documents this employee made, for one who sees their own records only.
      *
      * @return list<ForeignDocument> The purchases and returns in the days, oldest first.
      */
-    public function receivings(string $from, string $to, bool $withTime, ?array $branchIds, string $locationId = 'all'): array
+    public function receivings(string $from, string $to, bool $withTime, ?array $branchIds, string $locationId = 'all', ?int $employeeId = null): array
     {
         $builder = $this->db->table('receivings AS receivings')->select('receivings.receiving_id, receivings.currency_code')->where('receivings.currency_code IS NOT NULL', null, false)->where('receivings.currency_code !=', '');
+
+        if ($employeeId !== null) {
+            $builder->where('receivings.employee_id', $employeeId);
+        }
 
         if ($branchIds !== null) {
             $list = implode(', ', array_map('intval', $branchIds));

@@ -168,6 +168,39 @@ class ReceivingTest extends CIUnitTestCase
         }
     }
 
+    public function testCreateTempTable_CutsToTheViewerGivenAndToNoOneWhenNoneIsGiven(): void
+    {
+        $this->startBuying();
+
+        $db     = $this->accountingDb();
+        $own    = $this->ownRecordsBuyer();
+        $mine   = $this->purchaseBy($own);
+        $theirs = $this->purchaseBy($this->createEmployee(), '100.00');
+        $today  = date('Y-m-d');
+        $seen   = static function (array $extra) use ($db, $today): array {
+            $db->query('DROP TEMPORARY TABLE IF EXISTS ' . $db->prefixTable('receivings_items_temp'));
+            model(Receiving::class)->create_temp_table(['start_date' => $today, 'end_date' => $today] + $extra);
+
+            return array_map('intval', array_column($db->table('receivings_items_temp')->select('receiving_id')->distinct()->get()->getResultArray(), 'receiving_id'));
+        };
+
+        try {
+            $this->assertSame([$mine], $seen(['viewer_id' => $own]));
+            $this->assertSame([$mine], $seen(['viewer_id' => $own, 'receiving_id' => null]));
+            $this->assertSame([], $seen(['viewer_id' => $own, 'receiving_id' => $theirs]));
+            $this->assertContains($theirs, $seen(['viewer_id' => $this->employeeId]));
+            $this->assertContains($theirs, $seen(['viewer_id' => null]));
+
+            session()->set('person_id', $own);
+
+            $this->assertContains($theirs, $seen([]));
+            $this->assertContains($mine, $seen([]));
+        } finally {
+            session()->remove('person_id');
+            $db->query('DROP TEMPORARY TABLE IF EXISTS ' . $db->prefixTable('receivings_items_temp'));
+        }
+    }
+
     public function testSaveValue_SavesTheNextPurchaseOfTheProcessAfterTheDatabaseRefusedOne(): void
     {
         $employeeId = $this->createEmployee();

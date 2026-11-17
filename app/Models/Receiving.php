@@ -2022,6 +2022,12 @@ class Receiving extends Model
             $where .= $inputs['branch_ids'] === [] ? ' AND 1 = 0' : " AND (receivings.branch_id IN ({$list}) OR receivings.to_branch_id IN ({$list}))";
         }
 
+        $cut = isset($inputs['viewer_id']) ? $this->viewerCut((int) $inputs['viewer_id']) : null;
+
+        if ($cut !== null) {
+            $where .= ' AND receivings.employee_id = ' . $cut;
+        }
+
         $units = '`quantity_purchased` * `' . $db_prefix . 'receivings_items`.`receiving_quantity`';
         $gross = '`item_unit_price` * ' . $units;
         $type  = '`' . $db_prefix . 'receivings_items`.`discount_type`';

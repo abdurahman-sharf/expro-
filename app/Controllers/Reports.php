@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Accounting\ForeignDocumentReader;
 use App\Libraries\Accounting\ForeignDocuments;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\RecordScope;
 use App\Models\Attribute;
 use App\Models\Customer;
 use App\Models\Reports\Detailed_item_sales;
@@ -2122,7 +2123,7 @@ class Reports extends Secure_Controller
         $branchIds  = $employeeId < 1 ? null : (new BranchGuard())->allowedBranchIds($employeeId);
         $reader     = new ForeignDocumentReader();
         $foreign    = $documents === 'receivings'
-            ? $reader->receivings($from, $to, $withTime, $branchIds, $locationId)
+            ? $reader->receivings($from, $to, $withTime, $branchIds, $locationId, (new RecordScope())->limit($employeeId < 1 ? null : $employeeId))
             : $reader->sales($from, $to, $withTime, $branchIds, (string) ($inputs['sale_type'] ?? 'all'), $locationId);
 
         return $foreign === [] ? $subtitle : $subtitle . "\n" . lang('Reports.foreign_documents_label', [ForeignDocuments::describe($foreign)]);

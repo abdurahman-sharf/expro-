@@ -182,6 +182,22 @@ final class ForeignDocumentReaderTest extends CIUnitTestCase
         $this->assertSame([], (new ForeignDocumentReader())->receivings('2031-03-15', '2031-03-15', false, null));
     }
 
+    public function testReceivings_ReadsOnlyTheDocumentsOfTheEmployeeGiven(): void
+    {
+        $mine = $this->foreignPurchase();
+
+        $author           = $this->employeeId;
+        $this->employeeId = $this->employeeWithGrants([]);
+        $theirs           = $this->foreignPurchase();
+        $this->employeeId = $author;
+
+        $this->accountingDb()->table('receivings')->whereIn('receiving_id', [$mine, $theirs])->update(['receiving_time' => '2031-03-14 09:00:00']);
+        $reader = new ForeignDocumentReader();
+
+        $this->assertSame(['RECV ' . $mine . ' (USD)'], $this->labels($reader->receivings('2031-03-14', '2031-03-14', false, null, 'all', $author)));
+        $this->assertCount(2, $reader->receivings('2031-03-14', '2031-03-14', false, null));
+    }
+
     public function testSales_ReadsOnlyTheBranchesOfTheReport(): void
     {
         $inMain  = $this->foreignSaleOfTheDay('100');
