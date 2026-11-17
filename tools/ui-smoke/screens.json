@@ -273,10 +273,10 @@
     {
       "id": "purchases-list",
       "group": "receivings",
-      "path": "/purchases?date_from=2020-01-01&date_to=2099-12-31&show=1",
+      "path": "/purchases?date_from=2020-01-01&date_to=2099-12-31",
       "steps": [
         {
-          "waitFor": "#table tbody tr"
+          "waitFor": "#table tbody tr:not(.no-records-found)"
         },
         {
           "pause": 800
@@ -286,10 +286,16 @@
     {
       "id": "purchases-filters-folded",
       "group": "receivings",
-      "path": "/purchases",
+      "path": "/purchases?date_from=2020-01-01&date_to=2099-12-31",
       "steps": [
         {
-          "waitFor": "#table tbody tr, #table .no-records-found"
+          "waitFor": "#table tbody tr:not(.no-records-found)"
+        },
+        {
+          "click": "[data-bs-target=\"#purchase_filters_body\"]"
+        },
+        {
+          "waitFor": "#purchase_filters_body:not(.show)"
         },
         {
           "pause": 500
@@ -302,7 +308,7 @@
       "path": "/purchases?date_from=2020-01-01&date_to=2099-12-31&payment=unpaid",
       "steps": [
         {
-          "waitFor": "#table tbody tr, #table .no-records-found"
+          "waitFor": "#table tbody tr:not(.no-records-found)"
         },
         {
           "pause": 800

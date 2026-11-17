@@ -16,14 +16,16 @@ final class PurchaseLinesTest extends FamilyReportTestCase
     public function testTotalsOf_MatchesReceivingAmountsOnLinesWithDiscountsAndTax(): void
     {
         $item = $this->item('0.00');
-        $id   = $this->buy([$this->purchaseLine($item, 0, '3', '33.33', '15'), $this->purchaseLine($item, 1, '1', '10.01', '15', '10')]);
+        $id   = $this->buy([$this->purchaseLine($item, 0, '3', '40.00', '15'), $this->purchaseLine($item, 1, '1', '10.00', '15', '10')]);
 
         $lines  = (new PurchaseLines())->of([$id]);
         $totals = (new PurchaseLines())->totalsOf([$id]);
 
         $this->assertCount(2, $lines[$id]['purchase']);
         $this->assertSame(ReceivingAmounts::totals($lines[$id]['purchase']), $totals[$id]);
-        $this->assertSame(1, bccomp('0.005', ltrim(bcsub($totals[$id]['total'], bcadd($totals[$id]['net'], $totals[$id]['tax'], 4), 4), '-'), 4), 'the total is the net and the tax to the cent');
+        $this->assertAmount('129.00', $totals[$id]['net']);
+        $this->assertAmount('19.35', $totals[$id]['tax']);
+        $this->assertAmount('148.35', $totals[$id]['total']);
     }
 
     public function testTotalsOf_ReadsInChunksAndGivesZeroToAPurchaseWithoutLines(): void
@@ -49,12 +51,13 @@ final class PurchaseLinesTest extends FamilyReportTestCase
     public function testTotalsOf_KeepsAForeignPurchaseInTheDecimalsOfItsCurrency(): void
     {
         $item = $this->item('0.00');
-        $id   = $this->buy([$this->purchaseLine($item, 0, '1', '10.005')]);
+        $id   = $this->buy([$this->purchaseLine($item, 0, '1', '10.00', '12.345')]);
 
         $two   = (new PurchaseLines())->totalsOf([$id], [$id => 2])[$id]['total'];
         $three = (new PurchaseLines())->totalsOf([$id], [$id => 3])[$id]['total'];
 
-        $this->assertSame(ReceivingAmounts::totals((new PurchaseLines())->of([$id])[$id]['purchase'], 2)['total'], $two);
-        $this->assertSame(ReceivingAmounts::totals((new PurchaseLines())->of([$id])[$id]['purchase'], 3)['total'], $three);
+        $this->assertAmount('11.23', $two);
+        $this->assertAmount('11.235', $three);
+        $this->assertNotSame($two, $three);
     }
 }

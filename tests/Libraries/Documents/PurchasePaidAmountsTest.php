@@ -211,6 +211,13 @@ class PurchasePaidAmountsTest extends CIUnitTestCase
             $this->assertSame($one['due'], $many[$id]['due'], "due {$id}");
             $this->assertNotNull($many[$id]['figures'], "figures {$id}");
         }
+
+        $this->assertSame('500.0000', bcadd($many[$cash]['paid'], '0', 4));
+        $this->assertSame('0.0000', bcadd($many[$cash]['due'], '0', 4));
+        $this->assertSame('200.0000', bcadd($many[$part]['paid'], '0', 4));
+        $this->assertSame('300.0000', bcadd($many[$part]['due'], '0', 4));
+        $this->assertSame('300.0000', bcadd($many[$other]['paid'], '0', 4));
+        $this->assertSame('0.0000', bcadd($many[$other]['due'], '0', 4));
     }
 
     public function testReadMany_ReadsThePurchasesTheBooksDoNotHoldTogetherFromThePurchasesThemselves(): void

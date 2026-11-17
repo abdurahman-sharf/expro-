@@ -44,6 +44,16 @@ final class PurchaseInvoiceListTest extends FamilyReportTestCase
     }
 
     /**
+     * @param list<PurchaseInvoiceRow> $rows
+     *
+     * @return list<int>
+     */
+    private function orderOf(array $rows): array
+    {
+        return array_map(static fn (PurchaseInvoiceRow $row): int => $row->receivingId, $rows);
+    }
+
+    /**
      * @param array<string, mixed> $filters
      *
      * @return list<PurchaseInvoiceRow>
@@ -175,15 +185,62 @@ final class PurchaseInvoiceListTest extends FamilyReportTestCase
         $this->assertNull($this->list->row(null, 987654, $author));
     }
 
+    public function testSearch_ListsTheNewestDocumentFirstByDefaultAndTheOldestFirstWhenAsked(): void
+    {
+        $january  = $this->purchaseDated('10.00', '2026-01-10');
+        $march    = $this->purchaseDated('10.00', '2026-03-10');
+        $february = $this->purchaseDated('10.00', '2026-02-10');
+
+        $this->assertSame([$march, $february, $january], $this->orderOf($this->listed()));
+        $this->assertSame([$march, $february, $january], $this->orderOf($this->listed([], null, 'date', 'desc')));
+        $this->assertSame([$january, $february, $march], $this->orderOf($this->listed([], null, 'date', 'asc')));
+        $this->assertSame([$january, $march, $february], $this->orderOf($this->listed([], null, 'receiving_id', 'asc')));
+    }
+
+    public function testSearch_SortsByEachColumnOfTheWhitelistInTheOrderAsked(): void
+    {
+        $ids = $this->market();
+
+        $byId = $this->orderOf($this->listed([], null, 'receiving_id', 'asc'));
+
+        $this->assertSame([$ids['big'], $ids['small'], $ids['note'], $ids['other']], $byId);
+        $this->assertSame(array_reverse($byId), $this->orderOf($this->listed([], null, 'receiving_id', 'desc')));
+        $this->assertSame([$ids['other']], array_slice($this->orderOf($this->listed([], null, 'supplier_name', 'desc')), 0, 1));
+        $this->assertSame([$ids['note']], array_slice($this->orderOf($this->listed([], null, 'type', 'desc')), 0, 1));
+    }
+
     public function testSearch_FallsBackToTheDefaultOrderForAColumnOutsideTheWhitelist(): void
     {
-        $this->market();
+        $january  = $this->purchaseDated('10.00', '2026-01-10');
+        $february = $this->purchaseDated('10.00', '2026-02-10');
 
-        $default = $this->idsOf($this->list->search(null, new PurchaseInvoiceFilters(), 'date', 'desc', 100, 0, $this->employeeId)->rows);
+        $default = $this->orderOf($this->list->search(null, new PurchaseInvoiceFilters(), 'date', 'desc', 100, 0, $this->employeeId)->rows);
         $hostile = $this->list->search(null, new PurchaseInvoiceFilters(), 'receiving_id; DROP TABLE ospos_receivings', 'sideways', 100, 0, $this->employeeId);
 
-        $this->assertSame($default, $this->idsOf($hostile->rows));
-        $this->assertSame(4, $hostile->total);
+        $this->assertSame([$february, $january], $default);
+        $this->assertSame($default, $this->orderOf($hostile->rows));
+        $this->assertSame(2, $hostile->total);
+    }
+
+    public function testSearch_ShowsTheNumbersOfADebitNoteAndOfThePurchaseItReturns(): void
+    {
+        $ids = $this->market();
+
+        $this->accountingDb()->table('document_numbers')->insertBatch([
+            ['company_id' => 1, 'doc_type' => DocumentType::Purchase->value, 'source_table' => 'receivings', 'source_id' => $ids['small'], 'number' => 'PUR-0007', 'sequence_number' => 7],
+            ['company_id' => 1, 'doc_type' => DocumentType::DebitNote->value, 'source_table' => 'receivings', 'source_id' => $ids['note'], 'number' => 'DN-0003', 'sequence_number' => 3],
+        ]);
+
+        try {
+            $this->assertSame('PUR-0007', $this->rowOf($ids['small'])->number);
+            $this->assertSame('DN-0003', $this->rowOf($ids['note'])->number);
+            $this->assertSame('PUR-0007', $this->rowOf($ids['note'])->originNumber);
+            $this->assertSame(DocumentType::Purchase->fallback($ids['big']), $this->rowOf($ids['big'])->number);
+            $this->assertSame([$ids['small']], $this->idsOf($this->listed(['search' => 'PUR-0007'])));
+            $this->assertSame([$ids['note']], $this->idsOf($this->listed(['search' => 'DN-0003'])));
+        } finally {
+            $this->accountingDb()->table('document_numbers')->where('source_table', 'receivings')->delete();
+        }
     }
 
     public function testSearch_GivesTheTotalWithTaxAsThePrintedInvoiceDoes(): void
@@ -410,6 +467,47 @@ final class PurchaseInvoiceListTest extends FamilyReportTestCase
         $this->assertSame(['' => 4], ['' => $sums->byCurrency['']['count']]);
         $this->assertAmount('395.00', $sums->byCurrency['']['net']);
         $this->assertAmount('50.00', $sums->byCurrency['']['returns']);
+    }
+
+    public function testSums_FollowTheFilterAndTheScopeOfTheReader(): void
+    {
+        $ids      = $this->market();
+        $branchId = (int) $this->accountingDb()->table('receivings')->where('receiving_id', $ids['big'])->get()->getRow()->branch_id;
+        $second   = $this->createBranch('B2', 'Second branch');
+
+        $this->accountingDb()->table('receivings')->where('receiving_id', $ids['other'])->update(['branch_id' => $second]);
+
+        $returns  = $this->list->sums(null, PurchaseInvoiceFilters::fromInput(['status' => 'return']), $this->employeeId)->byCurrency[''];
+        $supplier = $this->list->sums(null, PurchaseInvoiceFilters::fromInput(['supplier_id' => (string) $ids['second']]), $this->employeeId)->byCurrency[''];
+        $searched = $this->list->sums(null, PurchaseInvoiceFilters::fromInput(['search' => 'Najd']), $this->employeeId)->byCurrency[''];
+        $home     = $this->list->sums([$branchId], new PurchaseInvoiceFilters(), $this->employeeId)->byCurrency[''];
+
+        $this->assertSame(1, $returns['count']);
+        $this->assertAmount('-50.00', $returns['net']);
+        $this->assertSame(1, $supplier['count']);
+        $this->assertAmount('100.00', $supplier['net']);
+        $this->assertSame(1, $searched['count']);
+        $this->assertSame(3, $home['count']);
+        $this->assertAmount('295.00', $home['net']);
+        $this->assertSame([], $this->list->sums([], new PurchaseInvoiceFilters(), $this->employeeId)->byCurrency);
+    }
+
+    public function testSums_LeaveOutTheDocumentsOfAnotherEmployeeForAnOwnOnlyReader(): void
+    {
+        $this->market();
+        $author = $this->employeeId;
+        $item   = $this->item('0.00');
+
+        $this->workInEveryBranch();
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '1', '60.00')]));
+
+        (new RoleService())->setRecordScope($author, 'own', null);
+
+        $own      = $this->list->sums(null, new PurchaseInvoiceFilters(), $author)->byCurrency[''];
+        $everyone = $this->list->sums(null, new PurchaseInvoiceFilters(), $this->employeeId)->byCurrency[''];
+
+        $this->assertAmount('395.00', $own['net']);
+        $this->assertAmount('455.00', $everyone['net']);
     }
 
     public function testSums_GiveNothingAboveTheLimitInsteadOfAWrongNumber(): void

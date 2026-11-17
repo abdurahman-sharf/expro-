@@ -77,7 +77,12 @@ final class PurchasesControllerTest extends FamilyReportTestCase
     public function testGetIndex_OffersTheAddButtonOutsideTheToolbarOnlyToWhoHoldsTheReceivings(): void
     {
         $this->reader();
-        $this->assertStringNotContainsString('id="add_purchase"', $this->get('/purchases')->getBody());
+
+        $plain = $this->get('/purchases');
+
+        $plain->assertStatus(200);
+        $this->assertStringContainsString('id="purchase_filters"', $plain->getBody());
+        $this->assertStringNotContainsString('id="add_purchase"', $plain->getBody());
 
         $this->reader(['receivings', 'receivings_stock']);
         $body = $this->get('/purchases')->getBody();
@@ -91,10 +96,19 @@ final class PurchasesControllerTest extends FamilyReportTestCase
         $second = $this->createBranch('B2', 'Second branch');
 
         $this->reader([], [1]);
-        $this->assertStringNotContainsString('id="f_branches"', $this->get('/purchases')->getBody());
+
+        $one = $this->get('/purchases');
+
+        $one->assertStatus(200);
+        $this->assertStringContainsString('id="purchase_filters"', $one->getBody());
+        $this->assertStringNotContainsString('id="f_branches"', $one->getBody());
 
         $this->reader([], [1, $second]);
-        $this->assertStringContainsString('id="f_branches"', $this->get('/purchases')->getBody());
+
+        $two = $this->get('/purchases');
+
+        $two->assertStatus(200);
+        $this->assertStringContainsString('id="f_branches"', $two->getBody());
     }
 
     public function testGetIndex_RestoresTheFiltersFromTheQuery(): void
@@ -109,16 +123,77 @@ final class PurchasesControllerTest extends FamilyReportTestCase
         $this->assertMatchesRegularExpression('/<option value="unpaid" selected>/', $body);
     }
 
-    public function testGetSearch_AnswersForbiddenWhoHoldsTheModuleButNotThePermission(): void
+    private function holdTheModuleButNotThePermission(): void
     {
         $this->withSession(['person_id' => $this->employeeWithGrants(['reports', 'reports_sales']), 'menu_group' => 'home']);
+    }
 
-        $response = $this->get('/purchases/search');
+    public function testGetSearch_AnswersForbiddenWhoHoldsTheModuleButNotThePermission(): void
+    {
+        $this->market();
+        $this->holdTheModuleButNotThePermission();
 
-        $response->assertStatus(403);
-        $this->assertFalse($this->json('/purchases/search')['success']);
-        $this->assertFalse($this->json('/purchases/sums')['success']);
-        $this->assertFalse($this->json('/purchases/suppliers')['success'] ?? false);
+        $this->get('/purchases/search')->assertStatus(403);
+
+        $body = $this->json('/purchases/search');
+
+        $this->assertFalse($body['success']);
+        $this->assertArrayNotHasKey('rows', $body);
+        $this->assertArrayNotHasKey('total', $body);
+    }
+
+    public function testGetSums_AnswersForbiddenWhoHoldsTheModuleButNotThePermission(): void
+    {
+        $this->market();
+        $this->holdTheModuleButNotThePermission();
+
+        $this->get('/purchases/sums')->assertStatus(403);
+
+        $body = $this->json('/purchases/sums');
+
+        $this->assertFalse($body['success']);
+        $this->assertArrayNotHasKey('html', $body);
+        $this->assertStringNotContainsString('395.00', json_encode($body));
+    }
+
+    public function testGetRow_AnswersForbiddenWhoHoldsTheModuleButNotThePermission(): void
+    {
+        $ids = $this->market();
+        $this->holdTheModuleButNotThePermission();
+
+        $this->get('/purchases/row/' . $ids['big'])->assertStatus(403);
+
+        $body = $this->json('/purchases/row/' . $ids['big']);
+
+        $this->assertFalse($body['success']);
+        $this->assertArrayNotHasKey('receiving_id', $body);
+    }
+
+    public function testGetSuppliers_AnswersForbiddenWhoHoldsTheModuleButNotThePermission(): void
+    {
+        $this->market();
+        $this->holdTheModuleButNotThePermission();
+
+        $this->get('/purchases/suppliers?term=Najd')->assertStatus(403);
+
+        $body = $this->json('/purchases/suppliers?term=Najd');
+
+        $this->assertFalse($body['success']);
+        $this->assertStringNotContainsString('Najd', json_encode($body));
+    }
+
+    public function testEveryAddress_RefusesWhoHoldsThePermissionButNotTheModule(): void
+    {
+        $ids = $this->market();
+
+        $this->withSession(['person_id' => $this->employeeWithGrants(['reports_receivings']), 'menu_group' => 'home']);
+
+        foreach (['/purchases', '/purchases/search', '/purchases/sums', '/purchases/row/' . $ids['big'], '/purchases/suppliers?term=Najd'] as $address) {
+            $response = $this->get($address);
+
+            $this->assertTrue($response->isRedirect() || $response->response()->getStatusCode() === 403, $address);
+            $this->assertStringNotContainsString('Najd', (string) $response->response()->getBody(), $address);
+        }
     }
 
     public function testGetSearch_PagesTheDocumentsAndEscapesWhatTheyCarry(): void
@@ -165,6 +240,19 @@ final class PurchasesControllerTest extends FamilyReportTestCase
 
         $this->assertStringContainsString('data-purchase-action="debit_note"', $rows[$ids['big']]['options']);
         $this->assertStringNotContainsString('data-purchase-action="debit_note"', $rows[$ids['note']]['options']);
+    }
+
+    public function testGetSearch_OffersNoDebitNoteForAPurchaseThatWasReturnedInFull(): void
+    {
+        $whole = $this->purchaseOf('80.00');
+
+        $this->debitNoteOf($whole, '80.00');
+        $this->reader(['receivings', 'receivings_stock']);
+
+        $rows = array_column($this->json('/purchases/search')['rows'], null, 'receiving_id');
+
+        $this->assertStringNotContainsString('data-purchase-action="debit_note"', $rows[$whole]['options']);
+        $this->assertStringContainsString('data-purchase-action="delete"', $rows[$whole]['options']);
     }
 
     public function testGetSearch_KeepsTheDocumentsOfAnotherEmployeeFromAnOwnOnlyReader(): void
@@ -223,8 +311,11 @@ final class PurchasesControllerTest extends FamilyReportTestCase
 
         $row = $this->json('/purchases/row/' . $ids['small']);
 
+        $status = html_entity_decode(strip_tags($row['purchase_status']));
+
         $this->assertSame($ids['small'], $row['receiving_id']);
-        $this->assertStringContainsString('Partly', $row['purchase_status'] . lang('Purchases.status_partly_returned'));
+        $this->assertStringContainsString(lang('Purchases.status_received'), $status);
+        $this->assertStringContainsString(lang('Purchases.status_partly_returned'), $status);
     }
 
     public function testGetSuppliers_OffersOnlyTheSuppliersOfTheDocumentsTheReaderMaySee(): void
@@ -290,6 +381,94 @@ final class PurchasesControllerTest extends FamilyReportTestCase
 
         $this->assertStringContainsString('pdf', $pdf->response()->getHeaderLine('Content-Type'));
         $this->assertStringStartsWith('%PDF', $pdf->response()->getBody());
+    }
+
+    public function testGetSearch_AndGetSums_ApplyTheFiltersOfTheRequest(): void
+    {
+        $ids = $this->market();
+        $this->reader();
+
+        $returns = $this->json('/purchases/search?status=return');
+
+        $this->assertSame(1, $returns['total']);
+        $this->assertSame($ids['note'], $returns['rows'][0]['receiving_id']);
+        $this->assertSame(1, $this->json('/purchases/search?supplier_id=' . $ids['second'])['total']);
+        $this->assertSame(0, $this->json('/purchases/search?date_from=2999-01-01&date_to=2999-12-31')['total']);
+        $this->assertSame(1, $this->json('/purchases/search?search=Najd')['total']);
+
+        $sums = $this->json('/purchases/sums?status=return');
+
+        $this->assertStringContainsString('50.00', $sums['html']);
+        $this->assertStringNotContainsString('395.00', $sums['html']);
+        $this->assertStringContainsString('100.00', $this->json('/purchases/sums?supplier_id=' . $ids['second'])['html']);
+        $this->assertStringNotContainsString('395.00', $this->json('/purchases/sums?supplier_id=' . $ids['second'])['html']);
+    }
+
+    public function testEveryAddress_ShowsABranchLimitedReaderOnlyTheDocumentsOfTheirBranches(): void
+    {
+        $ids    = $this->market();
+        $home   = (int) $this->accountingDb()->table('receivings')->where('receiving_id', $ids['big'])->get()->getRow()->branch_id;
+        $second = $this->createBranch('B2', 'Second branch');
+
+        $this->accountingDb()->table('receivings')->where('receiving_id', $ids['other'])->update(['branch_id' => $second]);
+
+        $this->reader([], [$home]);
+
+        $this->assertSame(3, $this->json('/purchases/search')['total']);
+        $this->assertStringContainsString('295.00', $this->json('/purchases/sums')['html']);
+        $this->assertStringNotContainsString('395.00', $this->json('/purchases/sums')['html']);
+        $this->assertSame([], $this->json('/purchases/suppliers?term=Najd'));
+        $this->assertNotContains('RECV ' . $ids['other'], array_column($this->csvRows($this->get('/purchases/csv')), 0));
+
+        $this->reader([], [$second]);
+
+        $this->assertSame(1, $this->json('/purchases/search')['total']);
+        $this->assertStringContainsString('100.00', $this->json('/purchases/sums')['html']);
+        $this->assertSame([['id' => $ids['second'], 'name' => 'Najd Trading']], $this->json('/purchases/suppliers?term=Najd'));
+        $this->assertContains('RECV ' . $ids['other'], array_column($this->csvRows($this->get('/purchases/csv')), 0));
+        $this->assertNotContains('RECV ' . $ids['big'], array_column($this->csvRows($this->get('/purchases/csv')), 0));
+    }
+
+    public function testEveryAddress_KeepsTheDocumentsOfAnotherEmployeeFromAnOwnOnlyReader(): void
+    {
+        $this->market();
+        $author = $this->employeeId;
+        $item   = $this->item('0.00');
+
+        $this->workInEveryBranch();
+
+        $other = $this->employeeId;
+        $mine  = $this->buy([$this->purchaseLine($item, 0, '1', '60.00')]);
+
+        $this->accountingDb()->table('grants')->ignore(true)->insertBatch([['permission_id' => 'reports', 'person_id' => $author, 'menu_group' => 'home'], ['permission_id' => 'reports_receivings', 'person_id' => $author, 'menu_group' => 'home'], ['permission_id' => BranchGuard::ALL_BRANCHES, 'person_id' => $author, 'menu_group' => 'home']]);
+        (new RoleService())->setRecordScope($author, 'own', null);
+        $this->withSession(['person_id' => $author, 'menu_group' => 'home']);
+
+        $this->assertStringContainsString('395.00', $this->json('/purchases/sums')['html']);
+        $this->assertStringNotContainsString('455.00', $this->json('/purchases/sums')['html']);
+        $this->get('/purchases/row/' . $mine)->assertStatus(404);
+
+        $rows = $this->csvRows($this->get('/purchases/csv'));
+
+        $this->assertNotContains('RECV ' . $mine, array_column($rows, 0));
+        $this->assertSame('395.00', $rows[count($rows) - 1][1]);
+
+        $this->withSession(['person_id' => $other, 'menu_group' => 'home']);
+        $this->accountingDb()->table('grants')->ignore(true)->insertBatch([['permission_id' => 'reports', 'person_id' => $other, 'menu_group' => 'home'], ['permission_id' => 'reports_receivings', 'person_id' => $other, 'menu_group' => 'home'], ['permission_id' => BranchGuard::ALL_BRANCHES, 'person_id' => $other, 'menu_group' => 'home']]);
+
+        $this->assertStringContainsString('455.00', $this->json('/purchases/sums')['html']);
+        $this->get('/purchases/row/' . $mine)->assertStatus(200);
+    }
+
+    public function testGetSearch_TakesTheDefaultPageSizeForZeroAndNeverAnswersLessThanOneRow(): void
+    {
+        $this->market();
+        $this->reader();
+
+        $this->assertCount(4, $this->json('/purchases/search?limit=0')['rows']);
+        $this->assertCount(1, $this->json('/purchases/search?limit=-3')['rows']);
+        $this->assertCount(1, $this->json('/purchases/search?limit=1&offset=-5')['rows']);
+        $this->assertSame(4, $this->json('/purchases/search?limit=1&offset=-5')['total']);
     }
 
     public function testGetSearch_ReadsOnlyTheFiltersItKnows(): void
