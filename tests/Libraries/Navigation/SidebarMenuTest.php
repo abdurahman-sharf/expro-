@@ -214,21 +214,21 @@ final class SidebarMenuTest extends CIUnitTestCase
         $this->assertEqualsCanonicalizing(['customer_classifications', 'item_brands', 'warehouses', 'journal_new', 'activity_log', 'receipt_templates', 'invoice_templates', 'barcode_labels', 'notification_rules', 'payment_methods', 'api_keys', 'returned_invoices'], $added);
     }
 
-    public function testDefinition_PinsTheGateOfEachPageThatWasListedForTheFirstTime(): void
+    public function testDefinition_PinsTheGateAndTheLabelOfEachPageThatWasListedForTheFirstTime(): void
     {
         $gates = [
-            'customer_classifications' => ['module' => 'customers', 'path' => 'customer_classifications'],
-            'item_brands'              => ['module' => 'items', 'path' => 'item_brands'],
-            'warehouses'               => ['module' => 'config', 'path' => 'config', 'fragment' => 'stock_tab'],
-            'journal_new'              => ['module' => 'accounting_journals', 'path' => 'accounting_journals/new', 'permission' => 'acc_journals_draft'],
-            'activity_log'             => ['module' => 'accounting_journals', 'path' => 'accounting_journals/audit', 'permission' => 'acc_journals_audit', 'aliases' => ['accounting_journals/failures']],
-            'receipt_templates'        => ['module' => 'config', 'path' => 'config', 'fragment' => 'receipt_tab'],
-            'invoice_templates'        => ['module' => 'config', 'path' => 'config', 'fragment' => 'invoice_tab'],
-            'barcode_labels'           => ['module' => 'config', 'path' => 'config', 'fragment' => 'barcode_tab'],
-            'notification_rules'       => ['module' => 'integrations', 'path' => 'integrations/rules', 'permission' => 'acc_integrations_manage', 'also' => ['config']],
-            'payment_methods'          => ['module' => 'integrations', 'path' => 'integrations/payment_methods', 'permission' => 'acc_integrations_manage', 'also' => ['config']],
-            'api_keys'                 => ['module' => 'integrations', 'path' => 'api_keys', 'permission' => 'api_keys_manage', 'company' => true, 'also' => ['config']],
-            'returned_invoices'        => ['module' => 'accounting_reports', 'path' => 'accounting_reports/net_position', 'permission' => 'reports_sales', 'query' => 'status[]=returned&status[]=partial_return'],
+            'customer_classifications' => ['module' => 'customers', 'path' => 'customer_classifications', 'label' => 'Lookups.customer_classification_title'],
+            'item_brands'              => ['module' => 'items', 'path' => 'item_brands', 'label' => 'Lookups.item_brand_title'],
+            'warehouses'               => ['module' => 'config', 'path' => 'config', 'fragment' => 'stock_tab', 'label' => 'Config.location_configuration'],
+            'journal_new'              => ['module' => 'accounting_journals', 'path' => 'accounting_journals/new', 'permission' => 'acc_journals_draft', 'label' => 'Accounting_journals.new'],
+            'activity_log'             => ['module' => 'accounting_journals', 'path' => 'accounting_journals/audit', 'permission' => 'acc_journals_audit', 'aliases' => ['accounting_journals/failures'], 'label' => 'Accounting_journals.audit_title'],
+            'receipt_templates'        => ['module' => 'config', 'path' => 'config', 'fragment' => 'receipt_tab', 'label' => 'Config.receipt_configuration'],
+            'invoice_templates'        => ['module' => 'config', 'path' => 'config', 'fragment' => 'invoice_tab', 'label' => 'Config.invoice_configuration'],
+            'barcode_labels'           => ['module' => 'config', 'path' => 'config', 'fragment' => 'barcode_tab', 'label' => 'Config.barcode_configuration'],
+            'notification_rules'       => ['module' => 'integrations', 'path' => 'integrations/rules', 'permission' => 'acc_integrations_manage', 'also' => ['config'], 'label' => 'Integrations.notification_rules'],
+            'payment_methods'          => ['module' => 'integrations', 'path' => 'integrations/payment_methods', 'permission' => 'acc_integrations_manage', 'also' => ['config'], 'label' => 'Integrations.payment_methods'],
+            'api_keys'                 => ['module' => 'integrations', 'path' => 'api_keys', 'permission' => 'api_keys_manage', 'company' => true, 'also' => ['config'], 'label' => 'Integrations.api_keys'],
+            'returned_invoices'        => ['module' => 'accounting_reports', 'path' => 'accounting_reports/net_position', 'permission' => 'reports_sales', 'query' => 'status[]=returned&status[]=partial_return', 'label' => 'Module.nav_returned_invoices'],
         ];
 
         $now = array_column($this->definedPages(), null, 'id');
@@ -236,7 +236,7 @@ final class SidebarMenuTest extends CIUnitTestCase
         foreach ($gates as $id => $gate) {
             $this->assertArrayHasKey($id, $now, $id);
 
-            foreach (['module', 'path', 'permission', 'company', 'accounting', 'also', 'query', 'fragment', 'aliases'] as $key) {
+            foreach (['module', 'path', 'label', 'permission', 'company', 'accounting', 'also', 'query', 'fragment', 'aliases'] as $key) {
                 $this->assertSame($gate[$key] ?? null, $now[$id][$key] ?? null, "{$id}.{$key}");
             }
         }
@@ -476,10 +476,14 @@ final class SidebarMenuTest extends CIUnitTestCase
         $held     = ['accounting_reports', 'reports_sales'];
         $returned = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=returned&status[]=partial_return');
         $paid     = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=paid');
+        $one      = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=returned');
+        $every    = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=paid&status[]=returned&status[]=partial_return');
 
         $this->assertContains('returned_invoices', $this->itemIds($returned));
         $this->assertSame(['returned_invoices'], $this->activeIds($returned));
         $this->assertSame(['collected_invoices'], $this->activeIds($paid));
+        $this->assertSame([], $this->activeIds($one));
+        $this->assertLessThanOrEqual(1, count($this->activeIds($every)));
         $this->assertSame(['sales'], array_column(array_filter($returned, static fn (array $section): bool => $section['active']), 'key'));
     }
 

@@ -113,6 +113,7 @@ final class SidebarViewTest extends CIUnitTestCase
             $panel = $this->one($page, '//div[@id="' . $toggle->getAttribute('aria-controls') . '"]');
 
             $this->assertSame($toggle->getAttribute('id'), $panel->getAttribute('aria-labelledby'));
+            $this->assertSame('group', $panel->getAttribute('role'));
             $this->assertSame($toggle->getAttribute('aria-expanded') !== 'true', $panel->hasAttribute('hidden'), $toggle->getAttribute('id'));
             $this->assertCount(1, $this->elements($page, '//button[@id="' . $toggle->getAttribute('id') . '"]/i[contains(@class, "app-nav-caret")]'));
 
@@ -167,6 +168,18 @@ final class SidebarViewTest extends CIUnitTestCase
 
         $this->assertSame(['receipt_tab', 'invoice_tab', 'barcode_tab'], $tabs);
         $this->assertCount(1, $this->elements($page, '//div[@id="nav-panel-templates"][@hidden]'));
+    }
+
+    public function testSidebar_MarksTheViewOfTheNetPositionThatTheQueryOfTheRequestAsksFor(): void
+    {
+        $personId = $this->employeeHolding(['home', 'accounting_reports', 'reports_sales']);
+
+        $returned = $this->sidebarOf($personId, 'accounting_reports/net_position?status[]=returned&status[]=partial_return');
+        $paid     = $this->sidebarOf($personId, 'accounting_reports/net_position?status[]=paid');
+
+        $this->assertSame('returned_invoices', $this->one($returned, '//a[@aria-current="page"]')->getAttribute('data-nav-id'));
+        $this->assertSame('collected_invoices', $this->one($paid, '//a[@aria-current="page"]')->getAttribute('data-nav-id'));
+        $this->assertSame('nav-toggle-sales', $this->one($returned, '//button[@aria-expanded="true"]')->getAttribute('id'));
     }
 
     public function testSidebar_KeepsTheTaxesCurrentOnTheScreenOfTheTaxDefinitions(): void
