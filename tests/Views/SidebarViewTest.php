@@ -174,8 +174,8 @@ final class SidebarViewTest extends CIUnitTestCase
     {
         $personId = $this->employeeHolding(['home', 'accounting_reports', 'reports_sales']);
 
-        $returned = $this->sidebarOf($personId, 'accounting_reports/net_position?status[]=returned&status[]=partial_return');
-        $paid     = $this->sidebarOf($personId, 'accounting_reports/net_position?status[]=paid');
+        $returned = $this->sidebarOf($personId, 'accounting_reports/net_position?status[]=returned&status[]=partial_return&show=1');
+        $paid     = $this->sidebarOf($personId, 'accounting_reports/net_position?status[]=paid&show=1');
 
         $this->assertSame('returned_invoices', $this->one($returned, '//a[@aria-current="page"]')->getAttribute('data-nav-id'));
         $this->assertSame('collected_invoices', $this->one($paid, '//a[@aria-current="page"]')->getAttribute('data-nav-id'));

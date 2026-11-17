@@ -188,21 +188,21 @@ final class SidebarMenuTest extends CIUnitTestCase
 
     public function testDefinition_KeepsTheRuleOfEveryPageTheMenuHadBefore(): void
     {
-        $before = require __DIR__ . '/../../Support/SidebarMenuBeforeNav4.php';
-        $now    = array_column($this->definedPages(), null, 'id');
+        $before  = require __DIR__ . '/../../Support/SidebarMenuBeforeNav4.php';
+        $now     = array_column($this->definedPages(), null, 'id');
+        $decided = [
+            'bank_reconciliation' => ['permission' => 'acc_bank_reconcile'],
+            'collected_invoices'  => ['query' => 'status[]=paid&show=1'],
+        ];
 
         $this->assertCount(76, $before);
 
         foreach ($before as $id => $page) {
             $this->assertArrayHasKey($id, $now, $id);
 
-            foreach (['module', 'path', 'company', 'accounting', 'also', 'query'] as $key) {
-                $this->assertSame($page[$key] ?? null, $now[$id][$key] ?? null, "{$id}.{$key}");
+            foreach (['module', 'path', 'company', 'accounting', 'also', 'query', 'permission'] as $key) {
+                $this->assertSame($decided[$id][$key] ?? $page[$key] ?? null, $now[$id][$key] ?? null, "{$id}.{$key}");
             }
-
-            $permission = $id === 'bank_reconciliation' ? 'acc_bank_reconcile' : ($page['permission'] ?? null);
-
-            $this->assertSame($permission, $now[$id]['permission'] ?? null, "{$id}.permission");
         }
     }
 
@@ -228,7 +228,7 @@ final class SidebarMenuTest extends CIUnitTestCase
             'notification_rules'       => ['module' => 'integrations', 'path' => 'integrations/rules', 'permission' => 'acc_integrations_manage', 'also' => ['config'], 'label' => 'Integrations.notification_rules'],
             'payment_methods'          => ['module' => 'integrations', 'path' => 'integrations/payment_methods', 'permission' => 'acc_integrations_manage', 'also' => ['config'], 'label' => 'Integrations.payment_methods'],
             'api_keys'                 => ['module' => 'integrations', 'path' => 'api_keys', 'permission' => 'api_keys_manage', 'company' => true, 'also' => ['config'], 'label' => 'Integrations.api_keys'],
-            'returned_invoices'        => ['module' => 'accounting_reports', 'path' => 'accounting_reports/net_position', 'permission' => 'reports_sales', 'query' => 'status[]=returned&status[]=partial_return', 'label' => 'Module.nav_returned_invoices'],
+            'returned_invoices'        => ['module' => 'accounting_reports', 'path' => 'accounting_reports/net_position', 'permission' => 'reports_sales', 'query' => 'status[]=returned&status[]=partial_return&show=1', 'label' => 'Module.nav_returned_invoices'],
         ];
 
         $now = array_column($this->definedPages(), null, 'id');
@@ -461,10 +461,12 @@ final class SidebarMenuTest extends CIUnitTestCase
 
         $this->assertNotContains('collected_invoices', $this->itemIds(SidebarMenu::sections($modules, ['accounting_reports'], [], 'home')));
 
-        $sections = SidebarMenu::sections($modules, ['accounting_reports', 'reports_sales'], [], 'accounting_reports/net_position', 'status[]=paid');
+        $held     = ['accounting_reports', 'reports_sales'];
+        $sections = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=paid&show=1');
 
         $this->assertContains('collected_invoices', $this->itemIds($sections));
         $this->assertSame(['collected_invoices'], $this->activeIds($sections));
+        $this->assertSame([], $this->activeIds(SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=paid')));
     }
 
     public function testSections_OffersTheReturnedInvoicesWithTheSalesReportsPermissionAndMarksThemByTheirQuery(): void
@@ -474,15 +476,17 @@ final class SidebarMenuTest extends CIUnitTestCase
         $this->assertNotContains('returned_invoices', $this->itemIds(SidebarMenu::sections($modules, ['accounting_reports'], [], 'home')));
 
         $held     = ['accounting_reports', 'reports_sales'];
-        $returned = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=returned&status[]=partial_return');
-        $paid     = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=paid');
-        $one      = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=returned');
-        $every    = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=paid&status[]=returned&status[]=partial_return');
+        $returned = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=returned&status[]=partial_return&show=1');
+        $paid     = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=paid&show=1');
+        $one      = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=returned&show=1');
+        $every    = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=paid&status[]=returned&status[]=partial_return&show=1');
+        $unshown  = SidebarMenu::sections($modules, $held, [], 'accounting_reports/net_position', 'status[]=returned&status[]=partial_return');
 
         $this->assertContains('returned_invoices', $this->itemIds($returned));
         $this->assertSame(['returned_invoices'], $this->activeIds($returned));
         $this->assertSame(['collected_invoices'], $this->activeIds($paid));
         $this->assertSame([], $this->activeIds($one));
+        $this->assertSame([], $this->activeIds($unshown));
         $this->assertLessThanOrEqual(1, count($this->activeIds($every)));
         $this->assertSame(['sales'], array_column(array_filter($returned, static fn (array $section): bool => $section['active']), 'key'));
     }
