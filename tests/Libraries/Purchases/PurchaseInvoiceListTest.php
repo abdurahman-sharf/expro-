@@ -270,6 +270,18 @@ final class PurchaseInvoiceListTest extends FamilyReportTestCase
         }
     }
 
+    public function testSearch_CountsWhatWasPaidBeyondTheTotalAmongThePaid(): void
+    {
+        $id = $this->purchaseOf('100.00');
+
+        $this->payPurchase($id, '150.00');
+
+        $this->assertSame(PaymentState::Excess, $this->rowOf($id)->state);
+        $this->assertSame([$id], $this->idsOf($this->listed(['payment' => 'paid'])));
+        $this->assertSame([], $this->idsOf($this->listed(['payment' => 'partial'])));
+        $this->assertSame([], $this->idsOf($this->listed(['payment' => 'unpaid'])));
+    }
+
     public function testSearch_LeavesReturnsOutOfEveryPaymentStateFilter(): void
     {
         $ids = $this->market();
@@ -343,6 +355,7 @@ final class PurchaseInvoiceListTest extends FamilyReportTestCase
 
         $this->assertSame('USD', $this->rowOf($foreign)->currencyCode);
         $this->assertNull($this->rowOf($base)->currencyCode);
+        $this->assertAmount('200.00', $this->rowOf($foreign)->due, 'a foreign purchase owes what it came to in its own currency');
 
         $sums = $this->list->sums(null, new PurchaseInvoiceFilters(), $this->employeeId)->byCurrency;
 
