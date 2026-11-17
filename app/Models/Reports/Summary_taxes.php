@@ -85,6 +85,7 @@ class Summary_taxes extends Summary_report
         }
 
         $this->limitToBranches($subqueryBuilder, 'sales.branch_id');
+        $this->limitToOwnRecords($subqueryBuilder, 'sales.employee_id', $inputs);
 
         $builder = $this->db->newQuery()->fromSubquery($subqueryBuilder, 'temp_taxes');
         $builder->select(

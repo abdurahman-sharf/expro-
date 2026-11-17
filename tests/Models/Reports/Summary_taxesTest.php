@@ -97,6 +97,43 @@ class Summary_taxesTest extends CIUnitTestCase
         return $this->amount((new Summary_taxes())->getSummaryData($this->saleInputs())['tax']);
     }
 
+    /**
+     * @return array{taxes: array<string, string>, summed: string}
+     */
+    private function readAs(?int $sessionEmployee, ?int $viewer): array
+    {
+        $this->readingAs($sessionEmployee);
+
+        $report = new Summary_taxes();
+        $inputs = $this->saleInputs() + ($viewer === null ? [] : ['viewer_id' => $viewer]);
+        $taxed  = array_filter($report->getData($inputs), static fn (array $row): bool => (string) $row['name'] !== '');
+        $taxes  = array_map(fn (mixed $value): string => $this->amount($value), array_column($taxed, 'tax', 'name'));
+
+        ksort($taxes);
+
+        return ['taxes' => $taxes, 'summed' => $this->amount($report->getSummaryData($inputs)['tax'])];
+    }
+
+    public function testGetData_ShowsOnlyTheTaxesOfTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        $this->openTheBooks();
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+
+        $this->assertSame(['taxes' => ['VAT-OWN' => '3.00'], 'summed' => '3.00'], $this->readAs($own, $own));
+    }
+
+    public function testGetData_ShowsEveryTaxToAnEmployeeWhoSeesEveryRecordAndWhenNoViewerIsNamed(): void
+    {
+        $this->openTheBooks();
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+        $everything     = ['taxes' => ['VAT-A' => '27.00', 'VAT-B' => '6.00', 'VAT-OWN' => '3.00'], 'summed' => '36.00'];
+        $seesEverything = $this->employeeWithGrants([]);
+
+        $this->assertSame($everything, $this->readAs($seesEverything, $seesEverything));
+        $this->assertSame($everything, $this->readAs(null, null));
+        $this->assertSame($everything, $this->readAs($own, null), 'a read that names no viewer is not cut, whoever is logged in');
+    }
+
     public function testGetData_ShowsOnlyTheTaxesOfTheBranchesTheEmployeeWorksIn(): void
     {
         $this->openTheBooks();

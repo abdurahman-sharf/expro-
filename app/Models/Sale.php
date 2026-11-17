@@ -3022,6 +3022,12 @@ class Sale extends Model
             $where .= $inputs['branch_ids'] === [] ? ' AND 1 = 0' : ' AND sales.branch_id IN (' . implode(', ', array_map('intval', $inputs['branch_ids'])) . ')';
         }
 
+        $cut = isset($inputs['viewer_id']) ? $this->viewerCut((int) $inputs['viewer_id']) : null;
+
+        if ($cut !== null) {
+            $where .= ' AND sales.employee_id = ' . $cut;
+        }
+
         $decimals = totals_decimals();
 
         $salePrice = 'CASE WHEN sales_items.discount_type = ' . PERCENT

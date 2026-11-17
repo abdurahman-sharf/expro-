@@ -21,14 +21,19 @@ final class ForeignDocumentReader
     }
 
     /**
-     * @param list<int>|null $branchIds Null reads every branch and an empty list none.
-     * @param string         $saleType  The kind of sale of the legacy reports: complete, sales, quotes, work_orders, canceled or returns.
+     * @param list<int>|null $branchIds  Null reads every branch and an empty list none.
+     * @param string         $saleType   The kind of sale of the legacy reports: complete, sales, quotes, work_orders, canceled or returns.
+     * @param int|null       $employeeId Reads only the documents this employee made, for one who sees their own records only.
      *
      * @return list<ForeignDocument> The sales in the days, oldest first.
      */
-    public function sales(string $from, string $to, bool $withTime, ?array $branchIds, string $saleType = 'all', string $locationId = 'all'): array
+    public function sales(string $from, string $to, bool $withTime, ?array $branchIds, string $saleType = 'all', string $locationId = 'all', ?int $employeeId = null): array
     {
         $builder = $this->db->table('sales AS sales')->select('sales.sale_id, sales.invoice_number, sales.currency_code')->where('sales.currency_code IS NOT NULL', null, false)->where('sales.currency_code !=', '');
+
+        if ($employeeId !== null) {
+            $builder->where('sales.employee_id', $employeeId);
+        }
 
         $this->ofTheSaleType($builder, $saleType);
         $this->ofTheBranches($builder, 'sales.branch_id', $branchIds);

@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Accounting\ForeignDocumentReader;
 use App\Libraries\Accounting\ForeignDocuments;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\RecordScope;
 use App\Models\Attribute;
 use App\Models\Customer;
 use App\Models\Reports\Detailed_item_sales;
@@ -142,6 +143,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -185,6 +187,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -267,6 +270,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [    // TODO: Duplicated Code
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -310,6 +314,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -352,6 +357,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -397,6 +403,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -440,6 +447,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -481,6 +489,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -540,6 +549,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'     => $this->viewer(),
             'start_date'    => $start_date,
             'end_date'      => $end_date,
             'sale_type'     => $sale_type,
@@ -579,6 +589,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => 'complete',
@@ -766,6 +777,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -807,6 +819,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -847,6 +860,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -885,6 +899,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -923,6 +938,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -961,6 +977,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -999,6 +1016,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -1037,6 +1055,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -1083,6 +1102,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'     => $this->viewer(),
             'start_date'    => $start_date,
             'end_date'      => $end_date,
             'sale_type'     => $sale_type,
@@ -1124,6 +1144,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'sale_type'   => $sale_type,
@@ -1208,7 +1229,7 @@ class Reports extends Secure_Controller
     {
         $this->clearCache();
 
-        $inputs = ['start_date' => $start_date, 'end_date' => $end_date, 'customer_id' => $customer_id, 'sale_type' => $sale_type, 'payment_type' => $payment_type];
+        $inputs = ['start_date' => $start_date, 'end_date' => $end_date, 'customer_id' => $customer_id, 'sale_type' => $sale_type, 'payment_type' => $payment_type, 'viewer_id' => $this->viewer()];
 
         $specific_customer = model(Specific_customer::class);
 
@@ -1330,7 +1351,7 @@ class Reports extends Secure_Controller
     {
         $this->clearCache();
 
-        $inputs = ['start_date' => $start_date, 'end_date' => $end_date, 'employee_id' => $employee_id, 'sale_type' => $sale_type];
+        $inputs = ['start_date' => $start_date, 'end_date' => $end_date, 'employee_id' => $employee_id, 'sale_type' => $sale_type, 'viewer_id' => $this->viewer()];
 
         $specific_employee = model(Specific_employee::class);
 
@@ -1451,6 +1472,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'     => $this->viewer(),
             'start_date'    => $start_date,
             'end_date'      => $end_date,
             'discount'      => $discount,
@@ -1554,7 +1576,7 @@ class Reports extends Secure_Controller
     {
         $this->clearCache();
 
-        $inputs = ['sale_id' => $saleId];
+        $inputs = ['sale_id' => $saleId, 'viewer_id' => $this->viewer()];
 
         $this->detailed_sales->create($inputs);
 
@@ -1630,6 +1652,7 @@ class Reports extends Secure_Controller
     public function specific_suppliers(string $start_date, string $end_date, string $supplier_id, string $sale_type): string
     {
         $inputs = [
+            'viewer_id'   => $this->viewer(),
             'start_date'  => $start_date,
             'end_date'    => $end_date,
             'supplier_id' => $supplier_id,
@@ -1698,6 +1721,7 @@ class Reports extends Secure_Controller
         $definition_names = $this->attribute->getDefinitionsByFlags(Attribute::SHOW_IN_SALES, true);
 
         $inputs = [
+            'viewer_id'      => $this->viewer(),
             'start_date'     => $start_date,
             'end_date'       => $end_date,
             'sale_type'      => $sale_type,
@@ -1815,6 +1839,7 @@ class Reports extends Secure_Controller
         $discountType = in_array($discountType, ['all', (string) PERCENT, (string) FIXED], true) ? $discountType : 'all';
 
         $inputs = [
+            'viewer_id'     => $this->viewer(),
             'start_date'    => $startDate,
             'end_date'      => $endDate,
             'sale_type'     => $saleType,
@@ -2120,12 +2145,18 @@ class Reports extends Secure_Controller
         $locationId = (string) ($inputs['location_id'] ?? 'all');
         $employeeId = (int) $this->session->get('person_id');
         $branchIds  = $employeeId < 1 ? null : (new BranchGuard())->allowedBranchIds($employeeId);
+        $ownCut     = isset($inputs['viewer_id']) ? (new RecordScope())->limit((int) $inputs['viewer_id']) : null;
         $reader     = new ForeignDocumentReader();
         $foreign    = $documents === 'receivings'
             ? $reader->receivings($from, $to, $withTime, $branchIds, $locationId)
-            : $reader->sales($from, $to, $withTime, $branchIds, (string) ($inputs['sale_type'] ?? 'all'), $locationId);
+            : $reader->sales($from, $to, $withTime, $branchIds, (string) ($inputs['sale_type'] ?? 'all'), $locationId, $ownCut);
 
         return $foreign === [] ? $subtitle : $subtitle . "\n" . lang('Reports.foreign_documents_label', [ForeignDocuments::describe($foreign)]);
+    }
+
+    private function viewer(): ?int
+    {
+        return RecordScope::sessionEmployee();
     }
 
     private function clearCache(): void

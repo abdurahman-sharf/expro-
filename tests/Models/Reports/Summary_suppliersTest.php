@@ -66,6 +66,25 @@ class Summary_suppliersTest extends CIUnitTestCase
         return array_values(array_map(static fn (string $supplier): string => str_contains($supplier, 'ReportSupplierB') ? 'B' : 'A', array_column($rows, 'supplier')));
     }
 
+    /**
+     * @return array<string, string>
+     */
+    private function totalsSeenBy(?int $reader, ?int $viewer): array
+    {
+        $this->readingAs($reader);
+
+        $rows   = (new Summary_suppliers())->getData($this->saleInputs() + ($viewer === null ? [] : ['viewer_id' => $viewer]));
+        $totals = [];
+
+        foreach ($rows as $row) {
+            $totals[str_contains((string) $row['supplier'], 'ReportSupplierB') ? 'B' : 'A'] = $this->amount($row['total']);
+        }
+
+        ksort($totals);
+
+        return $totals;
+    }
+
     public function testGetData_ShowsOnlyTheSuppliersOfWhatTheBranchesTheEmployeeWorksInSold(): void
     {
         $this->assertSame(['A'], $this->seenBy('a'));
@@ -86,5 +105,27 @@ class Summary_suppliersTest extends CIUnitTestCase
     public function testGetData_ShowsNothingToAnEmployeeWhoWorksInNoBranch(): void
     {
         $this->assertSame([], $this->seenBy('none'));
+    }
+
+    public function testGetData_ShowsOnlyTheSupplierOfTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+
+        $this->assertSame(['A' => '30.00'], $this->totalsSeenBy($own, $own));
+
+        $this->readingAs($own);
+
+        $this->assertSame('30.00', $this->amount((new Summary_suppliers())->getSummaryData($this->saleInputs() + ['viewer_id' => $own])['total']));
+    }
+
+    public function testGetData_ShowsEverySaleToAnEmployeeWhoSeesEveryRecordAndWhenNoViewerIsNamed(): void
+    {
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+        $everything     = ['A' => '247.00', 'B' => '126.00'];
+        $everyRecord    = $this->employeeWithGrants([]);
+
+        $this->assertSame($everything, $this->totalsSeenBy($everyRecord, $everyRecord));
+        $this->assertSame($everything, $this->totalsSeenBy(null, null));
+        $this->assertSame($everything, $this->totalsSeenBy($own, null), 'a read that names no viewer is not cut, whoever is logged in');
     }
 }

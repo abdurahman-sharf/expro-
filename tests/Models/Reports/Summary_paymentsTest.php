@@ -96,6 +96,47 @@ class Summary_paymentsTest extends CIUnitTestCase
         return (int) array_sum(array_column($rows, 'trans_sales'));
     }
 
+    /**
+     * @return array{paid: array<string, string>, sales: int, total: string}
+     */
+    private function readAs(?int $sessionEmployee, ?int $viewer): array
+    {
+        $this->readingAs($sessionEmployee);
+
+        $report = new Summary_payments();
+        $inputs = $this->saleInputs() + ($viewer === null ? [] : ['viewer_id' => $viewer]);
+        $rows   = $report->getData($inputs);
+        $paid   = array_filter($rows, static fn (array $row): bool => $row['trans_group'] === lang('Reports.trans_payments') && $row['trans_type'] !== null);
+        $sales  = array_filter($rows, static fn (array $row): bool => $row['trans_group'] === lang('Reports.trans_sales'));
+        $amount = array_map(fn (mixed $value): string => $this->amount($value), array_column($paid, 'trans_amount', 'trans_type'));
+
+        ksort($amount);
+
+        return ['paid' => $amount, 'sales' => (int) array_sum(array_column($sales, 'trans_sales')), 'total' => $this->amount($report->getSummaryData($inputs)['total'])];
+    }
+
+    public function testGetData_ShowsOnlyThePaymentsOfTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        $this->openTheBooks();
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+
+        $this->assertSame(['paid' => [lang('Sales.cash') => '30.00'], 'sales' => 1, 'total' => '30.00'], $this->readAs($own, $own));
+    }
+
+    public function testGetData_ShowsEveryPaymentToAnEmployeeWhoSeesEveryRecordAndWhenNoViewerIsNamed(): void
+    {
+        $this->openTheBooks();
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+        $everything     = ['paid' => [lang('Sales.cash') => '237.00', lang('Sales.debit') => '126.00'], 'sales' => 4, 'total' => '373.00'];
+        $seesEverything = $this->employeeWithGrants([]);
+
+        ksort($everything['paid']);
+
+        $this->assertSame($everything, $this->readAs($seesEverything, $seesEverything));
+        $this->assertSame($everything, $this->readAs(null, null));
+        $this->assertSame($everything, $this->readAs($own, null), 'a read that names no viewer is not cut, whoever is logged in');
+    }
+
     public function testGetData_ShowsOnlyTheWaysOfPayingOfTheBranchesTheEmployeeWorksIn(): void
     {
         $this->openTheBooks();

@@ -1,0 +1,216 @@
+[
+  {
+    "name": "G01 an own-records employee is shown every sale of the report",
+    "file": "app/Models/Sale.php",
+    "find": "$cut = isset($inputs['viewer_id']) ? $this->viewerCut((int) $inputs['viewer_id']) : null;",
+    "replace": "$cut = null;",
+    "tests": [
+      "tests/Models/Reports/Detailed_salesTest.php"
+    ]
+  },
+  {
+    "name": "G02 the row of one sale is not cut to the own-records employee",
+    "file": "app/Models/Sale.php",
+    "find": "$cut = isset($inputs['viewer_id']) ? $this->viewerCut((int) $inputs['viewer_id']) : null;",
+    "replace": "$cut = isset($inputs['viewer_id']) && empty($inputs['sale_id']) ? $this->viewerCut((int) $inputs['viewer_id']) : null;",
+    "tests": [
+      "tests/Models/Reports/Detailed_salesTest.php"
+    ]
+  },
+  {
+    "name": "G03 a direct caller of the sales temporary table is cut by whoever is logged in",
+    "file": "app/Models/Sale.php",
+    "find": "$cut = isset($inputs['viewer_id']) ? $this->viewerCut((int) $inputs['viewer_id']) : null;",
+    "replace": "$cut = $this->viewerCut(isset($inputs['viewer_id']) ? (int) $inputs['viewer_id'] : null);",
+    "tests": [
+      "--filter",
+      "CutsToTheViewerGivenAndToNoOneWhenNoneIsGiven",
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G04 the summaries are not cut to the own-records employee",
+    "file": "app/Models/Reports/Summary_report.php",
+    "find": "$this->limitToOwnRecords($builder, 'sales.employee_id', $inputs);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "AnOwnRecordsEmployee",
+      "tests/Models/Reports/Summary_salesTest.php"
+    ]
+  },
+  {
+    "name": "G05 the tax summary is not cut to the own-records employee",
+    "file": "app/Models/Reports/Summary_taxes.php",
+    "find": "$this->limitToOwnRecords($subqueryBuilder, 'sales.employee_id', $inputs);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "AnOwnRecordsEmployee",
+      "tests/Models/Reports/Summary_taxesTest.php"
+    ]
+  },
+  {
+    "name": "G06 the sales tax summary is read uncut by its where",
+    "file": "app/Models/Reports/Summary_sales_taxes.php",
+    "find": "        $this->limitToBranches($builder, 'sales.branch_id');\n        $this->limitToOwnRecords($builder, 'sales.employee_id', $inputs);\n    }",
+    "replace": "        $this->limitToBranches($builder, 'sales.branch_id');\n    }",
+    "tests": [
+      "--filter",
+      "AnOwnRecordsEmployee",
+      "tests/Models/Reports/Summary_sales_taxesTest.php"
+    ]
+  },
+  {
+    "name": "G07 the sales tax summary is read uncut by its data",
+    "file": "app/Models/Reports/Summary_sales_taxes.php",
+    "find": "'left');\n        $this->limitToBranches($builder, 'sales.branch_id');\n        $this->limitToOwnRecords($builder, 'sales.employee_id', $inputs);",
+    "replace": "'left');\n        $this->limitToBranches($builder, 'sales.branch_id');",
+    "tests": [
+      "--filter",
+      "AnOwnRecordsEmployee",
+      "tests/Models/Reports/Summary_sales_taxesTest.php"
+    ]
+  },
+  {
+    "name": "G08 the limit to own records is never put on the query",
+    "file": "app/Models/Reports/Report.php",
+    "find": "$builder->where($employeeColumn, $cut);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "AnOwnRecordsEmployee",
+      "tests/Models/Reports/Summary_salesTest.php"
+    ]
+  },
+  {
+    "name": "G09 the foreign sales of every employee are named to an own-records employee",
+    "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+    "find": "$builder->where('sales.employee_id', $employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+    ]
+  },
+  {
+    "name": "G10 the title of the report does not cut the foreign sales to the reader",
+    "file": "app/Controllers/Reports.php",
+    "find": "$locationId, $ownCut);",
+    "replace": "$locationId);",
+    "tests": [
+      "--filter",
+      "NamesNoForeignSaleAnotherEmployeeMadeToAnOwnRecordsEmployee",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G11 the controller names no viewer to any report",
+    "file": "app/Controllers/Reports.php",
+    "find": "return RecordScope::sessionEmployee();",
+    "replace": "return null;",
+    "tests": [
+      "--filter",
+      "OwnRecordsEmployee",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G12 summary_payments names no viewer",
+    "file": "app/Controllers/Reports.php",
+    "find": "    public function summary_payments(string $start_date, string $end_date): string\n    {\n        $this->clearCache();\n\n        $inputs = [\n            'viewer_id'   => $this->viewer(),",
+    "replace": "    public function summary_payments(string $start_date, string $end_date): string\n    {\n        $this->clearCache();\n\n        $inputs = [",
+    "tests": [
+      "--filter",
+      "ShowAnOwnRecordsEmployeeNothingOfWhatAnotherEmployeeSold",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G13 graphical_summary_taxes names no viewer",
+    "file": "app/Controllers/Reports.php",
+    "find": "    public function graphical_summary_taxes(string $start_date, string $end_date, string $sale_type, string $location_id = 'all'): string\n    {   // TODO: Duplicated Code\n        $this->clearCache();\n\n        $inputs = [\n            'viewer_id'   => $this->viewer(),",
+    "replace": "    public function graphical_summary_taxes(string $start_date, string $end_date, string $sale_type, string $location_id = 'all'): string\n    {   // TODO: Duplicated Code\n        $this->clearCache();\n\n        $inputs = [",
+    "tests": [
+      "--filter",
+      "ShowAnOwnRecordsEmployeeNothingOfWhatAnotherEmployeeSold",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G14 graphical_summary_sales_taxes names no viewer",
+    "file": "app/Controllers/Reports.php",
+    "find": "    public function graphical_summary_sales_taxes(string $start_date, string $end_date, string $sale_type, string $location_id = 'all'): string\n    {   // TODO: Duplicated Code\n        $this->clearCache();\n\n        $inputs = [\n            'viewer_id'   => $this->viewer(),",
+    "replace": "    public function graphical_summary_sales_taxes(string $start_date, string $end_date, string $sale_type, string $location_id = 'all'): string\n    {   // TODO: Duplicated Code\n        $this->clearCache();\n\n        $inputs = [",
+    "tests": [
+      "--filter",
+      "ShowAnOwnRecordsEmployeeNothingOfWhatAnotherEmployeeSold",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G15 detailed_sales names no viewer",
+    "file": "app/Controllers/Reports.php",
+    "find": "    public function detailed_sales(string $start_date, string $end_date, string $sale_type, string $location_id = 'all'): string\n    {\n        $this->clearCache();\n\n        $definition_names = $this->attribute->getDefinitionsByFlags(Attribute::SHOW_IN_SALES, true);\n\n        $inputs = [\n            'viewer_id'      => $this->viewer(),",
+    "replace": "    public function detailed_sales(string $start_date, string $end_date, string $sale_type, string $location_id = 'all'): string\n    {\n        $this->clearCache();\n\n        $definition_names = $this->attribute->getDefinitionsByFlags(Attribute::SHOW_IN_SALES, true);\n\n        $inputs = [",
+    "tests": [
+      "--filter",
+      "ShowAnOwnRecordsEmployeeNothingOfWhatAnotherEmployeeSold",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G16 detailedItemSales names no viewer",
+    "file": "app/Controllers/Reports.php",
+    "find": "    public function detailedItemSales(string $startDate, string $endDate, string $saleType = 'sales', string $locationId = 'all', string $discountType = 'all'): string\n    {\n        $this->clearCache();\n\n        $saleType     = array_key_exists($saleType, $this->get_sale_type_options()) ? $saleType : 'sales';\n        $locationId   = ctype_digit($locationId) ? (string) (int) $locationId : 'all';\n        $discountType = in_array($discountType, ['all', (string) PERCENT, (string) FIXED], true) ? $discountType : 'all';\n\n        $inputs = [\n            'viewer_id'     => $this->viewer(),",
+    "replace": "    public function detailedItemSales(string $startDate, string $endDate, string $saleType = 'sales', string $locationId = 'all', string $discountType = 'all'): string\n    {\n        $this->clearCache();\n\n        $saleType     = array_key_exists($saleType, $this->get_sale_type_options()) ? $saleType : 'sales';\n        $locationId   = ctype_digit($locationId) ? (string) (int) $locationId : 'all';\n        $discountType = in_array($discountType, ['all', (string) PERCENT, (string) FIXED], true) ? $discountType : 'all';\n\n        $inputs = [",
+    "tests": [
+      "--filter",
+      "ShowAnOwnRecordsEmployeeNothingOfWhatAnotherEmployeeSold",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G17 the row endpoint names no viewer",
+    "file": "app/Controllers/Reports.php",
+    "find": "$inputs = ['sale_id' => $saleId, 'viewer_id' => $this->viewer()];",
+    "replace": "$inputs = ['sale_id' => $saleId];",
+    "tests": [
+      "--filter",
+      "FindsASaleAnOwnRecordsEmployeeMadeAndNotOneAnotherMade",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G18 summary_employees names no viewer",
+    "file": "app/Controllers/Reports.php",
+    "find": "    public function summary_employees(string $start_date, string $end_date, string $sale_type, string $location_id = 'all'): string\n    {\n        $this->clearCache();\n\n        $inputs = [\n            'viewer_id'   => $this->viewer(),",
+    "replace": "    public function summary_employees(string $start_date, string $end_date, string $sale_type, string $location_id = 'all'): string\n    {\n        $this->clearCache();\n\n        $inputs = [",
+    "tests": [
+      "--filter",
+      "ShowAnOwnRecordsEmployeeNothingOfWhatAnotherEmployeeSold",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G19 summary_sales_taxes names no viewer",
+    "file": "app/Controllers/Reports.php",
+    "find": "    public function summary_sales_taxes(string $start_date, string $end_date, string $sale_type, string $location_id = 'all'): string\n    {   // TODO: Duplicated code\n        $this->clearCache();\n\n        $inputs = [\n            'viewer_id'   => $this->viewer(),",
+    "replace": "    public function summary_sales_taxes(string $start_date, string $end_date, string $sale_type, string $location_id = 'all'): string\n    {   // TODO: Duplicated code\n        $this->clearCache();\n\n        $inputs = [",
+    "tests": [
+      "--filter",
+      "ShowAnOwnRecordsEmployeeNothingOfWhatAnotherEmployeeSold",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G20 summary_discounts names no viewer",
+    "file": "app/Controllers/Reports.php",
+    "find": "    public function summary_discounts(string $start_date, string $end_date, string $sale_type, string $location_id = 'all', int $discount_type = 0): string\n    {   // TODO: Duplicated Code\n        $this->clearCache();\n\n        $inputs = [\n            'viewer_id'     => $this->viewer(),",
+    "replace": "    public function summary_discounts(string $start_date, string $end_date, string $sale_type, string $location_id = 'all', int $discount_type = 0): string\n    {   // TODO: Duplicated Code\n        $this->clearCache();\n\n        $inputs = [",
+    "tests": [
+      "--filter",
+      "ShowAnOwnRecordsEmployeeNothingOfWhatAnotherEmployeeSold",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  }
+]

@@ -66,6 +66,18 @@ class Summary_discountsTest extends CIUnitTestCase
         return array_values(array_unique(array_column($rows, 'discount')));
     }
 
+    /**
+     * @return list<array{discount: string, count: int, total: string}>
+     */
+    private function discountsSeenBy(?int $reader, ?int $viewer): array
+    {
+        $this->readingAs($reader);
+
+        $rows = (new Summary_discounts())->getData($this->saleInputs() + ['discount_type' => PERCENT] + ($viewer === null ? [] : ['viewer_id' => $viewer]));
+
+        return array_map(fn (array $row): array => ['discount' => (string) $row['discount'], 'count' => (int) $row['count'], 'total' => $this->amount($row['total'])], $rows);
+    }
+
     public function testGetData_ShowsOnlyTheDiscountsOfTheBranchesTheEmployeeWorksIn(): void
     {
         $this->assertSame(['10.00%'], $this->seenBy('a'));
@@ -86,5 +98,23 @@ class Summary_discountsTest extends CIUnitTestCase
     public function testGetData_ShowsNothingToAnEmployeeWhoWorksInNoBranch(): void
     {
         $this->assertSame([], $this->seenBy('none'));
+    }
+
+    public function testGetData_ShowsOnlyTheDiscountsOfTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+
+        $this->assertSame([['discount' => '10.00%', 'count' => 1, 'total' => '3.00']], $this->discountsSeenBy($own, $own));
+    }
+
+    public function testGetData_ShowsEveryDiscountToAnEmployeeWhoSeesEveryRecordAndWhenNoViewerIsNamed(): void
+    {
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+        $everything     = [['discount' => '10.00%', 'count' => 2, 'total' => '13.00'], ['discount' => '20.00%', 'count' => 1, 'total' => '10.00']];
+        $everyRecord    = $this->employeeWithGrants([]);
+
+        $this->assertSame($everything, $this->discountsSeenBy($everyRecord, $everyRecord));
+        $this->assertSame($everything, $this->discountsSeenBy(null, null));
+        $this->assertSame($everything, $this->discountsSeenBy($own, null), 'a read that names no viewer is not cut, whoever is logged in');
     }
 }

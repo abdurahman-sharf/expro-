@@ -66,6 +66,23 @@ class Summary_categoriesTest extends CIUnitTestCase
         return array_values(array_unique(array_map('strval', array_column($rows, 'category'))));
     }
 
+    /**
+     * @return array<string, string>
+     */
+    private function totalsSeenBy(?int $reader, ?int $viewer): array
+    {
+        $this->readingAs($reader);
+
+        $rows   = (new Summary_categories())->getData($this->saleInputs() + ($viewer === null ? [] : ['viewer_id' => $viewer]));
+        $totals = [];
+
+        foreach ($rows as $row) {
+            $totals[(string) $row['category']] = $this->amount($row['total']);
+        }
+
+        return $totals;
+    }
+
     public function testGetData_ShowsOnlyWhatTheBranchesTheEmployeeWorksInSold(): void
     {
         $this->assertSame(['ReportCatA'], $this->seenBy('a'));
@@ -86,6 +103,28 @@ class Summary_categoriesTest extends CIUnitTestCase
     public function testGetData_ShowsNothingToAnEmployeeWhoWorksInNoBranch(): void
     {
         $this->assertSame([], $this->seenBy('none'));
+    }
+
+    public function testGetData_ShowsOnlyTheCategoryOfTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+
+        $this->assertSame(['ReportCatA' => '30.00'], $this->totalsSeenBy($own, $own));
+
+        $this->readingAs($own);
+
+        $this->assertSame('30.00', $this->amount((new Summary_categories())->getSummaryData($this->saleInputs() + ['viewer_id' => $own])['total']));
+    }
+
+    public function testGetData_ShowsEverySaleToAnEmployeeWhoSeesEveryRecordAndWhenNoViewerIsNamed(): void
+    {
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+        $everything     = ['ReportCatA' => '247.00', 'ReportCatB' => '126.00'];
+        $everyRecord    = $this->employeeWithGrants([]);
+
+        $this->assertSame($everything, $this->totalsSeenBy($everyRecord, $everyRecord));
+        $this->assertSame($everything, $this->totalsSeenBy(null, null));
+        $this->assertSame($everything, $this->totalsSeenBy($own, null), 'a read that names no viewer is not cut, whoever is logged in');
     }
 
     /**

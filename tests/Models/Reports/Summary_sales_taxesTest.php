@@ -68,6 +68,42 @@ class Summary_sales_taxesTest extends CIUnitTestCase
         return $this->amount((new Summary_sales_taxes())->getSummaryData($this->saleInputs())['tax']);
     }
 
+    /**
+     * @return array{taxes: array<string, string>, summed: string}
+     */
+    private function readAs(?int $sessionEmployee, ?int $viewer): array
+    {
+        $this->readingAs($sessionEmployee);
+
+        $report = new Summary_sales_taxes();
+        $inputs = $this->saleInputs() + ($viewer === null ? [] : ['viewer_id' => $viewer]);
+        $taxes  = array_map(fn (mixed $value): string => $this->amount($value), array_column($report->getData($inputs), 'tax', 'tax_rate'));
+
+        ksort($taxes);
+
+        return ['taxes' => $taxes, 'summed' => $this->amount($report->getSummaryData($inputs)['tax'])];
+    }
+
+    public function testGetData_AddsUpOnlyTheTaxOfTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+
+        $this->assertSame(['taxes' => ['10.0000' => '3.00'], 'summed' => '3.00'], $this->readAs($own, $own));
+    }
+
+    public function testGetData_AddsUpTheTaxOfEverySaleForAnEmployeeWhoSeesEveryRecordAndWhenNoViewerIsNamed(): void
+    {
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+        $everything     = ['taxes' => ['10.0000' => '3.00', '15.0000' => '27.00', '5.0000' => '6.00'], 'summed' => '36.00'];
+        $seesEverything = $this->employeeWithGrants([]);
+
+        ksort($everything['taxes']);
+
+        $this->assertSame($everything, $this->readAs($seesEverything, $seesEverything));
+        $this->assertSame($everything, $this->readAs(null, null));
+        $this->assertSame($everything, $this->readAs($own, null), 'a read that names no viewer is not cut, whoever is logged in');
+    }
+
     public function testGetData_AddsUpOnlyTheTaxOfTheSalesOfTheBranchesTheEmployeeWorksIn(): void
     {
         $this->assertSame('27.00', $this->taxedBy('a'));

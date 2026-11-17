@@ -41,6 +41,7 @@ class Summary_sales_taxes extends Summary_report
         }
 
         $this->limitToBranches($builder, 'sales.branch_id');
+        $this->limitToOwnRecords($builder, 'sales.employee_id', $inputs);
     }
 
     public function getData(array $inputs): array
@@ -60,6 +61,7 @@ class Summary_sales_taxes extends Summary_report
         $builder->join('tax_categories', 'sales_taxes.tax_category_id = tax_categories.tax_category_id', 'left');
         $builder->join('tax_jurisdictions', 'sales_taxes.jurisdiction_id = tax_jurisdictions.jurisdiction_id', 'left');
         $this->limitToBranches($builder, 'sales.branch_id');
+        $this->limitToOwnRecords($builder, 'sales.employee_id', $inputs);
         $builder->groupBy('reporting_authority, jurisdiction_name, tax_category, tax_rate');
 
         $query = $builder->get();

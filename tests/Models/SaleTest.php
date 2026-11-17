@@ -812,6 +812,37 @@ class SaleTest extends CIUnitTestCase
         $this->assertTrue($this->temporaryTableExists('sales_items_temp'));
     }
 
+    public function testCreateTempTable_CutsToTheViewerGivenAndToNoOneWhenNoneIsGiven(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $mine   = $this->saleOfEmployee($own);
+        $theirs = $this->saleOfEmployee($this->createEmployee());
+        $today  = date('Y-m-d');
+        $db     = Database::connect();
+        $seen   = function (array $extra) use ($db, $today): array {
+            $this->dropReportTables();
+            model(Sale::class)->create_temp_table(['start_date' => $today, 'end_date' => $today] + $extra);
+
+            return array_map('intval', array_column($db->table('sales_items_temp')->select('sale_id')->distinct()->get()->getResultArray(), 'sale_id'));
+        };
+
+        try {
+            $this->assertSame([$mine], $seen(['viewer_id' => $own]));
+            $this->assertSame([$mine], $seen(['viewer_id' => $own, 'sale_id' => null]));
+            $this->assertSame([], $seen(['viewer_id' => $own, 'sale_id' => $theirs]));
+            $this->assertContains($theirs, $seen(['viewer_id' => $this->createEmployee()]));
+            $this->assertContains($theirs, $seen(['viewer_id' => null]));
+
+            $_SESSION['person_id'] = $own;
+
+            $this->assertContains($theirs, $seen([]));
+            $this->assertContains($mine, $seen([]));
+        } finally {
+            unset($_SESSION['person_id']);
+            $this->dropReportTables();
+        }
+    }
+
     public function testSearch_ReadsMoreSalesThanTheMemoryTablesOfTheServerCanHold(): void
     {
         $this->insertTaxedSales($this->createEmployee(), $this->createTestItem(), self::LOCATION_ID, '2001-02-10', 1600, 10);
