@@ -316,7 +316,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="acc-filter">
+                <div class="acc-filter acc-filter-range">
                     <label class="form-label" for="daterangepicker"><?= lang('Purchases.date_range') ?></label>
                     <input type="text" id="daterangepicker" class="form-control form-control-sm" autocomplete="off">
                 </div>
@@ -351,7 +351,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                     <a class="btn btn-outline-secondary btn-sm" id="export_xlsx" href="<?= esc(site_url('purchases/xlsx') . '?' . http_build_query($csv_query), 'attr') ?>"><span class="bi bi-file-earmark-excel" aria-hidden="true">&nbsp;</span><?= lang('Purchases.export_excel') ?></a>
                     <a class="btn btn-outline-secondary btn-sm" id="export_pdf" href="<?= esc(site_url('purchases/pdf') . '?' . http_build_query($csv_query), 'attr') ?>"><span class="bi bi-file-earmark-pdf" aria-hidden="true">&nbsp;</span><?= lang('Purchases.export_pdf') ?></a>
                 </div>
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="print_list"><span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Purchases.print') ?></button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="print_list" data-keep-enabled><span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Purchases.print') ?></button>
             </div>
         </div>
 

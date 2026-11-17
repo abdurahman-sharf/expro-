@@ -223,7 +223,7 @@
     let enable_actions = function(callback) {
         return function() {
             const selection_empty = selected_rows().length == 0;
-            $("#toolbar button:not(.dropdown-toggle)").attr('disabled', selection_empty);
+            $("#toolbar button:not(.dropdown-toggle):not([data-keep-enabled])").attr('disabled', selection_empty);
             typeof callback == 'function' && callback();
         }
     };

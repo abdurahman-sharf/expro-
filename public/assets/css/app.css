@@ -1445,6 +1445,10 @@ input.flatpickr-input,
     box-shadow: none;
 }
 
+.acc-filter.acc-filter-range {
+    min-width: 15rem;
+}
+
 .home-shortcuts {
     margin-block-end: 24px;
     padding: 16px;

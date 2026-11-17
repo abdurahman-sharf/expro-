@@ -69,6 +69,7 @@ final class PurchasesControllerTest extends FamilyReportTestCase
         $this->assertStringContainsString('<h1 class="app-title">' . lang('Purchases.title') . '</h1>', $body);
         $this->assertStringContainsString('id="purchase_filters"', $body);
         $this->assertStringContainsString('reports/detailed_receivings', $body);
+        $this->assertMatchesRegularExpression('/<button type="button"[^>]*id="print_list" data-keep-enabled>/', $body, 'the print button sits in the toolbar that is disabled until a row is picked, so it must say it stays enabled');
 
         foreach (['f_supplier_name', 'f_status', 'f_payment', 'daterangepicker', 'page_size', 'export_csv', 'export_xlsx', 'export_pdf', 'purchase_sums'] as $id) {
             $this->assertStringContainsString('id="' . $id . '"', $body);

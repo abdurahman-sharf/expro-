@@ -74,8 +74,10 @@ final class BuiltAssetsTest extends CIUnitTestCase
             $this->assertStringContainsString($option, $script, "the served script does not know the table option {$option}");
         }
 
+        $this->assertStringContainsString(':not([data-keep-enabled])', $script, 'a button of the toolbar that must stay enabled is disabled with the others by the served script');
         $this->assertStringContainsString('formatRequestFailed()', $script, 'a failed action of a row says nothing in the served script');
         $this->assertMatchesRegularExpression('/\.row-options[^{]*\{/', $styles, 'the button of the options of a row has no style in the served styles');
+        $this->assertMatchesRegularExpression('/\.acc-filter-range[^{]*\{[^}]*min-width/', $styles, 'the box of a date range has no room for its two dates in the served styles');
         $this->assertMatchesRegularExpression('/\.purchase-sums[^{]*\{/', $styles, 'the totals of the list of purchases have no style in the served styles');
     }
 
