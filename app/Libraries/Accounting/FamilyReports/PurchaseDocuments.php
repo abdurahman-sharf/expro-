@@ -18,6 +18,7 @@ use App\Libraries\Accounting\SupplierLedger;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\CompanyContext;
+use App\Libraries\Purchases\PurchaseLines;
 use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -214,40 +215,7 @@ final class PurchaseDocuments
      */
     private function lines(array $ids): array
     {
-        $found = [];
-
-        foreach (array_chunk($ids, 500) as $chunk) {
-            $rows = $this->db->table('receivings_items ri')
-                ->select('ri.receiving_id, ri.item_id, ri.line, ri.quantity_purchased, ri.receiving_quantity, ri.item_unit_price, ri.discount, ri.discount_type, ri.item_location, ri.tax_percent, ri.invoice_discount_share, i.name, i.item_number, i.category')
-                ->join('items i', 'i.item_id = ri.item_id', 'left')
-                ->whereIn('ri.receiving_id', $chunk)
-                ->orderBy('ri.receiving_id', 'ASC')
-                ->orderBy('ri.line', 'ASC')
-                ->get()
-                ->getResult();
-
-            foreach ($rows as $row) {
-                $line = new ReceivingLine(
-                    itemId: (int) $row->item_id,
-                    line: (int) $row->line,
-                    quantity: sprintf('%.3F', (float) $row->quantity_purchased),
-                    unitsPerPack: sprintf('%.3F', (float) $row->receiving_quantity),
-                    unitPrice: sprintf('%.2F', (float) $row->item_unit_price),
-                    discount: sprintf('%.2F', (float) $row->discount),
-                    discountType: (int) $row->discount_type,
-                    taxPercent: sprintf('%.3F', (float) $row->tax_percent),
-                    locationId: (int) $row->item_location,
-                    hasStock: true,
-                    itemCost: '0',
-                    invoiceDiscount: $row->invoice_discount_share === null ? '0' : sprintf('%.4F', (float) $row->invoice_discount_share),
-                );
-
-                $found[(int) $row->receiving_id]['purchase'][] = $line;
-                $found[(int) $row->receiving_id]['lines'][]    = [$line, $row];
-            }
-        }
-
-        return $found;
+        return (new PurchaseLines($this->db))->of($ids);
     }
 
     /**

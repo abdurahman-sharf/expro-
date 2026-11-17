@@ -564,6 +564,63 @@ class SupplierLedgerTest extends CIUnitTestCase
         $this->assertSupplierTies();
     }
 
+    public function testFiguresOf_GivesEachPurchaseTheFiguresPositionGivesInAFewQueries(): void
+    {
+        $other = $this->anotherSupplier('Najd Trading');
+
+        $first  = $this->purchaseOf('1000.00');
+        $second = $this->purchaseOf('300.00', $other);
+        $third  = $this->purchaseOf('115.00', null, lang('Sales.cash'));
+
+        $this->payPurchase($first, '300.00');
+        $this->payPurchase($first, '200.00', lang('Sales.check'));
+        $this->debitNoteOf($first, '100.00');
+        $this->payPurchase($second, '50.00');
+
+        $db        = $this->accountingDb();
+        $questions = static fn (): int => (int) $db->query("SHOW SESSION STATUS LIKE 'Questions'")->getRow()->Value;
+        $before    = $questions();
+        $found     = (new SupplierLedger())->figuresOf([$first, $second, $third, 987654]);
+        $asked     = $questions() - $before - 1;
+
+        $this->assertLessThanOrEqual(8, $asked);
+        $this->assertSame([$first, $second, $third], array_keys($found));
+
+        foreach ([[$this->supplierId, [$first, $third]], [$other, [$second]]] as [$supplierId, $ids]) {
+            foreach ($ids as $id) {
+                $this->assertEquals($this->supplierPosition($supplierId)->purchase($id), $found[$id], "purchase {$id}");
+            }
+        }
+    }
+
+    public function testFiguresOf_LeavesOutAPurchaseWithoutAStandingJournalAndADebitNote(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $note     = $this->debitNoteOf($purchase, '40.00');
+        $gone     = $this->purchaseOf('50.00');
+
+        $this->accountingDb()->table('accounting_journals')->where('source_type', 'purchase')->where('source_id', $gone)->update(['status' => 'reversed']);
+
+        $found = (new SupplierLedger())->figuresOf([$purchase, $note, $gone]);
+
+        $this->assertSame([$purchase], array_keys($found));
+        $this->assertSame('40.00', bcadd($found[$purchase]->returned, '0', 2));
+    }
+
+    public function testFiguresOf_SkipsAnApplicationOfCreditThatWasReleased(): void
+    {
+        $first = $this->purchaseOf('115.00', null, lang('Sales.cash'));
+        $this->debitNoteOf($first, '115.00');
+        $second = $this->purchaseOf('115.00');
+
+        $this->assertSame('115.00', bcadd((new SupplierLedger())->figuresOf([$second])[$second]->applied, '0', 2));
+
+        $this->accountingDb()->table('supplier_credit_applications')->where('invoice_receiving_id', $second)->update(['released_at' => date('Y-m-d H:i:s')]);
+
+        $this->assertSame('0.00', bcadd((new SupplierLedger())->figuresOf([$second])[$second]->applied, '0', 2));
+        $this->assertSame([], (new SupplierLedger())->figuresOf([]));
+    }
+
     public function testSuppliersWithBalance_LeavesOutThePreviewsOfABatch(): void
     {
         $this->purchaseOf('500');

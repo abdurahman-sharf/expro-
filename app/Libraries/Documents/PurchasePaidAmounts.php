@@ -5,6 +5,7 @@ namespace App\Libraries\Documents;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
+use App\Libraries\Accounting\PurchaseFigures;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\SupplierLedger;
 use CodeIgniter\Database\BaseConnection;
@@ -35,24 +36,68 @@ final class PurchasePaidAmounts
      */
     public function read(int $receivingId, ?int $supplierId, ?string $paymentType, bool $foreign, string $total): array
     {
-        if ($supplierId !== null && ! $foreign && (new AccountingSettings($this->db))->isEnabled()) {
-            $figures = (new SupplierLedger($this->db))->position($supplierId)->purchase($receivingId);
+        $read = $this->readMany([$receivingId => ['supplier_id' => $supplierId, 'payment_type' => $paymentType, 'foreign' => $foreign, 'total' => $total]])[$receivingId];
 
-            if ($figures !== null) {
-                return ['paid' => $figures->settled(), 'due' => $figures->open()];
+        return ['paid' => $read['paid'], 'due' => $read['due']];
+    }
+
+    /**
+     * What each of some purchases was paid and still owes, the way read() tells it for one: from the books for
+     * the purchases they hold, from the purchases themselves for the others, which are read together.
+     *
+     * @param array<int, array{supplier_id: ?int, payment_type: ?string, foreign: bool, total: numeric-string}> $purchases By the number of the receiving.
+     *
+     * @return array<int, array{paid: numeric-string, due: numeric-string, figures: ?PurchaseFigures}>
+     */
+    public function readMany(array $purchases): array
+    {
+        $figures = [];
+
+        if ($purchases !== [] && (new AccountingSettings($this->db))->isEnabled()) {
+            $inBooks = array_keys(array_filter($purchases, static fn (array $purchase): bool => $purchase['supplier_id'] !== null && ! $purchase['foreign']));
+            $figures = $inBooks === [] ? [] : (new SupplierLedger($this->db))->figuresOf($inBooks);
+        }
+
+        $own      = array_values(array_diff(array_keys($purchases), array_keys($figures)));
+        $payments = $own === [] ? [] : $this->completedPayments($own);
+        $read     = [];
+
+        foreach ($purchases as $receivingId => $purchase) {
+            if (isset($figures[$receivingId])) {
+                $read[$receivingId] = ['paid' => $figures[$receivingId]->settled(), 'due' => $figures[$receivingId]->open(), 'figures' => $figures[$receivingId]];
+
+                continue;
+            }
+
+            $paid = PaymentType::fromLabel((string) $purchase['payment_type'])?->usesTreasury() === true ? $purchase['total'] : '0';
+            $paid = bcadd($paid, $payments[$receivingId] ?? '0', SaleAmounts::SCALE);
+            $due  = bcsub($purchase['total'], $paid, SaleAmounts::SCALE);
+
+            $read[$receivingId] = ['paid' => bcadd($paid, '0', SaleAmounts::SCALE), 'due' => bccomp($due, '0', SaleAmounts::SCALE) > 0 ? $due : '0.0000', 'figures' => null];
+        }
+
+        return $read;
+    }
+
+    /**
+     * The payments of some purchases that count, by purchase.
+     *
+     * @param list<int> $receivingIds
+     *
+     * @return array<int, numeric-string>
+     */
+    private function completedPayments(array $receivingIds): array
+    {
+        $paid = [];
+
+        foreach (array_chunk($receivingIds, 500) as $chunk) {
+            foreach ($this->db->table('receivings_payments')->select('receiving_id, payment_status, payment_amount')->whereIn('receiving_id', $chunk)->get()->getResult() as $payment) {
+                if (PaymentStatus::fromStored($payment->payment_status)->posts()) {
+                    $paid[(int) $payment->receiving_id] = bcadd($paid[(int) $payment->receiving_id] ?? '0', (string) $payment->payment_amount, SaleAmounts::SCALE);
+                }
             }
         }
 
-        $paid = PaymentType::fromLabel((string) $paymentType)?->usesTreasury() === true ? $total : '0';
-
-        foreach ($this->db->table('receivings_payments')->select('payment_status, payment_amount')->where('receiving_id', $receivingId)->get()->getResult() as $payment) {
-            if (PaymentStatus::fromStored($payment->payment_status)->posts()) {
-                $paid = bcadd($paid, (string) $payment->payment_amount, SaleAmounts::SCALE);
-            }
-        }
-
-        $due = bcsub($total, $paid, SaleAmounts::SCALE);
-
-        return ['paid' => bcadd($paid, '0', SaleAmounts::SCALE), 'due' => bccomp($due, '0', SaleAmounts::SCALE) > 0 ? $due : '0.0000'];
+        return $paid;
     }
 }

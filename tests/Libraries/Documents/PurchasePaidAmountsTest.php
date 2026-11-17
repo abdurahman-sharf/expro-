@@ -187,6 +187,50 @@ class PurchasePaidAmountsTest extends CIUnitTestCase
         }
     }
 
+    public function testReadMany_GivesEachPurchaseWhatReadGivesForIt(): void
+    {
+        $cash  = $this->purchaseOf('500.00', $this->supplierId, lang('Sales.cash'));
+        $part  = $this->purchaseOf('500.00', $this->supplierId);
+        $other = $this->purchaseOf('300.00', null, lang('Sales.cash'));
+
+        $this->payPurchase($part, '200.00');
+
+        $rows = [];
+
+        foreach ([$cash => '500.00', $part => '500.00', $other => '300.00'] as $id => $total) {
+            $row        = $this->accountingDb()->table('receivings')->where('receiving_id', $id)->get()->getRow();
+            $rows[$id]  = ['supplier_id' => (int) $row->supplier_id, 'payment_type' => $row->payment_type, 'foreign' => false, 'total' => $total];
+        }
+
+        $many = $this->amounts->readMany($rows);
+
+        foreach ($rows as $id => $row) {
+            $one = $this->amounts->read($id, $row['supplier_id'], $row['payment_type'], false, $row['total']);
+
+            $this->assertSame($one['paid'], $many[$id]['paid'], "paid {$id}");
+            $this->assertSame($one['due'], $many[$id]['due'], "due {$id}");
+            $this->assertNotNull($many[$id]['figures'], "figures {$id}");
+        }
+    }
+
+    public function testReadMany_ReadsThePurchasesTheBooksDoNotHoldTogetherFromThePurchasesThemselves(): void
+    {
+        $part = $this->purchaseOf('500.00', $this->supplierId);
+        $cash = $this->purchaseOf('100.00', $this->supplierId, lang('Sales.cash'));
+
+        $this->payPurchase($part, '150.00');
+        $this->payPurchase($part, '99.00', null, 'draft');
+
+        $many = $this->amounts->readMany([
+            $part => ['supplier_id' => null, 'payment_type' => lang('Sales.due'), 'foreign' => false, 'total' => '500.00'],
+            $cash => ['supplier_id' => $this->supplierId, 'payment_type' => lang('Sales.cash'), 'foreign' => true, 'total' => '100.00'],
+        ]);
+
+        $this->assertSame(['paid' => '150.0000', 'due' => '350.0000', 'figures' => null], $many[$part]);
+        $this->assertSame(['paid' => '100.0000', 'due' => '0.0000', 'figures' => null], $many[$cash]);
+        $this->assertSame([], $this->amounts->readMany([]));
+    }
+
     public function testRead_TreatsAPaymentTypeThatMovesNoMoneyAsNotPaid(): void
     {
         $receiving = $this->purchaseOf('100.00', $this->supplierId);

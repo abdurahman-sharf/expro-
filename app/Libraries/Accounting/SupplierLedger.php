@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -114,6 +115,61 @@ final class SupplierLedger
         usort($list, static fn (PurchaseFigures $a, PurchaseFigures $b): int => [$a->date, $a->receivingId] <=> [$b->date, $b->receivingId]);
 
         return new SupplierPosition($supplierId, $accountId, $this->accountBalance($accountId, $asOf), $list, $sources, $asOf);
+    }
+
+    /**
+     * Where each of some purchases stands, by purchase, without reading the rest of the history of
+     * their suppliers: what the journal of the purchase credited the supplier, what the payments
+     * that stand paid into it, what credit is applied to it and what its debit notes took back. A
+     * purchase the books do not hold has no entry. It is the figure position() gives for the same
+     * purchase, in the few queries of a page instead of a set of queries for each supplier.
+     *
+     * @param list<int> $receivingIds
+     *
+     * @return array<int, PurchaseFigures>
+     */
+    public function figuresOf(array $receivingIds): array
+    {
+        $ids   = array_values(array_unique(array_filter(array_map('intval', $receivingIds), static fn (int $id): bool => $id > 0)));
+        $found = [];
+
+        foreach (array_chunk($ids, 500) as $chunk) {
+            $purchases = $this->purchasesOf($chunk, 'r.receiving_id', ReceivingType::Receive->value);
+
+            if ($purchases === []) {
+                continue;
+            }
+
+            $held     = array_map(static fn (object $purchase): int => (int) $purchase->receiving_id, $purchases);
+            $paid     = $this->paidOf($held);
+            $applied  = $this->appliedTo($held);
+            $returned = [];
+
+            foreach ($this->purchasesOf($held, 'r.return_of_receiving_id', ReceivingType::Return->value) as $note) {
+                $origin            = (int) $note->return_of_receiving_id;
+                $returned[$origin] = bcadd($returned[$origin] ?? '0', bcsub('0', $note->total, SaleAmounts::SCALE), SaleAmounts::SCALE);
+            }
+
+            foreach ($purchases as $purchase) {
+                $receivingId         = (int) $purchase->receiving_id;
+                [$code, $rate]       = self::currencyOf($purchase);
+                $found[$receivingId] = new PurchaseFigures(
+                    $receivingId,
+                    (string) $purchase->doc_date,
+                    bcadd($purchase->total, '0', SaleAmounts::SCALE),
+                    $paid[$receivingId] ?? '0.0000',
+                    $applied[$receivingId] ?? '0.0000',
+                    $returned[$receivingId] ?? '0.0000',
+                    $purchase->due_date === null ? (string) $purchase->doc_date : (string) $purchase->due_date,
+                    $purchase->payment_terms_days === null ? null : (int) $purchase->payment_terms_days,
+                    false,
+                    $code,
+                    $rate,
+                );
+            }
+        }
+
+        return $found;
     }
 
     /**
@@ -235,6 +291,99 @@ final class SupplierLedger
              ORDER BY doc_date ASC, r.receiving_id ASC",
             $bindings,
         )->getResult();
+    }
+
+    /**
+     * The purchases, or the debit notes, picked by a column of the receiving, that stand in the account of their
+     * supplier, with what their journal credited that account.
+     *
+     * @param list<int> $ids
+     *
+     * @return list<object>
+     */
+    private function purchasesOf(array $ids, string $column, string $type): array
+    {
+        [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', null);
+
+        return $this->db->query(
+            'SELECT r.receiving_id, r.return_of_receiving_id, r.due_date, r.payment_terms_days, r.currency_code, r.currency_rate,
+                    COALESCE(r.invoice_date, DATE(r.receiving_time)) AS doc_date,
+                    (SELECT COALESCE(SUM(l.credit - l.debit), 0) FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' l WHERE l.journal_id = j.journal_id AND l.account_id = sa.account_id) AS total
+             FROM ' . $this->db->prefixTable('receivings') . ' r
+             JOIN ' . $this->db->prefixTable('accounting_accounts') . ' sa ON sa.company_id = ? AND sa.entity_type = ? AND sa.entity_id = r.supplier_id
+             JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.source_type = ? AND j.source_id = r.receiving_id AND j.entry_type = ? AND {$standing}
+             WHERE r.receiving_type = ? AND {$column} IN (" . implode(', ', array_fill(0, count($ids), '?')) . ')',
+            [CompanyContext::id(), EntityAccountService::SUPPLIER, ReceivingPostingBuilder::SOURCE_PURCHASE, JournalEntryType::General->value, ...$standingBindings, $type, ...$ids],
+        )->getResult();
+    }
+
+    /**
+     * What the payments that stand debited the supplier, by purchase, for some purchases.
+     *
+     * @param list<int> $ids
+     *
+     * @return array<int, numeric-string>
+     */
+    private function paidOf(array $ids): array
+    {
+        [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', null);
+
+        $marks      = implode(', ', array_fill(0, count($ids), '?'));
+        $journals   = $this->db->prefixTable('accounting_journals');
+        $lines      = $this->db->prefixTable('accounting_journal_lines');
+        $receivings = $this->db->prefixTable('receivings');
+        $payments   = $this->db->prefixTable('receivings_payments');
+        $rows       = $this->db->query(
+            "SELECT t.receiving_id, SUM(l.debit - l.credit) AS paid
+             FROM (
+                 SELECT r.receiving_id, r.supplier_id, r.receiving_id AS source_id, ? AS source_type
+                 FROM {$receivings} r
+                 WHERE r.receiving_id IN ({$marks})
+                 UNION ALL
+                 SELECT p.receiving_id, r.supplier_id, p.payment_id AS source_id, ? AS source_type
+                 FROM {$payments} p
+                 JOIN {$receivings} r ON r.receiving_id = p.receiving_id
+                 WHERE p.receiving_id IN ({$marks})
+                 UNION ALL
+                 SELECT p.receiving_id, r.supplier_id, p.payment_id AS source_id, ? AS source_type
+                 FROM {$payments} p
+                 JOIN {$receivings} r ON r.receiving_id = p.receiving_id
+                 WHERE p.receiving_id IN ({$marks})
+             ) t
+             JOIN " . $this->db->prefixTable('accounting_accounts') . " sa ON sa.company_id = ? AND sa.entity_type = ? AND sa.entity_id = t.supplier_id
+             JOIN {$journals} j ON j.source_type = t.source_type AND j.source_id = t.source_id AND {$standing}
+             JOIN {$lines} l ON l.journal_id = j.journal_id AND l.account_id = sa.account_id
+             GROUP BY t.receiving_id",
+            [ReceivingPostingBuilder::SOURCE_PAYMENT, ...$ids, ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, ...$ids, ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, ...$ids, CompanyContext::id(), EntityAccountService::SUPPLIER, ...$standingBindings],
+        )->getResult();
+
+        $paid = [];
+
+        foreach ($rows as $row) {
+            $paid[(int) $row->receiving_id] = bcadd($row->paid, '0', SaleAmounts::SCALE);
+        }
+
+        return $paid;
+    }
+
+    /**
+     * What the credit applied to each of some purchases stands for now.
+     *
+     * @param list<int> $ids
+     *
+     * @return array<int, numeric-string>
+     */
+    private function appliedTo(array $ids): array
+    {
+        $rows = $this->db->table('supplier_credit_applications')->select('invoice_receiving_id, amount')->whereIn('invoice_receiving_id', $ids)->where('released_at', null)->get()->getResult();
+        $into = [];
+
+        foreach ($rows as $application) {
+            $purchase        = (int) $application->invoice_receiving_id;
+            $into[$purchase] = bcadd($into[$purchase] ?? '0', (string) $application->amount, SaleAmounts::SCALE);
+        }
+
+        return $into;
     }
 
     /**
