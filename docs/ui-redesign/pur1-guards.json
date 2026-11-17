@@ -1,0 +1,225 @@
+[
+ {
+  "name": "G01 an employee who sees only their own records is shown every document",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "$mine     = (new RecordScope($this->db))->limit($viewerId ?? RecordScope::sessionEmployee());",
+  "replace": "$mine     = null;",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php",
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G02 the list is not cut down to the branches of the reader",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "$where[] = $ids === [] ? '1 = 0' : 'r.branch_id IN (' . implode(', ', $ids) . ')';",
+  "replace": "$where[] = '1 = 1';",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php",
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G03 transfers and opening balances are listed with the purchases",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "$where    = ['r.receiving_type IN (?, ?)'];\n        $bindings = [ReceivingType::Receive->value, ReceivingType::Return->value];",
+  "replace": "$where    = ['1 = 1'];\n        $bindings = [];",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G04 a purchase is dated by the day it was saved and not by the day typed on it",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "private const DAY          = 'COALESCE(r.invoice_date, DATE(r.receiving_time))';",
+  "replace": "private const DAY          = 'DATE(r.receiving_time)';",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G05 a wildcard typed in the search matches everything",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "$like     = '%' . $this->db->escapeLikeString($filters->search) . '%';",
+  "replace": "$like     = '%' . $filters->search . '%';",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G06 any column may be asked for in the order",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "$column = self::SORTS[$sort] ?? self::SORTS['date'];",
+  "replace": "$column = $sort;",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php",
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G07 the total leaves the tax out",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "$total    = $totals[$id]['total'];",
+  "replace": "$total    = $totals[$id]['net'];",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php",
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G08 a foreign purchase is read from the books in the base currency",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "'foreign'      => $row->currency_code !== null && $row->currency_code !== '',",
+  "replace": "'foreign'      => false,",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G09 what was paid beyond the total is not counted among the paid",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "'paid'    => $row->state === PaymentState::Paid || $row->state === PaymentState::Excess,",
+  "replace": "'paid'    => $row->state === PaymentState::Paid,",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G10 a return takes part in the filter on the state of payment",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "        if ($filters->payment !== '') {\n            $where[]    = 'r.receiving_type = ?';\n            $bindings[] = ReceivingType::Receive->value;\n        }\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G11 a return is added to the purchases and not taken off",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceRow.php",
+  "find": "return $this->isReturn() ? bcsub('0', $this->total, SaleAmounts::SCALE) : bcadd($this->total, '0', SaleAmounts::SCALE);",
+  "replace": "return bcadd($this->total, '0', SaleAmounts::SCALE);",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php",
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G12 the amounts of a foreign currency are added to the base currency",
+  "file": "app/Libraries/Purchases/PurchaseSums.php",
+  "find": "$key = $row->currencyCode ?? '';",
+  "replace": "$key = '';",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G13 a filter that needs too many documents is cut short without saying so",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "if (count($rows) > $this->stateRows) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G14 the screen is open without the permission of the purchase reports",
+  "file": "app/Controllers/Purchases.php",
+  "find": "return $this->employee->has_grant(self::PERMISSION, $this->personId());",
+  "replace": "return true;",
+  "tests": [
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G15 a document of another branch is told apart from a missing one",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "[$where, $bindings] = $this->conditions($branchIds, new PurchaseInvoiceFilters(), $viewerId);\n\n        $rows = $this->fetch($where . ' AND r.receiving_id = ?'",
+  "replace": "[$where, $bindings] = $this->conditions(null, new PurchaseInvoiceFilters(), $viewerId);\n\n        $rows = $this->fetch($where . ' AND r.receiving_id = ?'",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php",
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G16 the suppliers offered are not cut down to the branches of the reader",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "[$where, $bindings] = $this->conditions($branchIds, new PurchaseInvoiceFilters(), $viewerId);\n\n        $name",
+  "replace": "[$where, $bindings] = $this->conditions(null, new PurchaseInvoiceFilters(), $viewerId);\n\n        $name",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php",
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G17 the file ignores the filters of the screen",
+  "file": "app/Controllers/Purchases.php",
+  "find": "$rows    = $this->list->all($this->branchesOf($scope), $filters,",
+  "replace": "$rows    = $this->list->all($this->branchesOf($scope), new PurchaseInvoiceFilters(),",
+  "tests": [
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G18 the number of a document is printed without being escaped",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceRows.php",
+  "find": "'<bdi dir=\"ltr\">' . esc($row->number) . '</bdi>'",
+  "replace": "'<bdi dir=\"ltr\">' . $row->number . '</bdi>'",
+  "tests": [
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G19 the options of a row are offered to who holds no receivings grant",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceRows.php",
+  "find": "        if (! $canReceive) {\n            return '';\n        }\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/PurchasesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G20 the list asks the books while they are off",
+  "file": "app/Libraries/Documents/PurchasePaidAmounts.php",
+  "find": "if ($purchases !== [] && (new AccountingSettings($this->db))->isEnabled()) {",
+  "replace": "if ($purchases !== []) {",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G21 a purchase is marked overdue while the books are off",
+  "file": "app/Libraries/Purchases/PurchaseInvoiceList.php",
+  "find": "$overdue = $books && $read['figures'] !== null ? $figures->daysOverdue($this->today) : 0;",
+  "replace": "$overdue = $figures->daysOverdue($this->today);",
+  "tests": [
+   "tests/Libraries/Purchases/PurchaseInvoiceListTest.php"
+  ]
+ },
+ {
+  "name": "G22 a payment that is not completed counts as paid",
+  "file": "app/Libraries/Documents/PurchasePaidAmounts.php",
+  "find": "if (PaymentStatus::fromStored($payment->payment_status)->posts()) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/Documents/PurchasePaidAmountsTest.php"
+  ]
+ },
+ {
+  "name": "G23 credit that was released still counts as applied",
+  "file": "app/Libraries/Accounting/SupplierLedger.php",
+  "find": "->whereIn('invoice_receiving_id', $ids)->where('released_at', null)->get()->getResult();",
+  "replace": "->whereIn('invoice_receiving_id', $ids)->get()->getResult();",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G24 the purchase invoices are in the menu without their permission",
+  "file": "app/Libraries/Navigation/SidebarMenu.php",
+  "find": "$page('purchase_invoices', 'reports', 'purchases', 'Module.nav_purchase_invoices', ['permission' => 'reports_receivings']),",
+  "replace": "$page('purchase_invoices', 'reports', 'purchases', 'Module.nav_purchase_invoices'),",
+  "tests": [
+   "tests/Libraries/Navigation/SidebarMenuTest.php"
+  ]
+ }
+]
