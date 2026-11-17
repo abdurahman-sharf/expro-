@@ -65,6 +65,19 @@ final class BuiltAssetsTest extends CIUnitTestCase
         $this->assertStringContainsString('pageshow', $script, 'a page restored from the history keeps its buttons locked');
     }
 
+    public function testBuild_ServesTheTableOptionsOfTheListThatPlacesItsOwnActionsAndExports(): void
+    {
+        $script = (string) file_get_contents(ROOTPATH . 'public/assets/js/app.js');
+        $styles = (string) file_get_contents(ROOTPATH . 'public/assets/css/app.css');
+
+        foreach (['options.rowActionsFirst === true', 'options.rowActionsTitle', 'options.showExport !== false', 'options.exportTypes ||', 'options.buttons ||'] as $option) {
+            $this->assertStringContainsString($option, $script, "the served script does not know the table option {$option}");
+        }
+
+        $this->assertMatchesRegularExpression('/\.row-options[^{]*\{/', $styles, 'the button of the options of a row has no style in the served styles');
+        $this->assertMatchesRegularExpression('/\.purchase-sums[^{]*\{/', $styles, 'the totals of the list of purchases have no style in the served styles');
+    }
+
     private function bundleOf(string $directory, string $suffix, string $separator): string
     {
         $texts = [];

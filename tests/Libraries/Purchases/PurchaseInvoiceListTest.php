@@ -332,6 +332,20 @@ final class PurchaseInvoiceListTest extends FamilyReportTestCase
         $this->assertCount(4, $small->search(null, new PurchaseInvoiceFilters(), 'date', 'desc', 25, 0, $this->employeeId)->rows);
     }
 
+    public function testSearch_LeavesTheDebitNotesOutOfTheCountOfTheLimitWhenFilteringByThePaymentState(): void
+    {
+        $first  = $this->purchaseOf('100.00');
+        $second = $this->purchaseOf('200.00');
+
+        $this->debitNoteOf($first, '10.00');
+
+        $page = (new PurchaseInvoiceList(null, null, 2))->search(null, PurchaseInvoiceFilters::fromInput(['payment' => 'unpaid']), 'date', 'desc', 25, 0, $this->employeeId);
+
+        $this->assertNull($page->refusal);
+        $this->assertSame([$second], $this->idsOf($page->rows));
+        $this->assertSame([$first], $this->idsOf($this->listed(['payment' => 'partial'], null, 'date', 'desc', new PurchaseInvoiceList(null, null, 2))));
+    }
+
     public function testSearch_SortsByTotalPaidAndDueWithinTheLimit(): void
     {
         $small = $this->purchaseOf('50.00');

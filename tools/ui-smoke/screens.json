@@ -271,6 +271,89 @@
       ]
     },
     {
+      "id": "purchases-list",
+      "group": "receivings",
+      "path": "/purchases?date_from=2020-01-01&date_to=2099-12-31&show=1",
+      "steps": [
+        {
+          "waitFor": "#table tbody tr"
+        },
+        {
+          "pause": 800
+        }
+      ]
+    },
+    {
+      "id": "purchases-filters-folded",
+      "group": "receivings",
+      "path": "/purchases",
+      "steps": [
+        {
+          "waitFor": "#table tbody tr, #table .no-records-found"
+        },
+        {
+          "pause": 500
+        }
+      ]
+    },
+    {
+      "id": "purchases-unpaid",
+      "group": "receivings",
+      "path": "/purchases?date_from=2020-01-01&date_to=2099-12-31&payment=unpaid",
+      "steps": [
+        {
+          "waitFor": "#table tbody tr, #table .no-records-found"
+        },
+        {
+          "pause": 800
+        }
+      ]
+    },
+    {
+      "id": "purchases-options-menu",
+      "group": "receivings",
+      "path": "/purchases?date_from=2020-01-01&date_to=2099-12-31",
+      "steps": [
+        {
+          "waitFor": "#table tbody tr .row-options"
+        },
+        {
+          "click": "#table tbody tr:last-child .row-options"
+        },
+        {
+          "waitFor": ".dropdown-menu.show"
+        },
+        {
+          "pause": 500
+        }
+      ]
+    },
+    {
+      "id": "purchases-edit-modal",
+      "group": "receivings",
+      "path": "/purchases?date_from=2020-01-01&date_to=2099-12-31",
+      "steps": [
+        {
+          "waitFor": "#table tbody tr .row-options"
+        },
+        {
+          "click": "#table tbody tr:first-child .row-options"
+        },
+        {
+          "waitFor": ".dropdown-menu.show a.modal-dlg"
+        },
+        {
+          "click": ".dropdown-menu.show a.modal-dlg"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
       "id": "items",
       "group": "items",
       "path": "/items"

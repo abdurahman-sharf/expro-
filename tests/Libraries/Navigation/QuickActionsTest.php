@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Navigation;
 
+use App\Controllers\Purchases;
 use App\Libraries\Navigation\QuickActions;
 use App\Libraries\Navigation\SidebarMenu;
 use App\Libraries\Roles\RoleGrants;
@@ -257,6 +258,19 @@ final class QuickActionsTest extends CIUnitTestCase
         $this->assertContains('pos', $plain);
         $this->assertContains('purchase_invoices', $this->shortcutsOf($this->employeeHolding(['reports', 'reports_receivings', ...$this->ownPermissions()['reports']])));
         $this->assertNotContains('purchase_invoices', $this->shortcutsOf($this->employeeHolding(['reports', ...array_diff($this->ownPermissions()['reports'], ['reports_receivings'])])));
+    }
+
+    public function testCatalog_OpensThePurchaseInvoicesShortcutOnTheListOfPurchasesAndKeepsTheOldReportApart(): void
+    {
+        $action = array_column(QuickActions::catalog(), null, 'id')['purchase_invoices'];
+
+        $this->assertSame('purchases', $action['url']);
+        [$controller, $method] = $this->handlerOf($action['url']);
+
+        $this->assertSame(Purchases::class, ltrim($controller, '\\'));
+        $this->assertSame('getIndex', $method);
+        $this->assertSame(SidebarMenu::page('purchase_invoices')['path'], $action['url']);
+        $this->assertStringNotContainsString('detailed_receivings', $action['url']);
     }
 
     public function testVisible_AsksTheGrantOfTheModuleThroughTheRolesOfTheEmployeeToo(): void
