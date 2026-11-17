@@ -1439,6 +1439,12 @@ input.flatpickr-input,
     }
 }
 
+.purchases-list .bootstrap-table {
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+}
+
 .home-shortcuts {
     margin-block-end: 24px;
     padding: 16px;

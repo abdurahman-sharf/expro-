@@ -29,6 +29,8 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
         <?= view('partial/daterangepicker') ?>
 
+        $('#daterangepicker').css('width', '100%');
+
         const picker = $('#daterangepicker').data('daterangepicker');
         const initialFrom = <?= json_encode($filters->dateFrom, $jsonFlags) ?>;
         const initialTo = <?= json_encode($filters->dateTo, $jsonFlags) ?>;
@@ -265,7 +267,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
     </div>
 </section>
 
-<section class="card" aria-labelledby="list_title">
+<section class="card purchases-list" aria-labelledby="list_title">
     <div class="card-header d-flex align-items-center gap-2">
         <h2 class="h6 mb-0" id="list_title"><?= lang('Purchases.all_purchases') ?></h2>
         <?php if ($can_receive): ?>

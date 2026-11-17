@@ -213,3 +213,9 @@
         min-height: 44px;
     }
 }
+
+.purchases-list .bootstrap-table {
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+}
