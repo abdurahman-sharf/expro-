@@ -3,6 +3,7 @@
 namespace App\Libraries;
 
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\RecordScope;
 use App\Models\Reports\Inventory_low;
 use App\Models\Reports\Summary_expenses_categories;
 use App\Models\Reports\Summary_items;
@@ -20,6 +21,7 @@ class Dashboard_lib
     private const CACHE_SECONDS = 120;
 
     private DateTimeImmutable $today;
+    private ?RecordScope $recordScope = null;
 
     public function __construct(?DateTimeImmutable $today = null)
     {
@@ -31,8 +33,8 @@ class Dashboard_lib
      */
     public function sales(): ?array
     {
-        return $this->guarded('sales', function (): array {
-            $rows   = model(Summary_sales::class)->getData($this->range($this->today->modify('-' . (self::HISTORY_DAYS - 1) . ' days'), $this->today));
+        return $this->guarded('sales', function (?int $viewerId): array {
+            $rows   = model(Summary_sales::class)->getData($this->range($this->today->modify('-' . (self::HISTORY_DAYS - 1) . ' days'), $this->today, $viewerId));
             $totals = [];
             $counts = [];
 
@@ -95,8 +97,8 @@ class Dashboard_lib
      */
     public function topItems(int $limit = 5, int $days = 30): ?array
     {
-        return $this->guarded("top_items_{$limit}", function () use ($limit, $days): array {
-            $rows = model(Summary_items::class)->getData($this->range($this->today->modify('-' . ($days - 1) . ' days'), $this->today));
+        return $this->guarded("top_items_{$limit}", function (?int $viewerId) use ($limit, $days): array {
+            $rows = model(Summary_items::class)->getData($this->range($this->today->modify('-' . ($days - 1) . ' days'), $this->today, $viewerId));
             usort($rows, static fn (array $first, array $second): int => (float) $second['quantity_purchased'] <=> (float) $first['quantity_purchased']);
 
             return array_map(static fn (array $row): array => [
@@ -124,7 +126,7 @@ class Dashboard_lib
                     'location'      => (string) $row['location_name'],
                 ], array_slice($rows, 0, $limit)),
             ];
-        });
+        }, perViewer: false);
     }
 
     public function expensesThisMonth(): ?float
@@ -133,8 +135,8 @@ class Dashboard_lib
             return null;
         }
 
-        return $this->guarded('expenses_month', function (): float {
-            $summary = model(Summary_expenses_categories::class)->getSummaryData($this->range($this->today->modify('first day of this month'), $this->today));
+        return $this->guarded('expenses_month', function (?int $viewerId): float {
+            $summary = model(Summary_expenses_categories::class)->getSummaryData($this->range($this->today->modify('first day of this month'), $this->today, $viewerId));
 
             return (float) ($summary['expenses_total_amount'] ?? 0);
         });
@@ -146,16 +148,26 @@ class Dashboard_lib
     }
 
     /**
-     * @return array{start_date: string, end_date: string, sale_type: string, location_id: string}
+     * @return array{start_date: string, end_date: string, sale_type: string, location_id: string, viewer_id: ?int}
      */
-    private function range(DateTimeImmutable $start, DateTimeImmutable $end): array
+    private function range(DateTimeImmutable $start, DateTimeImmutable $end, ?int $viewerId): array
     {
         return [
             'start_date'  => $start->format('Y-m-d') . ' 00:00:00',
             'end_date'    => $end->format('Y-m-d') . ' 23:59:59',
             'sale_type'   => 'complete',
             'location_id' => 'all',
+            'viewer_id'   => $viewerId,
         ];
+    }
+
+    /**
+     * The employee the figures are cut down to: the one logged in when they see their own records only, and nobody
+     * for anyone else, whose figures are those of the company and are shared between them.
+     */
+    private function viewerId(): ?int
+    {
+        return ($this->recordScope ??= new RecordScope())->limit(RecordScope::sessionEmployee());
     }
 
     /**
@@ -170,7 +182,9 @@ class Dashboard_lib
 
     /**
      * The figures of the home page are the ones of the branches the employee works in, so what is
-     * kept for one set of branches must never be shown to someone who works in another.
+     * kept for one set of branches must never be shown to someone who works in another. And what is
+     * kept for an employee who sees their own records only is theirs alone, so it is kept under their
+     * number and never reaches anyone else.
      */
     private function branchKey(): string
     {
@@ -185,10 +199,17 @@ class Dashboard_lib
         return '_b' . implode('-', $branchIds);
     }
 
-    private function guarded(string $section, callable $load): mixed
+    /**
+     * @param callable(?int): mixed $load
+     * @param bool                  $perViewer False for a section that holds nothing of any employee.
+     */
+    private function guarded(string $section, callable $load, bool $perViewer = true): mixed
     {
         try {
-            return cache()->remember('dashboard_' . $section . $this->branchKey() . '_' . $this->today->format('Ymd'), self::CACHE_SECONDS, $load);
+            $viewerId = $perViewer ? $this->viewerId() : null;
+            $key      = 'dashboard_' . $section . $this->branchKey() . ($viewerId === null ? '' : '_o' . $viewerId) . '_' . $this->today->format('Ymd');
+
+            return cache()->remember($key, self::CACHE_SECONDS, static fn (): mixed => $load($viewerId));
         } catch (Throwable $exception) {
             log_message('error', "Dashboard section {$section} failed: " . $exception->getMessage());
 

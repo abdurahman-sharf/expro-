@@ -2,6 +2,7 @@
 
 namespace Tests\Support;
 
+use App\Libraries\Roles\RoleService;
 use Config\Database;
 use Config\OSPOS;
 
@@ -185,7 +186,50 @@ trait ReportBranchFixtureTrait
         $db->table('sales_taxes')->whereIn('sale_id', array_values($this->reportSales ?? []))->delete();
         $db->table('items')->whereIn('item_id', array_values($this->reportItems ?? []))->update(['supplier_id' => null]);
         $db->table('expenses')->where('description', 'report expense')->delete();
-        $db->table('expense_categories')->where('category_name', 'ReportExpenses')->delete();
+        $db->table('expense_categories')->whereIn('category_name', ['ReportExpenses', 'ReportExpensesOther'])->delete();
+    }
+
+    /**
+     * Writes an expense of the employee on the day of the report, in the category of the name given, which is made
+     * if it is not there, and returns its number.
+     */
+    protected function spendOnTheReportDay(int $employeeId, string $amount, string $tax = '0.00', string $category = 'ReportExpenses'): int
+    {
+        $db    = $this->accountingDb();
+        $found = $db->table('expense_categories')->where('category_name', $category)->get()->getRow();
+
+        if ($found === null) {
+            $db->table('expense_categories')->insert(['category_name' => $category, 'category_description' => 'x', 'deleted' => 0]);
+            $categoryId = (int) $db->insertID();
+        } else {
+            $categoryId = (int) $found->expense_category_id;
+        }
+
+        $db->table('expenses')->insert([
+            'date' => $this->reportDay . ' 12:00:00', 'amount' => $amount, 'payment_type' => 'Cash', 'expense_category_id' => $categoryId,
+            'description' => 'report expense', 'employee_id' => $employeeId, 'deleted' => 0, 'tax_amount' => $tax,
+        ]);
+
+        return (int) $db->insertID();
+    }
+
+    /**
+     * An employee who sees their own records only, in every branch, and the three expenses of the day of the report: the
+     * employee who made the sales spent 100.00 with the tax of 15.00 in ReportExpenses and 40.00 with 6.00 in
+     * ReportExpensesOther, and this employee 7.00 with 1.00 in ReportExpenses. The company spent 147.00 with 22.00 and
+     * this employee 7.00 with 1.00. The employee is the one given, or a new one.
+     *
+     * @return array{own: int, mine: int}
+     */
+    protected function ownRecordsEmployeeWhoSpent(?int $employeeId = null): array
+    {
+        $own = $employeeId ?? $this->employeeWithGrants([]);
+        (new RoleService())->setRecordScope($own, 'own', null);
+
+        $this->spendOnTheReportDay($this->employeeId, '100.00', '15.00');
+        $this->spendOnTheReportDay($this->employeeId, '40.00', '6.00', 'ReportExpensesOther');
+
+        return ['own' => $own, 'mine' => $this->spendOnTheReportDay($own, '7.00', '1.00')];
     }
 
     /**

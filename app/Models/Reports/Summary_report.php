@@ -145,6 +145,7 @@ abstract class Summary_report extends Report
         }
 
         $this->limitToBranches($builder, 'sales.branch_id');
+        $this->limitToOwnRecords($builder, 'sales.employee_id', $inputs);
     }
 
     /**

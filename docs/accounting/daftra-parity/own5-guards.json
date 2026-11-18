@@ -1,0 +1,155 @@
+[
+  {
+    "name": "G01 the sales of the dashboard are read for nobody in particular",
+    "file": "app/Libraries/Dashboard_lib.php",
+    "find": "(self::HISTORY_DAYS - 1) . ' days'), $this->today, $viewerId)",
+    "replace": "(self::HISTORY_DAYS - 1) . ' days'), $this->today, null)",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G02 the top items of the dashboard are read for nobody in particular",
+    "file": "app/Libraries/Dashboard_lib.php",
+    "find": "($days - 1) . ' days'), $this->today, $viewerId)",
+    "replace": "($days - 1) . ' days'), $this->today, null)",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G03 the expenses of the dashboard are read for nobody in particular",
+    "file": "app/Libraries/Dashboard_lib.php",
+    "find": "$this->today->modify('first day of this month'), $this->today, $viewerId)",
+    "replace": "$this->today->modify('first day of this month'), $this->today, null)",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G04 the range of the dashboard names no viewer",
+    "file": "app/Libraries/Dashboard_lib.php",
+    "find": "            'viewer_id'   => $viewerId,\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G05 the loader of a section is given nobody",
+    "file": "app/Libraries/Dashboard_lib.php",
+    "find": "static fn (): mixed => $load($viewerId)",
+    "replace": "static fn (): mixed => $load(null)",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G06 the cache key of the dashboard ignores the viewer",
+    "file": "app/Libraries/Dashboard_lib.php",
+    "find": "($viewerId === null ? '' : '_o' . $viewerId)",
+    "replace": "''",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G07 the cache key of an own-records employee has no number",
+    "file": "app/Libraries/Dashboard_lib.php",
+    "find": "'_o' . $viewerId",
+    "replace": "'_o'",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G08 the cache key follows the employee logged in even for those who see every record",
+    "file": "app/Libraries/Dashboard_lib.php",
+    "find": "($viewerId === null ? '' : '_o' . $viewerId)",
+    "replace": "'_o' . (int) session()->get('person_id')",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G09 the dashboard never finds a viewer to cut to",
+    "file": "app/Libraries/Dashboard_lib.php",
+    "find": "return ($this->recordScope ??= new RecordScope())->limit(RecordScope::sessionEmployee());",
+    "replace": "return null;",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G10 the dashboard cuts to the employee logged in even when they see every record",
+    "file": "app/Libraries/Dashboard_lib.php",
+    "find": "return ($this->recordScope ??= new RecordScope())->limit(RecordScope::sessionEmployee());",
+    "replace": "return RecordScope::sessionEmployee();",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G11 the low stock is kept apart for each viewer",
+    "file": "app/Libraries/Dashboard_lib.php",
+    "find": "}, perViewer: false);",
+    "replace": "}, perViewer: true);",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G12 a section the dashboard guards is shared by every viewer unless told otherwise",
+    "file": "app/Libraries/Dashboard_lib.php",
+    "find": "bool $perViewer = true",
+    "replace": "bool $perViewer = false",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G13 the summary reports are not cut to the own-records employee",
+    "file": "app/Models/Reports/Summary_report.php",
+    "find": "        $this->limitToOwnRecords($builder, 'sales.employee_id', $inputs);\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G14 the summary reports are cut by the wrong column",
+    "file": "app/Models/Reports/Summary_report.php",
+    "find": "'sales.employee_id', $inputs",
+    "replace": "'sales.customer_id', $inputs",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G15 the expenses added up are not cut to the own-records employee",
+    "file": "app/Models/Reports/Summary_expenses_categories.php",
+    "find": "        $this->limitToOwnRecords($builder, 'expenses.employee_id', $inputs);\n\n        return $builder->get()->getRowArray();",
+    "replace": "\n        return $builder->get()->getRowArray();",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G16 the cache key of an own-records employee drops the branches they work in",
+    "file": "app/Libraries/Dashboard_lib.php",
+    "find": "$this->branchKey() . ($viewerId === null ? '' : '_o' . $viewerId)",
+    "replace": "($viewerId === null ? $this->branchKey() : '_o' . $viewerId)",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  },
+  {
+    "name": "G17 an own-records employee is not held to the branches they work in",
+    "file": "app/Models/Reports/Summary_report.php",
+    "find": "        $this->limitToBranches($builder, 'sales.branch_id');\n        $this->limitToOwnRecords($builder, 'sales.employee_id', $inputs);",
+    "replace": "        if (! isset($inputs['viewer_id'])) {\n            $this->limitToBranches($builder, 'sales.branch_id');\n        }\n        $this->limitToOwnRecords($builder, 'sales.employee_id', $inputs);",
+    "tests": [
+      "tests/Libraries/Dashboard_libTest.php"
+    ]
+  }
+]

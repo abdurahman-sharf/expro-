@@ -1,0 +1,136 @@
+[
+  {
+    "name": "G01 the expenses listed are not cut to the own-records employee",
+    "file": "app/Models/Reports/Summary_expenses_categories.php",
+    "find": "        $this->limitToOwnRecords($builder, 'expenses.employee_id', $inputs);\n\n        $builder->groupBy('expense_categories.category_name');",
+    "replace": "\n        $builder->groupBy('expense_categories.category_name');",
+    "tests": [
+      "--filter",
+      "OwnRecordsEmployee",
+      "tests/Models/Reports/Summary_expenses_categoriesTest.php"
+    ]
+  },
+  {
+    "name": "G02 the expenses added up are not cut to the own-records employee",
+    "file": "app/Models/Reports/Summary_expenses_categories.php",
+    "find": "        $this->limitToOwnRecords($builder, 'expenses.employee_id', $inputs);\n\n        return $builder->get()->getRowArray();",
+    "replace": "\n        return $builder->get()->getRowArray();",
+    "tests": [
+      "--filter",
+      "OwnRecordsEmployee",
+      "tests/Models/Reports/Summary_expenses_categoriesTest.php"
+    ]
+  },
+  {
+    "name": "G03 the expenses are cut by the wrong column",
+    "file": "app/Models/Reports/Summary_expenses_categories.php",
+    "find": "'expenses.employee_id', $inputs",
+    "replace": "'expenses.supplier_id', $inputs",
+    "tests": [
+      "--filter",
+      "OwnRecordsEmployee",
+      "tests/Models/Reports/Summary_expenses_categoriesTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "G04 the expenses are cut when the report is asked by day and not by time",
+    "file": "app/Models/Reports/Summary_expenses_categories.php",
+    "find": "$this->limitToOwnRecords($builder, 'expenses.employee_id', $inputs);",
+    "replace": "if (empty($config['date_or_time_format'])) {\n            $this->limitToOwnRecords($builder, 'expenses.employee_id', $inputs);\n        }",
+    "tests": [
+      "--filter",
+      "CutsByTheHours",
+      "tests/Models/Reports/Summary_expenses_categoriesTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "G05 a read that names no viewer is cut by whoever is logged in",
+    "file": "app/Models/Reports/Report.php",
+    "find": "        if (! isset($inputs['viewer_id'])) {\n            return;\n        }\n",
+    "replace": "        $inputs['viewer_id'] ??= RecordScope::sessionEmployee();\n\n        if (! isset($inputs['viewer_id'])) {\n            return;\n        }\n",
+    "tests": [
+      "--filter",
+      "NoViewerIsNamed",
+      "tests/Models/Reports"
+    ]
+  },
+  {
+    "name": "G06 the limit is worked out and never put on the query",
+    "file": "app/Models/Reports/Report.php",
+    "find": "            $builder->where($employeeColumn, $cut);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "OwnRecordsEmployee",
+      "tests/Models/Reports/Summary_expenses_categoriesTest.php"
+    ]
+  },
+  {
+    "name": "G07 the table aliases of the query are not put back",
+    "file": "app/Models/Reports/Report.php",
+    "find": "->limit((int) $inputs['viewer_id']);\n        } finally {\n            $this->db->setAliasedTables($aliases);\n        }",
+    "replace": "->limit((int) $inputs['viewer_id']);\n        } finally {\n        }",
+    "tests": [
+      "--filter",
+      "KeepsTheTableAliases",
+      "tests/Models/Reports/ReportTest.php"
+    ]
+  },
+  {
+    "name": "G08 the limit is worked out for whoever is logged in and not the viewer named",
+    "file": "app/Models/Reports/Report.php",
+    "find": "->limit((int) $inputs['viewer_id']);",
+    "replace": "->limit(RecordScope::sessionEmployee());",
+    "tests": [
+      "--filter",
+      "CutsToTheViewerNamed",
+      "tests/Models/Reports/ReportTest.php"
+    ]
+  },
+  {
+    "name": "G09 the controller names no viewer to any report",
+    "file": "app/Controllers/Reports.php",
+    "find": "        return RecordScope::sessionEmployee();",
+    "replace": "        return null;",
+    "tests": [
+      "--filter",
+      "OwnRecordsEmployee",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G10 summary_expenses_categories names no viewer",
+    "file": "app/Controllers/Reports.php",
+    "find": "'sale_type' => $sale_type, 'viewer_id' => $this->viewer()];    // TODO: Duplicated Code",
+    "replace": "'sale_type' => $sale_type];    // TODO: Duplicated Code",
+    "tests": [
+      "--filter",
+      "ShowAnOwnRecordsEmployeeNothing",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G11 graphical_summary_expenses_categories names no viewer",
+    "file": "app/Controllers/Reports.php",
+    "find": "            'viewer_id'  => $this->viewer(),\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "ShowAnOwnRecordsEmployeeNothing",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G12 graphical_summary_expenses_categories names no viewer when the report is asked by time",
+    "file": "app/Controllers/Reports.php",
+    "find": "            'viewer_id'  => $this->viewer(),\n",
+    "replace": "            'viewer_id'  => empty($this->config['date_or_time_format']) ? $this->viewer() : null,\n",
+    "tests": [
+      "--filter",
+      "WhenTheReportIsAskedByTime",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  }
+]

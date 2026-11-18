@@ -7,10 +7,12 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\RoleService;
 use App\Models\Employee;
 use Config\Database;
 use Config\OSPOS;
 use RuntimeException;
+use Tests\Support\SaleFixtureTrait;
 
 /**
  * Test suite for Home controller password validation
@@ -23,6 +25,7 @@ class HomeTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use FeatureTestTrait;
+    use SaleFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -761,6 +764,51 @@ class HomeTest extends CIUnitTestCase
             $this->get('/home')->assertDontSee('id="branch_switcher"');
         });
     }
+    private function nameOfTheItemOfSale(int $saleId, float $quantity): string
+    {
+        $this->db->table('sales_items')->where('sale_id', $saleId)->update(['quantity_purchased' => $quantity]);
+
+        return (string) $this->db->table('sales_items')->select('items.name')->join('items', 'items.item_id = sales_items.item_id')->where('sales_items.sale_id', $saleId)->get()->getRow()->name;
+    }
+
+    public function testGetIndex_ShowsAnEmployeeWhoSeesTheirOwnRecordsOnlyTheItemsTheySoldAndKeepsWhatItKeptApart(): void
+    {
+        cache()->deleteMatching('dashboard_*');
+
+        try {
+            $this->withEveryBranch(1);
+
+            $ownId = $this->createNonAdminEmployee(['grants' => [
+                ['permission_id' => 'home', 'menu_group' => 'home'],
+                ['permission_id' => 'reports_items', 'menu_group' => 'home'],
+                ['permission_id' => 'reports_inventory', 'menu_group' => 'home'],
+                ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--'],
+            ]]);
+            (new RoleService())->setRecordScope($ownId, 'own', null);
+
+            $mine   = $this->nameOfTheItemOfSale($this->createSale($ownId), 4000);
+            $theirs = $this->nameOfTheItemOfSale($this->createSale(1), 5000);
+
+            foreach ([['admin', 1], ['own', $ownId], ['admin', 1], ['own', $ownId]] as [$who, $personId]) {
+                $this->loginAs($personId);
+
+                $page = $this->get('/home')->getBody();
+
+                $this->assertStringContainsString($mine, $page, $who);
+
+                if ($who === 'own') {
+                    $this->assertStringNotContainsString($theirs, $page);
+
+                    continue;
+                }
+
+                $this->assertStringContainsString($theirs, $page);
+            }
+        } finally {
+            cache()->deleteMatching('dashboard_*');
+        }
+    }
+
     public function testPostSave_RejectsAPasswordEqualToTheUsername(): void
     {
         $personId = $this->createNonAdminEmployee(['username' => 'accountant-one']);

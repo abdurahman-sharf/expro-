@@ -39,6 +39,7 @@ class Summary_expenses_categories extends Summary_report
         }
 
         $builder->where('expenses.deleted', 0);
+        $this->limitToOwnRecords($builder, 'expenses.employee_id', $inputs);
 
         $builder->groupBy('expense_categories.category_name');
         $builder->orderBy('expense_categories.category_name');
@@ -64,6 +65,7 @@ class Summary_expenses_categories extends Summary_report
         }
 
         $builder->where('expenses.deleted', 0);
+        $this->limitToOwnRecords($builder, 'expenses.employee_id', $inputs);
 
         return $builder->get()->getRowArray();
     }

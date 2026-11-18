@@ -556,6 +556,136 @@ class ReportsControllerTest extends CIUnitTestCase
         $this->get('/reports/graphical_summary_expenses_categories/' . $this->reportDay . '/' . $this->reportDay . '/sales')->assertStatus(200);
     }
 
+    /**
+     * Business in two branches, and a reader of every branch who sees their own records only and has spent 7.00 on the
+     * day of the report where the company spent 147.00, logged in.
+     *
+     * @return array{reader: int, mine: int}
+     */
+    private function ownRecordsReaderWhoSpent(): array
+    {
+        $this->openTheBooks();
+
+        $reader = $this->readerOfTheBranches(null);
+        $spent  = $this->ownRecordsEmployeeWhoSpent($reader);
+
+        return ['reader' => $reader, 'mine' => $spent['mine']];
+    }
+
+    /**
+     * @return array<string, string> The expenses reports of the legacy menu, by name, with the address of each for the day of the report.
+     */
+    private function expensesReportPaths(): array
+    {
+        return [
+            'summary_expenses_categories'           => '/reports/summary_expenses_categories/' . $this->reportDay . '/' . $this->reportDay . '/sales',
+            'graphical_summary_expenses_categories' => '/reports/graphical_summary_expenses_categories/' . $this->reportDay . '/' . $this->reportDay . '/sales',
+        ];
+    }
+
+    private function chartedExpensesOf(string $page): float
+    {
+        preg_match_all('/"values":\[([^\]]*)\]/', html_entity_decode($page), $charts);
+
+        return array_sum(array_map(static fn (string $values): float => array_sum(array_map('floatval', explode(',', $values))), $charts[1]));
+    }
+
+    public function testExpensesReports_ShowAnOwnRecordsEmployeeNothingOfWhatAnotherEmployeeSpent(): void
+    {
+        $this->ownRecordsReaderWhoSpent();
+
+        $own = [];
+
+        foreach ($this->expensesReportPaths() as $name => $path) {
+            $own[$name] = $this->pageOf($path);
+        }
+
+        $this->readerOfTheBranches(null);
+
+        $foreign = ['ReportExpensesOther', '107.00', '40.00', '147.00', '22.00'];
+
+        foreach ($this->expensesReportPaths() as $name => $path) {
+            $everything = $this->pageOf($path);
+            $compared   = 0;
+
+            foreach ($foreign as $marker) {
+                if (str_contains($everything, $marker)) {
+                    $compared++;
+                    $this->assertStringNotContainsString($marker, $own[$name], "{$name} shows {$marker} of an expense another employee made");
+                }
+            }
+
+            $this->assertGreaterThan(0, $compared, "{$name} shows nothing of the other employee to a reader who sees every record, so nothing was compared");
+            $this->assertStringContainsString('ReportExpenses', $own[$name], $name);
+        }
+
+        $this->assertMatchesRegularExpression('/(?<![\d.,])7\.00/', $own['summary_expenses_categories']);
+        $this->assertEqualsWithDelta(7.0, $this->chartedExpensesOf($own['graphical_summary_expenses_categories']), 0.001);
+        $this->assertEqualsWithDelta(147.0, $this->chartedExpensesOf($this->pageOf($this->expensesReportPaths()['graphical_summary_expenses_categories'])), 0.001);
+    }
+
+    public function testGraphicalSummaryExpensesCategories_DrawsNothingForAnOwnRecordsEmployeeWhoseOwnExpenseIsDeleted(): void
+    {
+        $mine = $this->ownRecordsReaderWhoSpent()['mine'];
+        $this->accountingDb()->table('expenses')->where('expense_id', $mine)->update(['deleted' => 1]);
+
+        $page = $this->pageOf($this->expensesReportPaths()['graphical_summary_expenses_categories']);
+
+        $this->assertStringContainsString(lang('Reports.no_data_for_period'), $page);
+        $this->assertStringNotContainsString('ReportExpenses', $page);
+        $this->assertSame(0.0, $this->chartedExpensesOf($page));
+    }
+
+    public function testSummaryExpensesCategories_ShowsEveryExpenseToAnEmployeeOfEveryBranchWhoSeesEveryRecord(): void
+    {
+        $this->ownRecordsReaderWhoSpent();
+        $this->readerOfTheBranches(null);
+
+        $tabular = $this->pageOf($this->expensesReportPaths()['summary_expenses_categories']);
+
+        foreach (['ReportExpenses', 'ReportExpensesOther', '107.00', '40.00', '147.00'] as $marker) {
+            $this->assertStringContainsString($marker, $tabular);
+        }
+
+        $this->assertEqualsWithDelta(147.0, $this->chartedExpensesOf($this->pageOf($this->expensesReportPaths()['graphical_summary_expenses_categories'])), 0.001);
+    }
+
+    public function testSummaryExpensesCategories_RejectsAnOwnRecordsEmployeeOfOneBranch(): void
+    {
+        $this->openTheBooks();
+        $this->ownRecordsEmployeeWhoSpent($this->readerOfTheBranches([1]));
+
+        foreach ($this->expensesReportPaths() as $name => $path) {
+            $this->assertSame(403, $this->get($path)->response()->getStatusCode(), $name);
+        }
+    }
+
+    public function testSummaryExpensesCategories_CutsToTheExpensesOfAnOwnRecordsEmployeeWhenTheReportIsAskedByTime(): void
+    {
+        $this->ownRecordsReaderWhoSpent();
+
+        $before = config(OSPOS::class)->settings['date_or_time_format'] ?? null;
+
+        config(OSPOS::class)->settings['date_or_time_format'] = '1';
+
+        try {
+            $noon    = $this->pageOf('/reports/summary_expenses_categories/' . $this->hoursStillEncoded($this->reportDay . ' 11:00:00', $this->reportDay . ' 13:00:00') . '/sales');
+            $evening = $this->pageOf('/reports/summary_expenses_categories/' . $this->hoursStillEncoded($this->reportDay . ' 13:00:00', $this->reportDay . ' 14:00:00') . '/sales');
+
+            $noonChart    = $this->pageOf('/reports/graphical_summary_expenses_categories/' . $this->hoursStillEncoded($this->reportDay . ' 11:00:00', $this->reportDay . ' 13:00:00') . '/sales');
+            $eveningChart = $this->pageOf('/reports/graphical_summary_expenses_categories/' . $this->hoursStillEncoded($this->reportDay . ' 13:00:00', $this->reportDay . ' 14:00:00') . '/sales');
+        } finally {
+            config(OSPOS::class)->settings['date_or_time_format'] = $before;
+        }
+
+        $this->assertStringContainsString('ReportExpenses', $noon);
+        $this->assertStringNotContainsString('ReportExpensesOther', $noon);
+        $this->assertMatchesRegularExpression('/(?<![\d.,])7\.00/', $noon);
+        $this->assertStringNotContainsString('ReportExpenses', $evening);
+        $this->assertEqualsWithDelta(7.0, $this->chartedExpensesOf($noonChart), 0.001);
+        $this->assertSame(0.0, $this->chartedExpensesOf($eveningChart));
+    }
+
     public function testGetDetailedSalesRow_FindsASaleOfTheBranchesTheEmployeeWorksInAndNotOfAnother(): void
     {
         $this->openTheBooks();
