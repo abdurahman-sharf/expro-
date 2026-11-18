@@ -247,6 +247,135 @@ class ReportsControllerTest extends CIUnitTestCase
     }
 
     /**
+     * @return list<string> The address of the page where each of the two reports is asked its dates, and of the report
+     *                      itself, so that every way in to a report is tried.
+     */
+    private function addressesOf(string $report, string $arguments): array
+    {
+        return ["/reports/{$report}", "/reports/graphical_{$report}", "/reports/{$report}/{$arguments}", "/reports/graphical_{$report}/{$arguments}"];
+    }
+
+    /**
+     * @param list<string> $permissionIds
+     */
+    private function assertEveryAddressIsRefusedTo(array $permissionIds, array $addresses, string $refusedFor): void
+    {
+        $this->loginAs($this->employeeWithGrants($permissionIds));
+
+        foreach ($addresses as $address) {
+            $response = $this->get($address);
+
+            $response->assertRedirect();
+            $this->assertStringContainsString('no_access/reports/' . $refusedFor, $response->getRedirectUrl(), $address);
+        }
+    }
+
+    /**
+     * @param list<string> $permissionIds
+     */
+    private function assertEveryAddressIsOpenTo(array $permissionIds, array $addresses): void
+    {
+        $this->loginAs($this->employeeWithGrants($permissionIds));
+
+        foreach ($addresses as $address) {
+            $this->get($address)->assertStatus(200);
+        }
+    }
+
+    public function testSummaryExpensesCategories_RejectsAnEmployeeWhoHoldsTheCategoriesPermissionButNotTheExpensesOne(): void
+    {
+        $addresses = $this->addressesOf('summary_expenses_categories', $this->reportDay . '/' . $this->reportDay . '/sales');
+
+        $this->assertEveryAddressIsRefusedTo(['reports', 'reports_categories'], $addresses, 'reports_expenses_categories');
+    }
+
+    public function testSummaryExpensesCategories_AcceptsAnEmployeeWhoHoldsTheExpensesPermissionAloneWithoutTheCategoriesOne(): void
+    {
+        $addresses = $this->addressesOf('summary_expenses_categories', $this->reportDay . '/' . $this->reportDay . '/sales');
+
+        $this->assertEveryAddressIsOpenTo(['reports', 'reports_expenses_categories'], $addresses);
+    }
+
+    public function testSummarySalesTaxes_RejectsAnEmployeeWhoHoldsTheTaxesPermissionButNotTheSalesTaxesOne(): void
+    {
+        $addresses = $this->addressesOf('summary_sales_taxes', $this->reportDay . '/' . $this->reportDay . '/sales/all');
+
+        $this->assertEveryAddressIsRefusedTo(['reports', 'reports_taxes'], $addresses, 'reports_sales_taxes');
+    }
+
+    public function testSummarySalesTaxes_AcceptsAnEmployeeWhoHoldsTheSalesTaxesPermissionAloneWithoutTheTaxesOne(): void
+    {
+        $addresses = $this->addressesOf('summary_sales_taxes', $this->reportDay . '/' . $this->reportDay . '/sales/all');
+
+        $this->assertEveryAddressIsOpenTo(['reports', 'reports_sales_taxes'], $addresses);
+    }
+
+    public function testSummaryTaxes_StillRequiresTheTaxesPermissionAndNotTheSalesTaxesOne(): void
+    {
+        $addresses = $this->addressesOf('summary_taxes', $this->reportDay . '/' . $this->reportDay . '/sales/all');
+
+        $this->assertEveryAddressIsRefusedTo(['reports', 'reports_sales_taxes'], $addresses, 'reports_taxes');
+        $this->assertEveryAddressIsOpenTo(['reports', 'reports_taxes'], $addresses);
+    }
+
+    public function testSummaryExpensesCategories_IsRefusedWithoutTheExpensesPermissionWhateverTheSpellingOfItsAddress(): void
+    {
+        $this->loginAs($this->employeeWithGrants(['reports', 'reports_categories', 'reports_taxes']));
+
+        $encoded = [
+            'summary%255Fexpenses%255Fcategories' => 'reports_expenses_categories',
+            'summary%5Fexpenses%5Fcategories'     => 'reports_expenses_categories',
+            'summary_sales%255Ftaxes'             => 'reports_sales_taxes',
+        ];
+
+        foreach ($encoded as $segment => $refusedFor) {
+            $response = $this->get("/reports/{$segment}/{$this->reportDay}/{$this->reportDay}/sales");
+
+            $response->assertRedirect();
+            $this->assertStringContainsString('no_access/reports/' . $refusedFor, $response->getRedirectUrl(), $segment);
+        }
+
+        foreach (['Summary_Expenses_Categories', 'GRAPHICAL_SUMMARY_EXPENSES_CATEGORIES', 'Summary_Sales_Taxes'] as $segment) {
+            try {
+                $status = $this->get("/reports/{$segment}/{$this->reportDay}/{$this->reportDay}/sales")->response()->getStatusCode();
+            } catch (PageNotFoundException) {
+                $status = 404;
+            }
+
+            $this->assertNotSame(200, $status, $segment);
+        }
+    }
+
+    public function testReportPages_OpenWithThePermissionTheReportsIndexOffersThemUnderAndWithNoOtherReportPermission(): void
+    {
+        helper('report');
+
+        $permissions = [
+            'reports_sales', 'reports_customers', 'reports_employees', 'reports_payments', 'reports_discounts', 'reports_items', 'reports_categories', 'reports_inventory',
+            'reports_receivings', 'reports_suppliers', 'reports_taxes', 'reports_sales_taxes', 'reports_expenses_categories',
+        ];
+
+        foreach ($permissions as $permission) {
+            $addresses = [];
+
+            foreach (reportCatalog([$permission], false) as $group) {
+                foreach ($group['subjects'] as $subject) {
+                    foreach ($subject['links'] as $link) {
+                        $addresses[] = '/' . ltrim(substr($link['path'], strlen(site_url(''))), '/');
+                    }
+                }
+            }
+
+            $this->assertNotSame([], $addresses, $permission);
+
+            foreach ($addresses as $address) {
+                $this->assertEveryAddressIsOpenTo(['reports', $permission], [$address]);
+                $this->assertEveryAddressIsRefusedTo(['reports', ...array_values(array_diff($permissions, [$permission]))], [$address], 'reports_');
+            }
+        }
+    }
+
+    /**
      * Business in two branches, and an employee who reads the reports of the branches given, or of
      * every branch, logged in.
      *
@@ -255,7 +384,7 @@ class ReportsControllerTest extends CIUnitTestCase
     private function readerOfTheBranches(?array $branchIds): int
     {
         $personId = $this->employeeWithGrants([
-            'reports', 'reports_sales', 'reports_categories', 'reports_taxes', 'reports_inventory', 'reports_receivings', 'reports_expenses_categories', 'reports_customers', 'reports_discounts',
+            'reports', 'reports_sales', 'reports_categories', 'reports_taxes', 'reports_sales_taxes', 'reports_inventory', 'reports_receivings', 'reports_expenses_categories', 'reports_customers', 'reports_discounts',
             'reports_items', 'reports_suppliers', 'reports_employees', 'reports_payments',
         ], $branchIds);
 

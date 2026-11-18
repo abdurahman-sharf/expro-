@@ -37,6 +37,18 @@ use Config\Services;
 
 class Reports extends Secure_Controller
 {
+    /**
+     * The submodule that guards the reports whose name does not spell it: the name is cut at its last word to find
+     * the permission, which would be that of the categories for the expenses by category and that of the taxes for
+     * the sales taxes.
+     */
+    private const SUBMODULE_OF_REPORT = [
+        'summary_expenses_categories'           => 'expenses_categories',
+        'graphical_summary_expenses_categories' => 'expenses_categories',
+        'summary_sales_taxes'                   => 'sales_taxes',
+        'graphical_summary_sales_taxes'         => 'sales_taxes',
+    ];
+
     private Attribute $attribute;
     private array $config;
     private Customer $customer;
@@ -89,7 +101,7 @@ class Reports extends Secure_Controller
         if (count($exploder) > 1) {
             preg_match('/(?:inventory)|([^_.]*)(?:_graph|_row)?$/', $methodName, $matches);
             preg_match('/^(.*?)([sy])?$/', array_pop($matches), $matches);
-            $submoduleId = $matches[1] . ((count($matches) > 2) ? $matches[2] : 's');
+            $submoduleId = self::SUBMODULE_OF_REPORT[strtolower($methodName)] ?? $matches[1] . ((count($matches) > 2) ? $matches[2] : 's');
         } else {
             $submoduleId = null;
         }
