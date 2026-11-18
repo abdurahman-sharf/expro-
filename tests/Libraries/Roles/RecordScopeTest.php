@@ -297,28 +297,63 @@ final class RecordScopeTest extends CIUnitTestCase
 
     public function testOwnOnly_RefusesWhenTheTablesCannotBeProbed(): void
     {
-        $connection               = $this->failingConnection();
-        $connection->failingProbe = true;
+        $employee = $this->employeeOfTheirOwnRecords();
 
-        $this->expectException(RecordScopeUnavailableException::class);
+        foreach ([false, true] as $throws) {
+            $connection               = $this->failingConnection(null, $throws);
+            $connection->failingProbe = true;
 
-        (new RecordScope($connection))->ownOnly($this->employeeOfTheirOwnRecords());
+            try {
+                (new RecordScope($connection))->ownOnly($employee);
+                $this->fail('A probe of the tables that failed was taken for tables that are not there.');
+            } catch (RecordScopeUnavailableException $exception) {
+                $this->assertSame($employee, $exception->employeeId);
+            }
+        }
     }
 
-    public function testOwnOnly_DoesNotRememberAFailureAndAnswersOnceTheReadWorks(): void
+    public function testOwnOnly_DoesNotRememberAFailureWhicheverReadFailedAndAnswersOnceItWorks(): void
     {
-        $employee   = $this->employeeOfTheirOwnRecords();
-        $connection = $this->failingConnection('employee_record_scopes');
-        $scope      = new RecordScope($connection);
+        $byScope = $this->employeeOfTheirOwnRecords();
+        $byRole  = $this->employeeWithRoles([$this->createRole([], 'own')]);
 
-        try {
-            $scope->ownOnly($employee);
-            $this->fail('A scope that could not be read was taken for one that was read.');
-        } catch (RecordScopeUnavailableException) {
-            $connection->failingTable = null;
+        foreach ([false, true] as $throws) {
+            foreach ([['employee_record_scopes', $byScope], ['roles', $byRole], [null, $byScope]] as [$table, $employee]) {
+                $connection               = $this->failingConnection($table, $throws);
+                $connection->failingProbe = $table === null;
+                $scope                    = new RecordScope($connection);
+
+                try {
+                    $scope->ownOnly($employee);
+                    $this->fail('A scope that could not be read was taken for one that was read.');
+                } catch (RecordScopeUnavailableException) {
+                    $connection->failingTable = null;
+                    $connection->failingProbe = false;
+                }
+
+                $this->assertTrue($scope->ownOnly($employee));
+            }
         }
+    }
 
-        $this->assertTrue($scope->ownOnly($employee));
+    public function testOwnOnly_NamesTheEmployeeTheSourceAndTheMessageOfTheDriverInTheException(): void
+    {
+        $byScope = $this->employeeOfTheirOwnRecords();
+        $byRole  = $this->employeeWithRoles([$this->createRole([], 'own')]);
+
+        foreach ([['employee_record_scopes', $byScope, 'employee_record_scopes'], ['roles', $byRole, 'employee_roles'], [null, $byScope, 'the tables of roles']] as [$table, $employee, $source]) {
+            $connection               = $this->failingConnection($table, true);
+            $connection->failingProbe = $table === null;
+
+            try {
+                (new RecordScope($connection))->ownOnly($employee);
+                $this->fail('A scope that could not be read was taken for one that was read.');
+            } catch (RecordScopeUnavailableException $exception) {
+                $this->assertStringContainsString("employee {$employee} ", $exception->getMessage());
+                $this->assertStringContainsString("from {$source}:", $exception->getMessage());
+                $this->assertStringContainsString('simulated failure', $exception->getMessage());
+            }
+        }
     }
 
     public function testOwnOnly_IsFalseForTheBooksWithoutAskingTheDatabaseEvenWhenItFails(): void
@@ -359,7 +394,7 @@ final class RecordScopeTest extends CIUnitTestCase
         (new RecordScope($this->failingConnection('employee_record_scopes')))->condition('sales.employee_id', $this->employeeOfTheirOwnRecords());
     }
 
-    public function testOwnOnly_RefusesWhenAConnectionWithoutDebuggingCannotReadTheScopeColumn(): void
+    public function testOwnOnly_RefusesWhenAConnectionWithoutDebuggingCannotReadTheTableOfScopes(): void
     {
         $employee = $this->employeeOfTheirOwnRecords();
 

@@ -99,26 +99,44 @@ trait RoleFixtureTrait
     }
 
     /**
-     * Runs the callback as a production server whose table of record scopes cannot be read: the table
-     * is there, so the probe finds it, but the column the scope is read from is not, and the
-     * connection does not debug, so a failed query answers false and does not throw.
+     * Runs the callback as a production server whose table of record scopes cannot be read: the name
+     * is still in the list of the tables, as a view of a table that is gone, so the probe finds it,
+     * but a query on it fails, and the connection does not debug, so the failed query answers false
+     * and does not throw. A view and not a renamed column, which MySQL 8 refuses for a column of a
+     * check constraint.
      */
     protected function withUnreadableRecordScopes(callable $then): void
     {
         $db     = $this->roleDb();
         $table  = $db->prefixTable('employee_record_scopes');
+        $away   = $table . '_away';
+        $gone   = $table . '_gone';
         $debug  = new ReflectionProperty(BaseConnection::class, 'DBDebug');
         $before = $debug->getValue($db);
+        $moved  = $viewed = $emptied = false;
 
         RoleGrants::flush();
-        $db->query("ALTER TABLE `{$table}` CHANGE `record_scope` `record_scope_away` VARCHAR(8) NOT NULL DEFAULT 'all'");
 
         try {
+            $db->query("RENAME TABLE `{$table}` TO `{$away}`");
+            $moved = true;
+            $db->query("CREATE VIEW `{$table}` AS SELECT `person_id`, `record_scope` FROM `{$away}`");
+            $viewed = true;
+            $db->query("RENAME TABLE `{$away}` TO `{$gone}`");
+            $emptied = true;
             $debug->setValue($db, false);
             $then();
         } finally {
             $debug->setValue($db, $before);
-            $db->query("ALTER TABLE `{$table}` CHANGE `record_scope_away` `record_scope` VARCHAR(8) NOT NULL DEFAULT 'all'");
+
+            if ($viewed) {
+                $db->query("DROP VIEW `{$table}`");
+            }
+
+            if ($moved) {
+                $db->query('RENAME TABLE `' . ($emptied ? $gone : $away) . "` TO `{$table}`");
+            }
+
             RoleGrants::flush();
         }
     }

@@ -115,5 +115,50 @@
     "tests": [
       "tests/Libraries/Roles/RecordScopeTest.php"
     ]
+  },
+  {
+    "name": "G14 a failed probe of the tables that the driver reports by throwing is taken for tables that are not there",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "throw $this->unavailable($employeeId, 'the tables of roles', $exception);",
+    "replace": "if ($exception instanceof DatabaseException) {\n                return false;\n            }\n\n            throw $this->unavailable($employeeId, 'the tables of roles', $exception);",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G15 a failure of the read of the roles is remembered as no scope",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "    private function unavailable(int $employeeId, string $source, ?Throwable $previous = null): RecordScopeUnavailableException\n    {\n",
+    "replace": "    private function unavailable(int $employeeId, string $source, ?Throwable $previous = null): RecordScopeUnavailableException\n    {\n        if ($source === 'employee_roles') {\n            $this->memo[$employeeId] = false;\n        }\n\n",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G16 a failure of the probe is remembered as tables that are not there",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "    private function unavailable(int $employeeId, string $source, ?Throwable $previous = null): RecordScopeUnavailableException\n    {\n",
+    "replace": "    private function unavailable(int $employeeId, string $source, ?Throwable $previous = null): RecordScopeUnavailableException\n    {\n        if ($source === 'the tables of roles') {\n            $this->available = false;\n        }\n\n",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G17 the exception does not carry the message of the driver",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "$previous?->getMessage() ?? $this->driverError()",
+    "replace": "'unknown error'",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G18 the exception names the wrong source for the roles",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "return $this->exists($employeeId, 'employee_roles', $roles);",
+    "replace": "return $this->exists($employeeId, 'roles', $roles);",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
   }
 ]
