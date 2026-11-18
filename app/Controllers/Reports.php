@@ -38,6 +38,18 @@ use Config\Services;
 
 class Reports extends Secure_Controller
 {
+    /**
+     * The submodule that guards the reports whose name does not spell it: the name is cut at its last word to find
+     * the permission, which would be that of the categories for the expenses by category and that of the taxes for
+     * the sales taxes.
+     */
+    private const SUBMODULE_OF_REPORT = [
+        'summary_expenses_categories'           => 'expenses_categories',
+        'graphical_summary_expenses_categories' => 'expenses_categories',
+        'summary_sales_taxes'                   => 'sales_taxes',
+        'graphical_summary_sales_taxes'         => 'sales_taxes',
+    ];
+
     private Attribute $attribute;
     private array $config;
     private Customer $customer;
@@ -62,8 +74,12 @@ class Reports extends Secure_Controller
     public function __construct()
     {
         parent::__construct('reports');
+
+        // The router decodes the path once more than the request has and splits it afterwards, so the name of the report
+        // is cut from the path decoded as the router will read it: cut sooner, it could hold a slash that only appears in
+        // that last decoding and turns what follows it into the route, under the permission of the text before it.
         $request    = Services::request();
-        $methodName = urldecode($request->getUri()->getSegment(2));
+        $methodName = explode('/', trim(urldecode($request->getPath()), '/'))[1] ?? '';
         $exploder   = explode('_', $methodName);
 
         $this->attribute                   = config(Attribute::class);
@@ -90,7 +106,7 @@ class Reports extends Secure_Controller
         if (count($exploder) > 1) {
             preg_match('/(?:inventory)|([^_.]*)(?:_graph|_row)?$/', $methodName, $matches);
             preg_match('/^(.*?)([sy])?$/', array_pop($matches), $matches);
-            $submoduleId = $matches[1] . ((count($matches) > 2) ? $matches[2] : 's');
+            $submoduleId = self::SUBMODULE_OF_REPORT[strtolower($methodName)] ?? $matches[1] . ((count($matches) > 2) ? $matches[2] : 's');
         } else {
             $submoduleId = null;
         }

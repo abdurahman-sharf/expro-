@@ -1,0 +1,112 @@
+[
+  {
+    "name": "G01 summary_expenses_categories is guarded by the permission of the categories",
+    "file": "app/Controllers/Reports.php",
+    "find": "        'summary_expenses_categories'           => 'expenses_categories',\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "Permission",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G02 graphical_summary_expenses_categories is guarded by the permission of the categories",
+    "file": "app/Controllers/Reports.php",
+    "find": "        'graphical_summary_expenses_categories' => 'expenses_categories',\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "Permission",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G03 summary_sales_taxes is guarded by the permission of the taxes",
+    "file": "app/Controllers/Reports.php",
+    "find": "        'summary_sales_taxes'                   => 'sales_taxes',\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "Permission",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G04 graphical_summary_sales_taxes is guarded by the permission of the taxes",
+    "file": "app/Controllers/Reports.php",
+    "find": "        'graphical_summary_sales_taxes'         => 'sales_taxes',\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "Permission",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G05 no report is guarded by what the map says",
+    "file": "app/Controllers/Reports.php",
+    "find": "self::SUBMODULE_OF_REPORT[strtolower($methodName)] ?? ",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "Permission",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G06 the summary of the taxes is guarded by the permission of the sales taxes",
+    "file": "app/Controllers/Reports.php",
+    "find": "        'summary_sales_taxes'                   => 'sales_taxes',\n",
+    "replace": "        'summary_sales_taxes'                   => 'sales_taxes',\n        'summary_taxes'                         => 'sales_taxes',\n",
+    "tests": [
+      "--filter",
+      "Permission",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G07 the reports index offers the expenses reports under the permission of the categories",
+    "file": "app/Helpers/report_helper.php",
+    "find": "['bi-folder2-open', 'Reports.expenses_categories', 'reports_expenses_categories', [",
+    "replace": "['bi-folder2-open', 'Reports.expenses_categories', 'reports_categories', [",
+    "tests": [
+      "--filter",
+      "Permission",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G08 the reports index offers the sales taxes reports under the permission of the taxes",
+    "file": "app/Helpers/report_helper.php",
+    "find": "['bi-receipt-cutoff', 'Reports.sales_taxes', 'reports_sales_taxes', [",
+    "replace": "['bi-receipt-cutoff', 'Reports.sales_taxes', 'reports_taxes', [",
+    "tests": [
+      "--filter",
+      "Permission",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G09 the report is named by the segment read before the router decodes the path again",
+    "file": "app/Controllers/Reports.php",
+    "find": "explode('/', trim(urldecode($request->getPath()), '/'))[1] ?? ''",
+    "replace": "urldecode($request->getUri()->getSegment(2))",
+    "tests": [
+      "--filter",
+      "Spelling|HiddenBehindASlash",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G10 the name of the report is looked up in the map as it is spelled",
+    "file": "app/Controllers/Reports.php",
+    "find": "self::SUBMODULE_OF_REPORT[strtolower($methodName)]",
+    "replace": "self::SUBMODULE_OF_REPORT[$methodName]",
+    "tests": [
+      "--filter",
+      "Spelling|HiddenBehindASlash",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  }
+]
