@@ -23,6 +23,7 @@ return [
     'error_name_taken'           => '',
     'error_not_found'            => '',
     'error_permission_denied'    => '',
+    'error_read_failed'          => '',
     'error_refused_permission'   => '',
     'error_sensitive_permission' => '',
     'error_unknown_permission'   => '',

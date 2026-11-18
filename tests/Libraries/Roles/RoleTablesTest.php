@@ -3,9 +3,13 @@
 namespace Tests\Libraries\Roles;
 
 use App\Libraries\Roles\RoleTables;
+use App\Libraries\Roles\RoleTablesUnavailableException;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Tests\Support\FailingTableConnection;
+use Tests\Support\RoleFixtureTrait;
 
 /**
  * @internal
@@ -13,6 +17,7 @@ use Config\Database;
 final class RoleTablesTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use RoleFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -24,31 +29,78 @@ final class RoleTablesTest extends CIUnitTestCase
         Database::seeder('tests')->call('TestDatabaseBootstrapSeeder');
     }
 
-    public function testExist_IsTrueWhenEveryTableNamedExists(): void
+    private function failingConnection(?string $table, bool $throws = false): FailingTableConnection
     {
-        $this->assertTrue(RoleTables::exist(Database::connect(), 'roles'));
-        $this->assertTrue(RoleTables::exist(Database::connect(), 'roles', 'role_permissions', 'employee_roles', 'employee_record_scopes', 'employee_default_locations'));
+        $db               = new FailingTableConnection(config('Database')->tests);
+        $db->failingTable = $table;
+        $db->throws       = $throws;
+
+        return $db;
     }
 
-    public function testExist_IsFalseWhenOneTableNamedDoesNotExist(): void
+    public function testMigrated_IsTrueOnceTheMigrationIsRecorded(): void
     {
-        $this->assertFalse(RoleTables::exist(Database::connect(), 'roles', 'no_such_table'));
-        $this->assertFalse(RoleTables::exist(Database::connect(), 'no_such_table'));
+        $this->assertTrue(RoleTables::migrated(Database::connect()));
     }
 
-    public function testExist_AsksTheServerAndNotTheListOfTablesTheConnectionRemembers(): void
+    public function testMigrated_IsFalseWhileTheMigrationIsNotRecordedEvenIfTheTablesAreThere(): void
     {
-        $db = Database::connect();
+        $this->withoutTheMigrationRecord(function (): void {
+            $this->assertFalse(RoleTables::migrated(Database::connect()));
+        });
 
-        $db->listTables();
-        $db->query('CREATE TABLE ' . $db->prefixTable('role_tables_probe') . ' (id INT)');
+        $this->assertTrue(RoleTables::migrated(Database::connect()));
+    }
 
-        try {
-            $this->assertTrue(RoleTables::exist($db, 'role_tables_probe'), 'A table created after the list was read exists');
-        } finally {
-            $db->query('DROP TABLE ' . $db->prefixTable('role_tables_probe'));
+    public function testMigrated_AnswersFromTheRecordAndNotFromTheTables(): void
+    {
+        $db     = Database::connect();
+        $tables = ['employee_default_locations', 'employee_record_scopes', 'employee_roles', 'role_permissions', 'roles'];
+
+        foreach ($tables as $table) {
+            $name = $db->prefixTable($table);
+            $db->query("RENAME TABLE `{$name}` TO `{$name}_away`");
         }
 
-        $this->assertFalse(RoleTables::exist($db, 'role_tables_probe'));
+        try {
+            $this->assertTrue(RoleTables::migrated($db), 'The record says the migration ran, whatever became of the tables');
+        } finally {
+            foreach (array_reverse($tables) as $table) {
+                $name = $db->prefixTable($table);
+                $db->query("RENAME TABLE `{$name}_away` TO `{$name}`");
+            }
+        }
+    }
+
+    public function testMigrated_DoesNotAskTheListOfTablesOfTheServer(): void
+    {
+        $db                           = $this->failingConnection(null);
+        $db->failingInformationSchema = true;
+
+        $this->assertTrue(RoleTables::migrated($db));
+    }
+
+    public function testMigrated_RefusesWhenTheRecordCannotBeRead(): void
+    {
+        foreach ([false, true] as $throws) {
+            try {
+                RoleTables::migrated($this->failingConnection('migrations', $throws));
+                $this->fail('A record that could not be read was taken for an answer.');
+            } catch (RoleTablesUnavailableException $exception) {
+                if ($throws) {
+                    $this->assertInstanceOf(DatabaseException::class, $exception->getPrevious());
+                }
+
+                $this->assertSame($throws, $exception->getPrevious() !== null);
+            }
+        }
+    }
+
+    public function testMigration_NamesTheVersionOfTheMigrationThatCreatesTheTables(): void
+    {
+        $files = glob(APPPATH . 'Database/Migrations/*_RolesAndRecordScope.php');
+
+        $this->assertCount(1, $files);
+        $this->assertSame(RoleTables::MIGRATION, substr(basename($files[0]), 0, 14));
     }
 }

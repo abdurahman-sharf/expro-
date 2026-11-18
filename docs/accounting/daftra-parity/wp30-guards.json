@@ -321,7 +321,7 @@
   {
     "name": "G30 code deployed before the migration finds no roles",
     "file": "app/Libraries/Roles/RoleGrants.php",
-    "find": "if (! $this->tablesExist()) {\n            return [];\n        }",
+    "find": "if (! $this->migrated()) {\n            return [];\n        }",
     "replace": "",
     "tests": [
       "--filter",
@@ -588,7 +588,7 @@
   {
     "name": "G55 code deployed before the migration narrows nobody",
     "file": "app/Libraries/Roles/RecordScope.php",
-    "find": "if (! $this->tablesExist()) {\n            return false;\n        }",
+    "find": "if (! $this->migrated($employeeId)) {\n            return false;\n        }",
     "replace": "",
     "tests": [
       "--filter",
@@ -1323,7 +1323,7 @@
   {
     "name": "G122 a roles scope names roles that exist",
     "file": "app/Libraries/Accounting/TreasuryScopes.php",
-    "find": "return RoleTables::exist($this->db, 'roles') && $this->db->table('roles')->whereIn('role_id', $ids)->countAllResults() === count($ids);",
+    "find": "return RoleTables::migrated($this->db) && $this->db->table('roles')->whereIn('role_id', $ids)->countAllResults() === count($ids);",
     "replace": "return true;",
     "tests": [
       "--filter",
@@ -1532,7 +1532,7 @@
   {
     "name": "G141 the roles for the treasury scope are none before the migration of the roles has run",
     "file": "app/Libraries/Roles/RoleService.php",
-    "find": "if (! RoleTables::exist($this->db, 'roles', 'role_permissions', 'employee_roles')) {\n            return [];\n        }\n\n        return $this->db->table('roles r')",
+    "find": "if (! RoleTables::migrated($this->db)) {\n            return [];\n        }\n\n        return $this->db->table('roles r')",
     "replace": "return $this->db->table('roles r')",
     "tests": [
       "--filter",
@@ -1543,7 +1543,7 @@
   {
     "name": "G142 the employee form has no roles tab before the migration of the roles has run",
     "file": "app/Controllers/Employees.php",
-    "find": "if (! RoleTables::complete(Database::connect())) {\n            return null;\n        }\n\n        return [",
+    "find": "if (! RoleTables::migrated(Database::connect())) {\n            return null;\n        }\n\n        return [",
     "replace": "return [",
     "tests": [
       "--filter",
@@ -1598,7 +1598,7 @@
   {
     "name": "G147 the default location is none before the migration of the roles has run",
     "file": "app/Libraries/Roles/DefaultLocations.php",
-    "find": "if ($personId < 1 || ! RoleTables::exist($this->db, 'employee_default_locations')) {",
+    "find": "if ($personId < 1 || ! RoleTables::migrated($this->db)) {",
     "replace": "if ($personId < 1) {",
     "tests": [
       "--filter",
@@ -1609,7 +1609,7 @@
   {
     "name": "G148 deleting an employee does not touch the tables of roles before the migration has run",
     "file": "app/Libraries/Roles/RoleService.php",
-    "find": "if ($ids === [] || ! RoleTables::exist($this->db, 'employee_roles', 'employee_record_scopes')) {",
+    "find": "if ($ids === [] || ! RoleTables::migrated($this->db)) {",
     "replace": "if ($ids === []) {",
     "tests": [
       "--filter",
@@ -1620,7 +1620,7 @@
   {
     "name": "G149 a new stock location permission does not touch the roles before the migration has run",
     "file": "app/Libraries/Roles/RoleService.php",
-    "find": "if (! RoleTables::exist($this->db, 'role_permissions')) {\n            return;\n        }\n\n        $this->db->query(",
+    "find": "if (! RoleTables::migrated($this->db)) {\n            return;\n        }\n\n        $this->db->query(",
     "replace": "$this->db->query(",
     "tests": [
       "--filter",
@@ -1631,7 +1631,7 @@
   {
     "name": "G150 a roles scope of a treasury allows nobody before the migration of the roles has run",
     "file": "app/Libraries/Accounting/TreasuryScopes.php",
-    "find": "if ($roleIds === [] || ! RoleTables::exist($this->db, 'employee_roles', 'roles')) {",
+    "find": "if ($roleIds === [] || ! RoleTables::migrated($this->db)) {",
     "replace": "if ($roleIds === []) {",
     "tests": [
       "--filter",

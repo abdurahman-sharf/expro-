@@ -18,4 +18,5 @@ enum RoleError: string
     case InUse               = 'in_use';
     case EmployeeNotFound    = 'employee_not_found';
     case LocationNotFound    = 'location_not_found';
+    case ReadFailed          = 'read_failed';
 }

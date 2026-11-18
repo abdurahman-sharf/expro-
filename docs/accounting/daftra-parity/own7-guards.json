@@ -1,0 +1,83 @@
+[
+  {
+    "name": "G01 the holders are counted again, so a failed count reads as none",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "$result = $count->get();",
+    "replace": "return (int) $count->countAllResults();",
+    "tests": [
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G02 an answer that is no result is taken for no holders",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "        if (! $result instanceof ResultInterface) {\n            throw new RoleException(RoleError::ReadFailed, \"The holders of the role {$roleId} could not be counted.\");\n        }\n\n        return (int) $result->getRow()->holders;",
+    "replace": "        return $result instanceof ResultInterface ? (int) $result->getRow()->holders : 0;",
+    "tests": [
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G03 the exception of the driver is taken for no holders",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "throw new RoleException(RoleError::ReadFailed, \"The holders of the role {$roleId} could not be counted.\", [], $exception);",
+    "replace": "return 0;",
+    "tests": [
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G04 the exception of the driver is let through as it is",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "throw new RoleException(RoleError::ReadFailed, \"The holders of the role {$roleId} could not be counted.\", [], $exception);",
+    "replace": "throw $exception;",
+    "tests": [
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G05 the refusal of a count that failed says the role is in use",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "RoleError::ReadFailed, \"The holders of the role {$roleId} could not be counted.\");",
+    "replace": "RoleError::InUse, \"The holders of the role {$roleId} could not be counted.\");",
+    "tests": [
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G06 the deletion of a role never asks who holds it",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "        if ($this->holders($roleId) > 0) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G07 the deletion of a role swallows the refusal of the count",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "        if ($this->holders($roleId) > 0) {",
+    "replace": "        try {\n            $held = $this->holders($roleId) > 0;\n        } catch (RoleException) {\n            $held = false;\n        }\n\n        if ($held) {",
+    "tests": [
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G08 the employees that were deleted are counted as holders",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "            ->select('COUNT(*) AS holders', false)\n            ->join('employees e', 'e.person_id = er.person_id AND e.deleted = 0')",
+    "replace": "            ->select('COUNT(*) AS holders', false)\n            ->join('employees e', 'e.person_id = er.person_id')",
+    "tests": [
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G09 the unreadable table of the real-driver test is read by a connection that debugs",
+    "file": "tests/Support/RoleFixtureTrait.php",
+    "find": "            $debug->setValue($db, false);\n            $then();",
+    "replace": "            $then();",
+    "tests": [
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  }
+]

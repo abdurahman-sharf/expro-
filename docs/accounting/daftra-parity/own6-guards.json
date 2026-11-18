@@ -1,0 +1,164 @@
+[
+  {
+    "name": "G01 the scope rows are counted again, so a failed read counts as none",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "if ($this->exists($employeeId, 'employee_record_scopes', $scopes)) {",
+    "replace": "if ($scopes->countAllResults() > 0) {",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G02 the roles are counted again, so a failed read counts as none",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "return $this->exists($employeeId, 'employee_roles', $roles);",
+    "replace": "return $roles->countAllResults() > 0;",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G03 an answer that is no result is taken for an empty one",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "if (! $result instanceof ResultInterface) {\n            throw $this->unavailable($employeeId, $table);\n        }\n\n        return $result->getRowArray() !== null;",
+    "replace": "return $result instanceof ResultInterface && $result->getRowArray() !== null;",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G04 an answer that is no result is taken for a scope that was found",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "            throw $this->unavailable($employeeId, $table);\n",
+    "replace": "            return true;\n",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G05 the exception of the driver is let through as it is",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "throw $this->unavailable($employeeId, $table, $exception);",
+    "replace": "throw $exception;",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G06 the exception of the driver is taken for no scope",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "throw $this->unavailable($employeeId, $table, $exception);",
+    "replace": "return false;",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G07 a failed probe of the tables is let through as it is",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "throw $this->unavailable($employeeId, 'the record of the roles migration', $exception);",
+    "replace": "throw $exception;",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G08 a failed probe of the tables is taken for tables that are not there",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "throw $this->unavailable($employeeId, 'the record of the roles migration', $exception);",
+    "replace": "return false;",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G09 the roles of the employee are never asked",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "return $this->exists($employeeId, 'employee_roles', $roles);",
+    "replace": "return false;",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G10 a failed read is remembered as no scope",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "return $this->memo[$employeeId] ??= $this->read($employeeId);",
+    "replace": "try {\n            return $this->memo[$employeeId] ??= $this->read($employeeId);\n        } catch (RecordScopeUnavailableException) {\n            return $this->memo[$employeeId] = false;\n        }",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G11 a scope that was found is taken for none",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "return $result->getRowArray() !== null;",
+    "replace": "return $result->getRowArray() === null;",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G12 the exception does not name the employee",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "        return new RecordScopeUnavailableException(\n            $employeeId,",
+    "replace": "        return new RecordScopeUnavailableException(\n            null,",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G13 the system acting without an employee is made to read the database",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "        if ($employeeId === null) {\n            return false;\n        }\n",
+    "replace": "        if ($employeeId === null) {\n            $employeeId = 0;\n        }\n",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G14 a failed probe of the tables that the driver reports by throwing is taken for tables that are not there",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "throw $this->unavailable($employeeId, 'the record of the roles migration', $exception);",
+    "replace": "if ($exception->getPrevious() instanceof DatabaseException) {\n                return false;\n            }\n\n            throw $this->unavailable($employeeId, 'the record of the roles migration', $exception);",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G15 a failure of the read of the roles is remembered as no scope",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "    private function unavailable(int $employeeId, string $source, ?Throwable $previous = null): RecordScopeUnavailableException\n    {\n",
+    "replace": "    private function unavailable(int $employeeId, string $source, ?Throwable $previous = null): RecordScopeUnavailableException\n    {\n        if ($source === 'employee_roles') {\n            $this->memo[$employeeId] = false;\n        }\n\n",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G16 a failure of the probe is remembered as tables that are not there",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "    private function unavailable(int $employeeId, string $source, ?Throwable $previous = null): RecordScopeUnavailableException\n    {\n",
+    "replace": "    private function unavailable(int $employeeId, string $source, ?Throwable $previous = null): RecordScopeUnavailableException\n    {\n        if ($source === 'the record of the roles migration') {\n            $this->available = false;\n        }\n\n",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G17 the exception does not carry the message of the driver",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "$previous?->getMessage() ?? $this->driverError()",
+    "replace": "'unknown error'",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G18 the exception names the wrong source for the roles",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "return $this->exists($employeeId, 'employee_roles', $roles);",
+    "replace": "return $this->exists($employeeId, 'roles', $roles);",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  }
+]

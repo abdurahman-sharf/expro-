@@ -441,7 +441,7 @@ class Employees extends Persons
      */
     private function rolesTab(int $targetId, int $actorId): ?array
     {
-        if (! RoleTables::complete(Database::connect())) {
+        if (! RoleTables::migrated(Database::connect())) {
             return null;
         }
 

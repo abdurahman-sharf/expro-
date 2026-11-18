@@ -10,6 +10,7 @@ use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\RecordScopeUnavailableException;
 use App\Models\Expense;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -925,6 +926,19 @@ class ExpensesControllerTest extends CIUnitTestCase
 
         $this->assertContains((string) $mine, $ids);
         $this->assertContains((string) $theirs, $ids);
+    }
+
+    public function testGetSearch_FailsWhenTheScopeOfTheEmployeeCannotBeReadInsteadOfListingEveryExpense(): void
+    {
+        $this->actAsEveryRecordClerk();
+        $this->save($this->form(['amount' => '55.00', 'tax_amount' => '0']));
+        $this->actAsOwnRecordsClerk();
+
+        $this->withUnreadableRecordScopes(function (): void {
+            $this->expectException(RecordScopeUnavailableException::class);
+
+            $this->rowsOfTheList();
+        });
     }
 
     public function testGetRowAndGetView_ReadAnotherEmployeesExpenseLikeOneThatDoesNotExist(): void

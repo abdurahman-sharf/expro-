@@ -10,6 +10,8 @@ use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Numbering\NumberingSequence;
+use App\Libraries\Roles\RecordScopeUnavailableException;
+use App\Models\Expense;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -17,6 +19,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\DatabaseFailureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
+use Tests\Support\FailingTableConnection;
 use Tests\Support\RoleFixtureTrait;
 
 /**
@@ -692,5 +695,29 @@ class ExpenseTest extends CIUnitTestCase
         $this->assertFalse($this->expenses->outsideRecordScope($mine, $own));
         $this->assertTrue($this->expenses->outsideRecordScope(999999, $own));
         $this->assertFalse($this->expenses->outsideRecordScope(999999, $this->clerkId));
+    }
+
+    public function testOutsideRecordScope_RefusesWhenTheScopeCannotBeReadInsteadOfOpeningTheExpense(): void
+    {
+        $own              = $this->ownRecordsClerk();
+        $theirs           = $this->expenseOf($this->clerkId);
+        $db               = new FailingTableConnection(config('Database')->tests);
+        $db->failingTable = 'employee_record_scopes';
+
+        $this->expectException(RecordScopeUnavailableException::class);
+
+        (new Expense($db))->outsideRecordScope($theirs, $own);
+    }
+
+    public function testSearch_RefusesWhenTheScopeCannotBeReadInsteadOfListingEveryExpense(): void
+    {
+        $own              = $this->ownRecordsClerk();
+        $db               = new FailingTableConnection(config('Database')->tests);
+        $db->failingTable = 'employee_record_scopes';
+
+        $this->expenseOf($this->clerkId);
+        $this->expectException(RecordScopeUnavailableException::class);
+
+        (new Expense($db))->search('', $this->filters(), 50, 0, 'expense_id', 'asc', false, $own);
     }
 }
