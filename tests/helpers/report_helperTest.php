@@ -542,6 +542,7 @@ final class report_helperTest extends CIUnitTestCase
             'accounting_reports/trial_balance'            => 'The same screen as accounting_reports.',
             'accounting_statements'                       => 'The same screen as the income statement.',
             'accounting_reports/overview'                 => 'The overview of the general accounts, opened from the first item of the books in the menu: a page of figures, not a report.',
+            'purchases'                                   => 'The list of purchase invoices, opened from the purchases section of the menu: a list of documents with its own export, not a report.',
         ];
     }
 
