@@ -2,6 +2,7 @@
 
 namespace Tests\Models\Reports;
 
+use App\Libraries\Roles\RoleService;
 use App\Models\Reports\Report;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -12,7 +13,7 @@ use Tests\Support\AccountingFixtureTrait;
 
 /**
  * What every report asks first: which branches the logged-in employee may read, and the limit that
- * puts on a query, whether it is built or written by hand.
+ * puts on a query, whether it is built or written by hand, and whose records the viewer named may see.
  */
 class ReportTest extends CIUnitTestCase
 {
@@ -74,7 +75,33 @@ class ReportTest extends CIUnitTestCase
             {
                 $this->limitToBranches($builder, 'sales.branch_id');
             }
+
+            public function limitToOwn(BaseBuilder $builder, array $inputs): void
+            {
+                $this->limitToOwnRecords($builder, 'expenses.employee_id', $inputs);
+            }
         };
+    }
+
+    private function ownRecordsEmployee(): int
+    {
+        $employeeId = $this->employeeWithGrants([]);
+
+        (new RoleService())->setRecordScope($employeeId, 'own', null);
+
+        return $employeeId;
+    }
+
+    /**
+     * @param array<string, mixed> $inputs
+     */
+    private function compiledOwnLimit(object $report, array $inputs): string
+    {
+        $builder = Database::connect()->table('expenses AS expenses');
+
+        $report->limitToOwn($builder, $inputs);
+
+        return $builder->getCompiledSelect();
     }
 
     public function testBranchIds_ReturnsTheBranchesTheLoggedInEmployeeWorksIn(): void
@@ -190,5 +217,62 @@ class ReportTest extends CIUnitTestCase
         }
 
         $this->assertSame([1], $report->branches());
+    }
+
+    public function testLimitToOwnRecords_KeepsTheTableAliasesOfTheQueryBeingBuilt(): void
+    {
+        $own = $this->ownRecordsEmployee();
+        $db  = Database::connect();
+
+        $builder = $db->table('expenses AS expenses');
+
+        $this->report()->limitToOwn($builder, ['viewer_id' => $own]);
+
+        $this->assertContains('expenses', $db->aliasedTables);
+        $this->assertStringContainsString('`expenses`.`employee_id` = ' . $own, $builder->getCompiledSelect());
+    }
+
+    public function testLimitToOwnRecords_CutsToTheViewerNamedAndNotToWhoeverIsLoggedIn(): void
+    {
+        $own   = $this->ownRecordsEmployee();
+        $every = $this->employeeWithGrants([]);
+
+        session()->set('person_id', $every);
+        $cut = $this->compiledOwnLimit($this->report(), ['viewer_id' => $own]);
+
+        session()->set('person_id', $own);
+        $uncut = $this->compiledOwnLimit($this->report(), ['viewer_id' => $every]);
+
+        $this->assertStringContainsString('`expenses`.`employee_id` = ' . $own, $cut);
+        $this->assertStringNotContainsString('employee_id', $uncut);
+    }
+
+    public function testLimitToOwnRecords_LeavesTheQueryAloneForAViewerWhoSeesEveryRecord(): void
+    {
+        $this->assertStringNotContainsString('employee_id', $this->compiledOwnLimit($this->report(), ['viewer_id' => $this->employeeWithGrants([])]));
+    }
+
+    public function testLimitToOwnRecords_LeavesTheQueryAloneWhenNoViewerIsNamedWhoeverIsLoggedIn(): void
+    {
+        session()->set('person_id', $this->ownRecordsEmployee());
+
+        foreach ([[], ['viewer_id' => null]] as $inputs) {
+            $this->assertStringNotContainsString('employee_id', $this->compiledOwnLimit($this->report(), $inputs));
+        }
+    }
+
+    public function testLimitToOwnRecords_FollowsAChangeOfTheRecordScopeOfTheViewer(): void
+    {
+        $viewer = $this->employeeWithGrants([]);
+        $report = $this->report();
+
+        $before = $this->compiledOwnLimit($report, ['viewer_id' => $viewer]);
+
+        (new RoleService())->setRecordScope($viewer, 'own', null);
+
+        $after = $this->compiledOwnLimit($report, ['viewer_id' => $viewer]);
+
+        $this->assertStringNotContainsString('employee_id', $before);
+        $this->assertStringContainsString('`expenses`.`employee_id` = ' . $viewer, $after);
     }
 }

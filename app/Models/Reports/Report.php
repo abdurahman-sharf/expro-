@@ -3,6 +3,7 @@
 namespace App\Models\Reports;
 
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\HTTP\Response;
 use CodeIgniter\Model;
@@ -12,7 +13,8 @@ use CodeIgniter\Model;
  */
 abstract class Report extends Model
 {
-    private bool $readsTheCompany = false;
+    private bool $readsTheCompany     = false;
+    private ?RecordScope $recordScope = null;
 
     public function __construct()
     {
@@ -71,6 +73,33 @@ abstract class Report extends Model
         }
 
         $branchIds === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn($branchColumn, $branchIds);
+    }
+
+    /**
+     * Limits the query to the records of the employee named in the inputs, when that employee sees their own
+     * records only. A read that names nobody is not limited. Finding out runs queries on the connection the report
+     * is being built on, which makes the query builder forget the table aliases of the query in the making, so the
+     * aliases are put back.
+     *
+     * @param array<string, mixed> $inputs
+     */
+    protected function limitToOwnRecords(BaseBuilder $builder, string $employeeColumn, array $inputs): void
+    {
+        if (! isset($inputs['viewer_id'])) {
+            return;
+        }
+
+        $aliases = $this->db->aliasedTables;
+
+        try {
+            $cut = ($this->recordScope ??= new RecordScope($this->db))->limit((int) $inputs['viewer_id']);
+        } finally {
+            $this->db->setAliasedTables($aliases);
+        }
+
+        if ($cut !== null) {
+            $builder->where($employeeColumn, $cut);
+        }
     }
 
     /**

@@ -4,6 +4,7 @@ namespace Tests\Libraries;
 
 use App\Libraries\Dashboard_lib;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\RoleService;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -225,6 +226,26 @@ final class Dashboard_libTest extends CIUnitTestCase
 
         $this->loggedInWorkingIn([1]);
         $this->assertNotEmpty((new Dashboard_lib())->topItems(100));
+    }
+
+    public function testExpensesThisMonth_AddsUpTheExpensesOfEveryEmployeeEvenWhenAnOwnRecordsEmployeeIsLoggedIn(): void
+    {
+        $db = Database::connect();
+        $db->table('expense_categories')->insert(['category_name' => 'Dashboard ' . uniqid(), 'category_description' => '', 'deleted' => 0]);
+        $db->table('expenses')->insert([
+            'date'                => date('Y-m-d H:i:s'),
+            'amount'              => 75,
+            'tax_amount'          => 0,
+            'payment_type'        => 'Cash',
+            'expense_category_id' => (int) $db->insertID(),
+            'description'         => 'dashboard fixture',
+            'employee_id'         => $this->createEmployee(),
+            'deleted'             => 0,
+        ]);
+
+        (new RoleService())->setRecordScope($this->loggedInWorkingIn([], true), 'own', null);
+
+        $this->assertGreaterThanOrEqual(75.0, (new Dashboard_lib())->expensesThisMonth());
     }
 
     public function testExpensesThisMonth_HidesTheFigureFromAnEmployeeWhoDoesNotWorkInEveryBranchBecauseExpensesBelongToNoBranch(): void

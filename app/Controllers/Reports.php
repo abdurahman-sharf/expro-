@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Accounting\ForeignDocumentReader;
 use App\Libraries\Accounting\ForeignDocuments;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\RecordScope;
 use App\Models\Attribute;
 use App\Models\Customer;
 use App\Models\Reports\Detailed_item_sales;
@@ -232,7 +233,7 @@ class Reports extends Secure_Controller
 
         $this->clearCache();
 
-        $inputs = ['start_date' => $start_date, 'end_date' => $end_date, 'sale_type' => $sale_type];    // TODO: Duplicated Code
+        $inputs = ['start_date' => $start_date, 'end_date' => $end_date, 'sale_type' => $sale_type, 'viewer_id' => $this->viewer()];    // TODO: Duplicated Code
 
         $report_data = $this->summary_expenses_categories->getData($inputs);
         $summary     = $this->summary_expenses_categories->getSummaryData($inputs);
@@ -726,6 +727,7 @@ class Reports extends Secure_Controller
         $this->clearCache();
 
         $inputs = [
+            'viewer_id'  => $this->viewer(),
             'start_date' => $start_date,
             'end_date'   => $end_date,
             'sale_type'  => $sale_type,
@@ -2126,6 +2128,11 @@ class Reports extends Secure_Controller
             : $reader->sales($from, $to, $withTime, $branchIds, (string) ($inputs['sale_type'] ?? 'all'), $locationId);
 
         return $foreign === [] ? $subtitle : $subtitle . "\n" . lang('Reports.foreign_documents_label', [ForeignDocuments::describe($foreign)]);
+    }
+
+    private function viewer(): ?int
+    {
+        return RecordScope::sessionEmployee();
     }
 
     private function clearCache(): void
