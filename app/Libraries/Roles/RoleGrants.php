@@ -102,7 +102,7 @@ final class RoleGrants
      */
     private function read(int $personId): array
     {
-        if (! $this->tablesExist()) {
+        if (! $this->migrated()) {
             return [];
         }
 
@@ -121,8 +121,8 @@ final class RoleGrants
         return array_column($rows, 'permission_id');
     }
 
-    private function tablesExist(): bool
+    private function migrated(): bool
     {
-        return $this->available ??= RoleTables::exist($this->db, 'employee_roles', 'role_permissions', 'roles');
+        return $this->available ??= RoleTables::migrated($this->db);
     }
 }

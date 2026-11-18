@@ -7,6 +7,7 @@ use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
 use App\Models\Employee;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -205,7 +206,19 @@ final class RoleGrantsTest extends CIUnitTestCase
         $this->assertSame(['sales'], $grants->idsFor($employee));
     }
 
-    public function testIdsFor_IsEmptyAndDoesNotFailBeforeTheMigrationHasCreatedTheTables(): void
+    public function testIdsFor_IsEmptyBeforeTheMigrationHasRunEvenWhenTheTablesAreThere(): void
+    {
+        $employee = $this->employeeWithRoles([$this->createRole(['sales'])]);
+
+        $this->withoutTheMigrationRecord(function () use ($employee): void {
+            $this->assertSame([], (new RoleGrants())->idsFor($employee));
+            $this->assertFalse(model(Employee::class)->has_grant('sales', $employee));
+        });
+
+        $this->assertSame(['sales'], (new RoleGrants())->idsFor($employee));
+    }
+
+    public function testIdsFor_FailsWhenTheMigrationIsRecordedButATableOfRolesIsGone(): void
     {
         $db       = $this->roleDb();
         $employee = $this->employeeWithRoles([$this->createRole(['sales'])]);
@@ -215,13 +228,12 @@ final class RoleGrantsTest extends CIUnitTestCase
         $db->query("RENAME TABLE `{$table}` TO `{$table}_away`");
 
         try {
-            $this->assertSame([], (new RoleGrants())->idsFor($employee));
-            $this->assertFalse(model(Employee::class)->has_grant('sales', $employee));
+            $this->expectException(DatabaseException::class);
+
+            (new RoleGrants())->idsFor($employee);
         } finally {
             $db->query("RENAME TABLE `{$table}_away` TO `{$table}`");
             RoleGrants::flush();
         }
-
-        $this->assertSame(['sales'], (new RoleGrants())->idsFor($employee));
     }
 }

@@ -393,7 +393,7 @@ final class TreasuryScopes
      */
     private function holdsARole(array $roleIds, int $employeeId): bool
     {
-        if ($roleIds === [] || ! RoleTables::exist($this->db, 'employee_roles', 'roles')) {
+        if ($roleIds === [] || ! RoleTables::migrated($this->db)) {
             return false;
         }
 
@@ -475,7 +475,7 @@ final class TreasuryScopes
         }
 
         if ($mode === self::ROLES) {
-            return RoleTables::exist($this->db, 'roles') && $this->db->table('roles')->whereIn('role_id', $ids)->countAllResults() === count($ids);
+            return RoleTables::migrated($this->db) && $this->db->table('roles')->whereIn('role_id', $ids)->countAllResults() === count($ids);
         }
 
         return $this->db->table('branches')->whereIn('branch_id', $ids)->where('company_id', CompanyContext::id())->countAllResults() === count($ids);

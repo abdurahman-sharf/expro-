@@ -1,0 +1,101 @@
+[
+  {
+    "name": "G01 the version of the migration of the roles is wrong",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "public const MIGRATION = '20271800000000';",
+    "replace": "public const MIGRATION = '20271800000001';",
+    "tests": [
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G02 a record that is not there is taken for a migration that ran",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "return $result->getRowArray() !== null;",
+    "replace": "return $result->getRowArray() === null;",
+    "tests": [
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G03 the exception of the driver is taken for a migration that has not run",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "throw new RoleTablesUnavailableException('The record of the migration of the roles could not be read.', $exception);",
+    "replace": "return false;",
+    "tests": [
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G04 the exception of the driver is taken for a migration that ran",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "throw new RoleTablesUnavailableException('The record of the migration of the roles could not be read.', $exception);",
+    "replace": "return true;",
+    "tests": [
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G05 the exception of the driver is let through as it is",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "throw new RoleTablesUnavailableException('The record of the migration of the roles could not be read.', $exception);",
+    "replace": "throw $exception;",
+    "tests": [
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G06 an answer that is no result is taken for a migration that has not run",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "        if (! $result instanceof ResultInterface) {\n            throw new RoleTablesUnavailableException('The record of the migration of the roles could not be read.');\n        }\n\n        return $result->getRowArray() !== null;",
+    "replace": "        return $result instanceof ResultInterface && $result->getRowArray() !== null;",
+    "tests": [
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G07 the tables are asked of the list of tables of the server again",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "$result = $db->table('migrations')->select('1', false)->where('version', self::MIGRATION)->limit(1)->get();",
+    "replace": "$result = $db->query('SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?', [$db->prefixTable('roles')]);",
+    "tests": [
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G08 the record scope never asks whether the migration ran",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "return $this->available ??= RoleTables::migrated($this->db);",
+    "replace": "return $this->available ??= true;",
+    "tests": [
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G09 the role grants never ask whether the migration ran",
+    "file": "app/Libraries/Roles/RoleGrants.php",
+    "find": "return $this->available ??= RoleTables::migrated($this->db);",
+    "replace": "return $this->available ??= true;",
+    "tests": [
+      "tests/Libraries/Roles/RoleGrantsTest.php"
+    ]
+  },
+  {
+    "name": "G10 the helper of the tests leaves the record of the migration in place",
+    "file": "tests/Support/RoleFixtureTrait.php",
+    "find": "        $db->table('migrations')->where('version', RoleTables::MIGRATION)->delete();\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G11 the helper of the tests does not put the record back",
+    "file": "tests/Support/RoleFixtureTrait.php",
+    "find": "            foreach ($rows as $row) {\n                $db->table('migrations')->insert($row);\n            }\n\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  }
+]

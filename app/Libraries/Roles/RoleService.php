@@ -45,7 +45,7 @@ final class RoleService
      */
     public function all(): array
     {
-        if (! RoleTables::exist($this->db, 'roles', 'role_permissions', 'employee_roles')) {
+        if (! RoleTables::migrated($this->db)) {
             return [];
         }
 
@@ -328,7 +328,7 @@ final class RoleService
     {
         $ids = array_values(array_unique(array_map('intval', $personIds)));
 
-        if ($ids === [] || ! RoleTables::exist($this->db, 'employee_roles', 'employee_record_scopes')) {
+        if ($ids === [] || ! RoleTables::migrated($this->db)) {
             return;
         }
 
@@ -354,7 +354,7 @@ final class RoleService
      */
     public function carryLocationPermission(string $moduleId, string $permissionId): void
     {
-        if (! RoleTables::exist($this->db, 'role_permissions')) {
+        if (! RoleTables::migrated($this->db)) {
             return;
         }
 

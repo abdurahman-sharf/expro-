@@ -110,7 +110,7 @@ final class RecordScope
 
     private function read(int $employeeId): bool
     {
-        if (! $this->tablesExist($employeeId)) {
+        if (! $this->migrated($employeeId)) {
             return false;
         }
 
@@ -142,12 +142,12 @@ final class RecordScope
         return $result->getRowArray() !== null;
     }
 
-    private function tablesExist(int $employeeId): bool
+    private function migrated(int $employeeId): bool
     {
         try {
-            return $this->available ??= RoleTables::exist($this->db, 'employee_record_scopes', 'employee_roles', 'roles');
+            return $this->available ??= RoleTables::migrated($this->db);
         } catch (Throwable $exception) {
-            throw $this->unavailable($employeeId, 'the tables of roles', $exception);
+            throw $this->unavailable($employeeId, 'the record of the roles migration', $exception);
         }
     }
 

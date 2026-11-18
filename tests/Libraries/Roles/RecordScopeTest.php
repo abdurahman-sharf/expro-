@@ -216,23 +216,34 @@ final class RecordScopeTest extends CIUnitTestCase
         $this->assertTrue($this->scope->ownOnly($employee));
     }
 
-    public function testOwnOnly_IsFalseAndDoesNotFailBeforeTheMigrationHasCreatedTheTables(): void
+    public function testOwnOnly_IsFalseBeforeTheMigrationHasRunEvenWhenTheTablesAreThere(): void
+    {
+        $employee = $this->employeeWithRoles([$this->createRole([], 'own')]);
+
+        $this->withoutTheMigrationRecord(function () use ($employee): void {
+            $this->assertFalse((new RecordScope())->ownOnly($employee));
+        });
+
+        $this->assertTrue((new RecordScope())->ownOnly($employee));
+    }
+
+    public function testOwnOnly_RefusesWhenTheMigrationIsRecordedButTheTableOfScopesIsGone(): void
     {
         $db       = $this->roleDb();
-        $employee = $this->employeeWithRoles([$this->createRole([], 'own')]);
+        $employee = $this->employeeOfTheirOwnRecords();
         $table    = $db->prefixTable('employee_record_scopes');
 
         RoleGrants::flush();
         $db->query("RENAME TABLE `{$table}` TO `{$table}_away`");
 
         try {
-            $this->assertFalse((new RecordScope())->ownOnly($employee));
+            $this->expectException(RecordScopeUnavailableException::class);
+
+            (new RecordScope())->ownOnly($employee);
         } finally {
             $db->query("RENAME TABLE `{$table}_away` TO `{$table}`");
             RoleGrants::flush();
         }
-
-        $this->assertTrue((new RecordScope())->ownOnly($employee));
     }
 
     private function failingConnection(?string $table = null, bool $throws = false): FailingTableConnection
@@ -295,17 +306,16 @@ final class RecordScopeTest extends CIUnitTestCase
         }
     }
 
-    public function testOwnOnly_RefusesWhenTheTablesCannotBeProbed(): void
+    public function testOwnOnly_RefusesWhenTheRecordOfTheMigrationCannotBeRead(): void
     {
         $employee = $this->employeeOfTheirOwnRecords();
 
         foreach ([false, true] as $throws) {
-            $connection               = $this->failingConnection(null, $throws);
-            $connection->failingProbe = true;
+            $connection = $this->failingConnection('migrations', $throws);
 
             try {
                 (new RecordScope($connection))->ownOnly($employee);
-                $this->fail('A probe of the tables that failed was taken for tables that are not there.');
+                $this->fail('A record of the migration that could not be read was taken for a migration that has not run.');
             } catch (RecordScopeUnavailableException $exception) {
                 $this->assertSame($employee, $exception->employeeId);
             }
@@ -318,17 +328,15 @@ final class RecordScopeTest extends CIUnitTestCase
         $byRole  = $this->employeeWithRoles([$this->createRole([], 'own')]);
 
         foreach ([false, true] as $throws) {
-            foreach ([['employee_record_scopes', $byScope], ['roles', $byRole], [null, $byScope]] as [$table, $employee]) {
-                $connection               = $this->failingConnection($table, $throws);
-                $connection->failingProbe = $table === null;
-                $scope                    = new RecordScope($connection);
+            foreach ([['employee_record_scopes', $byScope], ['roles', $byRole], ['migrations', $byScope]] as [$table, $employee]) {
+                $connection = $this->failingConnection($table, $throws);
+                $scope      = new RecordScope($connection);
 
                 try {
                     $scope->ownOnly($employee);
                     $this->fail('A scope that could not be read was taken for one that was read.');
                 } catch (RecordScopeUnavailableException) {
                     $connection->failingTable = null;
-                    $connection->failingProbe = false;
                 }
 
                 $this->assertTrue($scope->ownOnly($employee));
@@ -341,9 +349,8 @@ final class RecordScopeTest extends CIUnitTestCase
         $byScope = $this->employeeOfTheirOwnRecords();
         $byRole  = $this->employeeWithRoles([$this->createRole([], 'own')]);
 
-        foreach ([['employee_record_scopes', $byScope, 'employee_record_scopes'], ['roles', $byRole, 'employee_roles'], [null, $byScope, 'the tables of roles']] as [$table, $employee, $source]) {
-            $connection               = $this->failingConnection($table, true);
-            $connection->failingProbe = $table === null;
+        foreach ([['employee_record_scopes', $byScope, 'employee_record_scopes', 'simulated failure'], ['roles', $byRole, 'employee_roles', 'simulated failure'], ['migrations', $byScope, 'the record of the roles migration', 'could not be read']] as [$table, $employee, $source, $detail]) {
+            $connection = $this->failingConnection($table, true);
 
             try {
                 (new RecordScope($connection))->ownOnly($employee);
@@ -351,15 +358,14 @@ final class RecordScopeTest extends CIUnitTestCase
             } catch (RecordScopeUnavailableException $exception) {
                 $this->assertStringContainsString("employee {$employee} ", $exception->getMessage());
                 $this->assertStringContainsString("from {$source}:", $exception->getMessage());
-                $this->assertStringContainsString('simulated failure', $exception->getMessage());
+                $this->assertStringContainsString($detail, $exception->getMessage());
             }
         }
     }
 
     public function testOwnOnly_IsFalseForTheBooksWithoutAskingTheDatabaseEvenWhenItFails(): void
     {
-        $connection               = $this->failingConnection('employee_record_scopes');
-        $connection->failingProbe = true;
+        $connection = $this->failingConnection('migrations');
 
         $this->assertFalse((new RecordScope($connection))->ownOnly(null));
     }

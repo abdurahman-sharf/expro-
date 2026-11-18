@@ -56,7 +56,7 @@
   {
     "name": "G07 a failed probe of the tables is let through as it is",
     "file": "app/Libraries/Roles/RecordScope.php",
-    "find": "throw $this->unavailable($employeeId, 'the tables of roles', $exception);",
+    "find": "throw $this->unavailable($employeeId, 'the record of the roles migration', $exception);",
     "replace": "throw $exception;",
     "tests": [
       "tests/Libraries/Roles/RecordScopeTest.php"
@@ -65,7 +65,7 @@
   {
     "name": "G08 a failed probe of the tables is taken for tables that are not there",
     "file": "app/Libraries/Roles/RecordScope.php",
-    "find": "throw $this->unavailable($employeeId, 'the tables of roles', $exception);",
+    "find": "throw $this->unavailable($employeeId, 'the record of the roles migration', $exception);",
     "replace": "return false;",
     "tests": [
       "tests/Libraries/Roles/RecordScopeTest.php"
@@ -119,8 +119,8 @@
   {
     "name": "G14 a failed probe of the tables that the driver reports by throwing is taken for tables that are not there",
     "file": "app/Libraries/Roles/RecordScope.php",
-    "find": "throw $this->unavailable($employeeId, 'the tables of roles', $exception);",
-    "replace": "if ($exception instanceof DatabaseException) {\n                return false;\n            }\n\n            throw $this->unavailable($employeeId, 'the tables of roles', $exception);",
+    "find": "throw $this->unavailable($employeeId, 'the record of the roles migration', $exception);",
+    "replace": "if ($exception->getPrevious() instanceof DatabaseException) {\n                return false;\n            }\n\n            throw $this->unavailable($employeeId, 'the record of the roles migration', $exception);",
     "tests": [
       "tests/Libraries/Roles/RecordScopeTest.php"
     ]
@@ -138,7 +138,7 @@
     "name": "G16 a failure of the probe is remembered as tables that are not there",
     "file": "app/Libraries/Roles/RecordScope.php",
     "find": "    private function unavailable(int $employeeId, string $source, ?Throwable $previous = null): RecordScopeUnavailableException\n    {\n",
-    "replace": "    private function unavailable(int $employeeId, string $source, ?Throwable $previous = null): RecordScopeUnavailableException\n    {\n        if ($source === 'the tables of roles') {\n            $this->available = false;\n        }\n\n",
+    "replace": "    private function unavailable(int $employeeId, string $source, ?Throwable $previous = null): RecordScopeUnavailableException\n    {\n        if ($source === 'the record of the roles migration') {\n            $this->available = false;\n        }\n\n",
     "tests": [
       "tests/Libraries/Roles/RecordScopeTest.php"
     ]

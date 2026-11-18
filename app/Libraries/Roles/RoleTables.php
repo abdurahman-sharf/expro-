@@ -3,32 +3,39 @@
 namespace App\Libraries\Roles;
 
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\Exceptions\DatabaseException;
+use CodeIgniter\Database\ResultInterface;
 
 /**
- * Whether the tables of roles exist yet, so code that is deployed before the migration has run
- * behaves as it did. It asks the server and not the list of tables the connection remembers, which
- * is stale for a table created after the list was read.
+ * Whether the migration that creates the tables of roles has run yet, so code that is deployed
+ * before it behaves as it did. It reads the record the migration leaves in the table of migrations,
+ * which every request reads anyway, and not the tables: the list of tables of the server leaves out
+ * a table the database user may not read, and a table taken for missing is a restriction that is
+ * never applied. A record that cannot be read is refused and never taken for a migration that has
+ * not run.
  */
 final class RoleTables
 {
-    public static function complete(BaseConnection $db): bool
-    {
-        return self::exist($db, 'roles', 'role_permissions', 'employee_roles', 'employee_record_scopes', 'employee_default_locations');
-    }
+    /**
+     * The version of RolesAndRecordScope, the one migration that creates the tables of roles.
+     */
+    public const MIGRATION = '20271800000000';
 
-    public static function exist(BaseConnection $db, string ...$names): bool
+    /**
+     * @throws RoleTablesUnavailableException
+     */
+    public static function migrated(BaseConnection $db): bool
     {
-        foreach ($names as $name) {
-            $found = $db->query(
-                'SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
-                [$db->prefixTable($name)],
-            )->getRow();
-
-            if ($found === null) {
-                return false;
-            }
+        try {
+            $result = $db->table('migrations')->select('1', false)->where('version', self::MIGRATION)->limit(1)->get();
+        } catch (DatabaseException $exception) {
+            throw new RoleTablesUnavailableException('The record of the migration of the roles could not be read.', $exception);
         }
 
-        return true;
+        if (! $result instanceof ResultInterface) {
+            throw new RoleTablesUnavailableException('The record of the migration of the roles could not be read.');
+        }
+
+        return $result->getRowArray() !== null;
     }
 }
