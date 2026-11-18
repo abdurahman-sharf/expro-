@@ -6,6 +6,7 @@ use App\Libraries\Roles\RecordScope;
 use App\Libraries\Roles\RecordScopeUnavailableException;
 use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Roles\RoleTablesUnavailableException;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -203,7 +204,7 @@ final class RecordScopeTest extends CIUnitTestCase
         $this->assertNull(RecordScope::sessionEmployee());
     }
 
-    public function testOwnOnly_AsksAgainWhetherTheTablesExistOnceTheGrantsWereFlushed(): void
+    public function testOwnOnly_AsksAgainWhetherTheMigrationRanOnceTheGrantsWereFlushed(): void
     {
         $employee = $this->employeeWithRoles([$this->createRole([], 'own')]);
 
@@ -318,6 +319,11 @@ final class RecordScopeTest extends CIUnitTestCase
                 $this->fail('A record of the migration that could not be read was taken for a migration that has not run.');
             } catch (RecordScopeUnavailableException $exception) {
                 $this->assertSame($employee, $exception->employeeId);
+                $this->assertInstanceOf(RoleTablesUnavailableException::class, $exception->getPrevious());
+
+                if ($throws) {
+                    $this->assertInstanceOf(DatabaseException::class, $exception->getPrevious()->getPrevious());
+                }
             }
         }
     }
@@ -349,7 +355,7 @@ final class RecordScopeTest extends CIUnitTestCase
         $byScope = $this->employeeOfTheirOwnRecords();
         $byRole  = $this->employeeWithRoles([$this->createRole([], 'own')]);
 
-        foreach ([['employee_record_scopes', $byScope, 'employee_record_scopes', 'simulated failure'], ['roles', $byRole, 'employee_roles', 'simulated failure'], ['migrations', $byScope, 'the record of the roles migration', 'could not be read']] as [$table, $employee, $source, $detail]) {
+        foreach ([['employee_record_scopes', $byScope, 'employee_record_scopes', 'simulated failure'], ['roles', $byRole, 'employee_roles', 'simulated failure'], ['migrations', $byScope, 'the record of the roles migration', 'The record of the migration of the roles could not be read']] as [$table, $employee, $source, $detail]) {
             $connection = $this->failingConnection($table, true);
 
             try {

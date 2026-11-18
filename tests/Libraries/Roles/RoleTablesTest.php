@@ -54,15 +54,21 @@ final class RoleTablesTest extends CIUnitTestCase
 
     public function testMigrated_AnswersFromTheRecordAndNotFromTheTables(): void
     {
-        $db    = Database::connect();
-        $table = $db->prefixTable('employee_roles');
+        $db     = Database::connect();
+        $tables = ['employee_default_locations', 'employee_record_scopes', 'employee_roles', 'role_permissions', 'roles'];
 
-        $db->query("RENAME TABLE `{$table}` TO `{$table}_away`");
+        foreach ($tables as $table) {
+            $name = $db->prefixTable($table);
+            $db->query("RENAME TABLE `{$name}` TO `{$name}_away`");
+        }
 
         try {
-            $this->assertTrue(RoleTables::migrated($db), 'The record says the migration ran, whatever became of a table');
+            $this->assertTrue(RoleTables::migrated($db), 'The record says the migration ran, whatever became of the tables');
         } finally {
-            $db->query("RENAME TABLE `{$table}_away` TO `{$table}`");
+            foreach (array_reverse($tables) as $table) {
+                $name = $db->prefixTable($table);
+                $db->query("RENAME TABLE `{$name}_away` TO `{$name}`");
+            }
         }
     }
 

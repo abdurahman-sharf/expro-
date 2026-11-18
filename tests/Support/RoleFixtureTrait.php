@@ -4,8 +4,8 @@ namespace Tests\Support;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Roles\RoleGrants;
-use App\Libraries\Roles\RoleTables;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Roles\RoleTables;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use ReflectionProperty;
@@ -129,8 +129,8 @@ trait RoleFixtureTrait
     }
 
     /**
-     * Runs the callback as a production server whose table cannot be read: the name is still in the
-     * list of the tables, as a view of a table that is gone, so the probe finds it, but a query on it
+     * Runs the callback as a production server whose table cannot be read: the migration record stays,
+     * so the code goes on to read the table, which is a view of a table that is gone, so a query on it
      * fails, and the connection does not debug, so the failed query answers false and does not throw.
      * A view and not a renamed column, which MySQL 8 refuses for a column of a check constraint.
      */

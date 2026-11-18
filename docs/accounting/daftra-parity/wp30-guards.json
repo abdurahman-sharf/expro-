@@ -321,7 +321,7 @@
   {
     "name": "G30 code deployed before the migration finds no roles",
     "file": "app/Libraries/Roles/RoleGrants.php",
-    "find": "if (! $this->tablesExist()) {\n            return [];\n        }",
+    "find": "if (! $this->migrated()) {\n            return [];\n        }",
     "replace": "",
     "tests": [
       "--filter",
@@ -588,7 +588,7 @@
   {
     "name": "G55 code deployed before the migration narrows nobody",
     "file": "app/Libraries/Roles/RecordScope.php",
-    "find": "if (! $this->tablesExist()) {\n            return false;\n        }",
+    "find": "if (! $this->migrated($employeeId)) {\n            return false;\n        }",
     "replace": "",
     "tests": [
       "--filter",

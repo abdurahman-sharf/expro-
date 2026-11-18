@@ -192,7 +192,7 @@ final class RoleGrantsTest extends CIUnitTestCase
         $this->assertFalse($model->has_grant('sales_delete', $employee, true), 'Direct only does not see the role');
     }
 
-    public function testIdsFor_AsksAgainWhetherTheTablesExistOnceTheGrantsWereFlushed(): void
+    public function testIdsFor_AsksAgainWhetherTheMigrationRanOnceTheGrantsWereFlushed(): void
     {
         $employee = $this->employeeWithRoles([$this->createRole(['sales'])]);
         $grants   = new RoleGrants();
