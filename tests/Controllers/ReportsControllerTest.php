@@ -7,6 +7,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use App\Database\Seeds\TestDatabaseBootstrapSeeder;
+use App\Libraries\Roles\RoleService;
 use App\Models\Employee;
 use Config\Database;
 use Config\OSPOS;
@@ -524,6 +525,31 @@ class ReportsControllerTest extends CIUnitTestCase
         preg_match_all('/"values":\[([^\]]*)\]/', html_entity_decode($page), $charts);
 
         return array_sum(array_map(static fn (string $values): float => array_sum(array_map('floatval', explode(',', $values))), $charts[1]));
+    }
+
+    /**
+     * Business in two branches, and a reader of every branch who sees their own records only and has bought a unit
+     * from a supplier of their own on the day of the report, logged in.
+     *
+     * @return array{reader: int, mine: int}
+     */
+    private function ownRecordsReaderWhoBought(): array
+    {
+        $this->openTheBooks();
+
+        $reader   = $this->readerOfTheBranches(null);
+        $author   = $this->employeeId;
+        $supplier = $this->anotherSupplier('OwnOnlySupplier');
+
+        $this->employeeId = $reader;
+        $mine             = $this->buy([$this->purchaseLine($this->reportItems['a'], 0, '1', '25.00')], $supplier);
+        $this->employeeId = $author;
+
+        $this->assertGreaterThan(0, $mine);
+        $this->accountingDb()->table('receivings')->where('receiving_id', $mine)->update(['receiving_time' => $this->reportDay . ' 11:00:00']);
+        (new RoleService())->setRecordScope($reader, 'own', null);
+
+        return ['reader' => $reader, 'mine' => $mine];
     }
 
     private function assertExpensesReportIsRefusedToAnEmployeeOfOneBranch(string $report): void
@@ -1340,6 +1366,59 @@ class ReportsControllerTest extends CIUnitTestCase
 
             $this->assertStringContainsString($name, $this->pageOf($path));
         }
+    }
+
+    public function testDetailedReceivings_ListsOnlyTheReceivingsAnOwnRecordsEmployeeMade(): void
+    {
+        $this->ownRecordsReaderWhoBought();
+        $path = '/reports/detailed_receivings/' . $this->reportDay . '/' . $this->reportDay . '/all/all';
+
+        $page = $this->pageOf($path);
+
+        $this->assertStringContainsString('OwnOnlySupplier', $page);
+        $this->assertStringNotContainsString('Gulf Supplies', $page);
+        $this->assertStringNotContainsString('ReportSupplierB', $page);
+
+        $this->readerOfTheBranches(null);
+        $page = $this->pageOf($path);
+
+        foreach (['OwnOnlySupplier', 'Gulf Supplies', 'ReportSupplierB'] as $supplier) {
+            $this->assertStringContainsString($supplier, $page);
+        }
+    }
+
+    public function testGetDetailedReceivingsRow_FindsAReceivingAnOwnRecordsEmployeeMadeAndNotOneAnotherMade(): void
+    {
+        ['mine' => $mine] = $this->ownRecordsReaderWhoBought();
+
+        $this->dropEveryReportTable();
+        $found = json_decode($this->get('/reports/get_detailed_receivings_row/' . $mine)->getJSON(), true);
+
+        $this->assertArrayHasKey((string) $mine, $found);
+
+        $this->dropEveryReportTable();
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/reports/get_detailed_receivings_row/' . $this->reportReceivings['a']);
+    }
+
+    public function testDetailedReceivings_NamesNoForeignReceivingAnotherEmployeeMadeToAnOwnRecordsEmployee(): void
+    {
+        ['mine' => $mine] = $this->ownRecordsReaderWhoBought();
+        $path             = '/reports/detailed_receivings/' . $this->reportDay . '/' . $this->reportDay . '/all/all';
+
+        $this->accountingDb()->table('receivings')->whereIn('receiving_id', [$mine, $this->reportReceivings['a']])->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+
+        $page = $this->pageOf($path);
+
+        $this->assertStringContainsString('RECV ' . $mine . ' (USD)', $page);
+        $this->assertStringNotContainsString('RECV ' . $this->reportReceivings['a'] . ' (', $page);
+
+        $this->readerOfTheBranches(null);
+        $page = $this->pageOf($path);
+
+        $this->assertStringContainsString('RECV ' . $mine . ' (USD)', $page);
+        $this->assertStringContainsString('RECV ' . $this->reportReceivings['a'] . ' (USD)', $page);
     }
 
     public function testDetailedReceivings_NamesNoForeignReceivingOfABranchTheEmployeeDoesNotWorkIn(): void

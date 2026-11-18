@@ -2,6 +2,7 @@
 
 namespace App\Models\Reports;
 
+use App\Libraries\Roles\RecordScope;
 use App\Models\Receiving;
 
 /**
@@ -13,7 +14,7 @@ class Detailed_receivings extends Report
     {
         // Create our temp tables to work with the data in our report
         $receiving = model(Receiving::class);
-        $receiving->create_temp_table($this->limitedInputs($inputs));
+        $receiving->create_temp_table($this->limitedInputs($inputs) + ['viewer_id' => RecordScope::sessionEmployee()]);
     }
 
     public function getDataColumns(): array

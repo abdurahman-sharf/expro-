@@ -1,0 +1,91 @@
+[
+ {
+  "name": "G01 an own-records employee is shown every receiving of the report",
+  "file": "app/Models/Receiving.php",
+  "find": "$where .= ' AND receivings.employee_id = ' . $cut;",
+  "replace": "$where .= '';",
+  "tests": [
+   "tests/Models/Reports/Detailed_receivingsTest.php"
+  ]
+ },
+ {
+  "name": "G02 the row of one receiving is not cut to the own-records employee",
+  "file": "app/Models/Receiving.php",
+  "find": "$cut = isset($inputs['viewer_id']) ? $this->viewerCut((int) $inputs['viewer_id']) : null;",
+  "replace": "$cut = isset($inputs['viewer_id']) && empty($inputs['receiving_id']) ? $this->viewerCut((int) $inputs['viewer_id']) : null;",
+  "tests": [
+   "tests/Models/Reports/Detailed_receivingsTest.php"
+  ]
+ },
+ {
+  "name": "G03 the report does not tell the temporary table who is reading",
+  "file": "app/Models/Reports/Detailed_receivings.php",
+  "find": " + ['viewer_id' => RecordScope::sessionEmployee()]",
+  "replace": "",
+  "tests": [
+   "tests/Models/Reports/Detailed_receivingsTest.php"
+  ]
+ },
+ {
+  "name": "G04 the foreign receivings of every employee are named to an own-records employee",
+  "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+  "find": "$builder->where('receivings.employee_id', $employeeId);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+  ]
+ },
+ {
+  "name": "G05 the title of the report does not cut the foreign receivings to the reader",
+  "file": "app/Controllers/Reports.php",
+  "find": ", $locationId, (new RecordScope())->limit($employeeId < 1 ? null : $employeeId))",
+  "replace": ", $locationId)",
+  "tests": [
+   "--filter",
+   "NamesNoForeignReceivingAnotherEmployeeMadeToAnOwnRecordsEmployee",
+   "tests/Controllers/ReportsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G06 a direct caller of the temporary table is cut by whoever is logged in",
+  "file": "app/Models/Receiving.php",
+  "find": "$cut = isset($inputs['viewer_id']) ? $this->viewerCut((int) $inputs['viewer_id']) : null;",
+  "replace": "$cut = $this->viewerCut(isset($inputs['viewer_id']) ? (int) $inputs['viewer_id'] : null);",
+  "tests": [
+   "--filter",
+   "CutsToTheViewerGivenAndToNoOneWhenNoneIsGiven",
+   "tests/Models/ReceivingTest.php"
+  ]
+ },
+ {
+  "name": "G07 a receiving that names no employee is shown to an own-records employee",
+  "file": "app/Models/Receiving.php",
+  "find": "$where .= ' AND receivings.employee_id = ' . $cut;",
+  "replace": "$where .= ' AND (receivings.employee_id = ' . $cut . ' OR receivings.employee_id = 0)';",
+  "tests": [
+   "tests/Models/Reports/Detailed_receivingsTest.php"
+  ]
+ },
+ {
+  "name": "H01 the page of the report is not cut for an own-records employee",
+  "file": "app/Models/Receiving.php",
+  "find": "$where .= ' AND receivings.employee_id = ' . $cut;",
+  "replace": "$where .= '';",
+  "tests": [
+   "--filter",
+   "ListsOnlyTheReceivingsAnOwnRecordsEmployeeMade",
+   "tests/Controllers/ReportsControllerTest.php"
+  ]
+ },
+ {
+  "name": "H02 the row endpoint of the report is not cut for an own-records employee",
+  "file": "app/Models/Receiving.php",
+  "find": "$cut = isset($inputs['viewer_id']) ? $this->viewerCut((int) $inputs['viewer_id']) : null;",
+  "replace": "$cut = isset($inputs['viewer_id']) && empty($inputs['receiving_id']) ? $this->viewerCut((int) $inputs['viewer_id']) : null;",
+  "tests": [
+   "--filter",
+   "FindsAReceivingAnOwnRecordsEmployeeMadeAndNotOneAnotherMade",
+   "tests/Controllers/ReportsControllerTest.php"
+  ]
+ }
+]

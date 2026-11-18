@@ -2165,7 +2165,7 @@ class Reports extends Secure_Controller
         $ownCut     = isset($inputs['viewer_id']) ? (new RecordScope())->limit((int) $inputs['viewer_id']) : null;
         $reader     = new ForeignDocumentReader();
         $foreign    = $documents === 'receivings'
-            ? $reader->receivings($from, $to, $withTime, $branchIds, $locationId)
+            ? $reader->receivings($from, $to, $withTime, $branchIds, $locationId, (new RecordScope())->limit($employeeId < 1 ? null : $employeeId))
             : $reader->sales($from, $to, $withTime, $branchIds, (string) ($inputs['sale_type'] ?? 'all'), $locationId, $ownCut);
 
         return $foreign === [] ? $subtitle : $subtitle . "\n" . lang('Reports.foreign_documents_label', [ForeignDocuments::describe($foreign)]);
