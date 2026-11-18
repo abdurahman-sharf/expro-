@@ -86,5 +86,27 @@
       "Permission",
       "tests/Controllers/ReportsControllerTest.php"
     ]
+  },
+  {
+    "name": "G09 the report is named by the segment read before the router decodes the path again",
+    "file": "app/Controllers/Reports.php",
+    "find": "explode('/', trim(urldecode($request->getPath()), '/'))[1] ?? ''",
+    "replace": "urldecode($request->getUri()->getSegment(2))",
+    "tests": [
+      "--filter",
+      "Spelling|HiddenBehindASlash",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G10 the name of the report is looked up in the map as it is spelled",
+    "file": "app/Controllers/Reports.php",
+    "find": "self::SUBMODULE_OF_REPORT[strtolower($methodName)]",
+    "replace": "self::SUBMODULE_OF_REPORT[$methodName]",
+    "tests": [
+      "--filter",
+      "Spelling|HiddenBehindASlash",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
   }
 ]

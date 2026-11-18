@@ -256,6 +256,34 @@ class ReportsControllerTest extends CIUnitTestCase
     }
 
     /**
+     * @return list<string> The permissions that guard a report, which are all those the database holds under the module of the
+     *                      reports apart from the module itself, so a new one cannot be left out of the walks that use this.
+     */
+    private function reportPermissions(): array
+    {
+        $listed = [
+            'reports_sales', 'reports_customers', 'reports_employees', 'reports_payments', 'reports_discounts', 'reports_items', 'reports_categories',
+            'reports_inventory', 'reports_receivings', 'reports_suppliers', 'reports_taxes', 'reports_sales_taxes', 'reports_expenses_categories',
+        ];
+        $stored = array_column($this->accountingDb()->table('permissions')->like('permission_id', 'reports_', 'after')->get()->getResultArray(), 'permission_id');
+
+        sort($stored);
+        sort($listed);
+
+        $this->assertSame($listed, $stored, 'a report permission is missing from the list, so the walks over the reports index would skip it');
+
+        return $listed;
+    }
+
+    private function assertIsRefusedTo(string $address, string $refusedFor): void
+    {
+        $response = $this->get($address);
+
+        $this->assertSame(302, $response->response()->getStatusCode(), $address);
+        $this->assertStringContainsString('no_access/reports/' . $refusedFor, $response->getRedirectUrl(), $address);
+    }
+
+    /**
      * @param list<string> $permissionIds
      */
     private function assertEveryAddressIsRefusedTo(array $permissionIds, array $addresses, string $refusedFor): void
@@ -263,10 +291,7 @@ class ReportsControllerTest extends CIUnitTestCase
         $this->loginAs($this->employeeWithGrants($permissionIds));
 
         foreach ($addresses as $address) {
-            $response = $this->get($address);
-
-            $response->assertRedirect();
-            $this->assertStringContainsString('no_access/reports/' . $refusedFor, $response->getRedirectUrl(), $address);
+            $this->assertIsRefusedTo($address, $refusedFor);
         }
     }
 
@@ -310,7 +335,7 @@ class ReportsControllerTest extends CIUnitTestCase
         $this->assertEveryAddressIsOpenTo(['reports', 'reports_sales_taxes'], $addresses);
     }
 
-    public function testSummaryTaxes_StillRequiresTheTaxesPermissionAndNotTheSalesTaxesOne(): void
+    public function testSummaryTaxes_RequiresTheTaxesPermissionAndNotTheSalesTaxesOne(): void
     {
         $addresses = $this->addressesOf('summary_taxes', $this->reportDay . '/' . $this->reportDay . '/sales/all');
 
@@ -318,26 +343,43 @@ class ReportsControllerTest extends CIUnitTestCase
         $this->assertEveryAddressIsOpenTo(['reports', 'reports_taxes'], $addresses);
     }
 
-    public function testSummaryExpensesCategories_IsRefusedWithoutTheExpensesPermissionWhateverTheSpellingOfItsAddress(): void
+    public function testReportPages_RejectsEverySpellingOfTheAddressOfAReportWhoseNameDoesNotSpellItsPermission(): void
     {
         $this->loginAs($this->employeeWithGrants(['reports', 'reports_categories', 'reports_taxes']));
 
-        $encoded = [
-            'summary%255Fexpenses%255Fcategories' => 'reports_expenses_categories',
-            'summary%5Fexpenses%5Fcategories'     => 'reports_expenses_categories',
-            'summary_sales%255Ftaxes'             => 'reports_sales_taxes',
+        $day     = $this->reportDay;
+        $refused = [
+            'summary%255Fexpenses%255Fcategories'                    => 'reports_expenses_categories',
+            'summary%5Fexpenses%5Fcategories'                        => 'reports_expenses_categories',
+            'summary_Expenses_Categories'                            => 'reports_expenses_categories',
+            'summary_expenses_Categories'                            => 'reports_expenses_categories',
+            'graphical_summary_Expenses_Categories'                  => 'reports_expenses_categories',
+            'summary%255Fsales%255Ftaxes'                            => 'reports_sales_taxes',
+            'summary_Sales_Taxes'                                    => 'reports_sales_taxes',
+            'graphical_summary_Sales_Taxes'                          => 'reports_sales_taxes',
+            "summary_expenses_categories%252F{$day}_categories"       => 'reports_expenses_categories',
+            "graphical_summary_expenses_categories%252F{$day}_categories" => 'reports_expenses_categories',
+            "summary_sales_taxes%252F{$day}_taxes"                    => 'reports_sales_taxes',
+            "graphical_summary_sales_taxes%252F{$day}_taxes"          => 'reports_sales_taxes',
+        ];
+        $withoutArguments = [
+            'summary%255Fexpenses%255Fcategories'                    => 'reports_expenses_categories',
+            "graphical_summary_expenses_categories%252F{$day}_categories" => 'reports_expenses_categories',
+            "summary_sales_taxes%252F{$day}_taxes"                    => 'reports_sales_taxes',
+            'summary_Sales_Taxes'                                    => 'reports_sales_taxes',
         ];
 
-        foreach ($encoded as $segment => $refusedFor) {
-            $response = $this->get("/reports/{$segment}/{$this->reportDay}/{$this->reportDay}/sales");
+        foreach ($refused as $segment => $refusedFor) {
+            $this->assertIsRefusedTo("/reports/{$segment}/{$day}/{$day}/" . ($refusedFor === 'reports_sales_taxes' ? 'sales/all' : 'sales'), $refusedFor);
+        }
 
-            $response->assertRedirect();
-            $this->assertStringContainsString('no_access/reports/' . $refusedFor, $response->getRedirectUrl(), $segment);
+        foreach ($withoutArguments as $segment => $refusedFor) {
+            $this->assertIsRefusedTo("/reports/{$segment}", $refusedFor);
         }
 
         foreach (['Summary_Expenses_Categories', 'GRAPHICAL_SUMMARY_EXPENSES_CATEGORIES', 'Summary_Sales_Taxes'] as $segment) {
             try {
-                $status = $this->get("/reports/{$segment}/{$this->reportDay}/{$this->reportDay}/sales")->response()->getStatusCode();
+                $status = $this->get("/reports/{$segment}/{$day}/{$day}/sales")->response()->getStatusCode();
             } catch (PageNotFoundException) {
                 $status = 404;
             }
@@ -346,14 +388,50 @@ class ReportsControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testReportPages_OpenWithThePermissionTheReportsIndexOffersThemUnderAndWithNoOtherReportPermission(): void
+    public function testReportPages_RejectsAnotherPermissionHiddenBehindASlashInTheNameOfTheReport(): void
     {
         helper('report');
 
-        $permissions = [
-            'reports_sales', 'reports_customers', 'reports_employees', 'reports_payments', 'reports_discounts', 'reports_items', 'reports_categories', 'reports_inventory',
-            'reports_receivings', 'reports_suppliers', 'reports_taxes', 'reports_sales_taxes', 'reports_expenses_categories',
-        ];
+        $permissionOf = [];
+
+        foreach ($this->reportPermissions() as $permission) {
+            foreach (reportCatalog([$permission], false) as $group) {
+                foreach ($group['subjects'] as $subject) {
+                    foreach ($subject['links'] as $link) {
+                        $permissionOf[basename($link['path'])] = $permission;
+                    }
+                }
+            }
+        }
+
+        $this->assertGreaterThan(25, count($permissionOf));
+
+        $holders = [];
+
+        foreach (array_unique($permissionOf) as $permission) {
+            if (substr_count($permission, '_') === 1) {
+                $holders[$permission] = $this->employeeWithGrants(['reports', $permission]);
+            }
+        }
+
+        foreach ($permissionOf as $name => $guardedBy) {
+            foreach ($holders as $permission => $personId) {
+                $this->loginAs($personId);
+
+                if ($permission === $guardedBy) {
+                    continue;
+                }
+
+                $this->assertIsRefusedTo("/reports/{$name}%252F{$this->reportDay}_" . substr($permission, strlen('reports_')) . "/{$this->reportDay}/{$this->reportDay}/sales/all", $guardedBy);
+            }
+        }
+    }
+
+    public function testReportPages_AcceptsTheIndexPermissionOfEachLinkAndRejectsEveryOtherReportPermission(): void
+    {
+        helper('report');
+
+        $permissions = $this->reportPermissions();
 
         foreach ($permissions as $permission) {
             $addresses = [];

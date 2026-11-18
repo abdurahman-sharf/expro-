@@ -73,8 +73,12 @@ class Reports extends Secure_Controller
     public function __construct()
     {
         parent::__construct('reports');
+
+        // The router decodes the path once more than the request has and splits it afterwards, so the name of the report
+        // is cut from the path decoded as the router will read it: cut sooner, it could hold a slash that only appears in
+        // that last decoding and turns what follows it into the route, under the permission of the text before it.
         $request    = Services::request();
-        $methodName = urldecode($request->getUri()->getSegment(2));
+        $methodName = explode('/', trim(urldecode($request->getPath()), '/'))[1] ?? '';
         $exploder   = explode('_', $methodName);
 
         $this->attribute                   = config(Attribute::class);
