@@ -4,7 +4,10 @@ namespace App\Libraries\Roles;
 
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\Exceptions\DatabaseException;
+use CodeIgniter\Database\ResultInterface;
 use Config\Database;
+use Throwable;
 
 /**
  * Whether an employee sees every record of the document families (sales, purchases, expenses and
@@ -13,7 +16,9 @@ use Config\Database;
  * "own" when the employee is set to see their own records only or when any role they hold is, active
  * or not, so the narrowest wins: a role can never widen what an employee was narrowed to, and
  * deactivating a role never widens its holders. Whoever holds no scope, and the books acting
- * without an employee, see everything, as it always was.
+ * without an employee, see everything, as it always was. A scope that cannot be read is never taken
+ * for no scope: a connection without debugging, or inside a transaction, answers a failed query
+ * with false and a count of it with 0, so the read fails with RecordScopeUnavailableException.
  */
 final class RecordScope
 {
@@ -105,24 +110,68 @@ final class RecordScope
 
     private function read(int $employeeId): bool
     {
-        if (! $this->tablesExist()) {
+        if (! $this->tablesExist($employeeId)) {
             return false;
         }
 
-        $own = $this->db->table('employee_record_scopes')->where(['person_id' => $employeeId, 'record_scope' => self::OWN])->countAllResults() > 0;
+        $scopes = $this->db->table('employee_record_scopes')->where(['person_id' => $employeeId, 'record_scope' => self::OWN]);
 
-        if ($own) {
+        if ($this->exists($employeeId, 'employee_record_scopes', $scopes)) {
             return true;
         }
 
-        return $this->db->table('employee_roles er')
+        $roles = $this->db->table('employee_roles er')
             ->join('roles r', 'r.role_id = er.role_id')
-            ->where(['er.person_id' => $employeeId, 'r.record_scope' => self::OWN])
-            ->countAllResults() > 0;
+            ->where(['er.person_id' => $employeeId, 'r.record_scope' => self::OWN]);
+
+        return $this->exists($employeeId, 'employee_roles', $roles);
     }
 
-    private function tablesExist(): bool
+    private function exists(int $employeeId, string $table, BaseBuilder $builder): bool
     {
-        return $this->available ??= RoleTables::exist($this->db, 'employee_record_scopes', 'employee_roles', 'roles');
+        try {
+            $result = $builder->select('1', false)->limit(1)->get();
+        } catch (DatabaseException $exception) {
+            throw $this->unavailable($employeeId, $table, $exception);
+        }
+
+        if (! $result instanceof ResultInterface) {
+            throw $this->unavailable($employeeId, $table);
+        }
+
+        return $result->getRowArray() !== null;
+    }
+
+    private function tablesExist(int $employeeId): bool
+    {
+        try {
+            return $this->available ??= RoleTables::exist($this->db, 'employee_record_scopes', 'employee_roles', 'roles');
+        } catch (Throwable $exception) {
+            throw $this->unavailable($employeeId, 'the tables of roles', $exception);
+        }
+    }
+
+    private function unavailable(int $employeeId, string $source, ?Throwable $previous = null): RecordScopeUnavailableException
+    {
+        return new RecordScopeUnavailableException(
+            $employeeId,
+            sprintf('The record scope of the employee %d could not be read from %s: %s', $employeeId, $source, $previous?->getMessage() ?? $this->driverError()),
+            $previous,
+        );
+    }
+
+    private function driverError(): string
+    {
+        try {
+            $error = $this->db->error();
+
+            if (is_array($error) && ! empty($error['message'])) {
+                return (string) $error['message'];
+            }
+        } catch (Throwable) {
+            // A disconnected connection may not answer error(), and the failure is reported all the same.
+        }
+
+        return 'unknown error';
     }
 }

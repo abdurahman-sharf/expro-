@@ -7,6 +7,7 @@ use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
+use ReflectionProperty;
 
 /**
  * Roles for test fixtures, made through the role service the application uses, with the system as
@@ -93,6 +94,31 @@ trait RoleFixtureTrait
                 $db->query("RENAME TABLE `{$name}_away` TO `{$name}`");
             }
 
+            RoleGrants::flush();
+        }
+    }
+
+    /**
+     * Runs the callback as a production server whose table of record scopes cannot be read: the table
+     * is there, so the probe finds it, but the column the scope is read from is not, and the
+     * connection does not debug, so a failed query answers false and does not throw.
+     */
+    protected function withUnreadableRecordScopes(callable $then): void
+    {
+        $db     = $this->roleDb();
+        $table  = $db->prefixTable('employee_record_scopes');
+        $debug  = new ReflectionProperty(BaseConnection::class, 'DBDebug');
+        $before = $debug->getValue($db);
+
+        RoleGrants::flush();
+        $db->query("ALTER TABLE `{$table}` CHANGE `record_scope` `record_scope_away` VARCHAR(8) NOT NULL DEFAULT 'all'");
+
+        try {
+            $debug->setValue($db, false);
+            $then();
+        } finally {
+            $debug->setValue($db, $before);
+            $db->query("ALTER TABLE `{$table}` CHANGE `record_scope_away` `record_scope` VARCHAR(8) NOT NULL DEFAULT 'all'");
             RoleGrants::flush();
         }
     }
