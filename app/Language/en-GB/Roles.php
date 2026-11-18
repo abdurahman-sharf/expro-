@@ -23,6 +23,7 @@ return [
     'error_name_taken'           => 'The name {0} is used by another role.',
     'error_not_found'            => 'The role does not exist.',
     'error_permission_denied'    => 'You do not have permission for this action.',
+    'error_read_failed'          => 'The role could not be checked, so nothing was changed. Try again.',
     'error_refused_permission'   => 'The permission {0} posts to the books, moves money or changes the settings: only an administrator gives it, to an employee and not to a role.',
     'error_sensitive_permission' => 'The permission {0} is sensitive: only an administrator gives it, to an employee and not to a role.',
     'error_unknown_permission'   => 'The permission {0} does not exist.',

@@ -4,16 +4,19 @@ namespace Tests\Libraries\Roles;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\RecordScope;
 use App\Libraries\Roles\RoleError;
 use App\Libraries\Roles\RoleException;
 use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
 use App\Models\Employee;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\FailingTableConnection;
 use Tests\Support\RoleFixtureTrait;
 
 /**
@@ -43,6 +46,15 @@ final class RoleServiceTest extends CIUnitTestCase
         RoleGrants::flush();
 
         $this->roles = new RoleService();
+    }
+
+    private function rolesOverAFailingTable(string $table, bool $throws): RoleService
+    {
+        $db               = new FailingTableConnection(config('Database')->tests);
+        $db->failingTable = $table;
+        $db->throws       = $throws;
+
+        return new RoleService($db);
     }
 
     private function refusal(callable $action): RoleException
@@ -420,6 +432,50 @@ final class RoleServiceTest extends CIUnitTestCase
         $this->roles->delete($roleId, null);
 
         $this->assertNull($this->roles->find($roleId));
+    }
+
+    public function testHolders_RefusesWhenTheHoldersCannotBeCounted(): void
+    {
+        $roleId = $this->createRole(['sales']);
+
+        $this->employeeWithRoles([$roleId]);
+
+        foreach ([false, true] as $throws) {
+            $exception = $this->refusal(fn () => $this->rolesOverAFailingTable('employee_roles', $throws)->holders($roleId));
+
+            $this->assertSame(RoleError::ReadFailed, $exception->error);
+
+            if ($throws) {
+                $this->assertInstanceOf(DatabaseException::class, $exception->getPrevious());
+            }
+        }
+    }
+
+    public function testDelete_RefusesAndKeepsTheRoleAndItsHoldersWhenTheHoldersCannotBeCounted(): void
+    {
+        $roleId   = $this->createRole(['sales']);
+        $employee = $this->employeeWithRoles([$roleId]);
+
+        foreach ([false, true] as $throws) {
+            $this->assertSame(RoleError::ReadFailed, $this->refusal(fn () => $this->rolesOverAFailingTable('employee_roles', $throws)->delete($roleId, null))->error);
+        }
+
+        $this->assertNotNull($this->roles->find($roleId));
+        $this->assertSame([$roleId], $this->roles->roleIdsOf($employee));
+        $this->assertSame([], $this->auditOf('role', $roleId, 'role_deleted'));
+    }
+
+    public function testDelete_KeepsTheOwnRecordsScopeOfItsHoldersWhenTheHoldersCannotBeCountedOnTheRealDriver(): void
+    {
+        $roleId   = $this->createRole([], 'own');
+        $employee = $this->employeeWithRoles([$roleId]);
+
+        $this->withUnreadableTable('employee_roles', function () use ($roleId): void {
+            $this->assertSame(RoleError::ReadFailed, $this->refusal(fn () => $this->roles->delete($roleId, null))->error);
+        });
+
+        $this->assertNotNull($this->roles->find($roleId));
+        $this->assertTrue((new RecordScope())->ownOnly($employee));
     }
 
     public function testAssign_GivesTheUnionOfTheirOwnGrantsAndTheGrantsOfEveryRoleWithoutCopyingAny(): void

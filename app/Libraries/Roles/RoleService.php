@@ -9,6 +9,8 @@ use App\Libraries\Accounting\RunsInTransaction;
 use App\Libraries\Organization\BranchGuard;
 use App\Models\Employee;
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\Exceptions\DatabaseException;
+use CodeIgniter\Database\ResultInterface;
 use Config\Database;
 
 /**
@@ -364,12 +366,31 @@ final class RoleService
         RoleGrants::flush();
     }
 
+    /**
+     * The number of employees who hold the role. A count that fails is refused and never read as none:
+     * a connection without debugging, or inside a transaction, answers a failed query with false, and
+     * a role taken for one nobody holds is deleted with the roles of those who hold it.
+     *
+     * @throws RoleException
+     */
     public function holders(int $roleId): int
     {
-        return $this->db->table('employee_roles er')
+        $count = $this->db->table('employee_roles er')
+            ->select('COUNT(*) AS holders', false)
             ->join('employees e', 'e.person_id = er.person_id AND e.deleted = 0')
-            ->where('er.role_id', $roleId)
-            ->countAllResults();
+            ->where('er.role_id', $roleId);
+
+        try {
+            $result = $count->get();
+        } catch (DatabaseException $exception) {
+            throw new RoleException(RoleError::ReadFailed, "The holders of the role {$roleId} could not be counted.", [], $exception);
+        }
+
+        if (! $result instanceof ResultInterface) {
+            throw new RoleException(RoleError::ReadFailed, "The holders of the role {$roleId} could not be counted.");
+        }
+
+        return (int) $result->getRow()->holders;
     }
 
     /**
