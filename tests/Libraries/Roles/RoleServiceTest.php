@@ -471,7 +471,10 @@ final class RoleServiceTest extends CIUnitTestCase
         $employee = $this->employeeWithRoles([$roleId]);
 
         $this->withUnreadableTable('employee_roles', function () use ($roleId): void {
-            $this->assertSame(RoleError::ReadFailed, $this->refusal(fn () => $this->roles->delete($roleId, null))->error);
+            $exception = $this->refusal(fn () => $this->roles->delete($roleId, null));
+
+            $this->assertSame(RoleError::ReadFailed, $exception->error);
+            $this->assertNull($exception->getPrevious(), 'The connection answered false, as one without debugging does, and did not throw');
         });
 
         $this->assertNotNull($this->roles->find($roleId));

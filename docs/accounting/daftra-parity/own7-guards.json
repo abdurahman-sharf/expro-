@@ -70,5 +70,14 @@
     "tests": [
       "tests/Libraries/Roles/RoleServiceTest.php"
     ]
+  },
+  {
+    "name": "G09 the unreadable table of the real-driver test is read by a connection that debugs",
+    "file": "tests/Support/RoleFixtureTrait.php",
+    "find": "            $debug->setValue($db, false);\n            $then();",
+    "replace": "            $then();",
+    "tests": [
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
   }
 ]
