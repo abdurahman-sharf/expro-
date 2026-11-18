@@ -66,6 +66,25 @@ class Summary_customersTest extends CIUnitTestCase
         return array_values(array_unique(array_map('strval', array_column($rows, 'customer'))));
     }
 
+    /**
+     * @return array<string, array{sales: int, total: string}>
+     */
+    private function soldToCustomersSeenBy(?int $reader, ?int $viewer): array
+    {
+        $this->readingAs($reader);
+
+        $rows = (new Summary_customers())->getData($this->saleInputs() + ($viewer === null ? [] : ['viewer_id' => $viewer]));
+        $sold = [];
+
+        foreach ($rows as $row) {
+            $sold[(string) $row['customer']] = ['sales' => (int) $row['sales'], 'total' => $this->amount($row['total'])];
+        }
+
+        ksort($sold);
+
+        return $sold;
+    }
+
     public function testGetData_ShowsOnlyWhatTheBranchesTheEmployeeWorksInSold(): void
     {
         $this->assertSame(['Omar Khaled'], $this->seenBy('a'));
@@ -86,6 +105,28 @@ class Summary_customersTest extends CIUnitTestCase
     public function testGetData_ShowsNothingToAnEmployeeWhoWorksInNoBranch(): void
     {
         $this->assertSame([], $this->seenBy('none'));
+    }
+
+    public function testGetData_ShowsOnlyTheCustomersOfTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+
+        $this->assertSame(['Omar Khaled' => ['sales' => 1, 'total' => '30.00']], $this->soldToCustomersSeenBy($own, $own));
+
+        $this->readingAs($own);
+
+        $this->assertSame('30.00', $this->amount((new Summary_customers())->getSummaryData($this->saleInputs() + ['viewer_id' => $own])['total']));
+    }
+
+    public function testGetData_ShowsEverySaleToAnEmployeeWhoSeesEveryRecordAndWhenNoViewerIsNamed(): void
+    {
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+        $everything     = ['Bilal ReportBuyerB' => ['sales' => 1, 'total' => '126.00'], 'Omar Khaled' => ['sales' => 3, 'total' => '247.00']];
+        $everyRecord    = $this->employeeWithGrants([]);
+
+        $this->assertSame($everything, $this->soldToCustomersSeenBy($everyRecord, $everyRecord));
+        $this->assertSame($everything, $this->soldToCustomersSeenBy(null, null));
+        $this->assertSame($everything, $this->soldToCustomersSeenBy($own, null), 'a read that names no viewer is not cut, whoever is logged in');
     }
 
     /**

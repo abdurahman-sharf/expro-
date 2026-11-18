@@ -59,10 +59,20 @@ class Specific_discountTest extends CIUnitTestCase
      */
     private function salesSeenBy(string $scope, int $discount = 5): array
     {
-        $this->readingAs($scope === 'system' ? null : $this->reportEmployee($scope));
+        return $this->salesReadBy($scope === 'system' ? null : $this->reportEmployee($scope), $discount);
+    }
+
+    /**
+     * @param array<string, int> $viewer
+     *
+     * @return list<int>
+     */
+    private function salesReadBy(?int $reader, int $discount, array $viewer = []): array
+    {
+        $this->readingAs($reader);
 
         $report = new Specific_discount();
-        $inputs = $this->saleInputs() + ['discount' => $discount, 'discount_type' => PERCENT];
+        $inputs = $this->saleInputs() + ['discount' => $discount, 'discount_type' => PERCENT] + $viewer;
 
         $report->create($inputs);
 
@@ -73,6 +83,21 @@ class Specific_discountTest extends CIUnitTestCase
         sort($ids);
 
         return $ids;
+    }
+
+    /**
+     * @param array<string, int> $viewer
+     */
+    private function totalReadBy(?int $reader, int $discount, array $viewer = []): string
+    {
+        $this->readingAs($reader);
+
+        $report = new Specific_discount();
+        $inputs = $this->saleInputs() + ['discount' => $discount, 'discount_type' => PERCENT] + $viewer;
+
+        $report->create($inputs);
+
+        return $this->amount($report->getSummaryData($inputs)['total']);
     }
 
     public function testGetData_ListsOnlyTheSalesOfTheBranchesTheEmployeeWorksIn(): void
@@ -91,6 +116,41 @@ class Specific_discountTest extends CIUnitTestCase
     public function testGetData_ListsNothingForAnEmployeeWhoWorksInNoBranch(): void
     {
         $this->assertSame([], $this->salesSeenBy('none'));
+    }
+
+    public function testGetData_ListsOnlyTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        ['own' => $own, 'mine' => $mine] = $this->ownRecordsEmployeeWhoSold();
+
+        $this->assertSame([$mine], $this->salesReadBy($own, 10, ['viewer_id' => $own]));
+    }
+
+    public function testGetData_ListsEverySaleWithTheDiscountForAnEmployeeWhoSeesEveryRecordAndWhenNoViewerIsNamed(): void
+    {
+        ['own' => $own, 'mine' => $mine] = $this->ownRecordsEmployeeWhoSold();
+        $everySale                       = $this->sortedIds($this->reportSales['a'], $this->reportSales['b'], $mine);
+        $everyRecordReader               = $this->employeeWithGrants([]);
+
+        $this->assertSame($everySale, $this->salesReadBy($everyRecordReader, 10, ['viewer_id' => $everyRecordReader]));
+        $this->assertSame($everySale, $this->salesReadBy(null, 10));
+        $this->assertSame($everySale, $this->salesReadBy($own, 10), 'a read that names no viewer is not cut, whoever is logged in');
+    }
+
+    public function testGetSummaryData_AddsUpOnlyTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+
+        $this->assertSame('30.00', $this->totalReadBy($own, 10, ['viewer_id' => $own]));
+    }
+
+    public function testGetSummaryData_AddsUpEverySaleWithTheDiscountForAnEmployeeWhoSeesEveryRecordAndWhenNoViewerIsNamed(): void
+    {
+        ['own' => $own]    = $this->ownRecordsEmployeeWhoSold();
+        $everyRecordReader = $this->employeeWithGrants([]);
+
+        $this->assertSame('363.00', $this->totalReadBy($everyRecordReader, 10, ['viewer_id' => $everyRecordReader]));
+        $this->assertSame('363.00', $this->totalReadBy(null, 10));
+        $this->assertSame('363.00', $this->totalReadBy($own, 10), 'a read that names no viewer is not cut, whoever is logged in');
     }
 
     /**

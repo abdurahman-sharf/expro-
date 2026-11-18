@@ -136,6 +136,43 @@ trait ReportBranchFixtureTrait
     }
 
     /**
+     * An employee who sees their own records only, in every branch, and the sale of one unit of the first item that
+     * they made on the day of the report: 30.00 with the tax of 3.00, paid in cash, to the customer of the first
+     * branch, taxed as VAT-OWN, with the discount of 10% the sale of the first branch has. It comes on top of the
+     * three sales of businessInTwoBranches, whose employee is another. The employee is the one given, or a new one.
+     *
+     * @return array{own: int, mine: int}
+     */
+    protected function ownRecordsEmployeeWhoSold(?int $employeeId = null): array
+    {
+        $own = $employeeId ?? $this->employeeWithGrants([]);
+        (new RoleService())->setRecordScope($own, 'own', null);
+
+        $author           = $this->employeeId;
+        $this->employeeId = $own;
+        $mine             = $this->save(
+            [$this->line($this->reportItems['a'], 0, '1', '30', '40.00', '10')],
+            [array_merge($this->tax($this->reportItems['a'], 0, '3.00'), ['name' => 'VAT-OWN', 'percent' => '10.0000'])],
+            [$this->payment(lang('Sales.cash'), '30.00')],
+            SALE_TYPE_POS,
+            $this->customerId,
+        );
+        $this->employeeId = $author;
+
+        $this->assertGreaterThan(0, $mine);
+
+        $db = $this->accountingDb();
+
+        $db->table('sales')->where('sale_id', $mine)->update(['sale_time' => $this->reportDay . ' 11:00:00']);
+        $db->table('sales_taxes')->insert([
+            'sale_id'        => $mine, 'tax_type' => 1, 'tax_group' => 'VAT-OWN', 'sale_tax_basis' => '27.00', 'sale_tax_amount' => '3.00',
+            'print_sequence' => 0, 'name' => 'VAT-OWN', 'tax_rate' => '10.0000', 'rounding_code' => 0,
+        ]);
+
+        return ['own' => $own, 'mine' => $mine];
+    }
+
+    /**
      * Who reads the reports: the employee of the first branch, of the second, of both, of every
      * branch, or one who works in no branch.
      */

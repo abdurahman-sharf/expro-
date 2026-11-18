@@ -82,6 +82,45 @@ class Detailed_item_salesTest extends CIUnitTestCase
         return $this->amount($report->getSummaryData($this->saleInputs())['total']);
     }
 
+    /**
+     * @param array<string, int> $viewer
+     *
+     * @return list<int>
+     */
+    private function lineSalesReadBy(?int $reader, array $viewer = []): array
+    {
+        $this->readingAs($reader);
+
+        $report = new Detailed_item_sales();
+        $inputs = $this->saleInputs() + $viewer;
+
+        $report->create($inputs);
+
+        $ids = array_map('intval', array_column($report->getData($inputs), 'sale_id'));
+        sort($ids);
+
+        return $ids;
+    }
+
+    /**
+     * @param array<string, int> $viewer
+     *
+     * @return array<string, mixed>
+     */
+    private function figuresReadBy(?int $reader, array $viewer = []): array
+    {
+        $this->readingAs($reader);
+
+        $report = new Detailed_item_sales();
+        $inputs = $this->saleInputs() + $viewer;
+
+        $report->create($inputs);
+
+        $figures = $report->getSummaryData($inputs);
+
+        return ['quantity' => $this->amount($figures['total_quantity']), 'total' => $this->amount($figures['total'])];
+    }
+
     public function testGetData_ListsOnlyTheLinesOfTheSalesOfTheBranchesTheEmployeeWorksIn(): void
     {
         $this->assertSame([$this->reportNames['a']], $this->itemsSeenBy('a'));
@@ -102,5 +141,43 @@ class Detailed_item_salesTest extends CIUnitTestCase
         $this->assertSame('217.00', $this->totalSeenBy('a'));
         $this->assertSame('126.00', $this->totalSeenBy('b'));
         $this->assertSame('343.00', $this->totalSeenBy('all'));
+    }
+
+    public function testGetData_ListsOnlyTheLinesOfTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        ['own' => $own, 'mine' => $mine] = $this->ownRecordsEmployeeWhoSold();
+
+        $this->assertSame([$mine], $this->lineSalesReadBy($own, ['viewer_id' => $own]));
+    }
+
+    public function testGetData_ListsEveryLineForAnEmployeeWhoSeesEveryRecordAndWhenNoViewerIsNamed(): void
+    {
+        ['own' => $own, 'mine' => $mine] = $this->ownRecordsEmployeeWhoSold();
+        $everyLine                       = [$this->reportSales['a'], $this->reportSales['b'], $this->reportSales['old'], $mine];
+        $everyRecordReader               = $this->employeeWithGrants([]);
+
+        sort($everyLine);
+
+        $this->assertSame($everyLine, $this->lineSalesReadBy($everyRecordReader, ['viewer_id' => $everyRecordReader]));
+        $this->assertSame($everyLine, $this->lineSalesReadBy(null));
+        $this->assertSame($everyLine, $this->lineSalesReadBy($own), 'a read that names no viewer is not cut, whoever is logged in');
+    }
+
+    public function testGetSummaryData_AddsUpOnlyTheLinesOfTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+
+        $this->assertSame(['quantity' => '1.00', 'total' => '30.00'], $this->figuresReadBy($own, ['viewer_id' => $own]));
+    }
+
+    public function testGetSummaryData_AddsUpEveryLineForAnEmployeeWhoSeesEveryRecordAndWhenNoViewerIsNamed(): void
+    {
+        ['own' => $own]    = $this->ownRecordsEmployeeWhoSold();
+        $everyRecordReader = $this->employeeWithGrants([]);
+        $everything        = ['quantity' => '7.00', 'total' => '373.00'];
+
+        $this->assertSame($everything, $this->figuresReadBy($everyRecordReader, ['viewer_id' => $everyRecordReader]));
+        $this->assertSame($everything, $this->figuresReadBy(null));
+        $this->assertSame($everything, $this->figuresReadBy($own), 'a read that names no viewer is not cut, whoever is logged in');
     }
 }

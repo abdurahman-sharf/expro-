@@ -471,6 +471,61 @@ class ReportsControllerTest extends CIUnitTestCase
         return $personId;
     }
 
+    /**
+     * Business in two branches, and a reader of every branch who sees their own records only and has sold a unit
+     * on the day of the report, logged in.
+     *
+     * @return array{reader: int, mine: int}
+     */
+    private function ownRecordsReaderWhoSold(): array
+    {
+        $this->openTheBooks();
+
+        $reader = $this->readerOfTheBranches(null);
+        $sold   = $this->ownRecordsEmployeeWhoSold($reader);
+
+        return ['reader' => $reader, 'mine' => $sold['mine']];
+    }
+
+    /**
+     * @return array<string, string> The sales reports of the legacy menu, by name, with the address of each for the day of the report.
+     */
+    private function salesReportPaths(): array
+    {
+        $day      = $this->reportDay;
+        $withDays = static fn (string $name, string $rest = '/sales/all'): string => "/reports/{$name}/{$day}/{$day}{$rest}";
+        $paths    = [];
+
+        foreach (['sales', 'categories', 'customers', 'suppliers', 'items', 'employees', 'taxes', 'sales_taxes'] as $kind) {
+            $paths['summary_' . $kind]           = $withDays('summary_' . $kind);
+            $paths['graphical_summary_' . $kind] = $withDays('graphical_summary_' . $kind);
+        }
+
+        $paths['summary_discounts']           = $withDays('summary_discounts', '/sales/all/0');
+        $paths['graphical_summary_discounts'] = $withDays('graphical_summary_discounts', '/sales/all/0');
+        $paths['summary_payments']            = $withDays('summary_payments', '');
+        $paths['graphical_summary_payments']  = $withDays('graphical_summary_payments');
+        $paths['detailed_sales']              = $withDays('detailed_sales');
+        $paths['detailed_item_sales']         = $withDays('detailed_item_sales', '/sales/all/all');
+        $paths['specific_customers']          = $withDays('specific_customers', '/' . $this->customerId . '/sales/all');
+        $paths['specific_employees']          = $withDays('specific_employees', '/' . $this->employeeId . '/sales');
+        $paths['specific_discounts']          = $withDays('specific_discounts', '/10/sales/' . PERCENT);
+        $paths['specific_suppliers']          = $withDays('specific_suppliers', '/' . $this->supplierId . '/sales');
+
+        return $paths;
+    }
+
+    /**
+     * What a graphical report draws, added up: the figures are in the page as the data of the chart, where the
+     * names of the other employee's customers or taxes may not be.
+     */
+    private function chartedBy(string $page): float
+    {
+        preg_match_all('/"values":\[([^\]]*)\]/', html_entity_decode($page), $charts);
+
+        return array_sum(array_map(static fn (string $values): float => array_sum(array_map('floatval', explode(',', $values))), $charts[1]));
+    }
+
     private function assertExpensesReportIsRefusedToAnEmployeeOfOneBranch(string $report): void
     {
         $this->openTheBooks();
@@ -555,6 +610,90 @@ class ReportsControllerTest extends CIUnitTestCase
 
         $this->readerOfTheBranches(null);
         $this->assertStringContainsString('ReportBuyerB', $this->pageOf($path));
+    }
+
+    public function testSalesReports_ShowAnOwnRecordsEmployeeNothingOfWhatAnotherEmployeeSold(): void
+    {
+        $this->ownRecordsReaderWhoSold();
+
+        $own = [];
+
+        foreach ($this->salesReportPaths() as $name => $path) {
+            $own[$name] = $this->pageOf($path);
+        }
+
+        $this->readerOfTheBranches(null);
+
+        $foreign = ['ReportBuyerB', 'Report item B', 'ReportSupplierB', 'ReportCatB', 'VAT-B', 'VAT-A', '126.00', '207.00', '373.00'];
+        $unseen  = [];
+
+        foreach ($this->salesReportPaths() as $name => $path) {
+            $everything = $this->pageOf($path);
+            $compared   = 0;
+
+            foreach ($foreign as $marker) {
+                if (str_contains($everything, $marker)) {
+                    $compared++;
+                    $this->assertStringNotContainsString($marker, $own[$name], "{$name} shows {$marker} of a sale another employee made");
+                }
+            }
+
+            if (str_starts_with($name, 'graphical_')) {
+                $this->assertGreaterThan(0, $this->chartedBy($everything), "{$name} draws nothing for a reader who sees every record");
+                $this->assertGreaterThan(0, $this->chartedBy($own[$name]), "{$name} draws nothing for the sales of an own records employee");
+                $this->assertLessThan($this->chartedBy($everything), $this->chartedBy($own[$name]), "{$name} draws what another employee sold");
+
+                continue;
+            }
+
+            $compared === 0 && $unseen[] = $name;
+        }
+
+        $this->assertSame([], $unseen, 'no marker of the other employee shows on these reports of a reader who sees every record, so nothing was compared');
+        $this->assertStringContainsString('VAT-OWN', $own['summary_taxes']);
+        $this->assertMatchesRegularExpression('/(?<![\d.,])30\.00/', $own['summary_sales']);
+        $this->assertMatchesRegularExpression('/(?<![\d.,])30\.00/', $own['detailed_sales']);
+    }
+
+    public function testGetDetailedSalesRow_FindsASaleAnOwnRecordsEmployeeMadeAndNotOneAnotherMade(): void
+    {
+        ['mine' => $mine] = $this->ownRecordsReaderWhoSold();
+
+        $this->dropEveryReportTable();
+        $found = json_decode($this->get('/reports/get_detailed_sales_row/' . $mine)->getJSON(), true);
+
+        $this->assertArrayHasKey((string) $mine, $found);
+
+        foreach ([$this->reportSales['a'], $this->reportSales['b'], 987654] as $theirs) {
+            $this->dropEveryReportTable();
+
+            try {
+                $this->get('/reports/get_detailed_sales_row/' . $theirs);
+                $this->fail("The sale {$theirs} of another employee was found");
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function testSummarySales_NamesNoForeignSaleAnotherEmployeeMadeToAnOwnRecordsEmployee(): void
+    {
+        ['mine' => $mine] = $this->ownRecordsReaderWhoSold();
+        $path             = '/reports/summary_sales/' . $this->reportDay . '/' . $this->reportDay . '/sales/all';
+
+        $this->accountingDb()->table('sales')->where('sale_id', $mine)->update(['currency_code' => 'EUR', 'currency_rate' => '4.10000000']);
+        $this->accountingDb()->table('sales')->where('sale_id', $this->reportSales['b'])->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+
+        $page = $this->pageOf($path);
+
+        $this->assertStringContainsString('POS ' . $mine . ' (EUR)', $page);
+        $this->assertStringNotContainsString('POS ' . $this->reportSales['b'] . ' (', $page);
+
+        $this->readerOfTheBranches(null);
+        $page = $this->pageOf($path);
+
+        $this->assertStringContainsString('POS ' . $mine . ' (EUR)', $page);
+        $this->assertStringContainsString('POS ' . $this->reportSales['b'] . ' (USD)', $page);
     }
 
     public function testDetailedReceivings_ListsOnlyTheReceivingsOfTheBranchesTheEmployeeWorksIn(): void

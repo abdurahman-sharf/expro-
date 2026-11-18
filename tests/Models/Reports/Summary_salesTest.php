@@ -91,6 +91,36 @@ class Summary_salesTest extends CIUnitTestCase
         ];
     }
 
+    public function testGetData_AddsUpOnlyTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        $this->openTheBooks();
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+
+        $this->readingAs($own);
+
+        $report = new Summary_sales();
+        $inputs = $this->saleInputs() + ['viewer_id' => $own];
+        $rows   = $report->getData($inputs);
+
+        $this->assertSame(1, (int) array_sum(array_column($rows, 'sales')));
+        $this->assertSame('30.00', $this->amount(array_sum(array_column($rows, 'total'))));
+        $this->assertSame('30.00', $this->amount($report->getSummaryData($inputs)['total']));
+    }
+
+    public function testGetData_AddsUpEverySaleToAnEmployeeWhoSeesEveryRecordAndWhenNoViewerIsNamed(): void
+    {
+        $this->openTheBooks();
+        ['own' => $own] = $this->ownRecordsEmployeeWhoSold();
+        $everything     = ['sales' => 4, 'total' => '373.00', 'daily' => '373.00'];
+
+        $this->assertSame($everything, $this->figures('all'));
+        $this->assertSame($everything, $this->figures('system'));
+
+        $this->readingAs($own);
+
+        $this->assertSame('373.00', $this->amount((new Summary_sales())->getSummaryData($this->saleInputs())['total']), 'a read that names no viewer is not cut, whoever is logged in');
+    }
+
     public function testGetData_AddsUpOnlyTheBranchesTheEmployeeWorksIn(): void
     {
         $this->openTheBooks();
