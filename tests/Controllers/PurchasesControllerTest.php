@@ -7,6 +7,7 @@ use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Roles\RoleService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\FeatureTestTrait;
+use Config\Services;
 use Tests\Support\CsvResponseTrait;
 use Tests\Support\FamilyReportTestCase;
 
@@ -273,6 +274,8 @@ final class PurchasesControllerTest extends FamilyReportTestCase
         $this->withSession(['person_id' => $this->employeeWithGrants(['reports_receivings']), 'menu_group' => 'home']);
 
         foreach (['/purchases', '/purchases/search', '/purchases/sums', '/purchases/row/' . $ids['big'], '/purchases/suppliers?term=Najd'] as $address) {
+            Services::resetSingle('response');
+
             $response = $this->get($address);
 
             $this->assertTrue($response->isRedirect() || $response->response()->getStatusCode() === 403, $address);
