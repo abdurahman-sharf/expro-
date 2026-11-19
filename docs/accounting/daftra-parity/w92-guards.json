@@ -244,8 +244,8 @@
     {
         "name": "G23 the purchases of the position are read with their currency",
         "file": "app/Libraries/Accounting/SupplierLedger.php",
-        "find": "r.payment_terms_days, r.currency_code, r.currency_rate,\n",
-        "replace": "r.payment_terms_days,\n",
+        "find": "r.receiving_time, r.return_of_receiving_id, r.due_date, r.payment_terms_days, r.currency_code, r.currency_rate,\n",
+        "replace": "r.receiving_time, r.return_of_receiving_id, r.due_date, r.payment_terms_days,\n",
         "tests": [
             "--filter",
             "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAPurchaseInDollars|AppliesTheDebitNoteOfAPurchaseInDollars|SettlesANewPurchaseFromTheCreditOfADebitNote)",
@@ -530,8 +530,8 @@
     {
         "name": "G51 the report of purchases looks for purchases in a foreign currency and not for sales",
         "file": "app/Controllers/Reports.php",
-        "find": "$documents === 'receivings'\n            ? $reader->receivings($from, $to, $withTime, $branchIds, $locationId)\n            : $reader->sales($from, $to, $withTime, $branchIds, (string) ($inputs['sale_type'] ?? 'all'), $locationId);",
-        "replace": "$reader->sales($from, $to, $withTime, $branchIds, (string) ($inputs['sale_type'] ?? 'all'), $locationId);",
+        "find": "$documents === 'receivings'\n            ? $reader->receivings($from, $to, $withTime, $branchIds, $locationId, $ownCut)\n            : $reader->sales($from, $to, $withTime, $branchIds, (string) ($inputs['sale_type'] ?? 'all'), $locationId, $ownCut);",
+        "replace": "$reader->sales($from, $to, $withTime, $branchIds, (string) ($inputs['sale_type'] ?? 'all'), $locationId, $ownCut);",
         "tests": [
             "--filter",
             "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
@@ -756,8 +756,8 @@
     {
         "name": "G75 the purchases of a report asked by time are read by the hour",
         "file": "app/Controllers/Reports.php",
-        "find": "$reader->receivings($from, $to, $withTime, $branchIds, $locationId)",
-        "replace": "$reader->receivings($from, $to, false, $branchIds, $locationId)",
+        "find": "$reader->receivings($from, $to, $withTime, $branchIds, $locationId, $ownCut)",
+        "replace": "$reader->receivings($from, $to, false, $branchIds, $locationId, $ownCut)",
         "tests": [
             "--filter",
             "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",

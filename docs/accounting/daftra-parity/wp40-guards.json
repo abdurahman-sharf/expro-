@@ -1159,7 +1159,7 @@
   {
     "name": "PP01 a purchase the books hold is read from the account of its supplier",
     "file": "app/Libraries/Documents/PurchasePaidAmounts.php",
-    "find": "if ($supplierId !== null && ! $foreign && (new AccountingSettings($this->db))->isEnabled()) {",
+    "find": "if ($purchases !== [] && (new AccountingSettings($this->db))->isEnabled()) {",
     "replace": "if (false) {",
     "tests": [
       "tests/Libraries/Documents/PurchasePaidAmountsTest.php"
@@ -1169,8 +1169,8 @@
   {
     "name": "PP02 a purchase in a foreign currency is not read from the books in the base currency",
     "file": "app/Libraries/Documents/PurchasePaidAmounts.php",
-    "find": "$supplierId !== null && ! $foreign && ",
-    "replace": "$supplierId !== null && ",
+    "find": "$purchase['supplier_id'] !== null && ! $purchase['foreign']",
+    "replace": "$purchase['supplier_id'] !== null",
     "tests": [
       "tests/Libraries/Documents/PurchasePaidAmountsTest.php"
     ],
@@ -1189,7 +1189,7 @@
   {
     "name": "PP04 a purchase paid when it was saved is paid",
     "file": "app/Libraries/Documents/PurchasePaidAmounts.php",
-    "find": "$paid = PaymentType::fromLabel((string) $paymentType)?->usesTreasury() === true ? $total : '0';",
+    "find": "$paid = PaymentType::fromLabel((string) $purchase['payment_type'])?->usesTreasury() === true ? $purchase['total'] : '0';",
     "replace": "$paid = '0';",
     "tests": [
       "tests/Libraries/Documents/PurchasePaidAmountsTest.php"
@@ -1209,8 +1209,8 @@
   {
     "name": "PP06 the account of the supplier is read for this purchase",
     "file": "app/Libraries/Documents/PurchasePaidAmounts.php",
-    "find": "->position($supplierId)->purchase($receivingId);",
-    "replace": "->position($supplierId)->purchase(0);",
+    "find": "(new SupplierLedger($this->db))->figuresOf($inBooks)",
+    "replace": "[]",
     "tests": [
       "tests/Libraries/Documents/PurchasePaidAmountsTest.php"
     ],

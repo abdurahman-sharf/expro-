@@ -382,6 +382,7 @@
   "file": "app/Libraries/Accounting/SupplierLedger.php",
   "find": "COALESCE(r.invoice_date, DATE(r.receiving_time)) AS doc_date",
   "replace": "DATE(r.receiving_time) AS doc_date",
+  "all": true,
   "tests": [
    "tests/Libraries/Accounting/SupplierLedgerTest.php"
   ]
@@ -400,6 +401,7 @@
   "file": "app/Libraries/Accounting/SupplierLedger.php",
   "find": "$purchase->due_date === null ? (string) $purchase->doc_date : (string) $purchase->due_date,",
   "replace": "(string) $purchase->doc_date,",
+  "all": true,
   "tests": [
    "tests/Libraries/Accounting/SupplierLedgerTest.php"
   ]

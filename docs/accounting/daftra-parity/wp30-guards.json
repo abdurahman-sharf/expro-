@@ -532,8 +532,8 @@
   {
     "name": "G49 an employee set to their own records sees only those",
     "file": "app/Libraries/Roles/RecordScope.php",
-    "find": "$own = $this->db->table('employee_record_scopes')->where(['person_id' => $employeeId, 'record_scope' => self::OWN])->countAllResults() > 0;",
-    "replace": "$own = false;",
+    "find": "if ($this->exists($employeeId, 'employee_record_scopes', $scopes)) {",
+    "replace": "if (false) {",
     "tests": [
       "tests/Libraries/Roles/RecordScopeTest.php"
     ]
@@ -652,8 +652,8 @@
   {
     "name": "G61 the sales list is cut to the sales of an own records employee",
     "file": "app/Models/Sale.php",
-    "find": "$where .= ' AND sales.employee_id = ' . $cut;",
-    "replace": "",
+    "find": "if ($cut !== null) {\n            $where .= ' AND sales.employee_id = ' . $cut;\n        }\n\n        $this->create_temp_table_sales_payments_data($where);",
+    "replace": "$this->create_temp_table_sales_payments_data($where);",
     "tests": [
       "--filter",
       "OwnRecords|AnotherEmployee|SeesEverything|SeesTheirOwn|OutsideRecordScope",
