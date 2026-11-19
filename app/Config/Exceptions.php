@@ -3,6 +3,7 @@
 namespace Config;
 
 use App\Libraries\Accounting\MemoryExhaustedHandler;
+use App\Libraries\Roles\ScopeUnavailableHandler;
 use CodeIgniter\Config\BaseConfig;
 use CodeIgniter\Debug\ExceptionHandlerInterface;
 use Psr\Log\LogLevel;
@@ -101,6 +102,6 @@ class Exceptions extends BaseConfig
      */
     public function handler(int $statusCode, Throwable $exception): ExceptionHandlerInterface
     {
-        return new MemoryExhaustedHandler($this);
+        return new ScopeUnavailableHandler(new MemoryExhaustedHandler($this));
     }
 }

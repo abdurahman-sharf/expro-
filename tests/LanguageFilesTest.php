@@ -142,6 +142,7 @@ class LanguageFilesTest extends CIUnitTestCase
             $this->assertNotSame('', $messages['error_' . $error->value] ?? '', "{$locale} lacks the message for {$error->value}");
         }
 
+        $this->assertNotSame('', $messages['error_scope_unavailable'] ?? '', "{$locale} lacks the notice for the permissions that could not be read");
         $this->assertNotSame('', $messages['roles_manage'] ?? '', "{$locale} lacks the label of the permission to manage roles");
 
         foreach (['roles', 'roles_desc'] as $key) {

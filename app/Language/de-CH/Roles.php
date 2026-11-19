@@ -25,6 +25,7 @@ return [
     'error_permission_denied'    => '',
     'error_read_failed'          => '',
     'error_refused_permission'   => '',
+    'error_scope_unavailable'    => '',
     'error_sensitive_permission' => '',
     'error_unknown_permission'   => '',
     'inactive'                   => '',

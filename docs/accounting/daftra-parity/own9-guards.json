@@ -1,0 +1,139 @@
+[
+  {
+    "name": "G01 the failure to read a scope is not recognised",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "$cause instanceof RecordScopeUnavailableException || ",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G02 the failure to read the migration record is not recognised",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": " || $cause instanceof RoleTablesUnavailableException",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G03 a failure wrapped in another exception is not recognised",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "$cause = $cause->getPrevious()",
+    "replace": "$cause = null",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G04 the answer says 500 instead of that the reader may try again",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "public const STATUS = 503;",
+    "replace": "public const STATUS = 500;",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G05 the page and the JSON answers are swapped",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "if (str_contains($request->getHeaderLine('accept'), 'text/html')) {",
+    "replace": "if (! str_contains($request->getHeaderLine('accept'), 'text/html')) {",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G06 the answer carries the message of the failure",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "'message' => $message]",
+    "replace": "'message' => $message . $exception->getMessage()]",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G07 every failure is answered with the notice",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "! $request instanceof IncomingRequest || ! self::concerns($exception)",
+    "replace": "false",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G08 a command is answered with the notice",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "! $request instanceof IncomingRequest || ",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G09 the JSON answer says it succeeded",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "'success' => false",
+    "replace": "'success' => true",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G10 the notice is put in the page without escaping",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "$text = esc($message);",
+    "replace": "$text = $message;",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G11 the configuration does not use the handler of the scope failures",
+    "file": "app/Config/Exceptions.php",
+    "find": "return new ScopeUnavailableHandler(new MemoryExhaustedHandler($this));",
+    "replace": "return new MemoryExhaustedHandler($this);",
+    "tests": [
+      "tests/Config/ExceptionsTest.php"
+    ]
+  },
+  {
+    "name": "G12 the notice is not in the language of the system",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "Services::language()->setLocale($language);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G13 the Arabic notice is empty",
+    "file": "app/Language/ar-EG/Roles.php",
+    "find": "    'error_scope_unavailable'    => 'تعذّرت قراءة صلاحيات حسابك فلم يُعرض أو يتغير شيء. أعد المحاولة بعد قليل، وإن تكرر فأبلغ مدير النظام.',",
+    "replace": "    'error_scope_unavailable'    => '',",
+    "tests": [
+      "--filter",
+      "testRolesFile_",
+      "tests/LanguageFilesTest.php"
+    ]
+  },
+  {
+    "name": "G14 the answer is never sent",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "$response->send();",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G15 the page says it is in the language of the request and not of the system",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "$this->page($message, $language)",
+    "replace": "$this->page($message, $request->getLocale())",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  }
+]

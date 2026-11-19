@@ -25,6 +25,7 @@ return [
     'error_permission_denied'    => 'You do not have permission for this action.',
     'error_read_failed'          => 'The role could not be checked, so nothing was changed. Try again.',
     'error_refused_permission'   => 'The permission {0} posts to the books, moves money or changes the settings: only an administrator gives it, to an employee and not to a role.',
+    'error_scope_unavailable'    => 'The permissions of your account could not be read, so nothing was shown or changed. Try again in a moment; if it keeps happening, tell the system administrator.',
     'error_sensitive_permission' => 'The permission {0} is sensitive: only an administrator gives it, to an employee and not to a role.',
     'error_unknown_permission'   => 'The permission {0} does not exist.',
     'inactive'                   => 'Inactive',
