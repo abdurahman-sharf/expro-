@@ -2162,10 +2162,10 @@ class Reports extends Secure_Controller
         $locationId = (string) ($inputs['location_id'] ?? 'all');
         $employeeId = (int) $this->session->get('person_id');
         $branchIds  = $employeeId < 1 ? null : (new BranchGuard())->allowedBranchIds($employeeId);
-        $ownCut     = isset($inputs['viewer_id']) ? (new RecordScope())->limit((int) $inputs['viewer_id']) : null;
+        $ownCut     = (new RecordScope())->limit($employeeId < 1 ? null : $employeeId);
         $reader     = new ForeignDocumentReader();
         $foreign    = $documents === 'receivings'
-            ? $reader->receivings($from, $to, $withTime, $branchIds, $locationId, (new RecordScope())->limit($employeeId < 1 ? null : $employeeId))
+            ? $reader->receivings($from, $to, $withTime, $branchIds, $locationId, $ownCut)
             : $reader->sales($from, $to, $withTime, $branchIds, (string) ($inputs['sale_type'] ?? 'all'), $locationId, $ownCut);
 
         return $foreign === [] ? $subtitle : $subtitle . "\n" . lang('Reports.foreign_documents_label', [ForeignDocuments::describe($foreign)]);
