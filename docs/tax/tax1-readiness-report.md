@@ -575,11 +575,24 @@
 | `tests/Libraries/Accounting/ItemPurchaseTaxTest.php` | OK (10، 19) |
 | `tests/Libraries/Accounting/JournalLineTaxTest.php` | OK (25، 29) |
 | `tests/Libraries/Accounting/TaxAccountFiguresTest.php` | OK (4، 8) |
+| `tests/Libraries/Accounting/TaxDefinitionsTest.php` | OK (21، 162) |
+| `tests/Libraries/Accounting/SalesTaxSettingsTest.php` | OK (13، 31) |
+| `tests/Libraries/Accounting/ReceivingPostingBuilderTest.php` | OK (63، 154) |
+| `tests/Libraries/Numbering/DocumentNumberingTest.php` | OK (90، 458) |
+| `tests/Libraries/EInvoicing/EInvoiceReadinessTest.php` | OK (17، 54) |
+| `tests/Libraries/EInvoicing/CustomerPartiesTest.php` | OK (17، 82) |
+| `tests/Libraries/EInvoicing/EInvoicePanelTest.php` | OK (8، 54) |
+| `tests/Libraries/EInvoicing/EInvoiceChoicesTest.php` | OK (11، 89) |
+| `tests/Controllers/TaxesControllerTest.php` | OK (12، 48) |
+| `tests/Controllers/Tax_definitionsControllerTest.php` | OK (13، 111) |
+| `tests/Models/Reports/Summary_taxesTest.php` | OK مع تخطي 5 (22، 2858) |
+| `tests/Database/PerTaxInclusiveMigrationTest.php` | OK (8، 44) |
+| `tests/Libraries/Accounting/TaxSectionTest.php` | OK (3، 13) |
+| `tests/Libraries/Accounting/TaxBasisTest.php` | OK (6، 31) |
 
-<!-- TESTS-PENDING -->
-**كانت لا تزال قيد التشغيل عند كتابة هذه النسخة**، من قائمة الأولوية: `TaxDefinitionsTest`, `SalesTaxSettingsTest`, `ReceivingPostingBuilderTest`, `DocumentNumberingTest`, `EInvoiceReadinessTest`, `CustomerPartiesTest`, `EInvoicePanelTest`, `EInvoiceChoicesTest`, `TaxesControllerTest`, `Tax_definitionsControllerTest`, `Summary_taxesTest`, `PerTaxInclusiveMigrationTest`, `TaxSectionTest`, `TaxBasisTest`. ستُضاف نتائجها في إيداع لاحق.
+**المجموع: 51 ملف اختبار و1,275 اختبارًا. لا فشل، و5 اختبارات متخطاة في `Summary_taxesTest`.**
 
-**لم يفشل أي اختبار في أي تشغيل سليم.** هذه الاختبارات تثبت السلوك **الداخلي** (الحساب، والسلسلة، وتحقق التوقيع من نفسه، والمخطط)، ولا تثبت المطابقة مع الهيئة.
+**لم يفشل أي اختبار.** هذه الاختبارات تثبت السلوك **الداخلي** (الحساب، والسلسلة، وتحقق التوقيع من نفسه، والمخطط)، ولا تثبت المطابقة مع الهيئة.
 
 ### 12.2 تحققات إضافية نفذتها
 
