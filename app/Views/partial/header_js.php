@@ -78,7 +78,14 @@
         }
 
         if (jqXHR.status === 503 && jqXHR.responseJSON && jqXHR.responseJSON.success === false && jqXHR.responseJSON.message) {
-            $.notify(jqXHR.responseJSON.message, {type: 'danger'});
+            const message = jqXHR.responseJSON.message;
+            const shown = $('[data-notify="message"]').filter(function() {
+                return $(this).text().trim() === message;
+            }).length > 0;
+
+            if (!shown) {
+                $.notify(message, {type: 'danger'});
+            }
         }
     });
     $(document).ready(function() {

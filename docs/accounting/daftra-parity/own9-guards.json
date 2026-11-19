@@ -162,5 +162,50 @@
     "tests": [
       "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
     ]
+  },
+  {
+    "name": "G19 the language of the page is put in its attribute without escaping",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "esc($language, 'attr')",
+    "replace": "$language",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G20 the notice is not in the language of the employee who is signed in",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "$language = current_language_code();",
+    "replace": "$language = current_language_code(true);",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G21 the handler it wraps is asked after the notice was sent",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "        $response->send();\n\n        if (ENVIRONMENT",
+    "replace": "        $response->send();\n        $this->next->handle($exception, $request, $response, $statusCode, $exitCode);\n\n        if (ENVIRONMENT",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G22 the reason phrase of the answer carries the message of the failure",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "$response->setStatusCode(self::STATUS)->noCache();",
+    "replace": "$response->setStatusCode(self::STATUS, $exception->getMessage())->noCache();",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G23 a header of the answer carries the message of the failure",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "$response->setStatusCode(self::STATUS)->noCache();",
+    "replace": "$response->setStatusCode(self::STATUS)->noCache()->setHeader('X-Reason', $exception->getMessage());",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
   }
 ]

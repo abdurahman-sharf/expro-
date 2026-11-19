@@ -21,6 +21,7 @@ use Config\OSPOS;
 use Config\Services;
 use ReflectionProperty;
 use RuntimeException;
+use stdClass;
 use Throwable;
 
 /**
@@ -48,12 +49,14 @@ final class ScopeUnavailableHandlerTest extends CIUnitTestCase
 
         $_SESSION = [];
         $this->language = config(OSPOS::class)->settings['language_code'] ?? 'en';
+        service('language')->setLocale($this->language);
     }
 
     protected function tearDown(): void
     {
         config(OSPOS::class)->settings['language_code'] = $this->language;
         service('language')->setLocale($this->language);
+        Factories::reset('models');
         $_SESSION = [];
 
         parent::tearDown();
@@ -92,14 +95,17 @@ final class ScopeUnavailableHandlerTest extends CIUnitTestCase
     private function answered(Throwable $exception, string $accept): array
     {
         $response = new Response(config('App'));
+        $next     = $this->spy();
 
         ob_start();
 
         try {
-            (new ScopeUnavailableHandler($this->spy()))->handle($exception, $this->request($accept), $response, 500, 1);
+            (new ScopeUnavailableHandler($next))->handle($exception, $this->request($accept), $response, 500, 1);
         } finally {
             $output = (string) ob_get_clean();
         }
+
+        $this->assertSame([], $next->calls, 'The handler it wraps is not asked once the notice was answered');
 
         return [$response, $output];
     }
@@ -141,10 +147,16 @@ final class ScopeUnavailableHandlerTest extends CIUnitTestCase
     public function testHandle_SaysNothingOfTheFailure(): void
     {
         foreach (['application/json', 'text/html'] as $accept) {
-            [, $output] = $this->answered($this->scopeFailure(), $accept);
+            [$response, $output] = $this->answered($this->scopeFailure(), $accept);
+
+            $answer = $output . $response->getReasonPhrase();
+
+            foreach (array_keys($response->headers()) as $name) {
+                $answer .= $name . $response->getHeaderLine($name);
+            }
 
             foreach (['secret_column', 'secret_table', 'employee_record_scopes', 'RecordScopeUnavailableException', 'DatabaseException', 'employee 7'] as $leak) {
-                $this->assertStringNotContainsString($leak, $output, $accept);
+                $this->assertStringNotContainsString($leak, $answer, $accept);
             }
         }
     }
@@ -220,6 +232,37 @@ final class ScopeUnavailableHandlerTest extends CIUnitTestCase
         $this->assertFalse($response->hasHeader('ETag'));
         $this->assertStringNotContainsString('public', $response->getHeaderLine('Cache-Control'));
         $this->assertStringContainsString('no-store', $response->getHeaderLine('Cache-Control'));
+    }
+
+    public function testHandle_SpeaksTheLanguageOfTheEmployeeWhoIsSignedIn(): void
+    {
+        config(OSPOS::class)->settings['language_code'] = 'en';
+
+        Factories::injectMock('models', Employee::class, new class () extends Employee {
+            public function is_logged_in(): bool
+            {
+                return true;
+            }
+
+            public function get_logged_in_employee_info(): array|false|float|int|stdClass|string|null
+            {
+                return (object) ['language_code' => 'ar-EG'];
+            }
+        });
+
+        [, $output] = $this->answered($this->scopeFailure(), 'application/json');
+
+        $this->assertStringStartsWith('تعذّرت قراءة صلاحيات حسابك', json_decode($output, true)['message']);
+    }
+
+    public function testHandle_EscapesTheLanguageOfThePage(): void
+    {
+        config(OSPOS::class)->settings['language_code'] = '"><script>alert(1)</script>';
+
+        [, $output] = $this->answered($this->scopeFailure(), 'text/html');
+
+        $this->assertStringNotContainsString('<script>', $output);
+        $this->assertStringContainsString('lang="&quot;&gt;&lt;script&gt;', $output);
     }
 
     public function testHandle_PassesEveryOtherFailureOnToTheHandlerItWraps(): void
