@@ -171,7 +171,10 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                 sumsFor = '';
                 sumsAsked++;
                 $('#purchase_sums').attr('aria-busy', 'false').empty();
-                $.notify(message || failed, {type: 'danger'});
+
+                if (!(response && response.status === 503 && message)) {
+                    $.notify(message || failed, {type: 'danger'});
+                }
             }
         });
 

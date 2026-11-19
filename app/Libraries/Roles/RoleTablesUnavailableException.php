@@ -7,7 +7,8 @@ use Throwable;
 
 /**
  * Whether the tables of roles are there could not be told. It is not one of the exceptions the
- * screens turn into a refusal message, so the request fails as any unexpected error does.
+ * screens turn into a refusal message: ScopeUnavailableHandler answers the request with a notice,
+ * and the framework logs the failure with its causes.
  */
 final class RoleTablesUnavailableException extends RuntimeException
 {

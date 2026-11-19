@@ -135,5 +135,32 @@
     "tests": [
       "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
     ]
+  },
+  {
+    "name": "G16 the notice keeps the headers the failed request queued on the response",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "        foreach (array_keys($response->headers()) as $name) {\n            $response->removeHeader($name);\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G17 the notice may be cached",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "$response->setStatusCode(self::STATUS)->noCache();",
+    "replace": "$response->setStatusCode(self::STATUS);",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G18 the language of the system is not the one of the settings when the employee cannot be read",
+    "file": "app/Libraries/Roles/ScopeUnavailableHandler.php",
+    "find": "config(OSPOS::class)->settings['language_code'] ?? DEFAULT_LANGUAGE_CODE;",
+    "replace": "DEFAULT_LANGUAGE_CODE;",
+    "tests": [
+      "tests/Libraries/Roles/ScopeUnavailableHandlerTest.php"
+    ]
   }
 ]

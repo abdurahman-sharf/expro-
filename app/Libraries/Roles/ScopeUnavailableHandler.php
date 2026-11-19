@@ -6,6 +6,7 @@ use CodeIgniter\Debug\ExceptionHandlerInterface;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\OSPOS;
 use Config\Services;
 use Throwable;
 
@@ -42,10 +43,14 @@ final class ScopeUnavailableHandler implements ExceptionHandlerInterface
             return;
         }
 
-        $language = $this->speak($request->getLocale());
+        $language = $this->speak();
         $message  = lang('Roles.error_scope_unavailable');
 
-        $response->setStatusCode(self::STATUS);
+        foreach (array_keys($response->headers()) as $name) {
+            $response->removeHeader($name);
+        }
+
+        $response->setStatusCode(self::STATUS)->noCache();
 
         if (str_contains($request->getHeaderLine('accept'), 'text/html')) {
             $response->setContentType('text/html', 'UTF-8')->setBody($this->page($message, $language));
@@ -60,13 +65,13 @@ final class ScopeUnavailableHandler implements ExceptionHandlerInterface
         }
     }
 
-    private function speak(string $fallback): string
+    private function speak(): string
     {
         try {
             $language = current_language_code();
         } catch (Throwable) {
-            // The language of the employee is read from the database, which may be what failed.
-            $language = $fallback;
+            // The language of the employee is read from the database, which may be what failed; the one of the system is in memory.
+            $language = config(OSPOS::class)->settings['language_code'] ?? DEFAULT_LANGUAGE_CODE;
         }
 
         Services::language()->setLocale($language);

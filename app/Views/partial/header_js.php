@@ -76,6 +76,10 @@
         if (jqXHR.status === 401) {
             window.location.href = '<?= site_url('login') ?>';
         }
+
+        if (jqXHR.status === 503 && jqXHR.responseJSON && jqXHR.responseJSON.success === false && jqXHR.responseJSON.message) {
+            $.notify(jqXHR.responseJSON.message, {type: 'danger'});
+        }
     });
     $(document).ready(function() {
         $("#logout").click(function(event) {

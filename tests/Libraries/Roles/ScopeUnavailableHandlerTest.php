@@ -5,6 +5,8 @@ namespace Tests\Libraries\Roles;
 use App\Libraries\Roles\RecordScopeUnavailableException;
 use App\Libraries\Roles\RoleTablesUnavailableException;
 use App\Libraries\Roles\ScopeUnavailableHandler;
+use App\Models\Employee;
+use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Debug\ExceptionHandlerInterface;
 use CodeIgniter\HTTP\CLIRequest;
@@ -179,6 +181,45 @@ final class ScopeUnavailableHandlerTest extends CIUnitTestCase
         [, $page] = $this->answered($this->scopeFailure(), 'text/html');
 
         $this->assertStringContainsString('<html lang="ar-EG">', $page);
+    }
+
+    public function testHandle_SpeaksTheLanguageOfTheSystemWhenTheLanguageOfTheEmployeeCannotBeRead(): void
+    {
+        config(OSPOS::class)->settings['language_code'] = 'ar-EG';
+
+        Factories::injectMock('models', Employee::class, new class () extends Employee {
+            public function is_logged_in(): bool
+            {
+                throw new RuntimeException('The employees cannot be read');
+            }
+        });
+
+        try {
+            [, $output] = $this->answered($this->scopeFailure(), 'application/json');
+        } finally {
+            Factories::reset('models');
+        }
+
+        $this->assertStringStartsWith('تعذّرت قراءة صلاحيات حسابك', json_decode($output, true)['message']);
+    }
+
+    public function testHandle_AnswersWithoutWhatTheFailedRequestQueuedOnTheResponse(): void
+    {
+        $response = new Response(config('App'));
+        $response->setHeader('Cache-Control', 'public, max-age=600')->setHeader('ETag', '"abc"')->setHeader('Content-Disposition', 'attachment; filename="expenses.csv"');
+
+        ob_start();
+
+        try {
+            (new ScopeUnavailableHandler($this->spy()))->handle($this->scopeFailure(), $this->request('text/html'), $response, 500, 1);
+        } finally {
+            ob_end_clean();
+        }
+
+        $this->assertFalse($response->hasHeader('Content-Disposition'));
+        $this->assertFalse($response->hasHeader('ETag'));
+        $this->assertStringNotContainsString('public', $response->getHeaderLine('Cache-Control'));
+        $this->assertStringContainsString('no-store', $response->getHeaderLine('Cache-Control'));
     }
 
     public function testHandle_PassesEveryOtherFailureOnToTheHandlerItWraps(): void
