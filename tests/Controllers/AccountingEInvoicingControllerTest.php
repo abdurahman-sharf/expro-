@@ -53,7 +53,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->accountingDb()->table('document_numbers')->truncate();
         $this->accountingDb()->table('document_sequences')->truncate();
         $this->accountingDb()->table('app_config')->where('key', 'accounting_debit_note')->delete();
-        $this->accountingDb()->table('company_tax_profile')->where('company_id', 1)->update(['vat_registered' => null, 'vat_number' => null, 'ksa_mode' => 0, 'ksa_mode_effective_at' => null, 'ksa_mode_activated_at' => null, 'ksa_mode_activated_by' => null]);
+        $this->accountingDb()->table('company_tax_profile')->where('company_id', 1)->update(['vat_registered' => null, 'vat_number' => null, 'ksa_mode' => 0, 'ksa_mode_effective_at' => null, 'ksa_mode_activated_at' => null, 'ksa_mode_activated_by' => null, 'ksa_mode_watermark' => null]);
         $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'tax_profile')->delete();
         $this->removeTemporaryDirectories();
         $this->stopSelling();
@@ -794,5 +794,30 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
 
         $this->assertFalse($result['success']);
         $this->assertSame(lang('Tax_profile.error_mode_needs_registered'), $result['message']);
+    }
+
+    public function testPostSaudiMode_RejectsAnUnknownActionAndChangesNothing(): void
+    {
+        $this->registeredBusiness();
+        $this->accountingDb()->table('company_tax_profile')->where('company_id', 1)->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2026-01-01 00:00:00']);
+        $this->actAs($this->employeeWithGrants(['accounting_einvoicing', AccountingGuard::EINVOICING_MANAGE, CompanyTaxProfile::CONFIG_PERMISSION]));
+
+        $response = $this->post('/accounting_einvoicing/saudi_mode', ['action' => 'disabl']);
+
+        $response->assertStatus(400);
+        $this->assertTrue((new CompanyTaxProfile())->current()->saudiMode);
+    }
+
+    public function testGetIndex_OffersTheSwitchOffToTheOnboardHolderOnceDocumentsExist(): void
+    {
+        $this->registeredBusiness();
+        $this->accountingDb()->table('company_tax_profile')->where('company_id', 1)->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2026-01-01 00:00:00', 'ksa_mode_watermark' => 0]);
+        $this->issued();
+
+        $this->actAs($this->employeeWithGrants(['accounting_einvoicing', AccountingGuard::EINVOICING_MANAGE, CompanyTaxProfile::CONFIG_PERMISSION]));
+        $this->get('/accounting_einvoicing')->assertDontSee('id="saudi_mode_disable"');
+
+        $this->actAs($this->employeeWithGrants(['accounting_einvoicing', AccountingGuard::EINVOICING_ONBOARD]));
+        $this->get('/accounting_einvoicing')->assertSee('id="saudi_mode_disable"');
     }
 }

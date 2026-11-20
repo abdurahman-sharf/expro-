@@ -2,6 +2,8 @@
 
 namespace App\Libraries\EInvoicing;
 
+use SensitiveParameter;
+
 /**
  * Where the signing key may live. The private key is never kept in the repository, in the web root or in
  * the database: the settings name a file outside the application directory, read when a document is signed,
@@ -15,7 +17,7 @@ final class KeyPath
      *
      * @throws EInvoiceException
      */
-    public static function check(string $path, ?array $protected = null): string
+    public static function check(#[SensitiveParameter] string $path, ?array $protected = null): string
     {
         if ($path === '' || str_contains($path, "\0") || preg_match('#^(/|[A-Za-z]:[\\\\/])#', $path) !== 1) {
             throw new EInvoiceException(EInvoiceError::KeyPathUnsafe, 'The path of a key must be absolute.', ['field' => $path]);

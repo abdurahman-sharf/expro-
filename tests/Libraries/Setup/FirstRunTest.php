@@ -36,9 +36,20 @@ class FirstRunTest extends CIUnitTestCase
         $seeder->call('TestDatabaseBootstrapSeeder');
     }
 
+    /**
+     * @var array{profile: ?array<string, mixed>, companies_tax_id: ?string}
+     */
+    private array $savedIdentity;
+
     protected function setUp(): void
     {
         parent::setUp();
+
+        $db                  = $this->accountingDb();
+        $this->savedIdentity = [
+            'profile'          => $db->table('company_tax_profile')->where('company_id', FirstRun::COMPANY_ID)->get()->getRowArray(),
+            'companies_tax_id' => $db->table('companies')->where('company_id', FirstRun::COMPANY_ID)->get()->getRow()?->tax_id,
+        ];
 
         $this->prepareFirstRun();
 
@@ -48,6 +59,16 @@ class FirstRunTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->finishFirstRun();
+
+        $db = $this->accountingDb();
+        $db->table('company_tax_profile')->where('company_id', FirstRun::COMPANY_ID)->delete();
+
+        if ($this->savedIdentity['profile'] !== null) {
+            $db->table('company_tax_profile')->insert($this->savedIdentity['profile']);
+        }
+
+        $db->table('companies')->where('company_id', FirstRun::COMPANY_ID)->update(['tax_id' => $this->savedIdentity['companies_tax_id']]);
+        $db->table('accounting_audit_log')->where('entity_type', 'tax_profile')->delete();
 
         parent::tearDown();
     }
@@ -383,19 +404,13 @@ class FirstRunTest extends CIUnitTestCase
 
     public function testSaveCompany_WritesTheVatNumberThroughTheTaxProfile(): void
     {
-        $db     = $this->accountingDb();
-        $before = $db->table('company_tax_profile')->where('company_id', FirstRun::COMPANY_ID)->get()->getRowArray();
+        $this->run->saveCompany($this->companyInput(['tax_id' => '300000000000003']), $this->manager);
 
-        try {
-            $this->run->saveCompany($this->companyInput(['tax_id' => '300000000000003']), $this->manager);
+        $db = $this->accountingDb();
 
-            $this->assertSame('300000000000003', (new CompanyTaxProfile())->current()->vatNumber);
-            $this->assertSame('300000000000003', $this->storedValue('tax_id'));
-            $this->assertSame('300000000000003', $db->table('companies')->where('company_id', FirstRun::COMPANY_ID)->get()->getRow()->tax_id);
-            $this->assertGreaterThan(0, $db->table('accounting_audit_log')->where(['entity_type' => 'tax_profile', 'action' => 'vat_identity_changed'])->countAllResults());
-        } finally {
-            $db->table('company_tax_profile')->replace($before);
-            $db->table('accounting_audit_log')->where('entity_type', 'tax_profile')->delete();
-        }
+        $this->assertSame('300000000000003', (new CompanyTaxProfile())->current()->vatNumber);
+        $this->assertSame('300000000000003', $this->storedValue('tax_id'));
+        $this->assertSame('300000000000003', $db->table('companies')->where('company_id', FirstRun::COMPANY_ID)->get()->getRow()->tax_id);
+        $this->assertGreaterThan(0, $db->table('accounting_audit_log')->where(['entity_type' => 'tax_profile', 'action' => 'vat_identity_changed'])->countAllResults());
     }
 }

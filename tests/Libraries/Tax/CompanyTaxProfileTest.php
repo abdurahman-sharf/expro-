@@ -5,6 +5,7 @@ namespace Tests\Libraries\Tax;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Organization\BranchException;
 use App\Libraries\Tax\CompanyTaxProfile;
 use App\Libraries\Tax\TaxProfileError;
 use App\Libraries\Tax\TaxProfileException;
@@ -78,6 +79,7 @@ class CompanyTaxProfileTest extends CIUnitTestCase
             'ksa_mode_effective_at' => null,
             'ksa_mode_activated_at' => null,
             'ksa_mode_activated_by' => null,
+            'ksa_mode_watermark'    => null,
         ]);
         $this->setConfigValue('tax_id', $number);
         $db->table('companies')->where('company_id', 1)->update(['tax_id' => $number === '' ? null : $number]);
@@ -94,7 +96,7 @@ class CompanyTaxProfileTest extends CIUnitTestCase
         $this->profile()->enableSaudiMode('', $this->manager);
     }
 
-    private function issueDocument(): void
+    private function issueDocument(string $createdAt = '2000-01-01 00:00:00'): void
     {
         Database::connect()->table('einvoice_documents')->insert([
             'company_id'      => 1,
@@ -114,7 +116,7 @@ class CompanyTaxProfileTest extends CIUnitTestCase
             'tax_amount'      => '0.15',
             'tax_inclusive'   => '1.15',
             'xml'             => '<Invoice/>',
-            'created_at'      => '2099-01-01 00:00:00',
+            'created_at'      => $createdAt,
         ]);
     }
 
@@ -173,12 +175,38 @@ class CompanyTaxProfileTest extends CIUnitTestCase
         $this->assertSame('200-123-456', $this->profile()->current()->vatNumber);
     }
 
-    public function testUpdateVatIdentity_RejectsAMalformedNumberOfARegisteredBusiness(): void
+    public function testUpdateVatIdentity_AcceptsAnyNumberOfARegisteredBusinessWhileTheModeIsOff(): void
     {
-        $failure = $this->refusal(fn () => $this->profile()->updateVatIdentity(VatRegistration::Registered, '300000000000001', '', $this->manager));
+        $this->profile()->updateVatIdentity(VatRegistration::Registered, '100-200-300', '', $this->manager);
 
-        $this->assertSame(TaxProfileError::NumberInvalid, $failure->error);
-        $this->assertSame('', $this->profile()->current()->vatNumber);
+        $this->assertSame('100-200-300', $this->profile()->current()->vatNumber);
+    }
+
+    public function testUpdateVatIdentity_AsksNoReasonWhileTheModeIsOff(): void
+    {
+        $this->profile()->updateVatIdentity(VatRegistration::Registered, self::VALID, '', $this->manager);
+        $this->issueDocument();
+
+        $this->profile()->updateVatIdentity(null, self::ANOTHER, '', $this->manager);
+
+        $this->assertSame(self::ANOTHER, $this->profile()->current()->vatNumber);
+    }
+
+    public function testUpdateVatIdentity_WritesTheMirrorsWhenOnlyTheRegistrationChanges(): void
+    {
+        $this->resetProfile(self::VALID);
+        Database::connect()->table('companies')->where('company_id', 1)->update(['tax_id' => 'stale']);
+
+        $this->profile()->updateVatIdentity(VatRegistration::Registered, self::VALID, '', $this->manager);
+
+        $this->assertSame(self::VALID, (string) Database::connect()->table('companies')->where('company_id', 1)->get()->getRow()->tax_id);
+    }
+
+    public function testUpdateVatIdentity_RejectsAReasonThatIsTooLong(): void
+    {
+        $failure = $this->refusal(fn () => $this->profile()->updateVatIdentity(null, '12345', str_repeat('x', CompanyTaxProfile::REASON_MAX + 1), $this->manager));
+
+        $this->assertSame(TaxProfileError::ReasonTooLong, $failure->error);
     }
 
     public function testUpdateVatIdentity_WritesBothMirrorsInOneTransaction(): void
@@ -248,9 +276,23 @@ class CompanyTaxProfileTest extends CIUnitTestCase
         $this->assertSame(TaxProfileError::ModeNeedsRegistered, $failure->error);
     }
 
-    public function testUpdateVatIdentity_RequiresAReasonOnceADocumentWasIssued(): void
+    public function testUpdateVatIdentity_RequiresEveryBranchInSaudiMode(): void
     {
-        $this->profile()->updateVatIdentity(VatRegistration::Registered, self::VALID, '', $this->manager);
+        $this->inSaudiMode();
+
+        $branchLimited = $this->employeeWithGrants([CompanyTaxProfile::CONFIG_PERMISSION, AccountingGuard::EINVOICING_MANAGE], [1]);
+
+        try {
+            $this->profile()->updateVatIdentity(null, self::ANOTHER, '', $branchLimited);
+            $this->fail('An employee of one branch changed the number of the company.');
+        } catch (BranchException) {
+            $this->assertSame(self::VALID, $this->profile()->current()->vatNumber);
+        }
+    }
+
+    public function testUpdateVatIdentity_RequiresAReasonOnceADocumentWasIssuedInSaudiMode(): void
+    {
+        $this->inSaudiMode();
         $this->issueDocument();
 
         $failure = $this->refusal(fn () => $this->profile()->updateVatIdentity(null, self::ANOTHER, '', $this->manager));
@@ -266,25 +308,43 @@ class CompanyTaxProfileTest extends CIUnitTestCase
 
     public function testUpdateVatIdentity_IsTheOnlyWriterOfTheCompanyVatNumber(): void
     {
-        $writes  = ["/batch_save\\(\\s*\\[[^\\]]*'tax_id'/s", "/saveSettings\\(\\s*\\[[^\\]]*'tax_id'/s", "/table\\('companies'\\)[^;]*'tax_id'/s", '/\'tax_id\'\s*=>\s*\$this->request->getPost\(\'tax_id\'/'];
+        $writes = [
+            "/batch_save\\(\\s*\\[[^\\]]*'tax_id'/s",
+            "/saveSettings\\(\\s*\\[[^\\]]*'tax_id'/s",
+            "/table\\('companies'\\)(?:(?!;).)*->\\s*(replace|insert|update|upsert|set)\\([^;]*'tax_id'/s",
+            "/table\\('app_config'\\)\\s*->\\s*(replace|insert|update|upsert|set)\\([^;]*'tax_id'/s",
+            "/->set\\(\\s*'tax_id'/",
+            "/'key'\\s*=>\\s*'tax_id'/",
+            "/(UPDATE|INSERT|REPLACE)[^;]*(companies|app_config)[^;]*tax_id/is",
+            '/\'tax_id\'\s*=>\s*\$this->request->getPost\(\'tax_id\'/',
+        ];
+        $allowed = ['Libraries' . DIRECTORY_SEPARATOR . 'Tax' . DIRECTORY_SEPARATOR . 'CompanyTaxProfile.php', 'Database' . DIRECTORY_SEPARATOR . 'Migrations'];
         $parties = ['Controllers' . DIRECTORY_SEPARATOR . 'Customers.php', 'Controllers' . DIRECTORY_SEPARATOR . 'Suppliers.php'];
         $writers = [];
 
         foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(APPPATH)) as $file) {
-            if (! $file->isFile() || $file->getExtension() !== 'php' || str_contains($file->getPathname(), DIRECTORY_SEPARATOR . 'Language' . DIRECTORY_SEPARATOR) || in_array(str_replace(APPPATH, '', $file->getPathname()), $parties, true)) {
+            $relative = str_replace(APPPATH, '', $file->getPathname());
+
+            if (! $file->isFile() || $file->getExtension() !== 'php' || str_starts_with($relative, 'Language' . DIRECTORY_SEPARATOR) || in_array($relative, $parties, true)) {
                 continue;
+            }
+
+            foreach ($allowed as $place) {
+                if (str_starts_with($relative, $place)) {
+                    continue 2;
+                }
             }
 
             $source = (string) file_get_contents($file->getPathname());
 
             foreach ($writes as $write) {
                 if (preg_match($write, $source) === 1) {
-                    $writers[] = str_replace(APPPATH, '', $file->getPathname());
+                    $writers[] = $relative . ' ' . $write;
                 }
             }
         }
 
-        $this->assertSame(['Libraries/Tax/CompanyTaxProfile.php', 'Libraries/Tax/CompanyTaxProfile.php'], $writers);
+        $this->assertSame([], $writers);
     }
 
     public function testEnableSaudiMode_RequiresAccounting(): void
@@ -373,6 +433,47 @@ class CompanyTaxProfileTest extends CIUnitTestCase
         $this->profile()->disableSaudiMode('The business left the integration wave by mistake', $onboarder);
 
         $this->assertFalse($this->profile()->current()->saudiMode);
+    }
+
+    public function testEnableSaudiMode_RemembersTheLastDocumentIssuedBeforeIt(): void
+    {
+        $this->issueDocument();
+        $this->inSaudiMode();
+
+        $this->assertGreaterThan(0, (int) $this->profile()->current()->watermark);
+        $this->assertFalse($this->profile()->hasIssuedDocumentsUnderTheMode());
+    }
+
+    public function testDisableSaudiMode_CountsADocumentIssuedUnderTheModeWhateverTheClockOfTheDatabase(): void
+    {
+        $this->inSaudiMode();
+        $this->issueDocument('2000-01-01 00:00:00');
+
+        $this->assertTrue($this->profile()->hasIssuedDocumentsUnderTheMode());
+        $this->assertSame(AccountingError::PermissionDenied, $this->denial(fn () => $this->profile()->disableSaudiMode('Testing', $this->manager))->error);
+    }
+
+    public function testRequireSellerChange_RequiresBothPermissionsOnlyInSaudiMode(): void
+    {
+        $configOnly = $this->employeeWithGrants([CompanyTaxProfile::CONFIG_PERMISSION]);
+
+        $this->profile()->requireSellerChange($configOnly);
+
+        $this->inSaudiMode();
+
+        $this->assertSame(AccountingError::PermissionDenied, $this->denial(fn () => $this->profile()->requireSellerChange($configOnly))->error);
+        $this->profile()->requireSellerChange($this->manager);
+    }
+
+    public function testAuditSellerChange_WritesTheChangeAndNothingWhenNothingChanged(): void
+    {
+        $this->profile()->auditSellerChange([], $this->manager);
+        $this->profile()->auditSellerChange(['company' => ['before' => 'Old', 'after' => 'New']], $this->manager);
+
+        $rows = Database::connect()->table('accounting_audit_log')->where(['entity_type' => 'tax_profile', 'action' => 'seller_changed'])->get()->getResult();
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(['company' => ['before' => 'Old', 'after' => 'New']], json_decode((string) $rows[0]->details, true)['changes']);
     }
 
     public function testDisableSaudiMode_RefusesWhenTheModeIsOff(): void

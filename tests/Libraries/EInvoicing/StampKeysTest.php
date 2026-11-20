@@ -6,6 +6,7 @@ use App\Libraries\EInvoicing\EInvoiceError;
 use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\StampKeys;
 use CodeIgniter\Test\CIUnitTestCase;
+use SensitiveParameterValue;
 use Tests\Support\EInvoiceFixtureTrait;
 
 class StampKeysTest extends CIUnitTestCase
@@ -122,17 +123,33 @@ class StampKeysTest extends CIUnitTestCase
     {
         $pair  = $this->generateKeyPair();
         $other = $this->generateKeyPair();
-        $key   = (string) file_get_contents($pair['key']);
-        $body  = trim(preg_replace('/-----[A-Z ]+-----/', '', $key) ?? '');
+        $body  = trim(preg_replace('/-----[A-Z ]+-----/', '', (string) file_get_contents($pair['key'])) ?? '');
 
         try {
             StampKeys::load($pair['key'], $other['certificate']);
             $this->fail('A certificate of another key was accepted.');
         } catch (EInvoiceException $failure) {
-            $everything = $failure->getMessage() . json_encode($failure->context) . $failure->getTraceAsString();
+            $this->assertStringNotContainsString(substr($body, 0, 40), $failure->getMessage() . json_encode($failure->context));
+        }
+    }
 
-            $this->assertStringNotContainsString(substr($body, 0, 40), $everything);
-            $this->assertStringNotContainsString($pair['key'], $failure->getTraceAsString());
+    public function testLoad_HidesThePathOfTheKeyFromTheTraceOfARefusal(): void
+    {
+        $previous = ini_set('zend.exception_ignore_args', '0');
+
+        try {
+            StampKeys::load(APPPATH . 'secret-key.pem', '/tmp/certificate.pem');
+            $this->fail('A key inside the application was accepted.');
+        } catch (EInvoiceException $failure) {
+            $frames = array_values(array_filter($failure->getTrace(), static fn (array $frame): bool => in_array($frame['function'] ?? '', ['check', 'load'], true)));
+
+            $this->assertNotSame([], $frames);
+
+            foreach ($frames as $frame) {
+                $this->assertInstanceOf(SensitiveParameterValue::class, $frame['args'][0] ?? null, $frame['function']);
+            }
+        } finally {
+            ini_set('zend.exception_ignore_args', (string) $previous);
         }
     }
 }

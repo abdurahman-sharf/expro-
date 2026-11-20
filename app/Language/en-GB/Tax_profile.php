@@ -5,6 +5,7 @@ return [
     'effective_at'                 => 'Takes effect on',
     'effective_at_help'            => 'Today or a later date. Leave it empty for now. Documents made before it keep the rules they were made under.',
     'error_accounting_disabled'    => 'The Saudi mode needs accounting to be on.',
+    'error_action_unknown'         => 'The request neither turns the Saudi mode on nor turns it off.',
     'error_effective_date_in_past' => 'The Saudi mode cannot take effect in the past.',
     'error_effective_date_invalid' => 'The date the mode takes effect is not a date.',
     'error_mode_already_off'       => 'The Saudi mode is already off.',

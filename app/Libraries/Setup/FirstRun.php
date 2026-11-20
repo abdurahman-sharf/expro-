@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Setup;
 
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\EntityAccountService;
@@ -10,6 +11,7 @@ use App\Libraries\Accounting\LockOutcome;
 use App\Libraries\Accounting\NamedLock;
 use App\Libraries\Accounting\SalesTaxSettings;
 use App\Libraries\Tax\CompanyTaxProfile;
+use App\Libraries\Tax\TaxProfileException;
 use App\Models\Appconfig;
 use App\Models\Stock_location;
 use CodeIgniter\Database\BaseConnection;
@@ -217,7 +219,7 @@ final class FirstRun
             $this->inTransaction(function () use ($name, $address, $phone, $email, $taxId, $employeeId): void {
                 $this->saveSettings(['company' => $name, 'address' => $address, 'phone' => $phone, 'email' => $email]);
                 $this->writeCompanyRow($name);
-                (new CompanyTaxProfile($this->db))->updateVatIdentity(null, $taxId, '', $employeeId);
+                $this->writeVatNumber($taxId, $employeeId);
 
                 $branch = $this->defaultBranch();
 
@@ -411,6 +413,23 @@ final class FirstRun
         $branchId = (int) ($this->db->table('branches')->select('branch_id')->where('is_default', 1)->orderBy('branch_id')->get(1)->getRow()->branch_id ?? 1);
 
         return $this->db->table('stock_locations')->where('deleted', 0)->where('branch_id', $branchId)->orderBy('is_primary', 'DESC')->orderBy('location_id')->get(1)->getRow();
+    }
+
+    /**
+     * The VAT number goes through the tax profile, the one place that writes it, and what it refuses is said in
+     * the words of the wizard.
+     *
+     * @throws FirstRunException
+     */
+    private function writeVatNumber(string $taxId, int $employeeId): void
+    {
+        try {
+            (new CompanyTaxProfile($this->db))->updateVatIdentity(null, $taxId, '', $employeeId);
+        } catch (TaxProfileException) {
+            throw new FirstRunException('tax_id_invalid', ['max' => self::SHORT_MAX]);
+        } catch (AccountingException) {
+            throw new FirstRunException('save_failed');
+        }
     }
 
     /**

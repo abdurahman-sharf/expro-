@@ -32,6 +32,7 @@ class CompanyTaxProfile extends Migration
                 `ksa_mode_effective_at` DATETIME NULL DEFAULT NULL,
                 `ksa_mode_activated_at` DATETIME NULL DEFAULT NULL,
                 `ksa_mode_activated_by` INT(10) NULL DEFAULT NULL,
+                `ksa_mode_watermark` BIGINT UNSIGNED NULL DEFAULT NULL,
                 `updated_by` INT(10) NULL DEFAULT NULL,
                 `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (`company_id`),

@@ -32,9 +32,23 @@ class ConfigTest extends CIUnitTestCase
     protected $refresh     = false;
     protected $namespace   = null;
 
+    /**
+     * @var array{tax_id: string, company: string, companies_tax_id: ?string, profile: ?array<string, mixed>}
+     */
+    private array $savedIdentity;
+
     protected function setUp(): void
     {
         parent::setUp();
+
+        $db = Database::connect();
+
+        $this->savedIdentity = [
+            'tax_id'           => (string) ($db->table('app_config')->where('key', 'tax_id')->get()->getRow()->value ?? ''),
+            'company'          => (string) ($db->table('app_config')->where('key', 'company')->get()->getRow()->value ?? ''),
+            'companies_tax_id' => $db->table('companies')->where('company_id', 1)->get()->getRow()?->tax_id,
+            'profile'          => $db->table('company_tax_profile')->where('company_id', 1)->get()->getRowArray(),
+        ];
     }
 
     protected function tearDown(): void
@@ -49,9 +63,15 @@ class ConfigTest extends CIUnitTestCase
         $db->table('app_config')->whereIn('key', DocumentTerms::settingKeys())->delete();
         $db->table('accounting_audit_log')->where('action', 'document_terms_updated')->delete();
         $db->table('accounting_audit_log')->where('action', 'security_settings_changed')->delete();
-        $db->table('company_tax_profile')->where('company_id', 1)->update(['vat_registered' => null, 'vat_number' => null, 'ksa_mode' => 0, 'ksa_mode_effective_at' => null, 'ksa_mode_activated_at' => null, 'ksa_mode_activated_by' => null]);
-        $db->table('app_config')->replace(['key' => 'tax_id', 'value' => '']);
-        $db->table('companies')->where('company_id', 1)->update(['tax_id' => null]);
+        $db->table('company_tax_profile')->where('company_id', 1)->delete();
+
+        if ($this->savedIdentity['profile'] !== null) {
+            $db->table('company_tax_profile')->insert($this->savedIdentity['profile']);
+        }
+
+        $db->table('app_config')->replace(['key' => 'tax_id', 'value' => $this->savedIdentity['tax_id']]);
+        $db->table('app_config')->replace(['key' => 'company', 'value' => $this->savedIdentity['company']]);
+        $db->table('companies')->where('company_id', 1)->update(['tax_id' => $this->savedIdentity['companies_tax_id']]);
         $db->table('accounting_audit_log')->where('entity_type', 'tax_profile')->delete();
 
         parent::tearDown();
@@ -1127,5 +1147,45 @@ class ConfigTest extends CIUnitTestCase
 
         $this->assertTrue($result['success']);
         $this->assertSame('Kept VAT', $this->storedSetting('default_tax_1_name'));
+    }
+
+    public function testSaveTax_KeepsTheVatNumberWhenTheFormDoesNotSendIt(): void
+    {
+        $this->resetSession();
+        $this->post('/config/saveTax', $this->baseTaxPayload(['tax_id' => '123-456-789']));
+
+        $payload = $this->baseTaxPayload();
+        unset($payload['tax_id']);
+
+        $this->post('/config/saveTax', $payload);
+
+        $this->assertSame('123-456-789', $this->storedSetting('tax_id'));
+    }
+
+    public function testSaveInfo_RequiresBothPermissionsToRenameTheSellerInSaudiMode(): void
+    {
+        $this->inSaudiModeWith('399999999900003');
+
+        $employee = $this->createEmployee(grants: [['permission_id' => 'config', 'menu_group' => 'office']]);
+        $this->withSession(['person_id' => $employee, 'menu_group' => 'office']);
+        $before = $this->storedSetting('company');
+
+        $result = json_decode($this->post('/config/saveInfo', ['company' => 'Renamed Trading', 'address' => 'Riyadh', 'phone' => '1', 'email' => 'a@b.example', 'return_policy' => 'x'])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame($before, $this->storedSetting('company'));
+    }
+
+    public function testSaveInfo_AuditsARenameOfTheSeller(): void
+    {
+        $this->resetSession();
+        $before = $this->storedSetting('company');
+
+        $this->post('/config/saveInfo', ['company' => 'Renamed Trading', 'address' => 'Riyadh', 'phone' => '1', 'email' => 'a@b.example', 'return_policy' => 'x']);
+
+        $entry = Database::connect()->table('accounting_audit_log')->where(['entity_type' => 'tax_profile', 'action' => 'seller_changed'])->get()->getRow();
+
+        $this->assertNotNull($entry);
+        $this->assertSame(['before' => $before, 'after' => 'Renamed Trading'], json_decode((string) $entry->details, true)['changes']['company']);
     }
 }

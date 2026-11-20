@@ -12,6 +12,7 @@ use App\Libraries\Documents\DocumentTermsSettings;
 use App\Libraries\Mailchimp_lib;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Organization\BranchException;
 use App\Libraries\Receiving_lib;
 use App\Libraries\Sale_lib;
 use App\Libraries\Security\SecurityAudit;
@@ -38,6 +39,7 @@ use Config\Services;
 use DirectoryIterator;
 use NumberFormatter;
 use ReflectionException;
+use Throwable;
 
 class Config extends Secure_Controller
 {
@@ -306,7 +308,26 @@ class Config extends Secure_Controller
             $batch_save_data['company_logo'] = $upload_data['raw_name'] . '.' . $upload_data['file_ext'];
         }
 
-        $result  = $this->appconfig->batch_save($batch_save_data);
+        $employeeId    = (int) $this->global_view_data['user_info']->person_id;
+        $profile       = new CompanyTaxProfile();
+        $nameBefore    = (string) ($this->config['company'] ?? '');
+        $nameAfter     = (string) $batch_save_data['company'];
+        $sellerChanges = $nameAfter === $nameBefore ? [] : ['company' => ['before' => $nameBefore, 'after' => $nameAfter]];
+
+        if ($sellerChanges !== []) {
+            try {
+                $profile->requireSellerChange($employeeId);
+            } catch (AccountingException|BranchException $exception) {
+                return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($exception)]);
+            }
+        }
+
+        $result = $this->appconfig->batch_save($batch_save_data);
+
+        if ($result) {
+            $profile->auditSellerChange($sellerChanges, $employeeId);
+        }
+
         $success = $upload_success && $result;
         $message = lang('Config.saved_' . ($success ? '' : 'un') . 'successfully');
         $message = $upload_success ? $message : strip_tags($upload_data['error']);
@@ -875,29 +896,42 @@ class Config extends Secure_Controller
         ];
 
         $employeeId = (int) $this->global_view_data['user_info']->person_id;
-        $profile    = new CompanyTaxProfile();
+        $profile    = new CompanyTaxProfile($this->db);
         $registered = $this->request->getPost('vat_registered');
+        $posted     = $this->request->getPost('tax_id', FILTER_SANITIZE_NUMBER_INT);
+
+        $this->db->transBegin();
 
         try {
             $profile->updateVatIdentity(
                 is_string($registered) ? VatRegistration::tryFrom($registered) : null,
-                (string) $this->request->getPost('tax_id', FILTER_SANITIZE_NUMBER_INT),
+                $posted === null ? $profile->current()->vatNumber : (string) $posted,
                 (string) $this->request->getPost('vat_change_reason'),
                 $employeeId,
             );
+
+            $success = $this->appconfig->batch_save($batch_save_data);
+
+            if ($success) {
+                (new SalesTaxSettings($this->db))->update([
+                    SalesTaxSettings::INCLUDED_KEY => $this->request->getPost('tax_included') != null,
+                    SalesTaxSettings::TAX_ONE_KEY  => $this->request->getPost('require_tax_1') != null,
+                ], $employeeId);
+            }
+
+            $success ? $this->db->transCommit() : $this->db->transRollback();
         } catch (TaxProfileException $exception) {
+            $this->db->transRollback();
+
             return $this->response->setJSON(['success' => false, 'message' => $exception->describe()]);
-        } catch (AccountingException $exception) {
+        } catch (AccountingException|BranchException $exception) {
+            $this->db->transRollback();
+
             return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($exception)]);
-        }
+        } catch (Throwable $exception) {
+            $this->db->transRollback();
 
-        $success = $this->appconfig->batch_save($batch_save_data);
-
-        if ($success) {
-            (new SalesTaxSettings())->update([
-                SalesTaxSettings::INCLUDED_KEY => $this->request->getPost('tax_included') != null,
-                SalesTaxSettings::TAX_ONE_KEY  => $this->request->getPost('require_tax_1') != null,
-            ], $employeeId);
+            throw $exception;
         }
 
         $message = lang('Config.saved_' . ($success ? '' : 'un') . 'successfully');

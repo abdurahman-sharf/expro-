@@ -5,6 +5,7 @@ return [
     'effective_at'                 => 'يسري من',
     'effective_at_help'            => 'اليوم أو تاريخ لاحق، واتركه فارغًا للسريان الآن. المستندات السابقة له تبقى بالقواعد التي صدرت بها.',
     'error_accounting_disabled'    => 'الوضع السعودي يتطلب تشغيل المحاسبة.',
+    'error_action_unknown'         => 'الطلب ليس تفعيلًا للوضع السعودي ولا إطفاءً له.',
     'error_effective_date_in_past' => 'لا يسري الوضع السعودي من تاريخ مضى.',
     'error_effective_date_invalid' => 'تاريخ سريان الوضع غير صحيح.',
     'error_mode_already_off'       => 'الوضع السعودي مطفأ أصلًا.',

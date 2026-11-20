@@ -8,6 +8,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\JournalOrigin;
+use App\Libraries\Accounting\LockedRead;
 use App\Libraries\Accounting\RunsInTransaction;
 use App\Libraries\EInvoicing\EInvoiceRules;
 use App\Libraries\Organization\BranchException;
@@ -25,7 +26,10 @@ use DateTimeImmutable;
  * the rest of the application reads it from (the setting tax_id and the row of the company), which nothing else
  * writes. While the Saudi mode is off nothing here asks more than the screens already ask, so a business that is
  * not registered for VAT, or that has not turned the mode on, works as it did. Once the mode is on, a change of
- * the number needs both the settings permission and the e-invoicing permission, and every change is audited.
+ * the number needs both the settings permission and the e-invoicing permission over every branch, a valid Saudi
+ * number and a reason once documents exist, and every change is audited. Whether documents were issued under the
+ * mode is told by the identifier of the last document when it was turned on, not by a time, so a database that
+ * keeps another time zone than the shop cannot hide them.
  */
 final class CompanyTaxProfile
 {
@@ -76,6 +80,7 @@ final class CompanyTaxProfile
             effectiveAt: $row->ksa_mode_effective_at === null ? null : (string) $row->ksa_mode_effective_at,
             activatedAt: $row->ksa_mode_activated_at === null ? null : (string) $row->ksa_mode_activated_at,
             activatedBy: $row->ksa_mode_activated_by === null ? null : (int) $row->ksa_mode_activated_by,
+            watermark: $row->ksa_mode_watermark === null ? null : (int) $row->ksa_mode_watermark,
         );
     }
 
@@ -85,21 +90,32 @@ final class CompanyTaxProfile
     }
 
     /**
-     * Whether the company has issued an electronic document, after which its number is not changed without a reason.
+     * Whether the company issued an electronic document after the one whose identifier is given (any document
+     * when none is), which is how the documents issued under the mode are told from those issued before it.
      */
-    public function hasIssuedDocuments(?string $since = null): bool
+    public function hasIssuedDocuments(?int $after = null): bool
     {
-        if (! $this->db->tableExists($this->db->prefixTable('einvoice_documents'), false)) {
+        if (! $this->documentsExist()) {
             return false;
         }
 
         $builder = $this->db->table('einvoice_documents')->where('company_id', CompanyContext::id());
 
-        if ($since !== null) {
-            $builder->where('created_at >=', $since);
+        if ($after !== null) {
+            $builder->where('document_id >', $after);
         }
 
         return $builder->countAllResults() > 0;
+    }
+
+    /**
+     * Whether documents were issued since the mode was turned on.
+     */
+    public function hasIssuedDocumentsUnderTheMode(): bool
+    {
+        $current = $this->current();
+
+        return $current->saudiMode && $this->hasIssuedDocuments($current->watermark ?? 0);
     }
 
     /**
@@ -136,9 +152,10 @@ final class CompanyTaxProfile
             throw new TaxProfileException(TaxProfileError::NumberTooLong, 'The VAT number is too long.', ['max' => self::NUMBER_MAX]);
         }
 
+        $this->checkReasonLength($reason);
+
         if ($current->saudiMode) {
-            $this->guard->require(self::CONFIG_PERMISSION, $employeeId);
-            $this->guard->require(AccountingGuard::EINVOICING_MANAGE, $employeeId);
+            $this->requireBothPermissions($employeeId);
 
             if ($register !== VatRegistration::Registered) {
                 throw new TaxProfileException(TaxProfileError::ModeNeedsRegistered, 'The Saudi mode needs a business registered for VAT.');
@@ -147,27 +164,48 @@ final class CompanyTaxProfile
             if ($number === '') {
                 throw new TaxProfileException(TaxProfileError::ModeNeedsNumber, 'The Saudi mode needs a VAT number.');
             }
-        }
 
-        if (($current->saudiMode || $register === VatRegistration::Registered) && $number !== '' && ! EInvoiceRules::vatNumber($number)) {
-            throw new TaxProfileException(TaxProfileError::NumberInvalid, 'A Saudi VAT number is fifteen digits that begin and end with 3.');
-        }
+            if (! EInvoiceRules::vatNumber($number)) {
+                throw new TaxProfileException(TaxProfileError::NumberInvalid, 'A Saudi VAT number is fifteen digits that begin and end with 3.');
+            }
 
-        if (isset($changes['vat_number']) && $this->hasIssuedDocuments()) {
-            $this->requireReason($reason);
+            if (isset($changes['vat_number']) && $this->hasIssuedDocuments()) {
+                $this->requireReason($reason);
+            }
         }
 
         $this->transactional(function () use ($current, $number, $register, $employeeId, $changes, $reason): void {
             $this->writeRow($current->companyId, ['vat_number' => $number === '' ? null : $number, 'vat_registered' => $register->stored()], $employeeId);
-
-            if ($number !== $current->vatNumber) {
-                $this->writeMirrors($current->companyId, $number);
-            }
+            $this->writeMirrors($current->companyId, $number);
 
             $this->audit->write('tax_profile', $current->companyId, 'vat_identity_changed', $employeeId, JournalOrigin::User, ['changes' => $changes, 'reason' => $reason]);
         });
 
         return $changes;
+    }
+
+    /**
+     * The data of the seller that goes on every document (its name, its identification and its national address)
+     * is changed, in the Saudi mode, by whoever may change its VAT number: both permissions over every branch.
+     * Outside the mode the screens keep the permissions they had.
+     *
+     * @throws AccountingException|BranchException
+     */
+    public function requireSellerChange(?int $employeeId): void
+    {
+        if ($this->current()->saudiMode) {
+            $this->requireBothPermissions($employeeId);
+        }
+    }
+
+    /**
+     * @param array<string, array{before: mixed, after: mixed}> $changes
+     */
+    public function auditSellerChange(array $changes, ?int $employeeId): void
+    {
+        if ($changes !== []) {
+            $this->audit->write('tax_profile', CompanyContext::id(), 'seller_changed', $employeeId, JournalOrigin::User, ['changes' => $changes]);
+        }
     }
 
     /**
@@ -207,7 +245,11 @@ final class CompanyTaxProfile
         }
 
         $this->transactional(function () use ($current, $effective, $now, $employeeId): void {
-            $this->writeRow($current->companyId, ['ksa_mode' => 1, 'ksa_mode_effective_at' => $effective, 'ksa_mode_activated_at' => $now, 'ksa_mode_activated_by' => $employeeId], $employeeId);
+            if ($this->lockedRow($current->companyId)?->ksa_mode === '1') {
+                throw new TaxProfileException(TaxProfileError::ModeAlreadyOn, 'The Saudi mode is already on.');
+            }
+
+            $this->writeRow($current->companyId, ['ksa_mode' => 1, 'ksa_mode_effective_at' => $effective, 'ksa_mode_activated_at' => $now, 'ksa_mode_activated_by' => $employeeId, 'ksa_mode_watermark' => $this->lastDocumentId()], $employeeId);
             $this->audit->write('tax_profile', $current->companyId, 'saudi_mode_enabled', $employeeId, JournalOrigin::User, ['effective_at' => $effective]);
         });
     }
@@ -227,7 +269,7 @@ final class CompanyTaxProfile
             throw new TaxProfileException(TaxProfileError::ModeAlreadyOff, 'The Saudi mode is already off.');
         }
 
-        $issued = $this->hasIssuedDocuments($current->activatedAt);
+        $issued = $this->hasIssuedDocuments($current->watermark ?? 0);
 
         if ($issued) {
             $this->guard->require(AccountingGuard::EINVOICING_ONBOARD, $employeeId);
@@ -235,14 +277,15 @@ final class CompanyTaxProfile
             $this->requireReason($reason);
         } else {
             $this->requireBothPermissions($employeeId);
-
-            if (mb_strlen($reason) > self::REASON_MAX) {
-                throw new TaxProfileException(TaxProfileError::ReasonTooLong, 'The reason is too long.', ['max' => self::REASON_MAX]);
-            }
+            $this->checkReasonLength($reason);
         }
 
         $this->transactional(function () use ($current, $employeeId, $reason, $issued): void {
-            $this->writeRow($current->companyId, ['ksa_mode' => 0, 'ksa_mode_effective_at' => null, 'ksa_mode_activated_at' => null, 'ksa_mode_activated_by' => null], $employeeId);
+            if ($this->lockedRow($current->companyId)?->ksa_mode !== '1') {
+                throw new TaxProfileException(TaxProfileError::ModeAlreadyOff, 'The Saudi mode is already off.');
+            }
+
+            $this->writeRow($current->companyId, ['ksa_mode' => 0, 'ksa_mode_effective_at' => null, 'ksa_mode_activated_at' => null, 'ksa_mode_activated_by' => null, 'ksa_mode_watermark' => null], $employeeId);
             $this->audit->write('tax_profile', $current->companyId, 'saudi_mode_disabled', $employeeId, JournalOrigin::User, ['reason' => $reason, 'documents_issued' => $issued, 'was_effective_at' => $current->effectiveAt]);
         });
     }
@@ -275,9 +318,41 @@ final class CompanyTaxProfile
             throw new TaxProfileException(TaxProfileError::ReasonRequired, 'A reason is required once documents have been issued.');
         }
 
+        $this->checkReasonLength($reason);
+    }
+
+    /**
+     * @throws TaxProfileException
+     */
+    private function checkReasonLength(string $reason): void
+    {
         if (mb_strlen($reason) > self::REASON_MAX) {
             throw new TaxProfileException(TaxProfileError::ReasonTooLong, 'The reason is too long.', ['max' => self::REASON_MAX]);
         }
+    }
+
+    /**
+     * The row of the profile under a lock, so that two requests that turn the mode on or off are put in line.
+     */
+    private function lockedRow(int $companyId): ?object
+    {
+        $table = $this->db->prefixTable('company_tax_profile');
+
+        return LockedRead::row($this->db, "SELECT ksa_mode FROM {$table} WHERE company_id = ? FOR UPDATE", [$companyId]);
+    }
+
+    private function lastDocumentId(): int
+    {
+        if (! $this->documentsExist()) {
+            return 0;
+        }
+
+        return (int) ($this->db->table('einvoice_documents')->selectMax('document_id', 'last')->where('company_id', CompanyContext::id())->get()->getRow()->last ?? 0);
+    }
+
+    private function documentsExist(): bool
+    {
+        return $this->db->tableExists($this->db->prefixTable('einvoice_documents'), false);
     }
 
     /**

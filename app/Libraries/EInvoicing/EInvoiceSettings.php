@@ -10,6 +10,7 @@ use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Tax\CompanyTaxProfile;
 use App\Models\Appconfig;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -148,6 +149,10 @@ final class EInvoiceSettings
 
         if ($changes === []) {
             return [];
+        }
+
+        if (array_filter(array_keys($changes), static fn (string $key): bool => str_starts_with($key, 'einvoice_seller_')) !== []) {
+            (new CompanyTaxProfile($this->db, $this->guard, $this->branches))->requireSellerChange($employeeId);
         }
 
         if (! $this->config->batch_save($changes)) {

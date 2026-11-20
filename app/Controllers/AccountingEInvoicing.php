@@ -84,20 +84,36 @@ class AccountingEInvoicing extends AccountingController
     public function postSaudiMode(): ResponseInterface
     {
         try {
-            if ($this->request->getPost('action') === 'enable') {
-                $this->taxProfile->enableSaudiMode((string) $this->request->getPost('effective_at'), $this->employeeId());
-
-                return $this->response->setJSON(['success' => true, 'message' => lang('Tax_profile.mode_enabled'), 'id' => 0]);
-            }
-
-            $this->taxProfile->disableSaudiMode((string) $this->request->getPost('reason'), $this->employeeId());
-
-            return $this->response->setJSON(['success' => true, 'message' => lang('Tax_profile.mode_disabled'), 'id' => 0]);
+            $message = match ($this->request->getPost('action')) {
+                'enable'  => $this->enableSaudiMode(),
+                'disable' => $this->disableSaudiMode(),
+                default   => null,
+            };
         } catch (TaxProfileException $exception) {
             return $this->response->setJSON(['success' => false, 'message' => $exception->describe(), 'id' => NEW_ENTRY]);
         } catch (AccountingException|BranchException $exception) {
             return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($exception), 'id' => NEW_ENTRY]);
         }
+
+        if ($message === null) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => lang('Tax_profile.error_action_unknown'), 'id' => NEW_ENTRY]);
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => $message, 'id' => 0]);
+    }
+
+    private function enableSaudiMode(): string
+    {
+        $this->taxProfile->enableSaudiMode((string) $this->request->getPost('effective_at'), $this->employeeId());
+
+        return lang('Tax_profile.mode_enabled');
+    }
+
+    private function disableSaudiMode(): string
+    {
+        $this->taxProfile->disableSaudiMode((string) $this->request->getPost('reason'), $this->employeeId());
+
+        return lang('Tax_profile.mode_disabled');
     }
 
     /**
@@ -107,6 +123,8 @@ class AccountingEInvoicing extends AccountingController
     {
         $profile     = $this->taxProfile->current();
         $invoiceType = (string) model(Appconfig::class)->get_value('invoice_type');
+        $issued      = $this->taxProfile->hasIssuedDocumentsUnderTheMode();
+        $bothHeld    = $canManage && $this->can(CompanyTaxProfile::CONFIG_PERMISSION);
 
         return [
             'registration'      => $profile->registration,
@@ -114,8 +132,8 @@ class AccountingEInvoicing extends AccountingController
             'saudi_mode'        => $profile->saudiMode,
             'in_effect'         => $this->taxProfile->isSaudiMode(),
             'effective_at'      => $profile->effectiveAt,
-            'can_switch'        => $canManage && $this->can(CompanyTaxProfile::CONFIG_PERMISSION),
-            'documents_issued'  => $profile->saudiMode && $this->taxProfile->hasIssuedDocuments($profile->activatedAt),
+            'can_switch'        => $issued ? $this->canManage(AccountingGuard::EINVOICING_ONBOARD) : $bothHeld,
+            'documents_issued'  => $issued,
             'tax_invoice_title' => $profile->registration === VatRegistration::NotRegistered && in_array($invoiceType, ['tax_invoice', 'custom_tax_invoice'], true),
         ];
     }

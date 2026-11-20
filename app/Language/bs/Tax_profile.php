@@ -5,6 +5,7 @@ return [
     'effective_at'                 => '',
     'effective_at_help'            => '',
     'error_accounting_disabled'    => '',
+    'error_action_unknown'         => '',
     'error_effective_date_in_past' => '',
     'error_effective_date_invalid' => '',
     'error_mode_already_off'       => '',

@@ -16,6 +16,7 @@ final readonly class TaxProfile
         public ?string $effectiveAt = null,
         public ?string $activatedAt = null,
         public ?int $activatedBy = null,
+        public ?int $watermark = null,
     ) {
     }
 
