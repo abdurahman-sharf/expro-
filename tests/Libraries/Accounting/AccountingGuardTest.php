@@ -69,4 +69,10 @@ class AccountingGuardTest extends CIUnitTestCase
         $this->assertSame('acc_assets_depreciate', AccountingGuard::ASSETS_DEPRECIATE);
         $this->assertSame('acc_assets_manage', AccountingGuard::ASSETS_MANAGE);
     }
+
+    public function testSensitive_IncludesThePermissionThatManagesTheRegistrationWithZatca(): void
+    {
+        $this->assertContains(AccountingGuard::EINVOICING_ONBOARD, AccountingGuard::SENSITIVE);
+        $this->assertSame('acc_einvoicing_onboard', AccountingGuard::EINVOICING_ONBOARD);
+    }
 }

@@ -58,6 +58,7 @@ return [
     'download'                            => 'XML file',
     'drift'                               => 'The books changed after this document was issued. An issued document is never changed: correct it with a credit note or a debit note.',
     'einvoicing_manage'                   => 'Manage electronic invoicing (settings, issue documents, take the files)',
+    'einvoicing_onboard'                  => 'Manage the registration and the connection of the units with ZATCA (onboarding, certificates, and turning the Saudi mode off once documents exist)',
     'enabled'                             => 'Switch electronic invoicing on',
     'enabled_help'                        => 'Off by default. It needs accounting to be on, and it never changes a journal, a number, a stock movement or a total.',
     'error_accounting_disabled'           => 'Electronic invoicing needs accounting to be on.',

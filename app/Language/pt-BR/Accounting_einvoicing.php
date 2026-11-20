@@ -58,6 +58,7 @@ return [
     'download'                            => '',
     'drift'                               => '',
     'einvoicing_manage'                   => '',
+    'einvoicing_onboard'                  => '',
     'enabled'                             => '',
     'enabled_help'                        => '',
     'error_accounting_disabled'           => '',

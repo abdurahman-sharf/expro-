@@ -41,6 +41,7 @@ final class AccountingGuard
     public const BANK_RECONCILE      = 'acc_bank_reconcile';
     public const CURRENCIES_MANAGE   = 'acc_currencies_manage';
     public const EINVOICING_MANAGE   = 'acc_einvoicing_manage';
+    public const EINVOICING_ONBOARD  = 'acc_einvoicing_onboard';
     public const ASSETS_MANAGE       = 'acc_assets_manage';
     public const ASSETS_DEPRECIATE   = 'acc_assets_depreciate';
     public const AI_USE              = 'accounting_ai';
@@ -73,6 +74,7 @@ final class AccountingGuard
         self::ROLES_MANAGE,
         self::CURRENCIES_MANAGE,
         self::EINVOICING_MANAGE,
+        self::EINVOICING_ONBOARD,
         self::ASSETS_DEPRECIATE,
         self::AI_USE,
         self::AI_APPROVE,

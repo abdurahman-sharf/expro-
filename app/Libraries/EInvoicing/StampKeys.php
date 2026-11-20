@@ -2,6 +2,8 @@
 
 namespace App\Libraries\EInvoicing;
 
+use SensitiveParameter;
+
 /**
  * Reads the signing key and the certificate from the paths the settings name, at the moment a document is
  * signed and never before, and refuses a path inside the application, a key that is not on the curve the
@@ -26,7 +28,7 @@ final class StampKeys
      *
      * @throws EInvoiceException
      */
-    public static function load(string $keyPath, string $certificatePath, ?array $protected = null, ?array $curves = null): StampMaterial
+    public static function load(#[SensitiveParameter] string $keyPath, string $certificatePath, ?array $protected = null, ?array $curves = null): StampMaterial
     {
         $keyFile         = KeyPath::check($keyPath, $protected);
         $certificateFile = KeyPath::check($certificatePath, $protected);

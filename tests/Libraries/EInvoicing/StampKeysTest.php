@@ -117,4 +117,22 @@ class StampKeysTest extends CIUnitTestCase
         $this->assertFalse(StampKeys::curveAvailable(['prime256v1']));
         $this->assertTrue(StampKeys::curveAvailable(['secp256k1']));
     }
+
+    public function testLoad_KeepsTheKeyOutOfTheRefusal(): void
+    {
+        $pair  = $this->generateKeyPair();
+        $other = $this->generateKeyPair();
+        $key   = (string) file_get_contents($pair['key']);
+        $body  = trim(preg_replace('/-----[A-Z ]+-----/', '', $key) ?? '');
+
+        try {
+            StampKeys::load($pair['key'], $other['certificate']);
+            $this->fail('A certificate of another key was accepted.');
+        } catch (EInvoiceException $failure) {
+            $everything = $failure->getMessage() . json_encode($failure->context) . $failure->getTraceAsString();
+
+            $this->assertStringNotContainsString(substr($body, 0, 40), $everything);
+            $this->assertStringNotContainsString($pair['key'], $failure->getTraceAsString());
+        }
+    }
 }

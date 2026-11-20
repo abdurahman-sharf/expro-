@@ -16,6 +16,9 @@ use App\Libraries\Receiving_lib;
 use App\Libraries\Sale_lib;
 use App\Libraries\Security\SecurityAudit;
 use App\Libraries\Stock\StockLocationLifecycle;
+use App\Libraries\Tax\CompanyTaxProfile;
+use App\Libraries\Tax\TaxProfileException;
+use App\Libraries\Tax\VatRegistration;
 use App\Libraries\Tax_lib;
 use App\Models\Appconfig;
 use App\Models\Attribute;
@@ -237,6 +240,7 @@ class Config extends Secure_Controller
         $data['currency_code']            = $this->config['currency_code'] ?? '';
         $data['dbVersion']                = mysqli_get_server_info($this->db->getConnection());
         $data['numbering']                = (new DocumentNumbering())->overview();
+        $data['taxProfile']               = (new CompanyTaxProfile())->current();
 
         // Load all the license statements, they are already XSS cleaned in the private function
         $data['licenses'] = $this->_licenses();
@@ -868,8 +872,24 @@ class Config extends Secure_Controller
             'default_tax_code'          => $this->request->getPost('default_tax_code'),
             'default_tax_category'      => $this->request->getPost('default_tax_category'),
             'default_tax_jurisdiction'  => $this->request->getPost('default_tax_jurisdiction'),
-            'tax_id'                    => $this->request->getPost('tax_id', FILTER_SANITIZE_NUMBER_INT),
         ];
+
+        $employeeId = (int) $this->global_view_data['user_info']->person_id;
+        $profile    = new CompanyTaxProfile();
+        $registered = $this->request->getPost('vat_registered');
+
+        try {
+            $profile->updateVatIdentity(
+                is_string($registered) ? VatRegistration::tryFrom($registered) : null,
+                (string) $this->request->getPost('tax_id', FILTER_SANITIZE_NUMBER_INT),
+                (string) $this->request->getPost('vat_change_reason'),
+                $employeeId,
+            );
+        } catch (TaxProfileException $exception) {
+            return $this->response->setJSON(['success' => false, 'message' => $exception->describe()]);
+        } catch (AccountingException $exception) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($exception)]);
+        }
 
         $success = $this->appconfig->batch_save($batch_save_data);
 
@@ -877,7 +897,7 @@ class Config extends Secure_Controller
             (new SalesTaxSettings())->update([
                 SalesTaxSettings::INCLUDED_KEY => $this->request->getPost('tax_included') != null,
                 SalesTaxSettings::TAX_ONE_KEY  => $this->request->getPost('require_tax_1') != null,
-            ], (int) $this->global_view_data['user_info']->person_id);
+            ], $employeeId);
         }
 
         $message = lang('Config.saved_' . ($success ? '' : 'un') . 'successfully');

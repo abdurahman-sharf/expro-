@@ -2,6 +2,8 @@
 
 namespace App\Libraries\EInvoicing;
 
+use SensitiveParameter;
+
 /**
  * The signature of the hash of a document: ECDSA with SHA-256 over the curve of the standard, done by the
  * OpenSSL of PHP, which gives the signature as DER. The bytes that are signed are the 32 bytes of the
@@ -13,7 +15,7 @@ final class EcdsaSigner
     /**
      * @throws EInvoiceException
      */
-    public function sign(string $hashBytes, StampMaterial $material): string
+    public function sign(string $hashBytes, #[SensitiveParameter] StampMaterial $material): string
     {
         if (! openssl_sign($hashBytes, $signature, $material->privateKey, OPENSSL_ALGO_SHA256)) {
             throw new EInvoiceException(EInvoiceError::SigningFailed, 'The hash could not be signed.');

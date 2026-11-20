@@ -7,6 +7,8 @@ use App\Libraries\Documents\DocumentTerms;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Stock\StockLocationLifecycle;
+use App\Libraries\Tax\CompanyTaxProfile;
+use App\Libraries\Tax\VatRegistration;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
@@ -47,6 +49,10 @@ class ConfigTest extends CIUnitTestCase
         $db->table('app_config')->whereIn('key', DocumentTerms::settingKeys())->delete();
         $db->table('accounting_audit_log')->where('action', 'document_terms_updated')->delete();
         $db->table('accounting_audit_log')->where('action', 'security_settings_changed')->delete();
+        $db->table('company_tax_profile')->where('company_id', 1)->update(['vat_registered' => null, 'vat_number' => null, 'ksa_mode' => 0, 'ksa_mode_effective_at' => null, 'ksa_mode_activated_at' => null, 'ksa_mode_activated_by' => null]);
+        $db->table('app_config')->replace(['key' => 'tax_id', 'value' => '']);
+        $db->table('companies')->where('company_id', 1)->update(['tax_id' => null]);
+        $db->table('accounting_audit_log')->where('entity_type', 'tax_profile')->delete();
 
         parent::tearDown();
     }
@@ -1061,5 +1067,65 @@ class ConfigTest extends CIUnitTestCase
         $this->assertSame(['gcaptcha_enable', 'image_allowed_types'], json_decode((string) $entries[0]->details, true)['settings']);
 
         $this->post('/config/saveGeneral', $base + ['image_allowed_types' => ['gif', 'jpg', 'png']]);
+    }
+
+    private function inSaudiModeWith(string $vatNumber): void
+    {
+        $db = Database::connect();
+
+        $db->table('company_tax_profile')->where('company_id', 1)->update(['vat_registered' => 1, 'vat_number' => $vatNumber, 'ksa_mode' => 1, 'ksa_mode_effective_at' => '2026-01-01 00:00:00', 'ksa_mode_activated_at' => '2026-01-01 00:00:00']);
+        $db->table('app_config')->replace(['key' => 'tax_id', 'value' => $vatNumber]);
+    }
+
+    private function storedSetting(string $key): string
+    {
+        return (string) (Database::connect()->table('app_config')->where('key', $key)->get()->getRow()->value ?? '');
+    }
+
+    public function testSaveTax_SavesTheVatNumberAsBeforeWhileTheSaudiModeIsOff(): void
+    {
+        $this->resetSession();
+
+        $result = json_decode($this->post('/config/saveTax', $this->baseTaxPayload(['tax_id' => '123-456-789']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('123-456-789', $this->storedSetting('tax_id'));
+        $this->assertSame('123-456-789', (new CompanyTaxProfile())->current()->vatNumber);
+    }
+
+    public function testSaveTax_SavesTheRegistrationOfTheBusiness(): void
+    {
+        $this->resetSession();
+
+        $this->post('/config/saveTax', $this->baseTaxPayload(['vat_registered' => '0']));
+
+        $this->assertSame(VatRegistration::NotRegistered, (new CompanyTaxProfile())->current()->registration);
+    }
+
+    public function testSaveTax_RejectsAChangeOfTheVatNumberWithoutBothPermissionsInSaudiMode(): void
+    {
+        $this->inSaudiModeWith('399999999900003');
+
+        $employee = $this->createEmployee(grants: [['permission_id' => 'config', 'menu_group' => 'office']]);
+        $this->withSession(['person_id' => $employee, 'menu_group' => 'office']);
+
+        $result = json_decode($this->post('/config/saveTax', $this->baseTaxPayload(['tax_id' => '311111111111113', 'default_tax_1_name' => 'Changed']))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('399999999900003', $this->storedSetting('tax_id'));
+        $this->assertNotSame('Changed', $this->storedSetting('default_tax_1_name'));
+    }
+
+    public function testSaveTax_SavesOtherTaxSettingsWhenTheVatNumberIsUnchangedInSaudiMode(): void
+    {
+        $this->inSaudiModeWith('399999999900003');
+
+        $employee = $this->createEmployee(grants: [['permission_id' => 'config', 'menu_group' => 'office']]);
+        $this->withSession(['person_id' => $employee, 'menu_group' => 'office']);
+
+        $result = json_decode($this->post('/config/saveTax', $this->baseTaxPayload(['tax_id' => '399999999900003', 'default_tax_1_name' => 'Kept VAT']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('Kept VAT', $this->storedSetting('default_tax_1_name'));
     }
 }

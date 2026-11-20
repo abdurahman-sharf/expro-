@@ -9,6 +9,7 @@ use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\LockOutcome;
 use App\Libraries\Accounting\NamedLock;
 use App\Libraries\Accounting\SalesTaxSettings;
+use App\Libraries\Tax\CompanyTaxProfile;
 use App\Models\Appconfig;
 use App\Models\Stock_location;
 use CodeIgniter\Database\BaseConnection;
@@ -213,9 +214,10 @@ final class FirstRun
         }
 
         $this->locked(function () use ($name, $address, $phone, $email, $taxId, $employeeId): void {
-            $this->inTransaction(function () use ($name, $address, $phone, $email, $taxId): void {
-                $this->saveSettings(['company' => $name, 'address' => $address, 'phone' => $phone, 'email' => $email, 'tax_id' => $taxId]);
-                $this->writeCompanyRow($name, $taxId);
+            $this->inTransaction(function () use ($name, $address, $phone, $email, $taxId, $employeeId): void {
+                $this->saveSettings(['company' => $name, 'address' => $address, 'phone' => $phone, 'email' => $email]);
+                $this->writeCompanyRow($name);
+                (new CompanyTaxProfile($this->db))->updateVatIdentity(null, $taxId, '', $employeeId);
 
                 $branch = $this->defaultBranch();
 
@@ -411,17 +413,20 @@ final class FirstRun
         return $this->db->table('stock_locations')->where('deleted', 0)->where('branch_id', $branchId)->orderBy('is_primary', 'DESC')->orderBy('location_id')->get(1)->getRow();
     }
 
-    private function writeCompanyRow(string $name, string $taxId): void
+    /**
+     * The name of the company. Its VAT number is written by the tax profile, the one place that writes it.
+     */
+    private function writeCompanyRow(string $name): void
     {
         $exists = $this->db->table('companies')->where('company_id', self::COMPANY_ID)->countAllResults() > 0;
 
         if ($exists) {
-            $this->db->table('companies')->where('company_id', self::COMPANY_ID)->update(['name' => $name, 'tax_id' => $taxId === '' ? null : $taxId]);
+            $this->db->table('companies')->where('company_id', self::COMPANY_ID)->update(['name' => $name]);
 
             return;
         }
 
-        $this->db->table('companies')->insert(['company_id' => self::COMPANY_ID, 'name' => $name, 'tax_id' => $taxId === '' ? null : $taxId]);
+        $this->db->table('companies')->insert(['company_id' => self::COMPANY_ID, 'name' => $name]);
     }
 
     /**

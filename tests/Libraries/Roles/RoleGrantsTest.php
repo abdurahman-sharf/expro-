@@ -236,4 +236,9 @@ final class RoleGrantsTest extends CIUnitTestCase
             RoleGrants::flush();
         }
     }
+
+    public function testForbidden_IncludesThePermissionThatManagesTheRegistrationWithZatca(): void
+    {
+        $this->assertContains(AccountingGuard::EINVOICING_ONBOARD, RoleGrants::forbidden());
+    }
 }

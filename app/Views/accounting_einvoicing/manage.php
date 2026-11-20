@@ -17,6 +17,7 @@
  * @var bool                                                                                                                 $can_manage
  * @var bool                                                                                                                 $can_download
  * @var list<string>                                                                                                         $reasons
+ * @var array<string, mixed>                                                                                                 $tax_profile
  */
 
 use App\Libraries\EInvoicing\EInvoiceKind;
@@ -51,6 +52,11 @@ $detailOf  = static function (ReadinessCheck $check): string {
                 }
             }, 'json');
         };
+
+        $('#saudi_mode_form').on('submit', function(event) {
+            event.preventDefault();
+            send('accounting_einvoicing/saudi_mode', $(this).serialize(), true);
+        });
 
         $('#einvoice_settings_form').on('submit', function(event) {
             event.preventDefault();
@@ -121,6 +127,65 @@ $detailOf  = static function (ReadinessCheck $check): string {
                 </li>
             <?php endforeach; ?>
         </ul>
+    </section>
+
+    <section class="acc-setup-card" aria-labelledby="tax_identity_title" id="tax_identity_card">
+        <h2 id="tax_identity_title" class="acc-setup-title"><?= lang('Tax_profile.card_title') ?></h2>
+
+        <dl class="row mb-2">
+            <dt class="col-sm-4"><?= lang('Tax_profile.registration') ?></dt>
+            <dd class="col-sm-8" id="tax_identity_registration"><?= lang($tax_profile['registration']->languageKey()) ?></dd>
+            <dt class="col-sm-4"><?= lang('Tax_profile.vat_number') ?></dt>
+            <dd class="col-sm-8"><bdi dir="ltr" id="tax_identity_number"><?= esc($tax_profile['vat_number']) ?></bdi> <small class="text-body-secondary"><?= lang('Tax_profile.vat_number_where') ?></small></dd>
+            <dt class="col-sm-4"><?= lang('Tax_profile.mode') ?></dt>
+            <dd class="col-sm-8" id="tax_identity_mode">
+                <?php if (! $tax_profile['saudi_mode']): ?>
+                    <?= lang('Tax_profile.mode_off') ?>
+                <?php elseif ($tax_profile['in_effect']): ?>
+                    <?= lang('Tax_profile.mode_on_since', [esc((string) $tax_profile['effective_at'])]) ?>
+                <?php else: ?>
+                    <?= lang('Tax_profile.mode_on_from', [esc((string) $tax_profile['effective_at'])]) ?>
+                <?php endif; ?>
+            </dd>
+        </dl>
+
+        <p class="form-text"><?= lang('Tax_profile.mode_help') ?></p>
+
+        <?php if ($tax_profile['tax_invoice_title']): ?>
+            <div class="alert alert-warning py-2" role="alert" id="tax_identity_title_warning"><?= lang('Tax_profile.warning_tax_invoice_title') ?></div>
+        <?php endif; ?>
+
+        <?php if ($tax_profile['can_switch']): ?>
+            <form id="saudi_mode_form" class="app-form" novalidate>
+                <?php if (! $tax_profile['saudi_mode']): ?>
+                    <input type="hidden" name="action" value="enable">
+                    <div class="form-grid">
+                        <div class="field">
+                            <label class="form-label" for="effective_at"><?= lang('Tax_profile.effective_at') ?></label>
+                            <div class="field-control">
+                                <input type="date" name="effective_at" id="effective_at" class="form-control form-control-sm">
+                                <p class="form-text mb-0"><?= lang('Tax_profile.effective_at_help') ?></p>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm" id="saudi_mode_enable"><?= lang('Tax_profile.mode_enable') ?></button>
+                <?php else: ?>
+                    <input type="hidden" name="action" value="disable">
+                    <div class="form-grid">
+                        <div class="field span-all">
+                            <label class="form-label" for="mode_reason"><?= lang('Tax_profile.reason') ?></label>
+                            <div class="field-control">
+                                <input type="text" name="reason" id="mode_reason" class="form-control form-control-sm" maxlength="500">
+                                <?php if ($tax_profile['documents_issued']): ?>
+                                    <p class="form-text mb-0"><?= lang('Tax_profile.mode_disable_needs_onboard') ?></p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-outline-danger btn-sm" id="saudi_mode_disable"><?= lang('Tax_profile.mode_disable') ?></button>
+                <?php endif; ?>
+            </form>
+        <?php endif; ?>
     </section>
 
     <section class="acc-setup-card" aria-labelledby="einvoice_settings_title">

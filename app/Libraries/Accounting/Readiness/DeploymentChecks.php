@@ -4,6 +4,8 @@ namespace App\Libraries\Accounting\Readiness;
 
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Tax\CompanyTaxProfile;
+use App\Libraries\Tax\VatRegistration;
 
 /**
  * What a new installation still holds from the installer, and a business must change before it
@@ -89,7 +91,7 @@ final class DeploymentChecks extends CheckGroup
             }
         }
 
-        $noTaxNumber = ($stored['tax_id'] ?? '') === '';
+        $noTaxNumber = ($stored['tax_id'] ?? '') === '' && (new CompanyTaxProfile($this->db))->current()->registration !== VatRegistration::NotRegistered;
 
         if ($noTaxNumber) {
             $findings[] = 'the tax number (tax_id) is empty, so the code of the simplified tax invoice is not printed';

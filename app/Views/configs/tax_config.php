@@ -1,11 +1,18 @@
 <?php
 /**
- * @var array  $tax_code_options
- * @var array  $tax_category_options
- * @var array  $tax_jurisdiction_options
- * @var string $controller_name
- * @var array  $config
+ * @var array      $tax_code_options
+ * @var array      $tax_category_options
+ * @var array      $tax_jurisdiction_options
+ * @var string     $controller_name
+ * @var array      $config
+ * @var TaxProfile $taxProfile
  */
+
+use App\Libraries\Tax\CompanyTaxProfile;
+use App\Libraries\Tax\TaxProfile;
+use App\Libraries\Tax\VatRegistration;
+
+$taxProfile ??= (new CompanyTaxProfile())->current();
 ?>
 
 <?= form_open('config/saveTax/', ['id' => 'tax_config_form', 'class' => 'app-form']) ?>
@@ -24,6 +31,31 @@
                         'class' => 'form-control form-control-sm',
                         'value' => $config['tax_id'],
                     ]) ?>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <?= form_label(lang('Tax_profile.registration'), 'vat_registered', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-9 col-md-4 col-lg-3">
+                    <?= form_dropdown('vat_registered', [
+                        VatRegistration::Unknown->value       => lang(VatRegistration::Unknown->languageKey()),
+                        VatRegistration::Registered->value    => lang(VatRegistration::Registered->languageKey()),
+                        VatRegistration::NotRegistered->value => lang(VatRegistration::NotRegistered->languageKey()),
+                    ], $taxProfile->registration->value, ['id' => 'vat_registered', 'class' => 'form-select form-select-sm']) ?>
+                    <span class="form-text"><?= lang('Tax_profile.registration_help') ?></span>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <?= form_label(lang('Tax_profile.reason'), 'vat_change_reason', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-9 col-md-6">
+                    <?= form_input([
+                        'name'      => 'vat_change_reason',
+                        'id'        => 'vat_change_reason',
+                        'class'     => 'form-control form-control-sm',
+                        'maxlength' => '500',
+                    ]) ?>
+                    <span class="form-text"><?= lang('Tax_profile.reason_help') ?></span>
                 </div>
             </div>
 

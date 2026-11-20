@@ -7,6 +7,7 @@ use App\Libraries\Accounting\SalesDebitNotes;
 use App\Libraries\EInvoicing\EInvoiceReadiness;
 use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\EInvoicing\EInvoiceSettings;
+use App\Libraries\Tax\CompanyTaxProfile;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -52,6 +53,8 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->accountingDb()->table('document_numbers')->truncate();
         $this->accountingDb()->table('document_sequences')->truncate();
         $this->accountingDb()->table('app_config')->where('key', 'accounting_debit_note')->delete();
+        $this->accountingDb()->table('company_tax_profile')->where('company_id', 1)->update(['vat_registered' => null, 'vat_number' => null, 'ksa_mode' => 0, 'ksa_mode_effective_at' => null, 'ksa_mode_activated_at' => null, 'ksa_mode_activated_by' => null]);
+        $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'tax_profile')->delete();
         $this->removeTemporaryDirectories();
         $this->stopSelling();
         $this->resetBranches();
@@ -720,5 +723,76 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->actAs($this->employeeWithGrants(['reports_sales', 'sales', 'sales_stock', AccountingGuard::EINVOICING_MANAGE]));
 
         $this->get('/sales/invoice/' . $saleId)->assertDontSee('id="einvoice_panel"');
+    }
+
+    private function registeredBusiness(): void
+    {
+        $this->accountingDb()->table('company_tax_profile')->where('company_id', 1)->update(['vat_registered' => 1, 'vat_number' => self::SELLER_VAT]);
+    }
+
+    public function testGetIndex_ShowsTheTaxIdentityCardWithTheModeOff(): void
+    {
+        $this->manager();
+
+        $page = $this->get('/accounting_einvoicing');
+
+        $page->assertSee('id="tax_identity_card"');
+        $page->assertSee('Not specified');
+        $page->assertSee('id="tax_identity_mode"');
+        $page->assertDontSee('id="saudi_mode_form"');
+    }
+
+    public function testGetIndex_OffersTheSwitchToAHolderOfBothPermissions(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_einvoicing', AccountingGuard::EINVOICING_MANAGE, CompanyTaxProfile::CONFIG_PERMISSION]));
+
+        $this->get('/accounting_einvoicing')->assertSee('id="saudi_mode_enable"');
+    }
+
+    public function testGetIndex_WarnsOfATaxInvoiceTitleForABusinessThatIsNotRegistered(): void
+    {
+        $this->accountingDb()->table('company_tax_profile')->where('company_id', 1)->update(['vat_registered' => 0]);
+        $saved = (string) ($this->accountingDb()->table('app_config')->where('key', 'invoice_type')->get()->getRow()->value ?? 'invoice');
+        $this->setConfigValue('invoice_type', 'tax_invoice');
+
+        try {
+            $this->reader();
+
+            $this->get('/accounting_einvoicing')->assertSee('id="tax_identity_title_warning"');
+        } finally {
+            $this->setConfigValue('invoice_type', $saved);
+        }
+    }
+
+    public function testPostSaudiMode_EnablesForAHolderOfBothPermissions(): void
+    {
+        $this->registeredBusiness();
+        $this->actAs($this->employeeWithGrants(['accounting_einvoicing', AccountingGuard::EINVOICING_MANAGE, CompanyTaxProfile::CONFIG_PERMISSION]));
+
+        $result = $this->jsonOf($this->post('/accounting_einvoicing/saudi_mode', ['action' => 'enable', 'effective_at' => '']));
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue((new CompanyTaxProfile())->current()->saudiMode);
+    }
+
+    public function testPostSaudiMode_RefusesWithoutTheSettingsPermission(): void
+    {
+        $this->registeredBusiness();
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_einvoicing/saudi_mode', ['action' => 'enable', 'effective_at' => '']));
+
+        $this->assertFalse($result['success']);
+        $this->assertFalse((new CompanyTaxProfile())->current()->saudiMode);
+    }
+
+    public function testPostSaudiMode_RefusesABusinessThatIsNotRegistered(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_einvoicing', AccountingGuard::EINVOICING_MANAGE, CompanyTaxProfile::CONFIG_PERMISSION]));
+
+        $result = $this->jsonOf($this->post('/accounting_einvoicing/saudi_mode', ['action' => 'enable', 'effective_at' => '']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Tax_profile.error_mode_needs_registered'), $result['message']);
     }
 }

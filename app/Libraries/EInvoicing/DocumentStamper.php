@@ -4,6 +4,7 @@ namespace App\Libraries\EInvoicing;
 
 use App\Libraries\Documents\DocumentException;
 use App\Libraries\Documents\SimplifiedInvoiceQr;
+use SensitiveParameter;
 
 /**
  * Turns a document with its counter and its previous hash into the file that is stored: the file and its
@@ -38,7 +39,7 @@ final class DocumentStamper
      *
      * @throws EInvoiceException
      */
-    public function signed(EInvoiceDocument $document, StampMaterial $material, string $signingTime): StampedDocument
+    public function signed(EInvoiceDocument $document, #[SensitiveParameter] StampMaterial $material, string $signingTime): StampedDocument
     {
         $provisional = $this->phaseOne($document);
         $unstamped   = $this->xml->build($document, $provisional);

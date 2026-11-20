@@ -710,6 +710,7 @@ $routes->group('accounting_einvoicing', static function (RouteCollection $routes
     $routes->post('save_settings', 'AccountingEInvoicing::postSaveSettings');
     $routes->post('issue/(:num)', 'AccountingEInvoicing::postIssue/$1');
     $routes->post('issue_debit_note/(:num)', 'AccountingEInvoicing::postIssueDebitNote/$1');
+    $routes->post('saudi_mode', 'AccountingEInvoicing::postSaudiMode');
 });
 
 $routes->group('accounting_journals', static function (RouteCollection $routes) use ($reportFiles): void {
