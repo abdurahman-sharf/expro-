@@ -159,6 +159,51 @@ final class RoleTablesTest extends CIUnitTestCase
         }
     }
 
+    public function testCount_ReturnsTheNumberOfRowsTheBuilderSelectsAndZeroWhenThereAreNone(): void
+    {
+        $db   = Database::connect();
+        $role = $this->createRole(['sales', 'items']);
+
+        $this->assertSame(2, RoleTables::count($db->table('role_permissions')->where('role_id', $role), 'The permissions of a role'));
+        $this->assertSame(0, RoleTables::count($db->table('role_permissions')->where('role_id', 999999), 'The permissions of a role'));
+    }
+
+    public function testCount_KeepsTheJoinsAndTheConditionsOfTheBuilder(): void
+    {
+        $db       = Database::connect();
+        $inactive = $this->createRole(['sales', 'items', 'customers'], active: false);
+        $active   = $this->createRole(['sales', 'items', 'customers']);
+        $builder  = static fn (int $roleId) => $db->table('role_permissions rp')->join('roles r', 'r.role_id = rp.role_id AND r.active = 1')->where('rp.role_id', $roleId);
+
+        $this->assertSame(0, RoleTables::count($builder($inactive), 'The permissions of an active role'));
+        $this->assertSame(3, RoleTables::count($builder($active), 'The permissions of an active role'));
+    }
+
+    public function testCount_RefusesWhenTheCountCannotBeReadInsteadOfAnsweringNone(): void
+    {
+        foreach ([false, true] as $throws) {
+            try {
+                RoleTables::count($this->failingConnection('role_permissions', $throws)->table('role_permissions'), 'The permissions of a role');
+                $this->fail('A count that failed was taken for none.');
+            } catch (RoleTablesUnavailableException $exception) {
+                $this->assertStringStartsWith('The permissions of a role could not be read: ', $exception->getMessage());
+                $this->assertSame($throws, $exception->getPrevious() instanceof DatabaseException);
+            }
+        }
+    }
+
+    public function testCount_RefusesOnAProductionConnectionWhoseTableCannotBeRead(): void
+    {
+        $this->withUnreadableTable('role_permissions', function (): void {
+            try {
+                RoleTables::count(Database::connect()->table('role_permissions'), 'The permissions of a role');
+                $this->fail('A count that failed was taken for none.');
+            } catch (RoleTablesUnavailableException $exception) {
+                $this->assertNull($exception->getPrevious());
+            }
+        });
+    }
+
     public function testMigration_NamesTheVersionOfTheMigrationThatCreatesTheTables(): void
     {
         $files = glob(APPPATH . 'Database/Migrations/*_RolesAndRecordScope.php');

@@ -397,12 +397,13 @@ final class TreasuryScopes
             return false;
         }
 
-        return $this->db->table('employee_roles er')
+        $builder = $this->db->table('employee_roles er')
             ->join('roles r', 'r.role_id = er.role_id AND r.active = 1')
             ->join('employees e', 'e.person_id = er.person_id AND e.deleted = 0')
             ->where('er.person_id', $employeeId)
-            ->whereIn('er.role_id', $roleIds)
-            ->countAllResults() > 0;
+            ->whereIn('er.role_id', $roleIds);
+
+        return RoleTables::count($builder, "The roles of the employee {$employeeId} that a treasury names") > 0;
     }
 
     /**
@@ -475,7 +476,7 @@ final class TreasuryScopes
         }
 
         if ($mode === self::ROLES) {
-            return RoleTables::migrated($this->db) && $this->db->table('roles')->whereIn('role_id', $ids)->countAllResults() === count($ids);
+            return RoleTables::migrated($this->db) && RoleTables::count($this->db->table('roles')->whereIn('role_id', $ids), 'The roles a treasury scope names') === count($ids);
         }
 
         return $this->db->table('branches')->whereIn('branch_id', $ids)->where('company_id', CompanyContext::id())->countAllResults() === count($ids);

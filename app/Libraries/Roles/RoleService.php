@@ -20,7 +20,8 @@ use Config\Database;
  * employee, handed out by an administrator. Whoever changes a role or gives one away may only add
  * what they hold themselves, unless they are an administrator, as on the employee form. Every
  * change is written to the audit log. The books and the console act without an employee, and that
- * is always allowed.
+ * is always allowed. A read or a count that fails is refused with RoleTablesUnavailableException,
+ * never taken for no roles or for a role, an employee or a name that is not there.
  */
 final class RoleService
 {
@@ -49,18 +50,18 @@ final class RoleService
             return [];
         }
 
-        return $this->db->table('roles r')
+        $builder = $this->db->table('roles r')
             ->select('r.role_id, r.name, r.description, r.active, r.record_scope, r.created_at, r.updated_at')
             ->select('(SELECT COUNT(*) FROM ' . $this->db->prefixTable('role_permissions') . ' rp WHERE rp.role_id = r.role_id) AS permission_count', false)
             ->select('(SELECT COUNT(*) FROM ' . $this->db->prefixTable('employee_roles') . ' er JOIN ' . $this->db->prefixTable('employees') . ' e ON e.person_id = er.person_id AND e.deleted = 0 WHERE er.role_id = r.role_id) AS employee_count', false)
-            ->orderBy('r.name', 'ASC')
-            ->get()
-            ->getResult();
+            ->orderBy('r.name', 'ASC');
+
+        return RoleTables::read($builder, 'The roles')->getResult();
     }
 
     public function find(int $roleId): ?object
     {
-        return $this->db->table('roles')->where('role_id', $roleId)->get()->getRow();
+        return RoleTables::read($this->db->table('roles')->where('role_id', $roleId), "The role {$roleId}")->getRow();
     }
 
     /**
@@ -68,9 +69,9 @@ final class RoleService
      */
     public function permissionsOf(int $roleId): array
     {
-        $rows = $this->db->table('role_permissions')->select('permission_id')->where('role_id', $roleId)->orderBy('permission_id', 'ASC')->get()->getResultArray();
+        $builder = $this->db->table('role_permissions')->select('permission_id')->where('role_id', $roleId)->orderBy('permission_id', 'ASC');
 
-        return array_column($rows, 'permission_id');
+        return array_column(RoleTables::read($builder, "The permissions of the role {$roleId}")->getResultArray(), 'permission_id');
     }
 
     /**
@@ -179,7 +180,7 @@ final class RoleService
     {
         $this->requireManage($actorId);
 
-        if ($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0])->countAllResults() === 0) {
+        if (RoleTables::count($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0]), "The employee {$personId}") === 0) {
             throw new RoleException(RoleError::EmployeeNotFound, "The employee {$personId} does not exist.");
         }
 
@@ -237,7 +238,7 @@ final class RoleService
         $this->requireManage($actorId);
         $this->assertRecordScope($scope);
 
-        if ($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0])->countAllResults() === 0) {
+        if (RoleTables::count($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0]), "The employee {$personId}") === 0) {
             throw new RoleException(RoleError::EmployeeNotFound, "The employee {$personId} does not exist.");
         }
 
@@ -262,7 +263,8 @@ final class RoleService
 
     public function recordScopeOf(int $personId): string
     {
-        $row = $this->db->table('employee_record_scopes')->select('record_scope')->where('person_id', $personId)->get()->getRow();
+        $builder = $this->db->table('employee_record_scopes')->select('record_scope')->where('person_id', $personId);
+        $row     = RoleTables::read($builder, "The record scope of the employee {$personId}")->getRow();
 
         return $row !== null && $row->record_scope === RecordScope::OWN ? RecordScope::OWN : RecordScope::ALL;
     }
@@ -272,7 +274,8 @@ final class RoleService
      */
     public function roleIdsOf(int $personId): array
     {
-        $rows = $this->db->table('employee_roles')->select('role_id')->where('person_id', $personId)->orderBy('role_id', 'ASC')->get()->getResultArray();
+        $builder = $this->db->table('employee_roles')->select('role_id')->where('person_id', $personId)->orderBy('role_id', 'ASC');
+        $rows    = RoleTables::read($builder, "The roles of the employee {$personId}")->getResultArray();
 
         return array_map('intval', array_column($rows, 'role_id'));
     }
@@ -284,13 +287,13 @@ final class RoleService
      */
     public function rolesOf(int $personId): array
     {
-        return $this->db->table('employee_roles er')
+        $builder = $this->db->table('employee_roles er')
             ->select('r.role_id, r.name, r.active, r.record_scope')
             ->join('roles r', 'r.role_id = er.role_id')
             ->where('er.person_id', $personId)
-            ->orderBy('r.name', 'ASC')
-            ->get()
-            ->getResult();
+            ->orderBy('r.name', 'ASC');
+
+        return RoleTables::read($builder, "The roles of the employee {$personId}")->getResult();
     }
 
     /**
@@ -300,16 +303,15 @@ final class RoleService
      */
     public function rolePermissionsOf(int $personId): array
     {
-        $rows = $this->db->table('employee_roles er')
+        $builder = $this->db->table('employee_roles er')
             ->select('rp.permission_id, r.name')
             ->join('roles r', 'r.role_id = er.role_id AND r.active = 1')
             ->join('role_permissions rp', 'rp.role_id = er.role_id')
             ->where('er.person_id', $personId)
             ->whereNotIn('rp.permission_id', RoleGrants::forbidden())
-            ->orderBy('r.name', 'ASC')
-            ->get()
-            ->getResult();
+            ->orderBy('r.name', 'ASC');
 
+        $rows         = RoleTables::read($builder, "The permissions that the roles of the employee {$personId} give")->getResult();
         $byPermission = [];
 
         foreach ($rows as $row) {
@@ -396,9 +398,6 @@ final class RoleService
     /**
      * @throws RoleException
      */
-    /**
-     * @throws RoleException
-     */
     private function assertRecordScope(string $scope): void
     {
         if (! in_array($scope, RecordScope::SCOPES, true)) {
@@ -468,7 +467,7 @@ final class RoleService
             $taken->where('role_id !=', $exceptRoleId);
         }
 
-        if ($taken->countAllResults() > 0) {
+        if (RoleTables::count($taken, 'The roles that bear the name asked for') > 0) {
             throw new RoleException(RoleError::NameTaken, "The name {$name} is used by another role.", ['name' => $name]);
         }
 
@@ -537,7 +536,7 @@ final class RoleService
             }
         }
 
-        $known = $ids === [] ? [] : array_column($this->db->table('permissions')->select('permission_id')->whereIn('permission_id', $ids)->get()->getResultArray(), 'permission_id');
+        $known = $ids === [] ? [] : array_column(RoleTables::read($this->db->table('permissions')->select('permission_id')->whereIn('permission_id', $ids), 'The permissions asked for')->getResultArray(), 'permission_id');
 
         foreach ($ids as $permissionId) {
             if (! in_array($permissionId, $known, true)) {
@@ -583,7 +582,7 @@ final class RoleService
 
         sort($ids);
 
-        if ($ids !== [] && $this->db->table('roles')->whereIn('role_id', $ids)->countAllResults() !== count($ids)) {
+        if ($ids !== [] && RoleTables::count($this->db->table('roles')->whereIn('role_id', $ids), 'The roles asked for') !== count($ids)) {
             throw new RoleException(RoleError::NotFound, 'A role of the list does not exist.');
         }
 
@@ -601,8 +600,8 @@ final class RoleService
             return [];
         }
 
-        $rows = $this->db->table('role_permissions')->distinct()->select('permission_id')->whereIn('role_id', $roleIds)->get()->getResultArray();
+        $builder = $this->db->table('role_permissions')->distinct()->select('permission_id')->whereIn('role_id', $roleIds);
 
-        return array_column($rows, 'permission_id');
+        return array_column(RoleTables::read($builder, 'The permissions of the roles asked for')->getResultArray(), 'permission_id');
     }
 }

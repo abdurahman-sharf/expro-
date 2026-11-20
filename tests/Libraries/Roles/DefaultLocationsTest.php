@@ -264,4 +264,37 @@ final class DefaultLocationsTest extends CIUnitTestCase
 
         $this->assertSame(1, $this->auditedChanges($employee));
     }
+
+    public function testCheck_RefusesWithTheNamedExceptionWhenTheLocationCannotBeCountedInsteadOfSayingItIsMissing(): void
+    {
+        $location = $this->location();
+
+        foreach ([false, true] as $throws) {
+            try {
+                (new DefaultLocations($this->failingConnection('stock_locations', $throws)))->check($location);
+                $this->fail('A location that could not be counted was taken for one that does not exist.');
+            } catch (RoleTablesUnavailableException $exception) {
+                $this->assertStringStartsWith("The stock location {$location} could not be read: ", $exception->getMessage());
+                $this->assertSame($throws, $exception->getPrevious() instanceof DatabaseException);
+            }
+        }
+    }
+
+    public function testSet_RefusesWithTheNamedExceptionWhenTheEmployeeCannotBeCountedAndStoresNothing(): void
+    {
+        $employee = $this->createEmployee();
+        $location = $this->location();
+
+        foreach ([false, true] as $throws) {
+            try {
+                (new DefaultLocations($this->failingConnection('employees', $throws)))->set($employee, $location, null);
+                $this->fail('An employee that could not be counted was taken for one that does not exist.');
+            } catch (RoleTablesUnavailableException $exception) {
+                $this->assertStringStartsWith("The employee {$employee} could not be read: ", $exception->getMessage());
+            }
+        }
+
+        $this->assertNull($this->defaults->of($employee));
+        $this->assertSame(0, $this->auditedChanges($employee));
+    }
 }

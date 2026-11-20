@@ -16,7 +16,9 @@ use Throwable;
  * never applied. A record that cannot be read is refused and never taken for a migration that has
  * not run. The same goes for what the tables hold: a connection without debugging, or inside a
  * transaction, answers a failed query with false, and a read that failed is refused through read()
- * and never taken for a table that holds nothing.
+ * and never taken for a table that holds nothing; a count that failed is refused through count() and
+ * never taken for none, since a role, an employee or a location taken for missing is refused for
+ * the wrong reason.
  */
 final class RoleTables
 {
@@ -59,6 +61,14 @@ final class RoleTables
         }
 
         return $result;
+    }
+
+    /**
+     * @throws RoleTablesUnavailableException
+     */
+    public static function count(BaseBuilder $builder, string $what): int
+    {
+        return (int) self::read($builder->select('COUNT(*) AS total', false), $what)->getRow()->total;
     }
 
     private static function driverError(BaseBuilder $builder): string

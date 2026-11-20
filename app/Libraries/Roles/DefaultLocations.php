@@ -52,7 +52,7 @@ final class DefaultLocations
      */
     public function check(?int $locationId): void
     {
-        if ($locationId !== null && $this->db->table('stock_locations')->where(['location_id' => $locationId, 'deleted' => 0])->countAllResults() === 0) {
+        if ($locationId !== null && RoleTables::count($this->db->table('stock_locations')->where(['location_id' => $locationId, 'deleted' => 0]), "The stock location {$locationId}") === 0) {
             throw new RoleException(RoleError::LocationNotFound, "The stock location {$locationId} does not exist.", ['location_id' => $locationId]);
         }
     }
@@ -68,7 +68,7 @@ final class DefaultLocations
             throw new RoleException(RoleError::PermissionDenied, 'Missing permission employees.');
         }
 
-        if ($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0])->countAllResults() === 0) {
+        if (RoleTables::count($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0]), "The employee {$personId}") === 0) {
             throw new RoleException(RoleError::EmployeeNotFound, "The employee {$personId} does not exist.");
         }
 
