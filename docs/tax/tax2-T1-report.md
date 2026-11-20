@@ -17,11 +17,12 @@
 | 1 | ملف الهوية الضريبية للشركة (D-02) | جدول `company_tax_profile` بمفتاح `company_id`، وترحيل واحد | `app/Database/Migrations/20273900000000_CompanyTaxProfile.php` |
 | 2 | مصدر واحد للرقم ومرآتان (D-03) | خدمة `CompanyTaxProfile` تكتب الملف، و`app_config.tax_id`، و`companies.tax_id` **في معاملة واحدة مع صف التدقيق** | `app/Libraries/Tax/CompanyTaxProfile.php` |
 | 3 | كاتب واحد | `Config::postSaveTax` و`FirstRun::saveCompany` يكتبان عبر الخدمة. لم يبق في `app/` كاتب آخر للرقم، ويثبت ذلك اختبار يفحص الكود | `Config.php` و`FirstRun.php` و`testUpdateVatIdentity_IsTheOnlyWriterOfTheCompanyVatNumber` |
-| 4 | التحقق من الصيغة | BR-KSA-40 (15 رقمًا يبدأ وينتهي بـ 3) **فقط في الوضع السعودي أو حين تُختار «مسجلة»**. خارجهما يبقى سلوك اليوم | `CompanyTaxProfile::updateVatIdentity` |
+| 4 | التحقق من الصيغة | BR-KSA-40 (15 رقمًا يبدأ وينتهي بـ 3) **في الوضع السعودي فقط** (صُحح بعد المراجعة، §1.3). خارجه يبقى سلوك اليوم | `CompanyTaxProfile::updateVatIdentity` |
 | 5 | الصلاحيتان معًا (D-05) | في الوضع: تغيير الرقم يشترط `config` **و**`acc_einvoicing_manage`. **حفظ الرقم دون تغيير يمر لأي صاحب `config`**، فتبويب الضريبة يعمل لبقية الحقول | `ConfigTest::testSaveTax_SavesOtherTaxSettingsWhenTheVatNumberIsUnchangedInSaudiMode` |
 | 6 | الصلاحية المستقلة (D-05) | `acc_einvoicing_onboard` مسجلة تحت وحدة الفوترة، وفي `AccountingGuard::SENSITIVE` (فيرفضها `RoleGrants` تلقائيًا)، ولها اسم في صفحة إعدادات المحاسبة وفي نموذج الموظف. **غير ممنوحة لأحد** | `AccountingGuard.php` و`AccountingSetup.php` والترحيل |
-| 7 | مفتاح الوضع السعودي (D-04) | التفعيل صريح، والتاريخ لا يسبق اللحظة («اليوم» تعني الآن)، ويشترط: المحاسبة، و«مسجلة»، ورقمًا صحيحًا، والصلاحيتين، وكل الفروع. الإطفاء بعد مستند صادر يشترط `acc_einvoicing_onboard` وسببًا. **لا تفعيل تلقائي في أي مسار** | `enableSaudiMode` و`disableSaudiMode` و`AccountingEInvoicing::postSaudiMode` |
-| 8 | قفل الرقم بعد أول مستند | التغيير يشترط سببًا يُسجَّل في التدقيق | `testUpdateVatIdentity_RequiresAReasonOnceADocumentWasIssued` |
+| 7 | مفتاح الوضع السعودي (D-04) | التفعيل صريح، والتاريخ لا يسبق اللحظة («اليوم» تعني الآن)، ويشترط: المحاسبة، و«مسجلة»، ورقمًا صحيحًا، والصلاحيتين، وكل الفروع. **يُحفظ معرف آخر مستند عند التفعيل**، فتُعرف المستندات الصادرة تحت الوضع بالمعرف لا بالوقت. الإطفاء بعد مستند صادر تحته يشترط `acc_einvoicing_onboard` وسببًا. التفعيل والإطفاء مقفلان ضد طلبين متزامنين. **لا تفعيل تلقائي في أي مسار** | `enableSaudiMode` و`disableSaudiMode` و`AccountingEInvoicing::postSaudiMode` |
+| 8 | قفل الرقم بعد أول مستند | **في الوضع السعودي:** التغيير يشترط سببًا يُسجَّل في التدقيق (صُحح بعد المراجعة، §1.3) | `testUpdateVatIdentity_RequiresAReasonOnceADocumentWasIssuedInSaudiMode` و`testUpdateVatIdentity_AsksNoReasonWhileTheModeIsOff` |
+| 8ب | بيانات البائع الحساسة (D-05) | في الوضع السعودي: تغيير اسم البائع (`/config` تبويب المعلومات) وهويته وعنوانه الوطني (`/accounting_einvoicing`) يشترط الصلاحيتين وكل الفروع. **وتغيير الاسم يُدقَّق دائمًا** (`seller_changed`). وتغييرات الهوية والعنوان مُدققة أصلًا في `EInvoiceSettings` | `Config::postSaveInfo` و`EInvoiceSettings::update` و`requireSellerChange` و`auditSellerChange` |
 | 9 | التدقيق | `tax_profile`: `vat_identity_changed` بالقبل والبعد والسبب، و`saudi_mode_enabled`، و`saudi_mode_disabled` | الاختبارات |
 | 10 | حجب الأسرار | `#[\SensitiveParameter]` على مسار المفتاح ومادته في `StampKeys::load` و`EcdsaSigner::sign` و`DocumentStamper::signed`، واختبار أن رفض التحميل لا يحمل مادة المفتاح ولا مساره | `StampKeysTest::testLoad_KeepsTheKeyOutOfTheRefusal` |
 | 11 | المنشأة غير المسجلة (D-04) | فحص النشر لا يحذّر من رقم فارغ لمنشأة «غير مسجلة». ويبقى التحذير ما دامت الحالة «غير محدد» | `DeploymentChecks.php`، واختباران |
@@ -45,19 +46,44 @@
 
 ---
 
+### 1.3 المراجعة المستقلة للكود وما عُدّل بها
+
+**من أجراها:** وكيل مراجعة مستقل قرأ الإيداع `a61b750` والتصميم وقرارات المالك وقواعد المستودع، دون أن يعدّل شيئًا. **حكمه:** «جاهز للدمج بعد الإصلاحات». أكد صحة البنية، وقفل الصلاحية الجديدة، وعدم وجود كاتب آخر للرقم، وتداخل المعاملات، وصحة ملفات اللغة الـ 46، والتهريب في الواجهة.
+
+| # | الخطورة | الملاحظة | المعالجة |
+|---|---|---|---|
+| F-01 | رئيسية | «هل صدرت مستندات تحت الوضع» كان يقارن ساعة PHP بساعة قاعدة البيانات، فاختلاف المنطقة الزمنية يتيح الإطفاء دون صلاحية `onboard` | **علامة مائية:** معرف آخر مستند عند التفعيل (عمود `ksa_mode_watermark`)، والمقارنة بالمعرف |
+| F-02 | رئيسية | حماية بيانات البائع وتدقيق اسمه (التصميم §1.1 البندان 4-5) لم تُنفذ | نُفذت (البند 8ب أعلاه) |
+| F-03 | رئيسية | **سلوك جديد والوضع مطفأ:** (أ) السبب مطلوب حين توجد مستندات حتى والوضع مطفأ. (ب) التنقية `FILTER_SANITIZE_NUMBER_INT` قد تجعل رقمًا مخزنًا بأحرف «تغييرًا» في كل حفظ | (أ) **السبب في الوضع السعودي فقط**، التزامًا بمبدأ D-04، وهذا يخالف حرف التصميم §1.1.7 لصالح روحه. (ب) خارج الوضع تبقى التنقية كما كانت قبل T1 تمامًا، وهي تعيد كتابة الرقم بالشكل نفسه الذي كان يحدث سابقًا، ولا تطلب سببًا الآن |
+| F-04 | رئيسية | فحص الصيغة السعودية لكل منشأة «مسجلة» يمنع منشأة مسجلة في دولة أخرى (افتراض المعالج مصري) | **الفحص في الوضع السعودي فقط**. التفعيل نفسه يشترط رقمًا سعوديًا صحيحًا |
+| F-05 | ثانوية | حفظ تبويب الضريبة لم يعد ذريًا | معاملة واحدة تضم الملف والمرآتين وبقية الإعدادات وإعداد الشمول، والرفض يتراجع عن الكل |
+| F-06 | ثانوية | مرآة `companies.tax_id` قد تبقى قديمة | المرآتان تُكتبان في **كل** كتابة للملف، فأي حفظ يصلح الانحراف القديم |
+| F-07 | ثانوية | موظف فرع واحد يغيّر رقم الشركة في الوضع | الوضع يشترط كل الفروع لتغيير الرقم |
+| F-08 | ثانوية | أي `action` غير `enable` يُطفئ الوضع | `match` صريح، وغير ذلك يُرفض بـ 400 |
+| F-09 | ثانوية | صاحب `onboard` لا يرى نموذج الإطفاء | النموذج يُعرض لمن يملك الإطفاء فعلًا: الصلاحيتان قبل المستندات، و`onboard` بعدها |
+| F-10 | ثانوية | استثناءات الملف في المعالج تصير خطأ 500 | تُحوَّل إلى `FirstRunException` (`tax_id_invalid` أو `save_failed`) |
+| F-11 | ثانوية | طول السبب لا يُفحص دائمًا | يُفحص دائمًا |
+| F-12 | ثانوية | اختبار حجب المفتاح لا يثبت شيئًا، و`KeyPath::check` غير معلَّم | علامة على `KeyPath::check`، واختبار يفرض `SensitiveParameterValue` في إطارات الاستدعاء. **تحققتُ أنه يفشل دون العلامة** |
+| F-13 | ثانوية | تسرب حالة بين صفوف الاختبار، وفحص الكود هش | `ConfigTest` و`FirstRunTest` يحفظان المخازن الثلاثة ويستعيدانها. وفحص الكود أوسع (ثمانية أنماط كتابة، ويفرض قائمة فارغة خارج الخدمة والترحيلات). **تحققتُ أنه يكشف الكاتبين القديمين** |
+| F-14 | ملاحظة | ذاكرة الإعدادات داخل الطلب بعد التراجع، والتزامن، وقراءة الخدمة في الواجهة | التزامن: قفل `FOR UPDATE` على صف الملف. الباقي مقبول: ذاكرة الطلب الواحد تُقرأ من جديد في الطلب التالي، وقراءة الواجهة للعرض فقط |
+
+**خطأ مني أثناء التحقق، وتصحيحه:** شغّلتُ ملف اختبار يمس قاعدة البيانات أثناء تشغيل الحزمة الكاملة على القاعدة نفسها، فتصادما وأفسدا القاعدة للتشغيلين. أوقفتُ الحزمة الكاملة ولم أعتدّ بنتيجتها، وأعدتُ تشغيل كل ملف على حدة بعد الإصلاحات، ثم الحزمة كاملة وحدها (§2.2).
+
 ## 2. الاختبارات
 
 ### 2.1 الملفات الجديدة والمعدلة (ملف واحد لكل صنف)
 
 | الملف | جديد/قائم | النتيجة |
 |---|---|---|
-| `tests/Libraries/Tax/CompanyTaxProfileTest.php` | جديد | OK (21 اختبارًا، 101 تأكيد) |
+| `tests/Libraries/Tax/CompanyTaxProfileTest.php` | جديد | OK (29 اختبارًا، 131 تأكيدًا) |
 | `tests/Database/CompanyTaxProfileMigrationTest.php` | جديد | OK (6، 12) |
-| `tests/Controllers/ConfigTest.php` | قائم، +4 | OK (62، 253) |
-| `tests/Controllers/AccountingEInvoicingControllerTest.php` | قائم، +6 | OK (47، 364) |
+| `tests/Controllers/ConfigTest.php` | قائم، +7 | OK (65، 260) |
+| `tests/Controllers/AccountingEInvoicingControllerTest.php` | قائم، +8 | OK (49، 378) |
 | `tests/Libraries/Setup/FirstRunTest.php` | قائم، +1 | OK (21، 124) |
 | `tests/Libraries/Accounting/Readiness/DeploymentChecksTest.php` | قائم، +2 | OK (17، 58) |
-| `tests/Libraries/EInvoicing/StampKeysTest.php` | قائم، +1 | OK (9، 35) |
+| `tests/Libraries/EInvoicing/StampKeysTest.php` | قائم، +2 | OK (10، 37) |
+| `tests/Libraries/EInvoicing/EInvoiceSettingsTest.php` | قائم، +2 | OK (21، 278) |
+| `tests/Libraries/EInvoicing/KeyPathTest.php` و`EcdsaSignerTest.php` و`DocumentStamperTest.php` و`EInvoiceServiceTest.php` | قائمة (مسار التوقيع والإصدار) | OK (15، و3، و10، و56) |
 | `tests/Libraries/Accounting/AccountingGuardTest.php` | قائم، +1 | OK (6، 18) |
 | `tests/Libraries/Roles/RoleGrantsTest.php` | قائم، +1 | OK (53، 288) |
 | `tests/Controllers/AccountingSetupControllerTest.php` | قائم (يفرض أن لكل صلاحية حساسة اسمًا) | OK (123، 821) |
