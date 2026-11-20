@@ -68,7 +68,7 @@
   {
     "name": "G07 a role name is used once whatever the case",
     "file": "app/Libraries/Roles/RoleService.php",
-    "find": "if ($taken->countAllResults() > 0) {",
+    "find": "if (RoleTables::count($taken, 'The roles that bear the name asked for') > 0) {",
     "replace": "if (false) {",
     "tests": [
       "--filter",
@@ -112,7 +112,7 @@
   {
     "name": "G11 a role given to an employee exists",
     "file": "app/Libraries/Roles/RoleService.php",
-    "find": "if ($ids !== [] && $this->db->table('roles')->whereIn('role_id', $ids)->countAllResults() !== count($ids)) {",
+    "find": "if ($ids !== [] && RoleTables::count($this->db->table('roles')->whereIn('role_id', $ids), 'The roles asked for') !== count($ids)) {",
     "replace": "if (false) {",
     "tests": [
       "--filter",
@@ -123,7 +123,7 @@
   {
     "name": "G12 roles are given to an employee that exists and was not deleted",
     "file": "app/Libraries/Roles/RoleService.php",
-    "find": "if ($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0])->countAllResults() === 0) {\n            throw new RoleException(RoleError::EmployeeNotFound, \"The employee {$personId} does not exist.\");\n        }\n\n        $wanted",
+    "find": "if (RoleTables::count($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0]), \"The employee {$personId}\") === 0) {\n            throw new RoleException(RoleError::EmployeeNotFound, \"The employee {$personId} does not exist.\");\n        }\n\n        $wanted",
     "replace": "if (false) {\n            throw new RoleException(RoleError::EmployeeNotFound, \"The employee {$personId} does not exist.\");\n        }\n\n        $wanted",
     "tests": [
       "--filter",
@@ -255,8 +255,8 @@
   {
     "name": "G24 the roles of an employee come out by name",
     "file": "app/Libraries/Roles/RoleService.php",
-    "find": "->orderBy('r.name', 'ASC')\n            ->get()\n            ->getResult();\n    }\n\n    /**\n     * What an employee holds only through",
-    "replace": "->orderBy('r.role_id', 'DESC')\n            ->get()\n            ->getResult();\n    }\n\n    /**\n     * What an employee holds only through",
+    "find": "->orderBy('r.name', 'ASC');\n\n        return RoleTables::read($builder, \"The roles of the employee {$personId}\")->getResult();\n    }",
+    "replace": "->orderBy('r.role_id', 'DESC');\n\n        return RoleTables::read($builder, \"The roles of the employee {$personId}\")->getResult();\n    }",
     "tests": [
       "--filter",
       "RolesOf",
@@ -477,7 +477,7 @@
   {
     "name": "G44 a default location is given to an employee that exists",
     "file": "app/Libraries/Roles/DefaultLocations.php",
-    "find": "if ($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0])->countAllResults() === 0) {",
+    "find": "if (RoleTables::count($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0]), \"The employee {$personId}\") === 0) {",
     "replace": "if (false) {",
     "tests": [
       "--filter",
@@ -488,7 +488,7 @@
   {
     "name": "G45 a default location is a location that exists",
     "file": "app/Libraries/Roles/DefaultLocations.php",
-    "find": "if ($locationId !== null && $this->db->table('stock_locations')->where(['location_id' => $locationId, 'deleted' => 0])->countAllResults() === 0) {",
+    "find": "if ($locationId !== null && RoleTables::count($this->db->table('stock_locations')->where(['location_id' => $locationId, 'deleted' => 0]), \"The stock location {$locationId}\") === 0) {",
     "replace": "if (false) {",
     "tests": [
       "--filter",
@@ -1323,7 +1323,7 @@
   {
     "name": "G122 a roles scope names roles that exist",
     "file": "app/Libraries/Accounting/TreasuryScopes.php",
-    "find": "return RoleTables::migrated($this->db) && $this->db->table('roles')->whereIn('role_id', $ids)->countAllResults() === count($ids);",
+    "find": "return RoleTables::migrated($this->db) && RoleTables::count($this->db->table('roles')->whereIn('role_id', $ids), 'The roles a treasury scope names') === count($ids);",
     "replace": "return true;",
     "tests": [
       "--filter",
@@ -1532,8 +1532,8 @@
   {
     "name": "G141 the roles for the treasury scope are none before the migration of the roles has run",
     "file": "app/Libraries/Roles/RoleService.php",
-    "find": "if (! RoleTables::migrated($this->db)) {\n            return [];\n        }\n\n        return $this->db->table('roles r')",
-    "replace": "return $this->db->table('roles r')",
+    "find": "if (! RoleTables::migrated($this->db)) {\n            return [];\n        }\n\n        $builder = $this->db->table('roles r')",
+    "replace": "$builder = $this->db->table('roles r')",
     "tests": [
       "--filter",
       "BeforeTheMigration",
@@ -1719,7 +1719,7 @@
   {
     "name": "G158 checking a default location refuses a location that does not exist",
     "file": "app/Libraries/Roles/DefaultLocations.php",
-    "find": "if ($locationId !== null && $this->db->table('stock_locations')->where(['location_id' => $locationId, 'deleted' => 0])->countAllResults() === 0) {",
+    "find": "if ($locationId !== null && RoleTables::count($this->db->table('stock_locations')->where(['location_id' => $locationId, 'deleted' => 0]), \"The stock location {$locationId}\") === 0) {",
     "replace": "if (false) {",
     "tests": [
       "--filter",

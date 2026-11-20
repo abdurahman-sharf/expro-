@@ -1,0 +1,277 @@
+[
+  {
+    "name": "G01 a count that cannot be read is taken for none",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "return (int) self::read($builder->select('COUNT(*) AS total', false), $what)->getRow()->total;",
+    "replace": "return 0;",
+    "tests": [
+      "--filter",
+      "testCount_",
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G02 a count is asked without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "return (int) self::read($builder->select('COUNT(*) AS total', false), $what)->getRow()->total;",
+    "replace": "return $builder->countAllResults();",
+    "tests": [
+      "--filter",
+      "testCount_Refuses",
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G03 the roles are listed without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "return RoleTables::read($builder, 'The roles')->getResult();",
+    "replace": "return $builder->get()->getResult();",
+    "tests": [
+      "--filter",
+      "testReaders_|testAll_Refuses|testAssign_Refuses|testSetRecordScope_Refuses|testCreate_Refuses|testUpdate_Keeps|testCheckAssignment_Refuses|testDelete_Keeps|testReleaseEmployees_Keeps",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G04 a role is found without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "return RoleTables::read($this->db->table('roles')->where('role_id', $roleId), \"The role {$roleId}\")->getRow();",
+    "replace": "return $this->db->table('roles')->where('role_id', $roleId)->get()->getRow();",
+    "tests": [
+      "--filter",
+      "testReaders_|testAll_Refuses|testAssign_Refuses|testSetRecordScope_Refuses|testCreate_Refuses|testUpdate_Keeps|testCheckAssignment_Refuses|testDelete_Keeps|testReleaseEmployees_Keeps",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G05 the permissions of a role are read without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "return array_column(RoleTables::read($builder, \"The permissions of the role {$roleId}\")->getResultArray(), 'permission_id');",
+    "replace": "return array_column($builder->get()->getResultArray(), 'permission_id');",
+    "tests": [
+      "--filter",
+      "testReaders_|testAll_Refuses|testAssign_Refuses|testSetRecordScope_Refuses|testCreate_Refuses|testUpdate_Keeps|testCheckAssignment_Refuses|testDelete_Keeps|testReleaseEmployees_Keeps",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G06 the employee of the roles given is counted without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "        $this->requireManage($actorId);\n\n        if (RoleTables::count($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0]), \"The employee {$personId}\") === 0) {",
+    "replace": "        $this->requireManage($actorId);\n\n        if ($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0])->countAllResults() === 0) {",
+    "tests": [
+      "--filter",
+      "testReaders_|testAll_Refuses|testAssign_Refuses|testSetRecordScope_Refuses|testCreate_Refuses|testUpdate_Keeps|testCheckAssignment_Refuses|testDelete_Keeps|testReleaseEmployees_Keeps",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G07 the employee of the record scope given is counted without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "        $this->assertRecordScope($scope);\n\n        if (RoleTables::count($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0]), \"The employee {$personId}\") === 0) {",
+    "replace": "        $this->assertRecordScope($scope);\n\n        if ($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0])->countAllResults() === 0) {",
+    "tests": [
+      "--filter",
+      "testReaders_|testAll_Refuses|testAssign_Refuses|testSetRecordScope_Refuses|testCreate_Refuses|testUpdate_Keeps|testCheckAssignment_Refuses|testDelete_Keeps|testReleaseEmployees_Keeps",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G08 the record scope of an employee is read without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "$row     = RoleTables::read($builder, \"The record scope of the employee {$personId}\")->getRow();",
+    "replace": "$row     = $builder->get()->getRow();",
+    "tests": [
+      "--filter",
+      "testReaders_|testAll_Refuses|testAssign_Refuses|testSetRecordScope_Refuses|testCreate_Refuses|testUpdate_Keeps|testCheckAssignment_Refuses|testDelete_Keeps|testReleaseEmployees_Keeps",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G09 the roles of an employee are listed without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "$rows    = RoleTables::read($builder, \"The roles of the employee {$personId}\")->getResultArray();",
+    "replace": "$rows    = $builder->get()->getResultArray();",
+    "tests": [
+      "--filter",
+      "testReaders_|testAll_Refuses|testAssign_Refuses|testSetRecordScope_Refuses|testCreate_Refuses|testUpdate_Keeps|testCheckAssignment_Refuses|testDelete_Keeps|testReleaseEmployees_Keeps",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G10 the roles an employee holds are read without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "return RoleTables::read($builder, \"The roles of the employee {$personId}\")->getResult();",
+    "replace": "return $builder->get()->getResult();",
+    "tests": [
+      "--filter",
+      "testReaders_|testAll_Refuses|testAssign_Refuses|testSetRecordScope_Refuses|testCreate_Refuses|testUpdate_Keeps|testCheckAssignment_Refuses|testDelete_Keeps|testReleaseEmployees_Keeps",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G11 what the roles of an employee give is read without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "$rows         = RoleTables::read($builder, \"The permissions that the roles of the employee {$personId} give\")->getResult();",
+    "replace": "$rows         = $builder->get()->getResult();",
+    "tests": [
+      "--filter",
+      "testReaders_|testAll_Refuses|testAssign_Refuses|testSetRecordScope_Refuses|testCreate_Refuses|testUpdate_Keeps|testCheckAssignment_Refuses|testDelete_Keeps|testReleaseEmployees_Keeps",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G12 the name of a role is counted without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "if (RoleTables::count($taken, 'The roles that bear the name asked for') > 0) {",
+    "replace": "if ($taken->countAllResults() > 0) {",
+    "tests": [
+      "--filter",
+      "testReaders_|testAll_Refuses|testAssign_Refuses|testSetRecordScope_Refuses|testCreate_Refuses|testUpdate_Keeps|testCheckAssignment_Refuses|testDelete_Keeps|testReleaseEmployees_Keeps",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G13 the permissions asked for are read without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "array_column(RoleTables::read($this->db->table('permissions')->select('permission_id')->whereIn('permission_id', $ids), 'The permissions asked for')->getResultArray(), 'permission_id')",
+    "replace": "array_column($this->db->table('permissions')->select('permission_id')->whereIn('permission_id', $ids)->get()->getResultArray(), 'permission_id')",
+    "tests": [
+      "--filter",
+      "testReaders_|testAll_Refuses|testAssign_Refuses|testSetRecordScope_Refuses|testCreate_Refuses|testUpdate_Keeps|testCheckAssignment_Refuses|testDelete_Keeps|testReleaseEmployees_Keeps",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G14 the roles asked for are counted without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "RoleTables::count($this->db->table('roles')->whereIn('role_id', $ids), 'The roles asked for') !== count($ids)",
+    "replace": "$this->db->table('roles')->whereIn('role_id', $ids)->countAllResults() !== count($ids)",
+    "tests": [
+      "--filter",
+      "testReaders_|testAll_Refuses|testAssign_Refuses|testSetRecordScope_Refuses|testCreate_Refuses|testUpdate_Keeps|testCheckAssignment_Refuses|testDelete_Keeps|testReleaseEmployees_Keeps",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G15 the permissions of the roles asked for are read without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "return array_column(RoleTables::read($builder, 'The permissions of the roles asked for')->getResultArray(), 'permission_id');",
+    "replace": "return array_column($builder->get()->getResultArray(), 'permission_id');",
+    "tests": [
+      "--filter",
+      "testReaders_|testAll_Refuses|testAssign_Refuses|testSetRecordScope_Refuses|testCreate_Refuses|testUpdate_Keeps|testCheckAssignment_Refuses|testDelete_Keeps|testReleaseEmployees_Keeps",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G16 the location of a default is counted without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/DefaultLocations.php",
+    "find": "RoleTables::count($this->db->table('stock_locations')->where(['location_id' => $locationId, 'deleted' => 0]), \"The stock location {$locationId}\") === 0",
+    "replace": "$this->db->table('stock_locations')->where(['location_id' => $locationId, 'deleted' => 0])->countAllResults() === 0",
+    "tests": [
+      "--filter",
+      "testCheck_Refuses",
+      "tests/Libraries/Roles/DefaultLocationsTest.php"
+    ]
+  },
+  {
+    "name": "G17 the employee of a default location is counted without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/DefaultLocations.php",
+    "find": "RoleTables::count($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0]), \"The employee {$personId}\") === 0",
+    "replace": "$this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0])->countAllResults() === 0",
+    "tests": [
+      "--filter",
+      "testSet_Refuses",
+      "tests/Libraries/Roles/DefaultLocationsTest.php"
+    ]
+  },
+  {
+    "name": "G18 the roles an employee holds are counted for a treasury without the helper that refuses a failed read",
+    "file": "app/Libraries/Accounting/TreasuryScopes.php",
+    "find": "return RoleTables::count($builder, \"The roles of the employee {$employeeId} that a treasury names\") > 0;",
+    "replace": "return $builder->countAllResults() > 0;",
+    "tests": [
+      "--filter",
+      "testAllows_RefusesWithTheNamedException",
+      "tests/Libraries/Accounting/TreasuryScopesTest.php"
+    ]
+  },
+  {
+    "name": "G19 the roles a treasury scope names are counted without the helper that refuses a failed read",
+    "file": "app/Libraries/Accounting/TreasuryScopes.php",
+    "find": "RoleTables::count($this->db->table('roles')->whereIn('role_id', $ids), 'The roles a treasury scope names') === count($ids)",
+    "replace": "$this->db->table('roles')->whereIn('role_id', $ids)->countAllResults() === count($ids)",
+    "tests": [
+      "--filter",
+      "testValidated_RefusesWithTheNamedException",
+      "tests/Libraries/Accounting/TreasuryScopesTest.php"
+    ]
+  },
+  {
+    "name": "G20 the message does not name the role that could not be read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "\"The role {$roleId}\")->getRow();",
+    "replace": "\"A role\")->getRow();",
+    "tests": [
+      "--filter",
+      "testReaders_RefuseWhenATableTheyReadCannotBeRead",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G21 the message does not name the location that could not be read",
+    "file": "app/Libraries/Roles/DefaultLocations.php",
+    "find": "\"The stock location {$locationId}\")",
+    "replace": "\"A stock location\")",
+    "tests": [
+      "--filter",
+      "testCheck_Refuses",
+      "tests/Libraries/Roles/DefaultLocationsTest.php"
+    ]
+  },
+  {
+    "name": "G22 the message does not name the employee whose roles could not be given",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "        $this->requireManage($actorId);\n\n        if (RoleTables::count($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0]), \"The employee {$personId}\") === 0) {",
+    "replace": "        $this->requireManage($actorId);\n\n        if (RoleTables::count($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0]), \"An employee\") === 0) {",
+    "tests": [
+      "--filter",
+      "testAssign_Refuses",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G23 the message does not name the employee whose record scope could not be set",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "        $this->assertRecordScope($scope);\n\n        if (RoleTables::count($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0]), \"The employee {$personId}\") === 0) {",
+    "replace": "        $this->assertRecordScope($scope);\n\n        if (RoleTables::count($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0]), \"An employee\") === 0) {",
+    "tests": [
+      "--filter",
+      "testSetRecordScope_Refuses",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G24 the message does not say that the roles asked for could not be read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "'The roles asked for')",
+    "replace": "'The permissions asked for')",
+    "tests": [
+      "--filter",
+      "testCheckAssignment_Refuses",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G25 the message does not say that the permissions of the roles asked for could not be read",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "'The permissions of the roles asked for')",
+    "replace": "'The roles asked for')",
+    "tests": [
+      "--filter",
+      "testCheckAssignment_Refuses",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  }
+]

@@ -69,7 +69,7 @@ final class RoleServiceTest extends CIUnitTestCase
         $this->fail('The change was not refused.');
     }
 
-    private function unavailable(callable $action): RoleTablesUnavailableException
+    private function unavailable(callable $action, string $case = ''): RoleTablesUnavailableException
     {
         try {
             $action();
@@ -77,7 +77,7 @@ final class RoleServiceTest extends CIUnitTestCase
             return $exception;
         }
 
-        $this->fail('A read that failed was not refused with the named exception.');
+        $this->fail('A read that failed was not refused with the named exception: ' . $case);
     }
 
     /**
@@ -779,7 +779,7 @@ final class RoleServiceTest extends CIUnitTestCase
         foreach ([false, true] as $throws) {
             foreach ($readers as $name => [$tables, $what, $read]) {
                 foreach ($tables as $table) {
-                    $exception = $this->unavailable(fn () => $read($this->rolesOverAFailingTable($table, $throws)));
+                    $exception = $this->unavailable(fn () => $read($this->rolesOverAFailingTable($table, $throws)), "{$name} over {$table}, throws " . var_export($throws, true));
 
                     $this->assertStringStartsWith("{$what} could not be read: ", $exception->getMessage(), "{$name} over {$table}");
                     $this->assertSame($throws, $exception->getPrevious() instanceof DatabaseException, "{$name} over {$table}");
@@ -821,8 +821,10 @@ final class RoleServiceTest extends CIUnitTestCase
         $employee = $this->createEmployee();
 
         foreach ([false, true] as $throws) {
-            foreach (['employees', 'roles'] as $table) {
-                $this->unavailable(fn () => $this->rolesOverAFailingTable($table, $throws)->assign($employee, [$role], null));
+            foreach (['employees' => "The employee {$employee}", 'roles' => 'The roles asked for'] as $table => $what) {
+                $exception = $this->unavailable(fn () => $this->rolesOverAFailingTable($table, $throws)->assign($employee, [$role], null), "{$table}, throws " . var_export($throws, true));
+
+                $this->assertStringStartsWith("{$what} could not be read: ", $exception->getMessage(), $table);
             }
         }
 
@@ -835,8 +837,10 @@ final class RoleServiceTest extends CIUnitTestCase
         $employee = $this->createEmployee();
 
         foreach ([false, true] as $throws) {
-            foreach (['employees', 'employee_record_scopes'] as $table) {
-                $this->unavailable(fn () => $this->rolesOverAFailingTable($table, $throws)->setRecordScope($employee, 'own', null));
+            foreach (['employees' => "The employee {$employee}", 'employee_record_scopes' => "The record scope of the employee {$employee}"] as $table => $what) {
+                $exception = $this->unavailable(fn () => $this->rolesOverAFailingTable($table, $throws)->setRecordScope($employee, 'own', null), "{$table}, throws " . var_export($throws, true));
+
+                $this->assertStringStartsWith("{$what} could not be read: ", $exception->getMessage(), $table);
             }
         }
 
@@ -877,12 +881,12 @@ final class RoleServiceTest extends CIUnitTestCase
         $employee = $this->createEmployee();
 
         foreach ([false, true] as $throws) {
-            foreach (['roles', 'employee_roles', 'role_permissions'] as $table) {
-                $this->unavailable(fn () => $this->rolesOverAFailingTable($table, $throws)->checkAssignment($employee, [$role], 'all', null));
+            foreach (['roles' => 'The roles asked for', 'employee_roles' => "The roles of the employee {$employee}", 'role_permissions' => 'The permissions of the roles asked for'] as $table => $what) {
+                $exception = $this->unavailable(fn () => $this->rolesOverAFailingTable($table, $throws)->checkAssignment($employee, [$role], 'all', null), "{$table}, throws " . var_export($throws, true));
+
+                $this->assertStringStartsWith("{$what} could not be read: ", $exception->getMessage(), $table);
             }
         }
-
-        $this->addToAssertionCount(1);
     }
 
     public function testDelete_KeepsTheRoleAndItsPermissionsWhenTheyCannotBeRead(): void
