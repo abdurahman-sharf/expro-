@@ -125,7 +125,7 @@ final class RoleTablesTest extends CIUnitTestCase
             $this->fail('A read that failed was taken for a table that holds nothing.');
         } catch (RoleTablesUnavailableException $exception) {
             $this->assertNull($exception->getPrevious());
-            $this->assertStringStartsWith('The roles of the employee 7 could not be read: ', $exception->getMessage());
+            $this->assertSame('The roles of the employee 7 could not be read: unknown error', $exception->getMessage());
         }
     }
 
@@ -155,6 +155,7 @@ final class RoleTablesTest extends CIUnitTestCase
             $this->assertStringContainsString('role_tables_that_are_not_there', $exception->getMessage());
         } finally {
             $db->transComplete();
+            $db->resetTransStatus();
         }
     }
 

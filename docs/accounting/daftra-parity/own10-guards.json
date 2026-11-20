@@ -152,5 +152,16 @@
       "testPostImportCsvFile_LetsTheFailureToReadTheRoles",
       "tests/Controllers/ItemsControllerTest.php"
     ]
+  },
+  {
+    "name": "G15 the message of a read that failed without a word of the driver says nothing instead of unknown error",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "return 'unknown error';",
+    "replace": "return '';",
+    "tests": [
+      "--filter",
+      "testRead_RefusesWhenTheConnectionAnswersFalse",
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
   }
 ]
