@@ -96,6 +96,68 @@ final class RoleTablesTest extends CIUnitTestCase
         }
     }
 
+    public function testRead_ReturnsTheResultOfAQueryThatWorks(): void
+    {
+        $result = RoleTables::read($this->failingConnection(null)->table('migrations')->select('1', false)->where('version', RoleTables::MIGRATION), 'The migration');
+
+        $this->assertCount(1, $result->getResultArray());
+    }
+
+    public function testRead_RefusesWhenTheDriverThrows(): void
+    {
+        $builder = $this->failingConnection('roles', true)->table('roles');
+
+        try {
+            RoleTables::read($builder, 'The roles of the employee 7');
+            $this->fail('A read that failed was taken for a table that holds nothing.');
+        } catch (RoleTablesUnavailableException $exception) {
+            $this->assertInstanceOf(DatabaseException::class, $exception->getPrevious());
+            $this->assertStringContainsString('The roles of the employee 7 could not be read: simulated failure', $exception->getMessage());
+        }
+    }
+
+    public function testRead_RefusesWhenTheConnectionAnswersFalse(): void
+    {
+        $builder = $this->failingConnection('roles')->table('roles');
+
+        try {
+            RoleTables::read($builder, 'The roles of the employee 7');
+            $this->fail('A read that failed was taken for a table that holds nothing.');
+        } catch (RoleTablesUnavailableException $exception) {
+            $this->assertNull($exception->getPrevious());
+            $this->assertStringStartsWith('The roles of the employee 7 could not be read: ', $exception->getMessage());
+        }
+    }
+
+    public function testRead_NamesTheErrorOfTheDriverWhenAFailedQueryAnswersFalse(): void
+    {
+        $this->withUnreadableTable('role_permissions', function (): void {
+            try {
+                RoleTables::read(Database::connect()->table('role_permissions'), 'The permissions of a role');
+                $this->fail('A read that failed was taken for a table that holds nothing.');
+            } catch (RoleTablesUnavailableException $exception) {
+                $this->assertNull($exception->getPrevious());
+                $this->assertStringContainsString(Database::connect()->prefixTable('role_permissions'), $exception->getMessage(), 'The message carries what the driver said');
+            }
+        });
+    }
+
+    public function testRead_RefusesInsideATransactionWhereAFailedQueryAnswersFalseWhateverTheDebugging(): void
+    {
+        $db = Database::connect();
+
+        $db->transStart();
+
+        try {
+            RoleTables::read($db->table('role_tables_that_are_not_there'), 'A table that is not there');
+            $this->fail('A read that failed was taken for a table that holds nothing.');
+        } catch (RoleTablesUnavailableException $exception) {
+            $this->assertStringContainsString('role_tables_that_are_not_there', $exception->getMessage());
+        } finally {
+            $db->transComplete();
+        }
+    }
+
     public function testMigration_NamesTheVersionOfTheMigrationThatCreatesTheTables(): void
     {
         $files = glob(APPPATH . 'Database/Migrations/*_RolesAndRecordScope.php');

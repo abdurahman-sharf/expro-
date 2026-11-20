@@ -2,16 +2,19 @@
 
 namespace Tests\Models;
 
+use App\Libraries\Roles\RoleTablesUnavailableException;
 use App\Models\Module;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\RoleFixtureTrait;
 
 class ModuleTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use EmployeeFixtureTrait;
+    use RoleFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -136,5 +139,19 @@ class ModuleTest extends CIUnitTestCase
         } finally {
             $this->setAccountingEnabled('0');
         }
+    }
+
+    public function testGetAllowedModules_RefusesWhenTheRolesCannotBeReadInsteadOfOfferingTheOwnGrantsOnly(): void
+    {
+        $personId = $this->employeeWithRoles([$this->createRole(['items'])], ['sales']);
+
+        $this->withUnreadableTable('role_permissions', function () use ($personId): void {
+            try {
+                $this->allowedModuleIds($personId);
+                $this->fail('Roles that could not be read were taken for roles that give nothing.');
+            } catch (RoleTablesUnavailableException) {
+                $this->addToAssertionCount(1);
+            }
+        });
     }
 }

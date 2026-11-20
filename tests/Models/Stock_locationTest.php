@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Roles\DefaultLocations;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Roles\RoleTablesUnavailableException;
 use App\Libraries\Stock\StockLocationLifecycle;
 use App\Models\Employee;
 use App\Models\Stock_location;
@@ -14,12 +15,14 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\RoleFixtureTrait;
 
 class Stock_locationTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
     use ItemFixtureTrait;
+    use RoleFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -426,5 +429,33 @@ class Stock_locationTest extends CIUnitTestCase
         $this->assertFalse($model->delete((int) (new StockLocationLifecycle())->primaryId()));
         $this->assertTrue($model->delete($gone));
         $this->assertNull($model->removalRefusal());
+    }
+
+    public function testGetAllowedLocations_RefusesWhenTheRolesCannotBeReadInsteadOfOfferingTheOwnGrantsOnly(): void
+    {
+        $this->salesEmployee();
+
+        $this->withUnreadableTable('role_permissions', function (): void {
+            try {
+                (new Stock_location())->get_allowed_locations('sales');
+                $this->fail('Roles that could not be read were taken for roles that give nothing.');
+            } catch (RoleTablesUnavailableException) {
+                $this->addToAssertionCount(1);
+            }
+        });
+    }
+
+    public function testGetDefaultLocationId_RefusesWhenTheDefaultLocationCannotBeReadInsteadOfTakingTheFirstLocation(): void
+    {
+        $this->salesEmployee();
+
+        $this->withUnreadableTable('employee_default_locations', function (): void {
+            try {
+                (new Stock_location())->get_default_location_id('sales');
+                $this->fail('A default location that could not be read was taken for none.');
+            } catch (RoleTablesUnavailableException) {
+                $this->addToAssertionCount(1);
+            }
+        });
     }
 }

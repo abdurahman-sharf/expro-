@@ -14,8 +14,9 @@ use Config\Database;
  * effective permissions, next to their own grants, read once for each employee and request. A role
  * never gives a sensitive permission, an accounting permission that posts to the books, moves money
  * or changes the settings, or a branch scope, even if a row that says so were written past the role
- * service, and an inactive role, a deleted employee or a missing table give nothing. The accounting
- * permissions a role may carry are the ones that only read or prepare.
+ * service, and an inactive role, a deleted employee or a table that is not there yet give nothing.
+ * The accounting permissions a role may carry are the ones that only read or prepare. A read that
+ * fails is refused with RoleTablesUnavailableException and never taken for roles that give nothing.
  */
 final class RoleGrants
 {
@@ -106,7 +107,7 @@ final class RoleGrants
             return [];
         }
 
-        $rows = $this->db->table('employee_roles er')
+        $builder = $this->db->table('employee_roles er')
             ->distinct()
             ->select('rp.permission_id')
             ->join('roles r', 'r.role_id = er.role_id AND r.active = 1')
@@ -114,9 +115,9 @@ final class RoleGrants
             ->join('employees e', 'e.person_id = er.person_id AND e.deleted = 0')
             ->where('er.person_id', $personId)
             ->whereNotIn('rp.permission_id', self::forbidden())
-            ->orderBy('rp.permission_id', 'ASC')
-            ->get()
-            ->getResultArray();
+            ->orderBy('rp.permission_id', 'ASC');
+
+        $rows = RoleTables::read($builder, "The permissions that the roles of the employee {$personId} give")->getResultArray();
 
         return array_column($rows, 'permission_id');
     }

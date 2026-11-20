@@ -6,7 +6,8 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Whether the tables of roles are there could not be told. It is not one of the exceptions the
+ * Whether the tables of roles are there, or what they hold for an employee (the permissions their
+ * roles give, their default location), could not be read. It is not one of the exceptions the
  * screens turn into a refusal message: ScopeUnavailableHandler answers the request with a notice,
  * and the framework logs the failure with its causes.
  */

@@ -14,7 +14,9 @@ use Config\Database;
  * An employee has at most one, and one without any starts where they always did, in the first
  * location they may use. The preselection is a convenience and grants nothing: the screens still
  * offer only the locations the employee holds the permission for. Changing it needs the permission
- * to change employees, the same as the employee form that holds it.
+ * to change employees, the same as the employee form that holds it. A read that fails is refused
+ * with RoleTablesUnavailableException and never taken for no location, or clearing a location that
+ * could not be read would seem to succeed.
  */
 final class DefaultLocations
 {
@@ -35,12 +37,12 @@ final class DefaultLocations
             return null;
         }
 
-        $row = $this->db->table('employee_default_locations d')
+        $builder = $this->db->table('employee_default_locations d')
             ->select('d.location_id')
             ->join('stock_locations l', 'l.location_id = d.location_id AND l.deleted = 0')
-            ->where('d.person_id', $personId)
-            ->get()
-            ->getRow();
+            ->where('d.person_id', $personId);
+
+        $row = RoleTables::read($builder, "The default location of the employee {$personId}")->getRow();
 
         return $row === null ? null : (int) $row->location_id;
     }

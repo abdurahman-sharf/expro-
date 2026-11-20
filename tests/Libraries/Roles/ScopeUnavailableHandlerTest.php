@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Roles;
 
 use App\Libraries\Roles\RecordScopeUnavailableException;
+use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleTablesUnavailableException;
 use App\Libraries\Roles\ScopeUnavailableHandler;
 use App\Models\Employee;
@@ -22,6 +23,7 @@ use Config\Services;
 use ReflectionProperty;
 use RuntimeException;
 use stdClass;
+use Tests\Support\FailingTableConnection;
 use Throwable;
 
 /**
@@ -305,5 +307,24 @@ final class ScopeUnavailableHandlerTest extends CIUnitTestCase
         $this->assertTrue(ScopeUnavailableHandler::concerns(new RuntimeException('outer', 0, new RuntimeException('middle', 0, $failure))));
         $this->assertFalse(ScopeUnavailableHandler::concerns(new RuntimeException('outer', 0, new DatabaseException('inner'))));
         $this->assertFalse(ScopeUnavailableHandler::concerns(new RuntimeException('plain')));
+    }
+
+    public function testHandle_AnswersTheFailureToReadTheRolesOfAnEmployeeWithoutItsText(): void
+    {
+        $connection               = new FailingTableConnection(config('Database')->tests);
+        $connection->failingTable = 'employee_roles';
+
+        try {
+            (new RoleGrants($connection))->idsFor(7);
+            $this->fail('Roles that could not be read were taken for roles that give nothing.');
+        } catch (RoleTablesUnavailableException $exception) {
+            $this->assertTrue(ScopeUnavailableHandler::concerns($exception));
+
+            [$response, $output] = $this->answered($exception, 'application/json');
+
+            $this->assertSame(503, $response->getStatusCode());
+            $this->assertSame(['success' => false, 'message' => lang('Roles.error_scope_unavailable')], json_decode($output, true));
+            $this->assertStringNotContainsString('employee 7', $output);
+        }
     }
 }
