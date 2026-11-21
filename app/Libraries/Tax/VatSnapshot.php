@@ -151,6 +151,7 @@ class VatSnapshot
 
     /**
      * What is left of each category of a sale once the returns saved against it are taken off, by category key.
+     * The taxable amount left is that of the lines: the shipping a category took in is not given back with goods.
      * Nothing when a completed return of the sale was saved without its categories, since what it gave back
      * cannot be told by category and a cap worked from the rest would let the next return give back too much.
      *
@@ -161,7 +162,7 @@ class VatSnapshot
         $left = [];
 
         foreach ($this->totalsOf($saleId) as $key => $total) {
-            $left[$key] = ['taxable' => $total->taxable, 'vat' => $total->vat];
+            $left[$key] = ['taxable' => $total->lines(), 'vat' => $total->vat];
         }
 
         if ($left === []) {
@@ -190,7 +191,7 @@ class VatSnapshot
             $key = $this->total($row)->key();
 
             if (isset($left[$key])) {
-                $left[$key]['taxable'] = bcadd($left[$key]['taxable'], (string) $row->taxable, 2);
+                $left[$key]['taxable'] = bcadd($left[$key]['taxable'], $this->total($row)->lines(), 2);
                 $left[$key]['vat']     = bcadd($left[$key]['vat'], (string) $row->vat, 2);
             }
         }
@@ -268,7 +269,7 @@ class VatSnapshot
         );
     }
 
-    private function hasCharges(): bool
+    public function hasCharges(): bool
     {
         return $this->charges ??= $this->db->query(
             'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',

@@ -26,6 +26,7 @@ $isReturn            = ($sale_type ?? SALE_TYPE_POS) === SALE_TYPE_RETURN || ! e
 $qr                  = documentQr($isReturn ? 'credit_note' : 'tax_invoice', [
     'total'            => $total,
     'total_with_vat'   => $total_with_vat ?? null,
+    'einvoice_qr'      => $einvoice_qr ?? null,
     'taxes'            => $taxes,
     'header_charges'   => $header_charges ?? [],
     'sale_time_raw'    => $sale_time_raw ?? '',

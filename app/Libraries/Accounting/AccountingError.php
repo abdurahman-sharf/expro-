@@ -149,12 +149,13 @@ enum AccountingError: string
     case NumberingSourceInvalid  = 'numbering_source_invalid';
     case NumberingExhausted      = 'numbering_exhausted';
 
-    case SaleHasReturns         = 'sale_has_returns';
-    case SaleLocked             = 'sale_locked';
-    case SalePaymentBelowChange = 'sale_payment_below_change';
-    case SalePaymentNotOnSale   = 'sale_payment_not_on_sale';
-    case IssuedDocumentLocked   = 'issued_document_locked';
-    case CustomerBusy           = 'customer_busy';
+    case SaleHasReturns           = 'sale_has_returns';
+    case SaleLocked               = 'sale_locked';
+    case SalePaymentBelowChange   = 'sale_payment_below_change';
+    case SalePaymentNotOnSale     = 'sale_payment_not_on_sale';
+    case IssuedDocumentLocked     = 'issued_document_locked';
+    case ElectronicDocumentLocked = 'electronic_document_locked';
+    case CustomerBusy             = 'customer_busy';
 
     case DraftChanged          = 'draft_changed';
     case DraftNotFound         = 'draft_not_found';
@@ -235,22 +236,24 @@ enum AccountingError: string
     case PaymentDateBeforeBooks       = 'payment_date_before_books';
     case PaymentDateInFuture          = 'payment_date_in_future';
 
-    case AdvanceNotFound         = 'advance_not_found';
-    case AdvanceAmountInvalid    = 'advance_amount_invalid';
-    case AdvanceAlreadyCancelled = 'advance_already_cancelled';
-    case AdvanceKindInvalid      = 'advance_kind_invalid';
-    case AdvanceSupplierMissing  = 'advance_supplier_missing';
-    case AdvancePaymentUnknown   = 'advance_payment_unknown';
-    case OpeningNotFound         = 'opening_not_found';
+    case AdvanceNotFound             = 'advance_not_found';
+    case AdvanceAmountInvalid        = 'advance_amount_invalid';
+    case AdvanceAlreadyCancelled     = 'advance_already_cancelled';
+    case AdvanceKindInvalid          = 'advance_kind_invalid';
+    case AdvanceSupplierMissing      = 'advance_supplier_missing';
+    case AdvancePaymentUnknown       = 'advance_payment_unknown';
+    case OpeningNotFound             = 'opening_not_found';
+    case AdvanceTakenByIssuedInvoice = 'advance_taken_by_issued_invoice';
 
-    case AdvanceCustomerMissing = 'advance_customer_missing';
-    case CreditJournalLocked    = 'credit_journal_locked';
-    case CreditPaymentUnknown   = 'credit_payment_unknown';
-    case CreditRefunded         = 'credit_refunded';
-    case RefundNotFound         = 'refund_not_found';
-    case RefundAlreadyCancelled = 'refund_already_cancelled';
-    case RefundExceedsCredit    = 'refund_exceeds_credit';
-    case RefundPartyMissing     = 'refund_party_missing';
+    case AdvanceCustomerMissing   = 'advance_customer_missing';
+    case CreditJournalLocked      = 'credit_journal_locked';
+    case CreditPaymentUnknown     = 'credit_payment_unknown';
+    case CreditRefunded           = 'credit_refunded';
+    case RefundNotFound           = 'refund_not_found';
+    case RefundAlreadyCancelled   = 'refund_already_cancelled';
+    case RefundExceedsCredit      = 'refund_exceeds_credit';
+    case RefundPartyMissing       = 'refund_party_missing';
+    case RefundStatedByCreditNote = 'refund_stated_by_credit_note';
 
     case TreasuryNotFound             = 'treasury_not_found';
     case TreasuryInvalidName          = 'treasury_invalid_name';
@@ -384,6 +387,7 @@ enum AccountingError: string
     case DebitNoteOff              = 'debit_note_off';
     case DebitNoteNotFound         = 'debit_note_not_found';
     case DebitNoteReversed         = 'debit_note_reversed';
+    case DebitNoteDocumentIssued   = 'debit_note_document_issued';
     case DebitNoteAmountInvalid    = 'debit_note_amount_invalid';
     case DebitNoteTaxInvalid       = 'debit_note_tax_invalid';
     case DebitNoteCustomerMissing  = 'debit_note_customer_missing';

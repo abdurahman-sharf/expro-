@@ -33,13 +33,19 @@ final class DocumentQr
     }
 
     /**
-     * @param array<string, mixed> $sale   The sale as the documents are given it: total, taxes, header_charges, sale_time_raw, invoice_date_raw, sale_status, sale_type and currency_code, and, for a sale whose VAT was worked out once, total_with_vat (BT-112), which the code holds instead of what the register charged.
+     * @param array<string, mixed> $sale   The sale as the documents are given it: total, taxes, header_charges, sale_time_raw, invoice_date_raw, sale_status, sale_type and currency_code, and, for a sale whose VAT was worked out once, total_with_vat (BT-112), which the code holds instead of what the register charged. A sale whose electronic document was issued gives its code as einvoice_qr, which is printed as it was issued.
      * @param array<string, mixed> $config The settings of the shop: company and tax_id.
      */
     public function forDocument(string $type, array $sale, array $config): QrResult
     {
         if (! self::applies($type) || ! self::issued($sale)) {
             return QrResult::none();
+        }
+
+        $issued = trim((string) ($sale['einvoice_qr'] ?? ''));
+
+        if ($issued !== '') {
+            return new QrResult($issued);
         }
 
         $vatNumber = trim((string) ($config['tax_id'] ?? ''));

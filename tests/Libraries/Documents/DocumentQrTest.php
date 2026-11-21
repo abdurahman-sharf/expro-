@@ -116,6 +116,16 @@ class DocumentQrTest extends CIUnitTestCase
         }
     }
 
+    public function testForDocument_PrintsTheCodeOfTheIssuedDocumentAsItWasIssued(): void
+    {
+        $issued = base64_encode("\x01\x04opes\x02\x0F300000000000003");
+        $result = (new DocumentQr())->forDocument('tax_invoice', $this->sale(['einvoice_qr' => $issued, 'total' => '1.00', 'currency_code' => 'USD']), ['company' => '', 'tax_id' => '']);
+
+        $this->assertSame($issued, $result->payload, 'the code is read from the document, never worked out again');
+        $this->assertNull($result->refusal);
+        $this->assertNull((new DocumentQr())->forDocument('quote', $this->sale(['einvoice_qr' => $issued]), self::CONFIG)->payload, 'a quote carries no code all the same');
+    }
+
     public function testForDocument_RefusesWhileTheNameOfTheSellerIsNotEntered(): void
     {
         $result = (new DocumentQr())->forDocument('invoice', $this->sale(), ['company' => ' ', 'tax_id' => '300000000000003']);

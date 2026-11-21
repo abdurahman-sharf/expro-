@@ -72,8 +72,8 @@ final class EInvoiceBuilder
             throw new EInvoiceException(EInvoiceError::SourceNotFound, 'The sale does not exist.', ['number' => (string) $saleId]);
         }
 
-        if ($sale->status !== COMPLETED || ! in_array($sale->saleType, [SALE_TYPE_INVOICE, SALE_TYPE_RETURN], true)) {
-            throw new EInvoiceException(EInvoiceError::SourceNotIssuable, 'Only a completed invoice or return becomes a document.', ['number' => (string) $saleId]);
+        if ($sale->status !== COMPLETED || ! in_array($sale->saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE, SALE_TYPE_RETURN], true)) {
+            throw new EInvoiceException(EInvoiceError::SourceNotIssuable, 'Only a completed sale, invoice or return becomes a document.', ['number' => (string) $saleId]);
         }
 
         if ($sale->currency !== null && $sale->vat === []) {
@@ -92,6 +92,8 @@ final class EInvoiceBuilder
         $built    = $this->lines($sale);
         $rules    = $this->assemble($built, $sale->vat);
         $rounding = $this->tieToTheBooks($sale, $rules);
+
+        [$prepayments, $prepaidRounding] = $sale->vat === [] ? [[], '0.00'] : $this->prepaymentsOf($sale->saleId);
 
         $time = (int) strtotime((string) $row->sale_time);
 
@@ -113,11 +115,11 @@ final class EInvoiceBuilder
             paymentMeansCodes: $this->paymentMeans($sale),
             reason: $note['reason'],
             billingReference: $note['reference'],
-            rounding: $rounding,
+            rounding: bcadd($rounding, $prepaidRounding, 2),
             charges: $rules['charges'],
             currency: $sale->currency?->code ?? 'SAR',
             taxAmountInSar: $sale->currency === null ? null : SaleAmounts::round(bcmul($rules['tax'], $sale->currency->rate, 8), 2),
-            prepayments: $sale->vat === [] ? [] : $this->prepaymentsOf($sale->saleId),
+            prepayments: $prepayments,
         );
     }
 
@@ -145,6 +147,7 @@ final class EInvoiceBuilder
         $rate    = bcadd((string) $vat->percent, '0', 2);
         $taxable = bcadd((string) $vat->taxable, '0', 2);
         $tax     = bcadd((string) $vat->vat, '0', 2);
+        $total   = bcadd($taxable, $tax, 2);
         $type    = PaymentType::fromLabel((string) $advance->payment_type);
         $means   = $type === null || ! isset(self::PAYMENT_MEANS[$type->value]) ? [] : [self::PAYMENT_MEANS[$type->value]];
 
@@ -162,36 +165,97 @@ final class EInvoiceBuilder
             lineExtension: $taxable,
             taxExclusive: $taxable,
             taxAmount: $tax,
-            taxInclusive: bcadd($taxable, $tax, 2),
+            taxInclusive: $total,
             paymentMeansCodes: $means,
+            rounding: bcsub(bcadd((string) $vat->gross, '0', 2), $total, 2),
         );
     }
 
     /**
-     * The prepayments an invoice takes off what is due, each with the prepayment invoice it was issued on, or the
-     * number and day of its advance while none was.
+     * The credit note of what went back of an advance under the Saudi rules, paid back or left when it was cancelled:
+     * one line of what went back without its VAT, at the rate of the advance, referring to its prepayment invoice.
      *
-     * @return list<EInvoicePrepayment>
+     * @throws EInvoiceException
+     */
+    public function fromAdvanceReturn(int $returnId, string $reason, OriginalReference $original): EInvoiceDocument
+    {
+        $return  = (new AdvanceVat($this->db))->returnOf($returnId);
+        $charged = $return === null ? null : (new AdvanceVat($this->db))->of((int) $return->advance_id);
+        $advance = $return === null ? null : $this->db->table('customer_advances')->where('advance_id', (int) $return->advance_id)->get()->getRow();
+
+        if ($return === null || $charged === null || $advance === null) {
+            throw new EInvoiceException(EInvoiceError::SourceNotFound, 'Nothing of the advance went back.', ['number' => (string) $returnId]);
+        }
+
+        if ((int) $return->released === 1) {
+            throw new EInvoiceException(EInvoiceError::SourceNotIssuable, 'What went back of the advance was taken back.', ['number' => (string) $returnId]);
+        }
+
+        $note    = $this->noteFacts(EInvoiceKind::CreditNote, $reason, $original);
+        $rate    = bcadd((string) $charged->percent, '0', 2);
+        $taxable = bcadd((string) $return->taxable, '0', 2);
+        $tax     = bcadd((string) $return->vat, '0', 2);
+        $total   = bcadd($taxable, $tax, 2);
+        $time    = (int) strtotime((string) $return->created_at);
+
+        return new EInvoiceDocument(
+            kind: EInvoiceKind::CreditNote,
+            subtype: $original->subtype,
+            number: 'ADV-CN ' . $returnId,
+            issueDate: date('Y-m-d', $time),
+            issueTime: date('H:i:s', $time),
+            supplyDate: date('Y-m-d', $time),
+            seller: $this->parties->seller(),
+            buyer: $this->parties->buyer((int) $advance->customer_id, $original->subtype),
+            lines: [$this->lineOf(1, 'Advance payment returned', '1.00', $taxable, '0.00', $taxable, ['S', $rate], $tax)],
+            taxSubtotals: [new EInvoiceTaxSubtotal('S', $rate, $taxable, $tax)],
+            lineExtension: $taxable,
+            taxExclusive: $taxable,
+            taxAmount: $tax,
+            taxInclusive: $total,
+            paymentMeansCodes: [],
+            reason: $note['reason'],
+            billingReference: $note['reference'],
+            rounding: bcsub(bcadd((string) $return->gross, '0', 2), $total, 2),
+        );
+    }
+
+    /**
+     * The prepayments an invoice takes off what is due, each with the prepayment invoice it was issued on (BR-KSA-73),
+     * and the cents by which what the invoice takes of the advances differs from their taxable amounts and VAT, which
+     * the rounding of the invoice carries so that what is due is what the customer still owes.
+     *
+     * @return array{0: list<EInvoicePrepayment>, 1: numeric-string}
+     *
+     * @throws EInvoiceException
      */
     private function prepaymentsOf(int $saleId): array
     {
         $prepayments = [];
+        $rounding    = '0.00';
 
         foreach ((new AdvanceVat($this->db))->usesOf($saleId) as $use) {
             $issued = $this->db->table('einvoice_documents')->select('document_number, issue_date, issue_time')->where(['source_type' => EInvoiceService::SOURCE_ADVANCE, 'source_id' => (int) $use->advance_id])->get()->getRow();
 
-            $prepayments[] = new EInvoicePrepayment(
-                $issued === null ? $this->advanceNumber((int) $use->advance_id) : (string) $issued->document_number,
-                $issued === null ? (string) $use->advance_date : (string) $issued->issue_date,
-                $issued === null ? date('H:i:s', (int) strtotime((string) $use->created_at)) : (string) $issued->issue_time,
+            if ($issued === null) {
+                throw new EInvoiceException(EInvoiceError::PrepaymentNotIssued, 'An advance the invoice takes off what is due has no prepayment invoice.', ['number' => $this->advanceNumber((int) $use->advance_id)]);
+            }
+
+            $prepayment = new EInvoicePrepayment(
+                (string) $issued->document_number,
+                (string) $issued->issue_date,
+                (string) $issued->issue_time,
                 (string) $use->category,
                 bcadd((string) $use->percent, '0', 2),
                 bcadd((string) $use->taxable, '0', 2),
                 bcadd((string) $use->vat, '0', 2),
             );
+
+            $prepayments[] = $prepayment;
+            $rounding      = bcadd($rounding, bcsub(bcadd((string) $use->gross, '0', 2), $prepayment->amount(), 2), 2);
         }
 
-        return $prepayments;
+        return [$prepayments, $rounding];
     }
 
     private function advanceNumber(int $advanceId): string
@@ -613,7 +677,11 @@ final class EInvoiceBuilder
         $type  = $sale->isReturn() ? ($sale->refundInvoice ? DocumentType::RefundInvoice : DocumentType::CreditNote) : DocumentType::SalesInvoice;
         $label = (new DocumentNumbering($this->db))->label($type, 'sales', $sale->saleId);
 
-        return $label !== '' ? $label : (string) $sale->saleId;
+        if ($label !== '') {
+            return $label;
+        }
+
+        return $sale->saleType === SALE_TYPE_POS ? 'POS ' . $sale->saleId : (string) $sale->saleId;
     }
 
     /**

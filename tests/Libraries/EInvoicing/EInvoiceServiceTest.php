@@ -36,6 +36,7 @@ use Tests\Support\EInvoiceSaleFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\SaudiSaleFixtureTrait;
 use Tests\Support\WorkerRequestTrait;
 
 /**
@@ -52,6 +53,7 @@ class EInvoiceServiceTest extends CIUnitTestCase
     use SaleAccountingFixtureTrait;
     use EInvoiceFixtureTrait;
     use EInvoiceSaleFixtureTrait;
+    use SaudiSaleFixtureTrait;
     use ConcurrentDbRaceTrait;
     use DatabaseFingerprintTrait;
     use WorkerRequestTrait;
@@ -83,6 +85,7 @@ class EInvoiceServiceTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->leaveTheSaudiRules();
         $this->accountingDb()->table('sales_items_vat')->truncate();
         $this->accountingDb()->table('sales_vat_totals')->truncate();
         $this->accountingDb()->table('customer_advance_vat_uses')->truncate();
@@ -441,6 +444,80 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertStringContainsString('<cbc:PrepaidAmount currencyID="SAR">115.00</cbc:PrepaidAmount>', $issued->xml);
         $this->assertStringContainsString('<cbc:PayableAmount currencyID="SAR">115.00</cbc:PayableAmount>', $issued->xml);
         $this->assertStringContainsString('<cbc:ID>' . $prepaid->number . '</cbc:ID><cbc:IssueDate>' . $prepaid->issueDate . '</cbc:IssueDate>', $issued->xml);
+    }
+
+    public function testIssueForCompletedSale_IssuesTheSimplifiedInvoiceOfASaleAtTheRegisterWithoutAPermission(): void
+    {
+        $saleId = $this->saudiSaleOf('100.00', null, [$this->payment('Cash', '115.00')], SALE_TYPE_POS);
+        $issued = $this->service->issueForCompletedSale($saleId, $this->employeeWithGrants([]));
+
+        $this->assertSame(EInvoiceKind::Invoice, $issued->kind);
+        $this->assertSame(EInvoiceSubtype::Simplified, $issued->subtype);
+        $this->assertSame('POS ' . $saleId, $issued->number, 'a sale at the register is numbered as its receipt');
+        $this->assertSame(['100.00', '15.00', '115.00'], [$issued->taxExclusive, $issued->taxAmount, $issued->taxInclusive]);
+    }
+
+    public function testIssueForCompletedSale_RefusesASaleThatAlreadyHasADocument(): void
+    {
+        $saleId = $this->saudiSaleOf('100.00', null, [$this->payment('Cash', '115.00')], SALE_TYPE_POS);
+
+        $this->service->issueForCompletedSale($saleId);
+
+        $this->assertSame(EInvoiceError::AlreadyIssued, $this->refusal(fn () => $this->service->issueForCompletedSale($saleId))->error);
+        $this->assertSame(1, $this->accountingDb()->table('einvoice_documents')->where(['source_type' => EInvoiceService::SOURCE_SALE, 'source_id' => $saleId])->countAllResults());
+    }
+
+    public function testIssueForCompletedSale_RefersTheCreditNoteOfAReturnToThePrintedNumberOfASaleMadeBeforeTheSaudiRules(): void
+    {
+        $cycle    = $this->referenceInvoice();
+        $saleId   = $this->save($cycle['items'], $cycle['taxes'], [$this->payment('Cash', '816.50')], SALE_TYPE_POS, null);
+        $returnId = $this->perfumeReturn($saleId, $cycle['perfume']);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $saleId)->update(['sale_time' => '2019-06-01 10:00:00']);
+        $this->accountingDb()->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+        $issued = $this->service->issueForCompletedSale($returnId);
+        $row    = $this->accountingDb()->table('einvoice_documents')->where('document_id', $issued->documentId)->get()->getRow();
+
+        $this->assertSame(EInvoiceKind::CreditNote, $issued->kind);
+        $this->assertSame(EInvoiceSubtype::Simplified, $issued->subtype, 'the kind of the sale it takes back');
+        $this->assertNull($issued->originalDocumentId);
+        $this->assertSame(['POS ' . $saleId, (string) $saleId], [$row->original_reference, (string) $row->original_sale_id]);
+        $this->assertStringContainsString('<cbc:ID>POS ' . $saleId . '</cbc:ID>', $issued->xml);
+    }
+
+    public function testIssueForCompletedSale_RefusesAReturnOfASaleMadeUnderTheSaudiRulesThatHasNoDocument(): void
+    {
+        $cycle    = $this->referenceInvoice();
+        $saleId   = $this->save($cycle['items'], $cycle['taxes'], [$this->payment('Cash', '816.50')], SALE_TYPE_POS, null);
+        $returnId = $this->perfumeReturn($saleId, $cycle['perfume']);
+
+        $this->accountingDb()->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+        $this->assertSame(EInvoiceError::OriginalNotIssued, $this->refusal(fn () => $this->service->issueForCompletedSale($returnId))->error);
+    }
+
+    public function testIssueForCompletedSale_RefusesAReturnThatTakesBackNoSale(): void
+    {
+        $cycle    = $this->referenceInvoice();
+        $saleId   = $this->save($cycle['items'], $cycle['taxes'], [$this->payment('Cash', '816.50')], SALE_TYPE_POS, null);
+        $returnId = $this->perfumeReturn($saleId, $cycle['perfume']);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $returnId)->update(['return_of_sale_id' => null]);
+
+        $this->assertSame(EInvoiceError::ReturnWithoutOrigin, $this->refusal(fn () => $this->service->issueForCompletedSale($returnId))->error);
+    }
+
+    public function testAssertIssuable_RequiresTheBuyerOfAStandardInvoice(): void
+    {
+        $customerId = $this->makeBusinessCustomer();
+
+        $this->service->assertIssuable($customerId, SALE_TYPE_INVOICE, null);
+
+        $this->accountingDb()->table('customer_einvoice_parties')->where('person_id', $customerId)->delete();
+
+        $this->assertSame(EInvoiceError::BuyerAddressIncomplete, $this->refusal(fn () => $this->service->assertIssuable($customerId, SALE_TYPE_INVOICE, null))->error);
+        $this->service->assertIssuable(null, SALE_TYPE_POS, null);
     }
 
     public function testIssueSale_RefusesATaxOfTheDocumentThatTheJournalDoesNotHold(): void

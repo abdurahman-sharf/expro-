@@ -28,6 +28,9 @@ use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\TaxDefinitions;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\EInvoicing\EInvoiceError;
+use App\Libraries\EInvoicing\EInvoiceException;
+use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\HeaderCharges;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Pricing\SalesControlSettings;
@@ -60,12 +63,14 @@ use RuntimeException;
 use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
+use Tests\Support\EInvoiceSaleFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityCaseTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\RegisterFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\SaudiSaleFixtureTrait;
 use Tests\Support\ShelfFixtureTrait;
 use Tests\Support\StockUnitsFixtureTrait;
 use Tests\Support\WorkerRequestTrait;
@@ -87,6 +92,8 @@ class SalePostingTest extends CIUnitTestCase
     use ParityCaseTrait;
     use RegisterFixtureTrait;
     use SaleAccountingFixtureTrait;
+    use EInvoiceSaleFixtureTrait;
+    use SaudiSaleFixtureTrait;
     use ShelfFixtureTrait;
     use StockUnitsFixtureTrait;
     use WorkerRequestTrait;
@@ -111,6 +118,7 @@ class SalePostingTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->leaveTheSaudiRules();
         $this->stopStockUnits();
         $this->stopSelling();
 
@@ -6403,19 +6411,20 @@ class SalePostingTest extends CIUnitTestCase
     {
         $this->turnOnHeaderCharges();
 
-        $db      = $this->accountingDb();
-        $profile = $db->table('company_tax_profile')->get()->getRowArray();
-        $cycle   = $this->referenceInvoice();
+        $itemId          = $this->item('0', false);
+        [$taxes, $total] = $this->saudiTaxes($itemId, '100.00');
+        $items           = [$this->line($itemId, 0, '1', '100.00')];
+        $cycle           = $this->referenceInvoice();
+
+        $this->underTheSaudiRules();
 
         try {
-            $db->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
-
-            $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Fee', '-10')));
+            $this->assertSame(ACCOUNTING_FAILED, $this->save($items, $taxes, headerCharges: new HeaderCharges('Fee', '-10'), categories: $total));
             $this->assertSame(AccountingError::AdjustmentInSaudiMode, $this->failure()->error);
             $this->assertSame(0, $this->countJournals());
-            $this->assertGreaterThan(0, $this->save($cycle['items'], $cycle['taxes'], status: SUSPENDED, headerCharges: new HeaderCharges('Fee', '-10')) ?: 0, 'a sale set aside is refused only when it is completed');
+            $this->assertGreaterThan(0, $this->save($items, $taxes, status: SUSPENDED, headerCharges: new HeaderCharges('Fee', '-10'), categories: $total) ?: 0, 'a sale set aside is refused only when it is completed');
         } finally {
-            $db->table('company_tax_profile')->update(['ksa_mode' => $profile['ksa_mode'], 'ksa_mode_effective_at' => $profile['ksa_mode_effective_at']]);
+            $this->leaveTheSaudiRules();
         }
 
         $this->assertGreaterThan(0, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Fee', '-10')) ?: 0, 'outside the Saudi rules the adjustment is taken as before');
@@ -6425,34 +6434,28 @@ class SalePostingTest extends CIUnitTestCase
     {
         $this->turnOnHeaderCharges();
 
-        $db      = $this->accountingDb();
-        $profile = $db->table('company_tax_profile')->get()->getRowArray();
-        $itemId  = $this->item('0', false);
-        $taxes   = [[], [[...$this->taxRow($itemId, 0, 'VAT', '15.0000', 1, '0.015000'), 'vat' => new LineVat(null, 'S', '15.000', null, null, 'VAT'), 'vat_amounts' => new VatLineResult('0.10', '0.02', '0.12', '0.015000', 'S|15.000|')]], ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '0.10', '0.02', false)]];
-        $status  = COMPLETED;
+        $db     = $this->accountingDb();
+        $itemId = $this->item('0', false);
+        $taxes  = [[], [[...$this->taxRow($itemId, 0, 'VAT', '15.0000', 1, '0.015000'), 'vat' => new LineVat(null, 'S', '15.000', null, null, 'VAT'), 'vat_amounts' => new VatLineResult('0.10', '0.02', '0.12', '0.015000', 'S|15.000|')]], ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '0.10', '0.02', false)]];
+        $status = COMPLETED;
+
+        $this->underTheSaudiRules();
 
         try {
-            $db->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+            $items           = [$this->line($itemId, 0, '1', '0.10')];
+            $saleId          = $this->sales->save_value(NEW_ENTRY, $status, $items, $this->customerId, $this->employeeId, 'shipped', null, null, null, SALE_TYPE_INVOICE, [], null, $taxes, true, headerCharges: new HeaderCharges(shipping: '0.10', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+            $this->saleIds[] = $saleId;
+            $total           = $db->table('sales_vat_totals')->where('sale_id', $saleId)->get()->getRow();
 
-            $items  = [$this->line($itemId, 0, '1', '0.10')];
-            $saleId = $this->sales->save_value(NEW_ENTRY, $status, $items, $this->customerId, $this->employeeId, 'shipped', null, null, null, SALE_TYPE_INVOICE, [], null, $taxes, true, headerCharges: new HeaderCharges(shipping: '0.10', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
-        } finally {
-            $db->table('company_tax_profile')->update(['ksa_mode' => $profile['ksa_mode'], 'ksa_mode_effective_at' => $profile['ksa_mode_effective_at']]);
-        }
-
-        $this->saleIds[] = $saleId;
-        $total           = $db->table('sales_vat_totals')->where('sale_id', $saleId)->get()->getRow();
-
-        try {
             $this->assertSame(['0.20', '0.03', '0.10'], [$total->taxable, $total->vat, $total->charges], 'the tax of the category is rounded once on the goods and the shipping');
             $this->assertEqualsCanonicalizing(
                 [$this->customerAccount() . ':0.24:0.00', $this->accountId('sales_revenue') . ':0.00:0.10', $this->accountId('sales_shipping') . ':0.00:0.10', $this->accountId('tax_output') . ':0.00:0.03', $this->accountId('tax_rounding') . ':0.00:0.01'],
                 $this->standing($saleId, 'revenue')[0]['lines'],
                 'the register charged 0.10 + 0.02 + 0.10 + 0.015, which comes to 0.24',
             );
+            $this->assertStringContainsString('<cbc:ChargeTotalAmount currencyID="SAR">0.10</cbc:ChargeTotalAmount>', (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_SALE, $saleId)->xml, 'the document issued with the sale carries the shipping as a charge');
         } finally {
-            $db->table('sales_vat_totals')->where('sale_id', $saleId)->delete();
-            $db->table('sales_items_vat')->where('sale_id', $saleId)->delete();
+            $this->leaveTheSaudiRules();
         }
     }
 
@@ -6460,17 +6463,153 @@ class SalePostingTest extends CIUnitTestCase
     {
         $this->turnOnHeaderCharges();
 
-        $db      = $this->accountingDb();
-        $profile = $db->table('company_tax_profile')->get()->getRowArray();
-        $cycle   = $this->referenceInvoice();
+        $itemId          = $this->item('0', false);
+        [$taxes, $total] = $this->saudiTaxes($itemId, '100.00');
+
+        $this->underTheSaudiRules();
 
         try {
-            $db->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
-
-            $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges(shipping: '20')));
+            $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($itemId, 0, '1', '100.00')], $taxes, headerCharges: new HeaderCharges(shipping: '20'), categories: $total));
             $this->assertSame(AccountingError::ShippingUntaxedInSaudiMode, $this->failure()->error);
         } finally {
-            $db->table('company_tax_profile')->update(['ksa_mode' => $profile['ksa_mode'], 'ksa_mode_effective_at' => $profile['ksa_mode_effective_at']]);
+            $this->leaveTheSaudiRules();
+        }
+    }
+
+    public function testSaveValue_IssuesTheDocumentOfASaleCompletedUnderTheSaudiRules(): void
+    {
+        $this->underTheSaudiRules();
+
+        try {
+            $saleId   = $this->saudiSaleOf('100.00', null, [$this->payment('Cash', '115.00')], SALE_TYPE_POS);
+            $document = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_SALE, $saleId);
+
+            $this->assertGreaterThan(0, $saleId);
+            $this->assertNotNull($document, 'no sale is completed under the rules without its document');
+            $this->assertSame(['115.00', '15.00'], [$document->taxInclusive, $document->taxAmount]);
+            $this->assertSame($document->qr, $this->sales->documentQrOf($saleId), 'the code printed is the one issued');
+
+            $itemId          = $this->item('0', false);
+            [$taxes, $total] = $this->saudiTaxes($itemId, '10.00');
+            $setAside        = $this->save([$this->line($itemId, 0, '1', '10.00')], $taxes, type: SALE_TYPE_POS, customerId: null, status: SUSPENDED, categories: $total);
+
+            $this->assertNull((new EInvoiceService())->documentOf(EInvoiceService::SOURCE_SALE, $setAside), 'a sale set aside has no document');
+        } finally {
+            $this->leaveTheSaudiRules();
+        }
+    }
+
+    public function testSaveValue_UndoesTheSaleWhenItsDocumentCannotBeIssued(): void
+    {
+        $this->underTheSaudiRules();
+        $this->configureEInvoicing(['einvoice_key_path' => '/nonexistent/expro-test.key', 'einvoice_certificate_path' => '/nonexistent/expro-test.pem']);
+
+        $db       = $this->accountingDb();
+        $sales    = $db->table('sales')->countAllResults();
+        $journals = $this->countJournals();
+
+        try {
+            $this->assertSame(EINVOICE_FAILED, $this->saudiSaleOf('100.00', null, [$this->payment('Cash', '115.00')], SALE_TYPE_POS));
+            $this->assertInstanceOf(EInvoiceException::class, $this->sales->accountingFailure());
+            $this->assertSame($sales, $db->table('sales')->countAllResults(), 'no sale without its document');
+            $this->assertSame($journals, $this->countJournals());
+            $this->assertSame(0, (int) $db->table('einvoice_counters')->get()->getRow()->last_icv, 'no counter is spent');
+
+            $failure = $db->table('einvoice_failures')->orderBy('failure_id', 'DESC')->get()->getRow();
+
+            $this->assertSame([EInvoiceService::SOURCE_SALE, (string) SALE_TYPE_POS, (string) $this->employeeId], [$failure->source, (string) $failure->sale_type, (string) $failure->employee_id]);
+            $this->assertSame(64, strlen((string) $failure->fingerprint));
+        } finally {
+            $this->leaveTheSaudiRules();
+        }
+    }
+
+    public function testSaveValue_RefusesASaleWhoseLinesAreNotClassifiedUnderTheSaudiRules(): void
+    {
+        $cycle = $this->referenceInvoice();
+
+        $this->underTheSaudiRules();
+
+        try {
+            $this->assertSame(EINVOICE_FAILED, $this->save($cycle['items'], $cycle['taxes']));
+            $this->assertSame(EInvoiceError::LinesNotClassified, $this->sales->accountingFailure()->error);
+            $this->assertSame(0, $this->countJournals());
+        } finally {
+            $this->leaveTheSaudiRules();
+        }
+    }
+
+    public function testSaveValue_ReturnsTheSaleOfARepeatedCompletionToken(): void
+    {
+        $itemId = $this->item('0', false);
+        $items  = [$this->line($itemId, 0, '1', '50.00')];
+
+        $this->sales->useCompletionToken('token-1');
+
+        $first  = $this->save($items);
+        $before = $this->accountingDb()->table('sales')->countAllResults();
+
+        $this->sales->useCompletionToken('token-1');
+
+        $this->assertSame($first, $this->save($items), 'the same token gives back the sale it completed');
+        $this->assertSame($before, $this->accountingDb()->table('sales')->countAllResults());
+
+        $this->sales->useCompletionToken('token-2');
+
+        $this->assertNotSame($first, $this->save($items), 'another token completes another sale');
+        $this->assertNotSame($first, $this->save($items), 'a sale saved without a token is a sale of its own');
+    }
+
+    public function testCancel_RefusesAPosSaleThatHasADocument(): void
+    {
+        $this->underTheSaudiRules();
+
+        try {
+            $saleId = $this->saudiSaleOf('100.00', null, [$this->payment('Cash', '115.00')], SALE_TYPE_POS);
+
+            $this->assertFalse($this->sales->delete($saleId, false, true, $this->employeeId));
+            $this->assertSame(AccountingError::ElectronicDocumentLocked, $this->failure()->error);
+            $this->assertSame(COMPLETED, (int) $this->saleRow($saleId)->sale_status);
+
+            try {
+                (new SalePosting())->cancel($saleId, $this->employeeId);
+                $this->fail('The sale was cancelled.');
+            } catch (AccountingException $refusal) {
+                $this->assertSame(AccountingError::ElectronicDocumentLocked, $refusal->error);
+            }
+        } finally {
+            $this->leaveTheSaudiRules();
+        }
+    }
+
+    public function testRestoreList_RefusesASaleThatHasADocument(): void
+    {
+        $this->underTheSaudiRules();
+
+        try {
+            $saleId = $this->saudiSaleOf('100.00', null, [$this->payment('Cash', '115.00')], SALE_TYPE_POS);
+
+            $this->assertFalse($this->sales->restore_list([$saleId], $this->employeeId));
+            $this->assertSame(AccountingError::ElectronicDocumentLocked, $this->failure()->error);
+            $this->assertSame(COMPLETED, (int) $this->saleRow($saleId)->sale_status);
+        } finally {
+            $this->leaveTheSaudiRules();
+        }
+    }
+
+    public function testUpdate_RefusesAChangeToTheCustomerOfASaleThatHasADocument(): void
+    {
+        $this->underTheSaudiRules();
+
+        try {
+            $saleId = $this->saudiSaleOf('100.00', null, [$this->payment('Cash', '115.00')], SALE_TYPE_POS);
+
+            $this->assertFalse($this->sales->update($saleId, ['customer_id' => $this->customerId]));
+            $this->assertSame(AccountingError::ElectronicDocumentLocked, $this->failure()->error);
+            $this->assertTrue($this->sales->update($saleId, ['customer_id' => null, 'comment' => 'Wrapped as a gift']), 'a field sent as it is stored is no change');
+            $this->assertSame('Wrapped as a gift', $this->saleRow($saleId)->comment);
+        } finally {
+            $this->leaveTheSaudiRules();
         }
     }
 

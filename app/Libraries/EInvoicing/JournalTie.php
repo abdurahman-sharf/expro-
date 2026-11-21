@@ -100,26 +100,56 @@ final class JournalTie
     }
 
     /**
-     * Holds the prepayment invoice of an advance against its two journals: the credit the advance gave the customer
-     * is its total with VAT, and the output VAT the advance was charged is its VAT.
+     * Holds the prepayment invoice of an advance against the books: what it asks to be paid is the part of the advance
+     * that carries VAT, which the advance credited the customer with at the least, and its VAT is the output VAT the
+     * advance was charged.
      *
      * @throws EInvoiceException
      */
-    public function assertAdvanceTies(int $advanceId, string $taxInclusive, string $taxAmount): void
+    public function assertAdvanceTies(int $advanceId, string $payable, string $taxAmount): void
     {
         $credited = $this->movementOf(CustomerAdvances::SOURCE, $advanceId, null);
         $taxed    = $this->movementOf(AdvanceVat::SOURCE, $advanceId, (new RoutingResolver($this->db))->accountFor(RoutingKey::TaxOutput));
+        $charged  = (new AdvanceVat($this->db))->of($advanceId);
 
-        if ($credited === null || $taxed === null) {
+        if ($credited === null || $taxed === null || $charged === null) {
             throw new EInvoiceException(EInvoiceError::SourceNotPosted, 'The books hold no posted journal for the advance or its VAT.', ['number' => (string) $advanceId]);
         }
 
-        if (bccomp(SaleAmounts::round($credited, 2), $taxInclusive, 2) !== 0) {
-            throw new EInvoiceException(EInvoiceError::TotalsDoNotTie, 'The total of the document is not the amount the books credit the customer.', ['rule' => 'journal total', 'expected' => SaleAmounts::round($credited, 2), 'actual' => $taxInclusive]);
+        $this->assertPart(bcadd((string) $charged->gross, '0', 2), SaleAmounts::round($credited, 2), $payable, SaleAmounts::round($taxed, 2), $taxAmount);
+    }
+
+    /**
+     * Holds the credit note of what went back of an advance against the books: what it gives back is the return, and
+     * its VAT is the output VAT the return took off.
+     *
+     * @throws EInvoiceException
+     */
+    public function assertAdvanceReturnTies(int $returnId, string $payable, string $taxAmount): void
+    {
+        $return = (new AdvanceVat($this->db))->returnOf($returnId);
+        $taxed  = $this->movementOf(AdvanceVat::SOURCE_RETURN, $returnId, (new RoutingResolver($this->db))->accountFor(RoutingKey::TaxAdvances));
+
+        if ($return === null || $taxed === null) {
+            throw new EInvoiceException(EInvoiceError::SourceNotPosted, 'The books hold no posted journal for what went back of the advance.', ['number' => (string) $returnId]);
         }
 
-        if (bccomp(SaleAmounts::round($taxed, 2), $taxAmount, 2) !== 0) {
-            throw new EInvoiceException(EInvoiceError::TotalsDoNotTie, 'The tax of the document is not the tax the books hold.', ['rule' => 'journal tax', 'expected' => SaleAmounts::round($taxed, 2), 'actual' => $taxAmount]);
+        $gross = bcadd((string) $return->gross, '0', 2);
+
+        $this->assertPart($gross, $gross, $payable, SaleAmounts::round($taxed, 2), $taxAmount);
+    }
+
+    /**
+     * @throws EInvoiceException
+     */
+    private function assertPart(string $gross, string $ceiling, string $payable, string $taxed, string $taxAmount): void
+    {
+        if (bccomp($gross, $ceiling, 2) > 0 || bccomp($payable, $gross, 2) !== 0) {
+            throw new EInvoiceException(EInvoiceError::TotalsDoNotTie, 'The total of the document is not the amount the books hold.', ['rule' => 'journal total', 'expected' => $gross, 'actual' => $payable]);
+        }
+
+        if (bccomp($taxed, $taxAmount, 2) !== 0) {
+            throw new EInvoiceException(EInvoiceError::TotalsDoNotTie, 'The tax of the document is not the tax the books hold.', ['rule' => 'journal tax', 'expected' => $taxed, 'actual' => $taxAmount]);
         }
     }
 

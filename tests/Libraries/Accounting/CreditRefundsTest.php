@@ -11,8 +11,11 @@ use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\EInvoicing\EInvoiceKind;
+use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Tax\AdvanceVat;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -22,10 +25,12 @@ use Tests\Support\ChequeFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\CreditRefundFixtureTrait;
 use Tests\Support\CreditSourceFixtureTrait;
+use Tests\Support\EInvoiceSaleFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\SaudiSaleFixtureTrait;
 use App\Libraries\Roles\RoleService;
 use App\Libraries\Accounting\OperationsHold;
 use App\Libraries\Accounting\PostingError;
@@ -45,8 +50,11 @@ class CreditRefundsTest extends CIUnitTestCase
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
-    use PurchaseAccountingFixtureTrait;
     use CreditRefundFixtureTrait;
+    use PurchaseAccountingFixtureTrait, EInvoiceSaleFixtureTrait {
+        PurchaseAccountingFixtureTrait::debitNoteOf insteadof EInvoiceSaleFixtureTrait;
+    }
+    use SaudiSaleFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -76,6 +84,7 @@ class CreditRefundsTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->leaveTheSaudiRules();
         $this->stopCreditSources();
         $this->stopBuying();
 
@@ -129,6 +138,48 @@ class CreditRefundsTest extends CIUnitTestCase
     private function free(): string
     {
         return bcadd($this->position()->credit(), '0', 2);
+    }
+
+    public function testRefund_GivesBackTheVatOfAnAdvanceByACreditNoteOfItsPrepaymentInvoice(): void
+    {
+        $this->underTheSaudiRules();
+
+        $advanceId = $this->advance('115.00');
+        $refundId  = $this->refund('46.00');
+        $return    = $this->accountingDb()->table('customer_advance_vat_returns')->where('refund_id', $refundId)->get()->getRow();
+        $documents = new EInvoiceService();
+        $note      = $documents->documentOf(EInvoiceService::SOURCE_RETURN, (int) $return->return_id);
+
+        $this->assertSame(['46.00', '40.00', '6.00'], [$return->gross, $return->taxable, $return->vat]);
+        $this->assertSame([$this->accountId('tax_output') . '=6.00/0.00', $this->accountId('tax_advances') . '=0.00/6.00'], $this->linesOf(AdvanceVat::SOURCE_RETURN, (int) $return->return_id));
+        $this->assertSame(EInvoiceKind::CreditNote, $note->kind);
+        $this->assertSame(['40.00', '6.00', '46.00'], [$note->taxExclusive, $note->taxAmount, $note->taxInclusive]);
+        $this->assertSame($documents->documentOf(EInvoiceService::SOURCE_ADVANCE, $advanceId)->documentId, $note->originalDocumentId);
+    }
+
+    public function testCancel_RefusesARefundWhoseCreditNoteWasIssued(): void
+    {
+        $this->underTheSaudiRules();
+        $this->advance('115.00');
+
+        $refundId = $this->refund('46.00');
+
+        $this->assertSame(AccountingError::RefundStatedByCreditNote, $this->refusal(fn () => $this->refunds->cancel($refundId, 'Paid twice', $this->clerk))->error);
+    }
+
+    public function testCancel_TakesBackTheVatARefundGaveBackWhileNoCreditNoteStatesIt(): void
+    {
+        $this->underTheSaudiRules();
+        $this->advance('115.00');
+        $this->clearEInvoices();
+
+        $refundId = $this->refund('46.00');
+        $return   = $this->accountingDb()->table('customer_advance_vat_returns')->where('refund_id', $refundId)->get()->getRow();
+
+        $this->refunds->cancel($refundId, 'Paid twice', $this->clerk);
+
+        $this->assertSame('1', (string) $this->accountingDb()->table('customer_advance_vat_returns')->where('return_id', $return->return_id)->get()->getRow()->released);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where(['source_type' => AdvanceVat::SOURCE_RETURN, 'source_id' => $return->return_id, 'status' => 'posted'])->countAllResults(), 'the VAT the refund gave back is owed again');
     }
 
     public function testRefund_DebitsTheCustomerAndCreditsTheTreasuryTheMoneyLeavesBy(): void

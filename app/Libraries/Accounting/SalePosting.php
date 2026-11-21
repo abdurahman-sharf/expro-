@@ -182,6 +182,10 @@ final class SalePosting
                 throw new AccountingException(AccountingError::IssuedDocumentLocked, 'An invoice or a credit note that has been issued cannot be cancelled. Correct it with a credit note.', ['sale_id' => $saleId]);
             }
 
+            if ($this->db->tableExists($this->db->prefixTable('einvoice_documents'), false) && $this->db->table('einvoice_documents')->where(['source_type' => SalePostingBuilder::SOURCE_SALE, 'source_id' => $saleId])->countAllResults() > 0) {
+                throw new AccountingException(AccountingError::ElectronicDocumentLocked, 'The electronic invoice of the sale has been issued: it is corrected by a credit note.', ['sale_id' => $saleId]);
+            }
+
             $cost   = $this->activeJournal(SalePostingBuilder::SOURCE_SALE, $saleId, JournalEntryType::Cogs);
             $active = array_filter([
                 $this->activeJournal(SalePostingBuilder::SOURCE_SALE, $saleId, JournalEntryType::Revenue),

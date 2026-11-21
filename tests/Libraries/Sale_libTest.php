@@ -1296,4 +1296,20 @@ class Sale_libTest extends CIUnitTestCase
 
         $this->assertSame('375.00', $this->saleLib->catalogPrice('375.00'), 'a return is in the currency of the sale it takes back and is never priced from the catalog');
     }
+
+    public function testCompletionToken_StaysForTheSameCartAndChangesWithTheCartOrTheSale(): void
+    {
+        $cart     = [['item_id' => 1, 'quantity' => '1', 'price' => '10.00', 'discount' => '0', 'discount_type' => 0, 'serialnumber' => '']];
+        $payments = [['payment_type' => 'Cash', 'payment_amount' => '11.50']];
+        $token    = $this->saleLib->completionToken($cart, $payments, -1, SALE_TYPE_POS);
+
+        $this->assertSame(64, strlen($token));
+        $this->assertSame($token, $this->saleLib->completionToken($cart, $payments, -1, SALE_TYPE_POS), 'the same cart sent again is the same sale');
+        $this->assertNotSame($token, $this->saleLib->completionToken([[...$cart[0], 'quantity' => '2']], $payments, -1, SALE_TYPE_POS), 'a cart that changed is another sale');
+        $this->assertNotSame($token, $this->saleLib->completionToken($cart, $payments, 7, SALE_TYPE_POS));
+
+        $this->saleLib->clearRegisterToken();
+
+        $this->assertNotSame($token, $this->saleLib->completionToken($cart, $payments, -1, SALE_TYPE_POS), 'the next sale on the register has a token of its own');
+    }
 }

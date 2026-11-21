@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\MemoryExhaustedNotice;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
@@ -105,6 +106,12 @@ abstract class AccountingController extends Secure_Controller
             return $this->response->setJSON([
                 'success' => false,
                 'message' => $this->messageFor($exception),
+                'id'      => NEW_ENTRY,
+            ]);
+        } catch (EInvoiceException $exception) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => $exception->describe(),
                 'id'      => NEW_ENTRY,
             ]);
         }

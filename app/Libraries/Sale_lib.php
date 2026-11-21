@@ -537,6 +537,21 @@ class Sale_lib
         return $token;
     }
 
+    /**
+     * The token the sale on the register is completed with: the token of the sale and what the sale holds, so that
+     * the same cart sent twice is completed once, while a cart that changed in between makes a sale of its own.
+     *
+     * @param array<int|string, array<string, mixed>> $cart
+     * @param array<int|string, array<string, mixed>> $payments
+     */
+    public function completionToken(array $cart, array $payments, int $customerId, int $saleType): string
+    {
+        $lines = array_map(static fn (array $line): array => [(int) ($line['item_id'] ?? 0), (string) ($line['quantity'] ?? ''), (string) ($line['price'] ?? ''), (string) ($line['discount'] ?? ''), (string) ($line['discount_type'] ?? ''), (string) ($line['serialnumber'] ?? '')], array_values($cart));
+        $paid  = array_map(static fn (array $payment): array => [(string) ($payment['payment_type'] ?? ''), (string) ($payment['payment_amount'] ?? '')], array_values($payments));
+
+        return hash('sha256', $this->registerToken() . '|' . json_encode([$lines, $paid, $customerId, $saleType], JSON_THROW_ON_ERROR));
+    }
+
     public function isRegisterToken(?string $token): bool
     {
         return $token === null || $token === '' || hash_equals($this->registerToken(), $token);

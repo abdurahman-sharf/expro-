@@ -3,6 +3,7 @@
 namespace App\Libraries\Accounting;
 
 use App\Libraries\Organization\CompanyContext;
+use App\Libraries\Tax\AdvanceVat;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use DateTimeImmutable;
@@ -67,6 +68,7 @@ final class TaxReport
         $others    = [];
         $pending   = [];
         $lineless  = [];
+        $advances  = [];
         $unmatched = 0;
 
         foreach ($rows as $row) {
@@ -94,8 +96,17 @@ final class TaxReport
                 continue;
             }
 
+            if (in_array($type, AdvanceVat::SOURCES, true)) {
+                $reported[$accountId]         = bcadd($reported[$accountId] ?? '0', $movement, self::SCALE);
+                $advances[$type][$sourceId][] = $row;
+
+                continue;
+            }
+
             $others[$accountId][(int) $row->journal_id] = true;
         }
+
+        $this->addAdvances($parts[TaxSection::SalesInvoices->value], $advances);
 
         foreach ($lineless as $section => $documents) {
             $parts[$section]['documents'] = count(array_filter($documents, static fn (string $net): bool => bccomp($net, '0', self::SCALE) !== 0));
@@ -238,6 +249,44 @@ final class TaxReport
         }
 
         return $builder->get()->getResult();
+    }
+
+    /**
+     * The VAT of the advances received under the Saudi rules is output VAT of the sales (R-04 §9.5): owed when the
+     * advance is received, and taken off again by the invoice that takes the advance or by what goes back of it. The
+     * base is the taxable amount behind each journal, with the sign of what the journal does to the tax owed.
+     *
+     * @param array{base: string, tax: string, documents: int, rates: array<string, array{base: string, tax: string, documents: int}>, discounted: array{documents: int, base: string, tax: string}} $part
+     * @param array<string, array<int, list<object>>>                                                                                                                                                $advances
+     */
+    private function addAdvances(array &$part, array $advances): void
+    {
+        $vat = new AdvanceVat($this->db);
+
+        foreach ($advances as $type => $sources) {
+            foreach ($sources as $sourceId => $rows) {
+                $movement = array_reduce($rows, static fn (string $sum, object $row): string => bcadd($sum, (string) $row->movement, self::SCALE), '0');
+                $sign     = bccomp($movement, '0', self::SCALE);
+                $behind   = $vat->behind($type, $sourceId);
+
+                if ($sign === 0) {
+                    continue;
+                }
+
+                $base = $behind === null ? '0' : self::signed($behind['taxable'], $sign);
+
+                $part['documents']++;
+                $part['tax']  = bcadd($part['tax'], $movement, self::SCALE);
+                $part['base'] = bcadd($part['base'], $base, self::SCALE);
+
+                if ($behind !== null) {
+                    $rate = TaxDocuments::rateKey($behind['percent']);
+                    $row  = $part['rates'][$rate] ?? ['base' => '0', 'tax' => '0', 'documents' => 0];
+
+                    $part['rates'][$rate] = ['base' => bcadd($row['base'], $base, self::SCALE), 'tax' => bcadd($row['tax'], $movement, self::SCALE), 'documents' => $row['documents'] + 1];
+                }
+            }
+        }
     }
 
     /**

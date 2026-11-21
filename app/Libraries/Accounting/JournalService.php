@@ -47,6 +47,7 @@ final class JournalService
         CreditRefunds::SUPPLIER_SOURCE,
         AdvanceVat::SOURCE,
         AdvanceVat::SOURCE_USE,
+        AdvanceVat::SOURCE_RETURN,
     ];
     public const FX_SOURCES = [
         SalePostingBuilder::SOURCE_PAYMENT_FX,

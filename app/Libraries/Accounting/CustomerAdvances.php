@@ -2,6 +2,9 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\EInvoicing\EInvoiceException;
+use App\Libraries\EInvoicing\EInvoiceRules;
+use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -60,7 +63,7 @@ final class CustomerAdvances
      *
      * @return int The advance.
      *
-     * @throws AccountingException|BranchException|PostingException
+     * @throws AccountingException|BranchException|EInvoiceException|PostingException
      */
     public function receive(int $customerId, string $amount, string $date, string $paymentType, ?int $treasuryId = null, string $reference = '', string $note = '', ?int $employeeId = null, ?string $requestKey = null): int
     {
@@ -102,7 +105,9 @@ final class CustomerAdvances
             ));
 
             $this->settlement->settle($customerId, $employeeId);
-            (new AdvanceVat($this->db))->received($advanceId, $employeeId);
+            if ((new AdvanceVat($this->db))->received($advanceId, $employeeId)) {
+                (new EInvoiceService($this->db))->issueForReceivedAdvance($advanceId, $employeeId);
+            }
             $this->audit->write('customer_advance', $advanceId, 'created', $employeeId, JournalOrigin::User, ['customer_id' => $customerId, 'amount' => $amount], $place['branch']);
 
             return $advanceId;
@@ -114,7 +119,7 @@ final class CustomerAdvances
      * to the credit of the customer, and the invoices it paid are open again. An advance whose credit
      * was paid back in cash cannot be cancelled until that refund is.
      *
-     * @throws AccountingException|BranchException|PostingException
+     * @throws AccountingException|BranchException|EInvoiceException|PostingException
      */
     public function cancel(int $advanceId, string $reason, ?int $employeeId = null): void
     {
@@ -145,6 +150,12 @@ final class CustomerAdvances
                 throw new AccountingException(AccountingError::AdvanceAlreadyCancelled, 'The advance is already cancelled.', ['advance_id' => $advanceId]);
             }
 
+            $vat = new AdvanceVat($this->db);
+
+            if ($vat->takenByIssuedInvoice($advanceId)) {
+                throw new AccountingException(AccountingError::AdvanceTakenByIssuedInvoice, 'An invoice whose electronic document was issued takes the advance off what it asks; the advance stands.', ['advance_id' => $advanceId]);
+            }
+
             $this->cash->reverse(self::SOURCE, $advanceId, $branchId, $reason, $employeeId);
 
             $this->db->table('customer_advances')->where('advance_id', $advanceId)->update([
@@ -155,7 +166,14 @@ final class CustomerAdvances
             ]);
 
             $this->settlement->settle($customerId, $employeeId);
-            (new AdvanceVat($this->db))->cancelled($advanceId, $reason, $employeeId);
+
+            $documents = new EInvoiceService($this->db);
+            $returnId  = $vat->cancelled($advanceId, $reason, $employeeId, $documents->documentOf(EInvoiceService::SOURCE_ADVANCE, $advanceId) !== null);
+
+            if ($returnId !== null) {
+                $documents->issueForAdvanceReturn($returnId, EInvoiceRules::NOTE_REASONS[0], $employeeId);
+            }
+
             $this->audit->write('customer_advance', $advanceId, 'cancelled', $employeeId, JournalOrigin::User, ['reason' => $reason], $branchId);
         }));
     }

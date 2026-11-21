@@ -13,6 +13,10 @@ use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\SalesDebitNotes;
+use App\Libraries\EInvoicing\EInvoiceError;
+use App\Libraries\EInvoicing\EInvoiceException;
+use App\Libraries\EInvoicing\EInvoiceKind;
+use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -25,10 +29,12 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\EInvoiceSaleFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\SaudiSaleFixtureTrait;
 
 /**
  * The sales debit note: a document that raises what a customer owes without an invoice, with one journal
@@ -43,6 +49,8 @@ class SalesDebitNotesTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use RoleFixtureTrait;
     use SaleAccountingFixtureTrait;
+    use EInvoiceSaleFixtureTrait;
+    use SaudiSaleFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -71,6 +79,8 @@ class SalesDebitNotesTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->leaveTheSaudiRules();
+
         $db = $this->accountingDb();
         $db->table('accounting_audit_log')->where('entity_type', 'sales_debit_note')->delete();
         $db->table('document_numbers')->truncate();
@@ -185,18 +195,60 @@ class SalesDebitNotesTest extends CIUnitTestCase
 
     public function testCreate_RoundsTheTaxToTheHalalaUnderTheSaudiRules(): void
     {
-        $db      = $this->accountingDb();
-        $profile = $db->table('company_tax_profile')->get()->getRowArray();
+        $this->underTheSaudiRules();
 
-        try {
-            $db->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
-
-            $id = $this->raise(['amount' => '33.33', 'tax_percent' => '15']);
-        } finally {
-            $db->table('company_tax_profile')->update(['ksa_mode' => $profile['ksa_mode'], 'ksa_mode_effective_at' => $profile['ksa_mode_effective_at']]);
-        }
+        $original = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_SALE, $this->saudiSaleOf('100.00'));
+        $id       = $this->raise(['amount' => '33.33', 'tax_percent' => '15', 'original_document' => $original->number]);
 
         $this->assertSame([$this->customerAccount() . '=38.3300/0.0000', $this->accountId('sales_revenue') . '=0.0000/33.3300', $this->accountId('tax_output') . '=0.0000/5.0000'], $this->linesOf($id, 4));
+    }
+
+    public function testCreate_IssuesTheDocumentOfANoteRaisedUnderTheSaudiRules(): void
+    {
+        $this->underTheSaudiRules();
+
+        $original = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_SALE, $this->saudiSaleOf('100.00'));
+        $id       = $this->raise(['amount' => '20.00', 'tax_percent' => '15', 'original_document' => $original->number, 'note_reason' => 'In case of essential change or amendment in the supply, which leads to the change of the VAT due']);
+        $document = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_NOTE, $id);
+
+        $this->assertNotNull($document, 'the note is issued with its journal');
+        $this->assertSame(EInvoiceKind::DebitNote, $document->kind);
+        $this->assertSame($original->documentId, $document->originalDocumentId);
+        $this->assertSame(['20.00', '3.00', '23.00'], [$document->taxExclusive, $document->taxAmount, $document->taxInclusive]);
+        $this->assertSame('In case of essential change or amendment in the supply, which leads to the change of the VAT due', $document->reason);
+    }
+
+    public function testCreate_RefusesANoteThatNamesNoIssuedDocumentUnderTheSaudiRules(): void
+    {
+        $this->underTheSaudiRules();
+
+        $before = $this->accountingDb()->table('sales_debit_notes')->countAllResults();
+
+        foreach (['', 'NO-SUCH-NUMBER'] as $number) {
+            try {
+                $this->raise(['amount' => '20.00', 'tax_percent' => '15', 'original_document' => $number]);
+                $this->fail('The note was raised without its original.');
+            } catch (EInvoiceException $refusal) {
+                $this->assertSame(EInvoiceError::OriginalNotIssued, $refusal->error);
+            }
+        }
+
+        $this->assertSame($before, $this->accountingDb()->table('sales_debit_notes')->countAllResults());
+    }
+
+    public function testReverse_RefusesANoteWhoseDocumentWasIssued(): void
+    {
+        $this->underTheSaudiRules();
+
+        $original = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_SALE, $this->saudiSaleOf('100.00'));
+        $id       = $this->raise(['amount' => '20.00', 'tax_percent' => '15', 'original_document' => $original->number]);
+
+        try {
+            $this->notes->reverse($id, 'Raised by mistake', $this->clerk);
+            $this->fail('The note was taken back.');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::DebitNoteDocumentIssued, $refusal->error);
+        }
     }
 
     public function testCreate_CreditsTheRevenueOrExpenseAccountTheNoteNames(): void

@@ -7,6 +7,8 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\EInvoicing\EInvoiceError;
+use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use RuntimeException;
@@ -23,6 +25,7 @@ final class RunRefusal extends RuntimeException
     public const SOURCE_POSTING    = 'posting';
     public const SOURCE_BRANCH     = 'branch';
     public const SOURCE_SALE       = 'sale';
+    public const SOURCE_EINVOICE   = 'einvoice';
     public const CONTEXT_MAX       = 500;
 
     public ?string $dueDate = null;
@@ -50,6 +53,7 @@ final class RunRefusal extends RuntimeException
             $failure instanceof AccountingException => new self(self::SOURCE_ACCOUNTING, $failure->error->value, self::scalars($failure->context)),
             $failure instanceof PostingException    => new self(self::SOURCE_POSTING, $failure->error->value, self::scalars($failure->context)),
             $failure instanceof BranchException     => new self(self::SOURCE_BRANCH, $failure->error->value, self::scalars($failure->context)),
+            $failure instanceof EInvoiceException   => new self(self::SOURCE_EINVOICE, $failure->error->value, self::scalars($failure->context)),
             default                                 => new self(self::SOURCE_SALE, 'save_failed'),
         };
     }
@@ -87,6 +91,10 @@ final class RunRefusal extends RuntimeException
 
         if ($failure !== null) {
             return AccountingMessage::of($failure);
+        }
+
+        if ($source === self::SOURCE_EINVOICE && ($error = EInvoiceError::tryFrom((string) $code)) !== null) {
+            return (new EInvoiceException($error, '', $context))->describe();
         }
 
         $key  = 'Recurring.refusal_' . $code;

@@ -4,6 +4,7 @@ namespace App\Libraries\Accounting;
 
 use App\Libraries\ShippingTaxOption;
 use App\Libraries\Tax\PurchaseVat;
+use App\Libraries\Tax\VatCategoryTotal;
 use App\Libraries\Tax\VatSnapshot;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -78,7 +79,7 @@ final class TaxDocuments
             }
 
             foreach ($this->shippingTaxes(array_keys($sections)) as $saleId => $shipping) {
-                if (isset($kept[$saleId])) {
+                if (isset($kept[$saleId]) && self::holdsCharges($kept[$saleId])) {
                     continue;
                 }
 
@@ -91,6 +92,23 @@ final class TaxDocuments
         }
 
         return $found;
+    }
+
+    /**
+     * Whether the categories of a sale saved under the Saudi rules took its shipping in, which every such sale with
+     * shipping saved since the charges were kept did; one saved before kept its shipping tax apart.
+     *
+     * @param array<array-key, VatCategoryTotal> $categories
+     */
+    private static function holdsCharges(array $categories): bool
+    {
+        foreach ($categories as $category) {
+            if (bccomp($category->charges, '0', 2) !== 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -361,7 +379,7 @@ final class TaxDocuments
         return new TaxDocument($section, bcadd($totals['base'], '0', self::SCALE), bcadd($totals['tax'], '0', self::SCALE), $rates, $totals['discounted']);
     }
 
-    private static function rateKey(string $percent): string
+    public static function rateKey(string $percent): string
     {
         $rate = str_contains($percent, '.') ? rtrim(rtrim($percent, '0'), '.') : $percent;
 

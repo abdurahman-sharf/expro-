@@ -26,12 +26,16 @@ use Config\Database;
  * the tax: the tax is moved from the account the VAT of advances waits in to the output VAT, and the account of the
  * customer keeps the whole advance as credit, as it always did. When the credit of the advance pays an invoice, the
  * part of the tax that invoice takes is moved back, since the invoice charges the whole tax of the supply; when the
- * application is released, that move is reversed. An advance received before carries no VAT and is never changed.
+ * application is released, that move is reversed. When the credit is paid back in cash, or the advance is cancelled,
+ * the tax of what goes back is moved back the same way, a return, which a credit note of the prepayment invoice states.
+ * An advance received before carries no VAT and is never changed.
  */
 class AdvanceVat
 {
-    public const SOURCE     = 'customer_advance_vat';
-    public const SOURCE_USE = 'customer_advance_vat_use';
+    public const SOURCE        = 'customer_advance_vat';
+    public const SOURCE_USE    = 'customer_advance_vat_use';
+    public const SOURCE_RETURN = 'customer_advance_vat_return';
+    public const SOURCES       = [self::SOURCE, self::SOURCE_USE, self::SOURCE_RETURN];
 
     private BaseConnection $db;
     private ?bool $installed = null;
@@ -51,16 +55,16 @@ class AdvanceVat
      *
      * @throws AccountingException|PostingException
      */
-    public function received(int $advanceId, ?int $employeeId): void
+    public function received(int $advanceId, ?int $employeeId): bool
     {
         if (! $this->isInstalled() || ! (new CompanyTaxProfile($this->db))->isSaudiMode()) {
-            return;
+            return false;
         }
 
         $advance = $this->db->table('customer_advances')->where('advance_id', $advanceId)->get()->getRow();
 
         if ($advance === null) {
-            return;
+            return false;
         }
 
         $taken = (string) ($this->db->table('customer_credit_applications')
@@ -73,11 +77,10 @@ class AdvanceVat
         $percent = $this->standardRate((string) $advance->advance_date);
 
         if (bccomp($gross, '0', 2) <= 0 || $percent === null || bccomp($percent, '0', 3) <= 0) {
-            return;
+            return false;
         }
 
-        $vat     = VatCalculator::round(bcdiv(bcmul($gross, $percent, 10), bcadd('100', $percent, 10), 10), 2);
-        $taxable = bcsub($gross, $vat, 2);
+        ['taxable' => $taxable, 'vat' => $vat] = self::split($gross, $percent);
 
         $this->db->table('customer_advance_vat')->insert([
             'advance_id'   => $advanceId,
@@ -90,6 +93,31 @@ class AdvanceVat
         ]);
 
         $this->post(self::SOURCE, $advanceId, (string) $advance->advance_date, (int) $advance->branch_id, RoutingKey::TaxAdvances, RoutingKey::TaxOutput, $vat, 'VAT on advance #' . $advanceId, $employeeId);
+
+        return true;
+    }
+
+    /**
+     * The taxable amount and the VAT of an amount that holds its VAT at the rate, the VAT being the taxable amount
+     * times the rate, rounded (BR-KSA-79 and BR-CO-17). Not every amount splits so exactly: one that does not keeps
+     * the nearest split, and the cent between them is the rounding of the document that states it (BT-114).
+     *
+     * @return array{taxable: numeric-string, vat: numeric-string}
+     */
+    public static function split(string $gross, string $percent): array
+    {
+        $rate = bcdiv($percent, '100', 10);
+        $near = VatCalculator::round(bcdiv(bcmul($gross, '100', 10), bcadd('100', $percent, 10), 10), 2);
+
+        foreach ([$near, bcsub($near, '0.01', 2), bcadd($near, '0.01', 2)] as $taxable) {
+            $vat = VatCalculator::round(bcmul($taxable, $rate, 10), 2);
+
+            if (bccomp(bcadd($taxable, $vat, 2), bcadd($gross, '0', 2), 2) === 0) {
+                return ['taxable' => $taxable, 'vat' => $vat];
+            }
+        }
+
+        return ['taxable' => $near, 'vat' => VatCalculator::round(bcmul($near, $rate, 10), 2)];
     }
 
     /**
@@ -99,38 +127,184 @@ class AdvanceVat
      */
     public function applied(int $applicationId, int $advanceId, ?int $saleId, string $amount, ?int $employeeId): void
     {
-        if (! $this->isInstalled()) {
+        $part = $this->partOf($advanceId, $amount);
+
+        if ($part === null) {
             return;
         }
 
-        $charged = $this->db->table('customer_advance_vat')->where(['advance_id' => $advanceId, 'cancelled' => 0])->get()->getRow();
-
-        if ($charged === null) {
-            return;
-        }
-
-        $used     = $this->db->table('customer_advance_vat_uses')->select('COALESCE(SUM(gross), 0) AS gross, COALESCE(SUM(vat), 0) AS vat', false)->where(['advance_id' => $advanceId, 'released' => 0])->get()->getRow();
-        $leftOver = bcsub((string) $charged->gross, (string) $used->gross, 2);
-
-        if (bccomp($leftOver, '0', 2) <= 0) {
-            return;
-        }
-
-        $part    = VatCalculator::round($amount, 2);
-        $part    = bccomp($part, $leftOver, 2) >= 0 ? $leftOver : $part;
-        $vat     = bccomp($part, $leftOver, 2) === 0 ? bcsub((string) $charged->vat, (string) $used->vat, 2) : VatCalculator::round(bcdiv(bcmul($part, (string) $charged->vat, 10), (string) $charged->gross, 10), 2);
         $advance = $this->db->table('customer_advances')->select('branch_id')->where('advance_id', $advanceId)->get()->getRow();
 
         $this->db->table('customer_advance_vat_uses')->insert([
             'application_id' => $applicationId,
             'advance_id'     => $advanceId,
             'sale_id'        => $saleId,
-            'gross'          => $part,
-            'taxable'        => bcsub($part, $vat, 2),
-            'vat'            => $vat,
+            'gross'          => $part['gross'],
+            'taxable'        => $part['taxable'],
+            'vat'            => $part['vat'],
         ]);
 
-        $this->post(self::SOURCE_USE, $applicationId, $this->dayOf($saleId), (int) $advance->branch_id, RoutingKey::TaxOutput, RoutingKey::TaxAdvances, $vat, 'VAT of advance #' . $advanceId . ' taken by an invoice', $employeeId);
+        $this->post(self::SOURCE_USE, $applicationId, $this->openDay($this->dayOf($saleId), (int) $advance->branch_id), (int) $advance->branch_id, RoutingKey::TaxOutput, RoutingKey::TaxAdvances, $part['vat'], 'VAT of advance #' . $advanceId . ' taken by an invoice', $employeeId);
+    }
+
+    /**
+     * Gives back the VAT of the part of an advance that goes back to the customer: paid back by a refund, or, with
+     * no refund, what was left of it when it was cancelled. Returns the return, which a credit note of the
+     * prepayment invoice states, or null when the advance carries no VAT or none of it is left.
+     *
+     * @throws AccountingException|PostingException
+     */
+    public function returned(int $advanceId, string $amount, ?int $refundId, string $date, ?int $employeeId): ?int
+    {
+        $part = $this->partOf($advanceId, $amount);
+
+        if ($part === null) {
+            return null;
+        }
+
+        $advance = $this->db->table('customer_advances')->select('branch_id')->where('advance_id', $advanceId)->get()->getRow();
+
+        $this->db->table('customer_advance_vat_returns')->insert([
+            'advance_id' => $advanceId,
+            'refund_id'  => $refundId,
+            'gross'      => $part['gross'],
+            'taxable'    => $part['taxable'],
+            'vat'        => $part['vat'],
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $returnId = (int) $this->db->insertID();
+
+        $this->post(self::SOURCE_RETURN, $returnId, $this->openDay($date, (int) $advance->branch_id), (int) $advance->branch_id, RoutingKey::TaxOutput, RoutingKey::TaxAdvances, $part['vat'], 'VAT of advance #' . $advanceId . ' paid back', $employeeId);
+
+        return $returnId;
+    }
+
+    /**
+     * The returns of the advances a refund paid back.
+     *
+     * @return list<object>
+     */
+    public function returnsOfRefund(int $refundId): array
+    {
+        if (! $this->hasReturns()) {
+            return [];
+        }
+
+        return $this->db->table('customer_advance_vat_returns')->where(['refund_id' => $refundId, 'released' => 0])->get()->getResult();
+    }
+
+    /**
+     * Reverses the returns of a refund that is cancelled: the credit is the customer's again, and so is the VAT on it.
+     *
+     * @throws AccountingException|PostingException
+     */
+    public function refundCancelled(int $refundId, string $reason, ?int $employeeId): void
+    {
+        foreach ($this->returnsOfRefund($refundId) as $return) {
+            $this->reverse(self::SOURCE_RETURN, (int) $return->return_id, $reason, $employeeId);
+            $this->db->table('customer_advance_vat_returns')->where('return_id', (int) $return->return_id)->update(['released' => 1]);
+        }
+    }
+
+    public function returnOf(int $returnId): ?object
+    {
+        return $this->hasReturns() ? $this->db->table('customer_advance_vat_returns')->where('return_id', $returnId)->get()->getRow() : null;
+    }
+
+    /**
+     * The taxable amount and the rate behind a journal of the VAT of advances, or null when nothing stands behind it.
+     *
+     * @return array{taxable: numeric-string, percent: numeric-string}|null
+     */
+    public function behind(string $source, int $sourceId): ?array
+    {
+        if (! $this->isInstalled()) {
+            return null;
+        }
+
+        $row = match ($source) {
+            self::SOURCE        => $this->db->table('customer_advance_vat')->select('taxable, percent')->where('advance_id', $sourceId)->get()->getRow(),
+            self::SOURCE_USE    => $this->db->table('customer_advance_vat_uses AS u')->select('u.taxable, v.percent')->join('customer_advance_vat AS v', 'v.advance_id = u.advance_id')->where('u.application_id', $sourceId)->get()->getRow(),
+            self::SOURCE_RETURN => $this->hasReturns() ? $this->db->table('customer_advance_vat_returns AS r')->select('r.taxable, v.percent')->join('customer_advance_vat AS v', 'v.advance_id = r.advance_id')->where('r.return_id', $sourceId)->get()->getRow() : null,
+            default             => null,
+        };
+
+        return $row === null ? null : ['taxable' => bcadd((string) $row->taxable, '0', 2), 'percent' => (string) $row->percent];
+    }
+
+    /**
+     * What of the VAT of an advance a part of it takes: the rest of the advance when the part is all of what is left,
+     * so that the advance is given back to the cent, and its own split otherwise. Null when the advance carries no VAT
+     * or nothing of it is left.
+     *
+     * @return array{gross: numeric-string, taxable: numeric-string, vat: numeric-string, percent: numeric-string}|null
+     */
+    private function partOf(int $advanceId, string $amount): ?array
+    {
+        if (! $this->isInstalled()) {
+            return null;
+        }
+
+        $charged = $this->db->table('customer_advance_vat')->where(['advance_id' => $advanceId, 'cancelled' => 0])->get()->getRow();
+
+        if ($charged === null) {
+            return null;
+        }
+
+        $taken = $this->taken($advanceId);
+        $left  = [
+            'gross'   => bcsub((string) $charged->gross, $taken['gross'], 2),
+            'taxable' => bcsub((string) $charged->taxable, $taken['taxable'], 2),
+            'vat'     => bcsub((string) $charged->vat, $taken['vat'], 2),
+        ];
+
+        if (bccomp($left['gross'], '0', 2) <= 0) {
+            return null;
+        }
+
+        $part = VatCalculator::round($amount, 2);
+
+        if (bccomp($part, $left['gross'], 2) >= 0) {
+            return [...$left, 'percent' => (string) $charged->percent];
+        }
+
+        return ['gross' => $part, ...self::split($part, (string) $charged->percent), 'percent' => (string) $charged->percent];
+    }
+
+    /**
+     * What invoices took and refunds paid back of an advance and still stand.
+     *
+     * @return array{gross: numeric-string, taxable: numeric-string, vat: numeric-string}
+     */
+    private function taken(int $advanceId): array
+    {
+        $sum = static fn (?object $row, string $column): string => bcadd((string) ($row->{$column} ?? '0'), '0', 2);
+        $sql = 'COALESCE(SUM(gross), 0) AS gross, COALESCE(SUM(taxable), 0) AS taxable, COALESCE(SUM(vat), 0) AS vat';
+
+        $used     = $this->db->table('customer_advance_vat_uses')->select($sql, false)->where(['advance_id' => $advanceId, 'released' => 0])->get()->getRow();
+        $returned = $this->hasReturns() ? $this->db->table('customer_advance_vat_returns')->select($sql, false)->where(['advance_id' => $advanceId, 'released' => 0])->get()->getRow() : null;
+
+        return [
+            'gross'   => bcadd($sum($used, 'gross'), $sum($returned, 'gross'), 2),
+            'taxable' => bcadd($sum($used, 'taxable'), $sum($returned, 'taxable'), 2),
+            'vat'     => bcadd($sum($used, 'vat'), $sum($returned, 'vat'), 2),
+        ];
+    }
+
+    private function hasReturns(): bool
+    {
+        return $this->db->tableExists($this->db->prefixTable('customer_advance_vat_returns'), false);
+    }
+
+    /**
+     * The day a journal of the VAT of an advance is dated: the day given, unless its period is closed, and then today.
+     */
+    private function openDay(string $date, int $branchId): string
+    {
+        $cutoff = (new PeriodGuard($this->db))->effectiveCutoff($branchId, true);
+
+        return $cutoff !== null && $date <= $cutoff['date'] ? date('Y-m-d') : $date;
     }
 
     /**
@@ -155,25 +329,51 @@ class AdvanceVat
     }
 
     /**
-     * Reverses the VAT an advance was charged when the advance is cancelled; the applications of its credit were
-     * released first.
+     * Takes back the VAT an advance was charged when the advance is cancelled; the applications of its credit were
+     * released first. While no prepayment invoice states the VAT, its journal is reversed. Once one does, what is
+     * left of the advance goes back as a return, which a credit note states; the return is given, or null.
      *
      * @throws AccountingException|PostingException
      */
-    public function cancelled(int $advanceId, string $reason, ?int $employeeId): void
+    public function cancelled(int $advanceId, string $reason, ?int $employeeId, bool $stated = false): ?int
     {
         if (! $this->isInstalled()) {
-            return;
+            return null;
         }
 
         $charged = $this->db->table('customer_advance_vat')->where(['advance_id' => $advanceId, 'cancelled' => 0])->get()->getRow();
 
         if ($charged === null) {
-            return;
+            return null;
         }
 
-        $this->reverse(self::SOURCE, $advanceId, $reason, $employeeId);
+        $returnId = null;
+
+        if ($stated) {
+            $returnId = $this->returned($advanceId, (string) $charged->gross, null, date('Y-m-d'), $employeeId);
+        } else {
+            $this->reverse(self::SOURCE, $advanceId, $reason, $employeeId);
+        }
+
         $this->db->table('customer_advance_vat')->where('advance_id', $advanceId)->update(['cancelled' => 1]);
+
+        return $returnId;
+    }
+
+    /**
+     * Whether an invoice whose electronic document was issued takes a part of the advance off what it asks, which the
+     * document states as a prepayment and no later change may take away.
+     */
+    public function takenByIssuedInvoice(int $advanceId): bool
+    {
+        if (! $this->isInstalled() || ! $this->db->tableExists($this->db->prefixTable('einvoice_documents'), false)) {
+            return false;
+        }
+
+        return $this->db->table('customer_advance_vat_uses AS u')
+            ->join('einvoice_documents AS d', 'd.source_id = u.sale_id')
+            ->where(['u.advance_id' => $advanceId, 'u.released' => 0, 'd.source_type' => 'sale'])
+            ->countAllResults() > 0;
     }
 
     /**

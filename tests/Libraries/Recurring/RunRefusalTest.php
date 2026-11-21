@@ -6,6 +6,8 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\EInvoicing\EInvoiceError;
+use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Recurring\RunRefusal;
@@ -28,6 +30,14 @@ class RunRefusalTest extends CIUnitTestCase
         $this->assertSame([RunRefusal::SOURCE_POSTING, 'period_closed'], [$posting->source, $posting->error]);
         $this->assertSame([RunRefusal::SOURCE_BRANCH, 'not_allowed'], [$branch->source, $branch->error]);
         $this->assertSame(['date' => '2026-01-31', 'until' => '2026-02-28'], $posting->context);
+    }
+
+    public function testFrom_NamesARefusalOfTheElectronicInvoiceAndTellsItInWordsLater(): void
+    {
+        $refusal = RunRefusal::from(new EInvoiceException(EInvoiceError::LinesNotClassified, 'not classified'));
+
+        $this->assertSame([RunRefusal::SOURCE_EINVOICE, 'lines_not_classified'], [$refusal->source, $refusal->error]);
+        $this->assertSame(lang('Accounting_einvoicing.error_lines_not_classified'), RunRefusal::wordsOf($refusal->source, $refusal->error, $refusal->contextJson()));
     }
 
     public function testFrom_NamesAnythingElseAsASaleThatCouldNotBeSaved(): void

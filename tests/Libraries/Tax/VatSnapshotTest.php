@@ -112,6 +112,20 @@ class VatSnapshotTest extends CIUnitTestCase
         $this->assertSame(['S|15.000|' => ['taxable' => '0.20', 'vat' => '0.03']], (new VatSnapshot())->leftOf($this->sale));
     }
 
+    public function testLeftOf_LeavesTheShippingACategoryTookInOutOfWhatAReturnGivesBack(): void
+    {
+        (new VatSnapshot())->record($this->sale, ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '110.00', '16.50', false, '10.00')]);
+
+        $this->assertSame('100.00', (new VatSnapshot())->leftOf($this->sale)['S|15.000|']['taxable'], 'a full return gives back the goods, not the shipping');
+
+        $saleId          = $this->saleRow(COMPLETED, SALE_TYPE_RETURN, $this->sale);
+        $this->returns[] = $saleId;
+
+        (new VatSnapshot())->record($saleId, ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '-45.00', '-6.75', false, '-5.00')]);
+
+        $this->assertSame('60.00', (new VatSnapshot())->leftOf($this->sale)['S|15.000|']['taxable'], 'a return takes off its lines only');
+    }
+
     public function testLeftOf_GivesNothingWhenAReturnOfTheSaleWasSavedWithoutItsVatWorkedOnce(): void
     {
         (new VatSnapshot())->record($this->sale, ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '0.30', '0.05', false)]);

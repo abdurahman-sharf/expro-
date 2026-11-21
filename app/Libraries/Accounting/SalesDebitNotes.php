@@ -2,6 +2,9 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\EInvoicing\EInvoiceException;
+use App\Libraries\EInvoicing\EInvoiceRules;
+use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
@@ -94,9 +97,12 @@ final class SalesDebitNotes
     /**
      * Raises what a customer owes by an amount and the tax on it, dated up to today.
      *
-     * @param array{customer_id: int, date: string, amount: string, tax_percent?: string, account_id?: int|null, note?: string, branch_id?: int|null} $input
+     * Under the Saudi rules the note names the issued document it corrects, by its number, and the reason it is
+     * issued for, and its own document is issued in the transaction that raises it.
      *
-     * @throws AccountingException|BranchException|PostingException
+     * @param array{customer_id: int, date: string, amount: string, tax_percent?: string, account_id?: int|null, note?: string, branch_id?: int|null, original_document?: string, note_reason?: string} $input
+     *
+     * @throws AccountingException|BranchException|EInvoiceException|PostingException
      */
     public function create(array $input, ?int $employeeId = null): int
     {
@@ -112,8 +118,11 @@ final class SalesDebitNotes
 
         $branchId = $this->branch(isset($input['branch_id']) ? (int) $input['branch_id'] : null, $employeeId);
         $account  = $this->revenueAccount(isset($input['account_id']) ? (int) $input['account_id'] : null);
+        $issuing  = (new CompanyTaxProfile($this->db))->isSaudiMode();
+        $reason   = trim((string) ($input['note_reason'] ?? '')) === '' ? EInvoiceRules::NOTE_REASONS[2] : trim((string) $input['note_reason']);
+        $original = $issuing ? (new EInvoiceService($this->db))->originalForDebitNote($customerId, (string) ($input['original_document'] ?? ''), $employeeId) : null;
 
-        return $this->lock->run($customerId, fn (): int => $this->transactional(function () use ($customerId, $figures, $date, $note, $branchId, $account, $employeeId): int {
+        return $this->lock->run($customerId, fn (): int => $this->transactional(function () use ($customerId, $figures, $date, $note, $branchId, $account, $employeeId, $original, $reason): int {
             $customerAccount = $this->resolver->accountFor(RoutingKey::Customers, $customerId);
 
             if ($customerAccount === null) {
@@ -164,6 +173,11 @@ final class SalesDebitNotes
             }
 
             $this->settlement->settle($customerId, $employeeId);
+
+            if ($original !== null) {
+                (new EInvoiceService($this->db))->issueForDebitNote($debitNoteId, $reason, $original, $employeeId);
+            }
+
             $this->audit->write(self::ENTITY, $debitNoteId, 'created', $employeeId, $this->origin($employeeId), [
                 'customer_id' => $customerId,
                 'amount'      => $figures['amount'],
@@ -198,6 +212,10 @@ final class SalesDebitNotes
         $customerId = (int) $note->customer_id;
 
         $this->lock->run($customerId, fn () => $this->transactional(function () use ($debitNoteId, $customerId, $reason, $employeeId): void {
+            if ((new EInvoiceService($this->db))->documentOf(self::SOURCE, $debitNoteId) !== null) {
+                throw new AccountingException(AccountingError::DebitNoteDocumentIssued, 'The electronic document of the debit note was issued; the note stands.', ['debit_note_id' => $debitNoteId]);
+            }
+
             $current = $this->standing($debitNoteId);
             $journal = $this->db->table('accounting_journals')
                 ->select('journal_id, journal_date')
