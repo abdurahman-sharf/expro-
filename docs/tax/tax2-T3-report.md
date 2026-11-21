@@ -98,11 +98,29 @@
 |---|---|---|
 | `AccountingStatementsControllerTest` و`DefaultChartTest` و`StatementFiguresTest` | إضافة `4213` لقائمة رموز الدليل الافتراضي | الحساب الجديد (كما أُضيف 4209 لفروق العملة من قبل) |
 | `MigrationChecksTest` | إضافة `VatSnapshot` لقائمة الترحيلات التي تعدّل جداول أنشأها الإصدار نفسه | يعدّل `sales_items_vat` فقط (من T2) |
+| `RoutingServiceTest` | إضافة `tax.rounding` لقائمة صفوف التوجيه | الصف الجديد (§4.3) |
 | `EInvoiceBuilderTest::testFromSale_RefusesATaxTheBooksDoNotHoldEvenWhenTheTotalTies` | `assertNull` صار `assertSame('0.00')` | الطريقة الخاصة صارت تعيد مبلغ التقريب |
 
 ### 4.3 الحزمة الكاملة
 
-SUITE_RESULTS
+شُغّلت الحزمة كاملة بعد إصلاحات المراجعة (الإيداع `0ae9ae4ac`) على MariaDB 10.11 محلي، **مجلدًا مجلدًا**، وبلا أي تشغيل آخر على قاعدة الاختبار في الوقت نفسه. **المجموع 23,096 اختبارًا** (23,036 بعد T2).
+
+| المجلد | النتيجة |
+|---|---|
+| `tests/Controllers` | OK (4,425 اختبارًا، 35,488 تأكيدًا) |
+| `tests/Libraries` | 11,802: **فشل واحد** (أدناه)، ثم نجح ملفه كاملًا (62) |
+| `tests/Models` | 827، لا فشل، 5 متخطاة (كما قبل T3) |
+| `tests/Database` | OK (617) |
+| `tests/Commands` | OK (164) |
+| `tests/Config` | 134، تخطٍّ واحد (كما قبل) |
+| `tests/Filters` | 307، تخطٍّ واحد (كما قبل) |
+| `tests/helpers` | 213، 4 متخطاة (كما قبل) |
+| `tests/Views` و`tests/Events` و`tests/libraries` | OK (33، و6، و10) |
+| `tests/Support` | OK (421) |
+| `tests/LanguageFilesTest.php` | OK (4,136) |
+| `tests/EscapingAssertionsTest.php` | OK (1) |
+
+**الفشل الوحيد:** `RoutingServiceTest::testItems_ListsTheSalesRowsThenOneRowForEachPaymentType` يثبّت قائمة صفوف التوجيه حرفيًا، فظهر فيها الصف الجديد `tax.rounding`. أُضيف إلى التوقع في موضعه (كما أُضيف `fx.gain` و`fx.loss` من قبل)، فنجح الملف كاملًا. **مقصود، لا عيب.**
 
 ---
 
