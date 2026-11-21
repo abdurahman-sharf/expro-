@@ -151,6 +151,21 @@
 
 **الفشل الوحيد:** `RoutingServiceTest::testItems_ListsTheSalesRowsThenOneRowForEachPaymentType` يثبّت قائمة صفوف التوجيه حرفيًا، فظهر فيها الصف الجديد `tax.rounding`. أُضيف إلى التوقع في موضعه (كما أُضيف `fx.gain` و`fx.loss` من قبل)، فنجح الملف كاملًا. **مقصود، لا عيب.**
 
+**بعد دفعة المشتريات** (الإيداع الأخير لـ T3، `0f56ed46d`): شُغّلت الحزمة كاملة في شجرة عمل منفصلة بقاعدة اختبار مستقلة، **مجموعها 23,112 اختبارًا**:
+
+| المجلد | النتيجة |
+|---|---|
+| `tests/Controllers` | 4,425: **خطأ واحد** لا يتصل بالضريبة (أدناه) |
+| `tests/Libraries` | OK (11,814 اختبارًا، 245,631 تأكيدًا) |
+| `tests/Models` | 827، 5 متخطاة (كما قبل) |
+| `tests/Database` | OK (621) |
+| `tests/Commands` | OK (164) |
+| `tests/Config` و`tests/Filters` و`tests/helpers` | 134 و307 و213، والمتخطاة كما قبل |
+| `tests/Views` و`tests/Events` و`tests/libraries` و`tests/Support` | OK (33، و6، و10، و421) |
+| `tests/LanguageFilesTest.php` و`tests/EscapingAssertionsTest.php` | OK (4,136 و1) |
+
+**الخطأ الوحيد:** `SalesControllerTest::testPostDelete_RefusesASaleOfABranchTheEmployeeDoesNotWorkIn` أنشأ فرعًا برمز عشوائي من 900 احتمال فاصطدم برمز فرع سابق في القاعدة (`Duplicate entry '1-T422'`). عيب في أداة الاختبار قائم قبل TAX2، **أُصلح** في `b6f52993e` (رمز عشوائي أوسع في هذا الملف وفي `ReceivingsControllerTest`).
+
 ---
 
 ## 5. ما لم يُنفذ بعد من T3 أو لم يُتحقق منه
