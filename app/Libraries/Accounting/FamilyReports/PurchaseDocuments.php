@@ -227,9 +227,11 @@ final class PurchaseDocuments
     {
         $lines = [];
         $count = count($raw);
+        $taxes = $this->lineTaxes(array_column($raw, 0));
 
         foreach ($raw as $index => [$line, $row]) {
-            $total = bcadd(ReceivingAmounts::net($line), ReceivingAmounts::tax($line), SaleAmounts::SCALE);
+            $tax   = $taxes[$index];
+            $total = bcadd(ReceivingAmounts::net($line), $tax, SaleAmounts::SCALE);
 
             if ($index === $count - 1) {
                 $total = bcadd($total, $rounding, SaleAmounts::SCALE);
@@ -245,12 +247,50 @@ final class PurchaseDocuments
                 (string) ($row->category ?? ''),
                 $sign ? bcsub('0', $units, 3) : bcadd($units, '0', 3),
                 bcadd($line->unitPrice, '0', 2),
-                $sign ? bcsub('0', ReceivingAmounts::tax($line), SaleAmounts::SCALE) : ReceivingAmounts::tax($line),
+                $sign ? bcsub('0', $tax, SaleAmounts::SCALE) : $tax,
                 $sign ? bcsub('0', $total, SaleAmounts::SCALE) : bcadd($total, '0', SaleAmounts::SCALE),
             );
         }
 
         return $lines;
+    }
+
+    /**
+     * The tax each line shows: its own, and on the last line of each rate of a purchase saved under the Saudi rules,
+     * what rounding the tax of the rate to the halala moved, so the lines add up to the tax of the purchase.
+     *
+     * @param list<ReceivingLine> $lines
+     *
+     * @return list<numeric-string>
+     */
+    private function lineTaxes(array $lines): array
+    {
+        $taxes = array_map(static fn (ReceivingLine $line): string => ReceivingAmounts::tax($line), $lines);
+
+        if ($lines === [] || ! $lines[0]->vatWorkedOnce) {
+            return $taxes;
+        }
+
+        $last = [];
+
+        foreach ($lines as $index => $line) {
+            if (bccomp($line->taxPercent, '0', 3) > 0) {
+                $last[bcadd($line->taxPercent, '0', 3)] = $index;
+            }
+        }
+
+        foreach (ReceivingAmounts::byRate($lines) as $rate => $figures) {
+            $summed = '0';
+
+            foreach ($lines as $index => $line) {
+                $summed = bccomp($line->taxPercent, '0', 3) > 0 && bcadd($line->taxPercent, '0', 3) === (string) $rate ? bcadd($summed, $taxes[$index], SaleAmounts::SCALE) : $summed;
+            }
+
+            $index         = $last[(string) $rate];
+            $taxes[$index] = bcadd($taxes[$index], bcsub($figures['tax'], $summed, SaleAmounts::SCALE), SaleAmounts::SCALE);
+        }
+
+        return $taxes;
     }
 
     /**

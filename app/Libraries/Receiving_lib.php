@@ -37,6 +37,7 @@ use Config\OSPOS;
 class Receiving_lib
 {
     private ?bool $vatWorkedOnce              = null;
+    private ?bool $vatWorkedOnceNow           = null;
     private ?AccountingException $unitFailure = null;
     private Attribute $attribute;
     private Item $item;
@@ -642,6 +643,7 @@ class Receiving_lib
     {
         $this->empty_cart();
         $this->remove_supplier();
+        $this->vatWorkedOnce = (new PurchaseVat())->markedAmong([$receiving_id]) !== [];
 
         foreach ($this->receiving->get_receiving_items($receiving_id)->getResult() as $row) {
             $this->add_item($row->item_id, $row->quantity_purchased, $row->item_location, $row->discount, $row->discount_type, $row->item_unit_price, $row->description, $row->serialnumber, $row->receiving_quantity, $receiving_id, true, (string) $row->tax_percent);
@@ -728,6 +730,7 @@ class Receiving_lib
         $this->setPaymentTerms(null);
         $this->set_return_origin(null);
         $this->clearInvoiceDiscount();
+        $this->vatWorkedOnce = null;
     }
 
     /**
@@ -823,12 +826,23 @@ class Receiving_lib
     }
 
     /**
-     * Whether the purchase the register holds will be saved under the Saudi rules, which round its input VAT to
-     * the halala once for each rate.
+     * Whether the purchase the register holds is read by the Saudi rules, which round its input VAT to the halala
+     * once for each rate: a saved purchase it shows by the mark it was saved with, a return by the mark of the
+     * purchase it gives back to, and a new purchase by whether the rules apply now.
      */
     private function vatWorkedOnce(): bool
     {
-        return $this->vatWorkedOnce ??= (new PurchaseVat())->columnsForNew() !== [];
+        if ($this->vatWorkedOnce !== null) {
+            return $this->vatWorkedOnce;
+        }
+
+        $origin = $this->get_return_origin();
+
+        if ($origin !== null) {
+            return (new PurchaseVat())->markedAmong([$origin]) !== [];
+        }
+
+        return $this->vatWorkedOnceNow ??= (new PurchaseVat())->columnsForNew() !== [];
     }
 
     /**

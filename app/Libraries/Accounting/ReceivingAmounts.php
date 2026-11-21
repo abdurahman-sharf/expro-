@@ -112,7 +112,7 @@ final class ReceivingAmounts
         }
 
         if ($lines !== [] && $lines[0]->vatWorkedOnce) {
-            $tax = array_reduce(self::byRate($lines), static fn (string $sum, array $rate): string => bcadd($sum, $rate['tax'], self::SCALE), '0');
+            $tax = array_reduce(self::byRate($lines, $decimals), static fn (string $sum, array $rate): string => bcadd($sum, $rate['tax'], self::SCALE), '0');
         }
 
         return ['net' => $net, 'tax' => $tax, 'total' => SaleAmounts::round(bcadd($net, $tax, self::SCALE), $decimals)];
@@ -124,10 +124,11 @@ final class ReceivingAmounts
      * for any other.
      *
      * @param list<ReceivingLine> $lines
+     * @param int                 $decimals Those of the currency of the purchase: two, or those of a foreign currency.
      *
      * @return array<string, array{net: numeric-string, tax: numeric-string}> By the rate, to three decimals.
      */
-    public static function byRate(array $lines): array
+    public static function byRate(array $lines, int $decimals = 2): array
     {
         $rates = [];
 
@@ -145,7 +146,7 @@ final class ReceivingAmounts
 
         if ($lines !== [] && $lines[0]->vatWorkedOnce) {
             foreach ($rates as $rate => $figures) {
-                $rates[$rate]['tax'] = bcadd(SaleAmounts::round(bcmul($figures['net'], bcdiv((string) $rate, '100', self::WORK_SCALE), self::WORK_SCALE), 2), '0', self::SCALE);
+                $rates[$rate]['tax'] = bcadd(SaleAmounts::round(bcmul($figures['net'], bcdiv((string) $rate, '100', self::WORK_SCALE), self::WORK_SCALE), $decimals), '0', self::SCALE);
             }
         }
 

@@ -40,6 +40,21 @@ final class PurchaseVat
     }
 
     /**
+     * The column the header of a return carries: the mark of the purchase it gives back to, so that both read by the
+     * same rule and the return gives back the tax its purchase posted.
+     *
+     * @return array<string, int|null>
+     */
+    public function columnsForReturnOf(int $originId): array
+    {
+        if (! $this->isInstalled()) {
+            return [];
+        }
+
+        return ['vat_calc_version' => $this->markedAmong([$originId]) === [] ? null : self::VERSION];
+    }
+
+    /**
      * The receivings that carry the mark, among these.
      *
      * @param list<int> $receivingIds

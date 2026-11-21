@@ -15,6 +15,7 @@ use App\Models\Stock_location;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Test\CIUnitTestCase;
+use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -196,6 +197,24 @@ class Receiving_libTest extends CIUnitTestCase
 
         $this->assertSame('0.1100', bcadd($this->receivingLib->get_tax_total(), '0', 4));
         $this->assertSame('0.8100', bcadd($this->receivingLib->get_total_with_tax(), '0', 4));
+    }
+
+    public function testGetTaxTotal_ReadsAReturnByTheMarkOfThePurchaseItGivesBackTo(): void
+    {
+        $db = Database::connect();
+        $db->table('receivings')->insert(['receiving_time' => '2026-11-21 10:00:00', 'employee_id' => 1, 'comment' => '', 'reference' => '', 'vat_calc_version' => 1]);
+        $origin = (int) $db->insertID();
+
+        try {
+            session()->set('recv_cart', [
+                1 => ['item_id' => 1, 'line' => 1, 'quantity' => -1, 'price' => '0.70', 'discount' => 0, 'discount_type' => PERCENT, 'receiving_quantity' => 1, 'tax_percent' => '15', 'item_location' => 1],
+            ]);
+            $this->receivingLib->set_return_origin($origin);
+
+            $this->assertSame('-0.1100', bcadd($this->receivingLib->get_tax_total(), '0', 4));
+        } finally {
+            $db->table('receivings')->where('receiving_id', $origin)->delete();
+        }
     }
 
     public function testGetTotal_AddsTheLinesAfterTheirDiscounts(): void

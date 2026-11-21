@@ -1166,7 +1166,7 @@ class Receiving extends Model
             'treasury_id'            => $treasuryId,
             ...$currencyColumns,
             ...$timing,
-            ...(new PurchaseVat($this->db))->columnsForNew(),
+            ...($type === ReceivingType::Return && $returnOfReceivingId !== null ? (new PurchaseVat($this->db))->columnsForReturnOf($returnOfReceivingId) : (new PurchaseVat($this->db))->columnsForNew()),
         ];
 
         // Run these queries as a transaction, we want to make sure we do all or nothing
