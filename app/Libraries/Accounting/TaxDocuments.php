@@ -3,6 +3,7 @@
 namespace App\Libraries\Accounting;
 
 use App\Libraries\ShippingTaxOption;
+use App\Libraries\Tax\VatSnapshot;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -45,6 +46,7 @@ final class TaxDocuments
             }
 
             $taxes = $this->saleTaxes(array_keys($sections));
+            $kept  = (new VatSnapshot($this->db))->totalsOfSales(array_keys($sections));
             $built = [];
 
             foreach ($this->db->table('sales_items')
@@ -57,7 +59,21 @@ final class TaxDocuments
                 $saleId = (int) $row->sale_id;
                 $line   = $this->saleLine($row, $taxes[$saleId][$row->item_id . ':' . $row->line] ?? []);
 
+                if (isset($kept[$saleId])) {
+                    $this->add($built[$saleId], '0', '0', [], bccomp($line['share'], '0', self::WORK_SCALE) > 0);
+
+                    continue;
+                }
+
                 $this->add($built[$saleId], $line['net'], $line['tax'], $line['rates'], bccomp($line['share'], '0', self::WORK_SCALE) > 0);
+            }
+
+            foreach ($kept as $saleId => $categories) {
+                foreach ($categories as $category) {
+                    $vat = SaleAmounts::absolute($category->vat);
+
+                    $this->add($built[$saleId], SaleAmounts::absolute($category->taxable), $vat, [self::rateKey($category->percent) => $vat], false);
+                }
             }
 
             foreach ($this->shippingTaxes(array_keys($sections)) as $saleId => $shipping) {

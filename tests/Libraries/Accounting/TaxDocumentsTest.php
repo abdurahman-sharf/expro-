@@ -8,6 +8,8 @@ use App\Libraries\Accounting\TaxDocuments;
 use App\Libraries\Accounting\TaxSection;
 use App\Libraries\HeaderCharges;
 use App\Libraries\ShippingTaxOption;
+use App\Libraries\Tax\VatCategoryTotal;
+use App\Libraries\Tax\VatSnapshot;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -60,6 +62,7 @@ class TaxDocumentsTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->accountingDb()->table('sales_vat_totals')->truncate();
         $this->stopTaxBooks();
 
         parent::tearDown();
@@ -96,6 +99,20 @@ class TaxDocumentsTest extends CIUnitTestCase
         $this->assertSame(['100.0000', '15.0000'], [$document->base, $document->tax]);
         $this->assertSame(['15' => ['base' => '100.0000', 'tax' => '15.0000']], $document->rates);
         $this->assertFalse($document->discounted);
+    }
+
+    public function testSales_ReadsASaudiSaleFromTheCategoriesItsVatWasWorkedOutIn(): void
+    {
+        $saleId = $this->sell('0.30', '0.0450');
+        (new VatSnapshot())->record($saleId, [
+            'S|15.000|'            => new VatCategoryTotal('S', '15.000', null, null, '0.30', '0.05', false),
+            'Z|0.000|VATEX-SA-32' => new VatCategoryTotal('Z', '0.000', 'VATEX-SA-32', 'Export of goods', '40.00', '0.00', false),
+        ]);
+
+        $document = $this->sale($saleId);
+
+        $this->assertSame(['0.3000', '0.0500'], [$document->base, $document->tax], 'the VAT of the category, as the journal holds it, not the 0.045 of its rows');
+        $this->assertSame(['15' => ['base' => '0.3000', 'tax' => '0.0500']], $document->rates);
     }
 
     public function testSales_GivesAReturnTheSectionOfReturnsAndAmountsWithoutASign(): void

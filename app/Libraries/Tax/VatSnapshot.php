@@ -77,6 +77,29 @@ class VatSnapshot
     }
 
     /**
+     * The categories of several sales, by sale and then by category key; a sale saved without them is not there.
+     *
+     * @param list<int> $saleIds
+     *
+     * @return array<int, array<string, VatCategoryTotal>>
+     */
+    public function totalsOfSales(array $saleIds): array
+    {
+        if ($saleIds === [] || ! $this->isInstalled()) {
+            return [];
+        }
+
+        $totals = [];
+
+        foreach ($this->db->table('sales_vat_totals')->whereIn('sale_id', $saleIds)->get()->getResult() as $row) {
+            $total                                      = $this->total($row);
+            $totals[(int) $row->sale_id][$total->key()] = $total;
+        }
+
+        return $totals;
+    }
+
+    /**
      * The net, VAT and amount with VAT each line of a sale was saved with, by item and line; nothing for lines saved
      * without them.
      *
