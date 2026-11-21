@@ -14,7 +14,9 @@ use Throwable;
  * The record of the sales whose document could not be issued under the Saudi rules, written after the sale was
  * undone. It names who completed the sale, the branch, the kind of sale, the reason and a fingerprint of the cart,
  * never the number of the sale, which no longer exists and may come back. The message of a failure that is not one
- * of the application's own is not kept, only its class, so that nothing the database said is copied here.
+ * of the application's own is not kept, only its class, so that nothing the database said is copied here. Inside a
+ * transaction that is still open, such as the one a recurring invoice is made in, it is written on a connection of
+ * its own, so that undoing that transaction does not undo the record.
  */
 final class EInvoiceFailures
 {
@@ -39,7 +41,9 @@ final class EInvoiceFailures
             default                                                                                                                => ['unexpected', $failure::class],
         };
 
-        $this->db->table('einvoice_failures')->insert([
+        $writer = $this->db->transDepth > 0 ? Database::connect(null, false) : $this->db;
+
+        $writer->table('einvoice_failures')->insert([
             'company_id'  => CompanyContext::id(),
             'branch_id'   => $branchId,
             'employee_id' => $employeeId,
