@@ -527,12 +527,8 @@ class Tax_lib
                 $roundedTaxAmount = round($taxAmount, $decimals, PHP_ROUND_HALF_EVEN);
             } elseif ($roundingCode == Rounding_mode::HALF_ODD) {
                 $roundedTaxAmount = round($taxAmount, $decimals, PHP_ROUND_HALF_UP);
-            } elseif ($roundingCode == Rounding_mode::ROUND_UP) {
-                $fig              = (int) str_pad('1', $decimals, '0');
-                $roundedTaxAmount = ceil($taxAmount * $fig) / $fig;
-            } elseif ($roundingCode == Rounding_mode::ROUND_DOWN) {
-                $fig              = (int) str_pad('1', $decimals, '0');
-                $roundedTaxAmount = floor($taxAmount * $fig) / $fig;
+            } elseif ($roundingCode == Rounding_mode::ROUND_UP || $roundingCode == Rounding_mode::ROUND_DOWN) {
+                $roundedTaxAmount = Rounding_mode::directed((float) $taxAmount, $decimals, $roundingCode == Rounding_mode::ROUND_UP);
             } elseif ($roundingCode == Rounding_mode::HALF_FIVE) {
                 $roundedTaxAmount = round($taxAmount / 5) * 5;
             }

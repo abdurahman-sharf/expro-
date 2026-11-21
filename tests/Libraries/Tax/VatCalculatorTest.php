@@ -1,0 +1,237 @@
+<?php
+
+namespace Tests\Libraries\Tax;
+
+use App\Libraries\Tax\LineVat;
+use App\Libraries\Tax\VatCalculator;
+use App\Libraries\Tax\VatLine;
+use App\Libraries\Tax\VatResult;
+use CodeIgniter\Test\CIUnitTestCase;
+use InvalidArgumentException;
+
+class VatCalculatorTest extends CIUnitTestCase
+{
+    private VatCalculator $calculator;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->calculator = new VatCalculator();
+    }
+
+    private static function standard(string $percent = '15'): LineVat
+    {
+        return new LineVat(1, 'S', $percent, null, null, 'VAT');
+    }
+
+    private static function zero(): LineVat
+    {
+        return new LineVat(2, 'Z', '0', 'VATEX-SA-32', 'Export of goods', 'VAT');
+    }
+
+    /**
+     * @param list<array{0: string, 1?: bool, 2?: LineVat}> $lines Base, whether the price holds the tax, class.
+     */
+    private function calculate(array $lines): VatResult
+    {
+        $input = [];
+
+        foreach ($lines as $index => $line) {
+            $input[] = new VatLine((string) $index, $line[0], $line[2] ?? self::standard(), $line[1] ?? false);
+        }
+
+        return $this->calculator->calculate($input);
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: string}
+     */
+    private static function line(VatResult $result, string $key = '0'): array
+    {
+        return [$result->lines[$key]->net, $result->lines[$key]->vat, $result->lines[$key]->gross];
+    }
+
+    public function testCalculate_ChargesAPriceWithoutTax(): void
+    {
+        $result = $this->calculate([['100']]);
+
+        $this->assertSame(['100.00', '15.00', '115.00'], self::line($result));
+        $this->assertSame(['100.00', '15.00', '115.00'], [$result->taxable(), $result->vat(), $result->totalWithVat()]);
+    }
+
+    public function testCalculate_TakesTheNetOutOfAPriceThatHoldsTheTax(): void
+    {
+        $this->assertSame(['100.00', '15.00', '115.00'], self::line($this->calculate([['115', true]])));
+        $this->assertSame(['86.96', '13.04', '100.00'], self::line($this->calculate([['100', true]])));
+    }
+
+    public function testCalculate_RoundsTheTaxOfACategoryOnItsTaxableAmountAndNotOnItsLines(): void
+    {
+        $result = $this->calculate([['0.10'], ['0.10'], ['0.10']]);
+
+        $this->assertSame('0.02', $result->lines['0']->vat);
+        $this->assertSame(['0.30', '0.05'], [$result->taxable(), $result->vat()]);
+    }
+
+    public function testCalculate_TaxesWhatTheLineDiscountLeaves(): void
+    {
+        $this->assertSame(['90.00', '13.50', '103.50'], self::line($this->calculate([['90']])));
+    }
+
+    public function testCalculate_TaxesWhatTheInvoiceDiscountLeavesOnEveryLine(): void
+    {
+        $result = $this->calculate([['27'], ['63']]);
+
+        $this->assertSame(['90.00', '13.50'], [$result->taxable(), $result->vat()]);
+    }
+
+    public function testCalculate_RoundsALineOfFractionalUnitsToTwoDecimalsBeforeItsTax(): void
+    {
+        $this->assertSame(['100.00', '15.00', '115.00'], self::line($this->calculate([['99.999']])));
+        $this->assertSame(['3.09', '0.46', '3.55'], self::line($this->calculate([['3.0875']])));
+        $this->assertSame(['1.00', '0.15', '1.15'], self::line($this->calculate([['0.9999']])));
+    }
+
+    public function testCalculate_RoundsTheTaxOfADebitNoteToTheHalala(): void
+    {
+        $this->assertSame(['33.33', '5.00'], [$this->calculate([['33.33']])->taxable(), $this->calculate([['33.33']])->vat()]);
+    }
+
+    public function testCalculate_KeepsTheExactTaxOfTheNetForTheTaxRowsOfTheSale(): void
+    {
+        $result = $this->calculate([['0.10'], ['0.10'], ['0.10']]);
+
+        $this->assertSame('0.015000', $result->lines['0']->exact);
+        $this->assertSame($result->vat(), VatCalculator::round(bcmul($result->lines['0']->exact, '3', 6), 2));
+    }
+
+    public function testCalculate_LeavesWhatSmallPricesHoldingTheTaxComeToForTheRoundingAmount(): void
+    {
+        $result = $this->calculate(array_fill(0, 10, ['0.99', true]));
+
+        $this->assertSame(['8.60', '1.29', '9.89'], [$result->taxable(), $result->vat(), $result->totalWithVat()]);
+    }
+
+    public function testCalculate_KeepsTheCategoriesOfAnInvoiceDiscountOnMixedLinesApart(): void
+    {
+        $result = $this->calculate([['45'], ['45', false, self::zero()], ['10']]);
+
+        $this->assertCount(2, $result->categories);
+        $this->assertSame(['55.00', '8.25'], [$result->categories['S|15.000|']->taxable, $result->categories['S|15.000|']->vat]);
+        $this->assertSame(['45.00', '0.00', 'VATEX-SA-32'], [$result->categories['Z|0.000|VATEX-SA-32']->taxable, $result->categories['Z|0.000|VATEX-SA-32']->vat, $result->categories['Z|0.000|VATEX-SA-32']->exemptionCode]);
+    }
+
+    public function testCalculate_ChargesNothingOnALineGivenAwayWhole(): void
+    {
+        $this->assertSame(['0.00', '0.00', '0.00'], self::line($this->calculate([['0']])));
+    }
+
+    public function testCalculate_ChargesAReturnAtTheRateOfTheSaleItGivesBack(): void
+    {
+        $this->assertSame(['-100.00', '-5.00', '-105.00'], self::line($this->calculate([['-100', false, self::standard('5')]])));
+    }
+
+    public function testCalculate_RoundsAReturnAsItsSaleWasRounded(): void
+    {
+        $sale   = $this->calculate([['0.10']]);
+        $return = $this->calculate([['-0.10']]);
+
+        $this->assertSame([$sale->lines['0']->net, $sale->lines['0']->vat], [ltrim($return->lines['0']->net, '-'), ltrim($return->lines['0']->vat, '-')]);
+    }
+
+    public function testCalculate_RejectsACategoryThatMixesPricesWithAndWithoutTheTax(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->calculate([['100'], ['100', true]]);
+    }
+
+    public function testCapReturn_GivesBackExactlyWhatTheSaleChargedAcrossPartialReturns(): void
+    {
+        $sale = $this->calculate([['0.30']]);
+        $left = ['S|15.000|' => ['taxable' => $sale->taxable(), 'vat' => $sale->vat()]];
+        $back = ['taxable' => '0.00', 'vat' => '0.00'];
+
+        $this->assertSame('0.05', $sale->vat());
+
+        foreach (['-0.10', '-0.10', '-0.10'] as $base) {
+            $return   = $this->calculator->capReturn($this->calculate([[$base]]), $left);
+            $category = $return->categories['S|15.000|'];
+
+            $back['taxable']           = bcadd($back['taxable'], $category->taxable, 2);
+            $back['vat']               = bcadd($back['vat'], $category->vat, 2);
+            $left['S|15.000|']['taxable'] = bcadd($left['S|15.000|']['taxable'], $category->taxable, 2);
+            $left['S|15.000|']['vat']     = bcadd($left['S|15.000|']['vat'], $category->vat, 2);
+        }
+
+        $this->assertSame(['-0.30', '-0.05'], [$back['taxable'], $back['vat']]);
+        $this->assertSame(['0.00', '0.00'], [$left['S|15.000|']['taxable'], $left['S|15.000|']['vat']]);
+    }
+
+    public function testCapReturn_LeavesAReturnWithinWhatIsLeftAsItWasWorkedOut(): void
+    {
+        $return = $this->calculator->capReturn($this->calculate([['-50']]), ['S|15.000|' => ['taxable' => '100.00', 'vat' => '15.00']]);
+
+        $this->assertSame(['-50.00', '-7.50'], [$return->categories['S|15.000|']->taxable, $return->categories['S|15.000|']->vat]);
+    }
+
+    public function testCalculate_HoldsTheRulesOfTheStandardForTenThousandRandomInvoices(): void
+    {
+        mt_srand(20261121);
+
+        for ($invoice = 0; $invoice < 10000; $invoice++) {
+            $lines    = [];
+            $included = mt_rand(0, 1) === 1;
+
+            for ($count = mt_rand(1, 8), $line = 0; $line < $count; $line++) {
+                $quantity = bcdiv((string) mt_rand(1, 5000), '1000', 3);
+                $price    = bcdiv((string) mt_rand(1, 2000000), '10000', 4);
+                $class    = [self::standard(), self::standard('5'), self::zero()][mt_rand(0, 2)];
+                $lines[]  = [bcmul($quantity, $price, 7), $included, $class];
+            }
+
+            $result = $this->calculate($lines);
+            $nets   = '0.00';
+
+            foreach ($result->lines as $line) {
+                $this->assertSame(bcadd($line->net, $line->vat, 2), $line->gross, 'BR-KSA-51');
+                $nets = bcadd($nets, $line->net, 2);
+            }
+
+            foreach ($result->categories as $category) {
+                $this->assertSame(VatCalculator::round(bcmul($category->taxable, bcdiv($category->percent, '100', 10), 10), 2), $category->vat, 'BR-CO-17');
+            }
+
+            $this->assertSame($nets, $result->taxable(), 'BR-CO-10');
+            $this->assertSame(bcadd($result->taxable(), $result->vat(), 2), $result->totalWithVat(), 'BR-CO-15');
+        }
+    }
+
+    public function testCapReturn_GivesBackExactlyWhatTheSaleChargedForRandomReturnsInParts(): void
+    {
+        mt_srand(1121);
+
+        for ($sale = 0; $sale < 2000; $sale++) {
+            $units = mt_rand(2, 12);
+            $price = bcdiv((string) mt_rand(1, 50000), '100', 2);
+            $sold  = $this->calculate([[bcmul((string) $units, $price, 2)]]);
+            $left  = ['S|15.000|' => ['taxable' => $sold->taxable(), 'vat' => $sold->vat()]];
+            $back  = '0.00';
+
+            while ($units > 0) {
+                $taken  = mt_rand(1, $units);
+                $units -= $taken;
+                $return = $this->calculator->capReturn($this->calculate([['-' . bcmul((string) $taken, $price, 2)]]), $left)->categories['S|15.000|'];
+
+                $back                      = bcadd($back, $return->vat, 2);
+                $left['S|15.000|']['taxable'] = bcadd($left['S|15.000|']['taxable'], $return->taxable, 2);
+                $left['S|15.000|']['vat']     = bcadd($left['S|15.000|']['vat'], $return->vat, 2);
+
+                $this->assertGreaterThanOrEqual(0, bccomp($left['S|15.000|']['vat'], '0', 2), 'never more than was charged');
+            }
+
+            $this->assertSame(bcsub('0', $sold->vat(), 2), $back);
+        }
+    }
+}

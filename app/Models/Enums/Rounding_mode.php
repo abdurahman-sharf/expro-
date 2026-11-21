@@ -52,19 +52,37 @@ class Rounding_mode
     }
 
     public static function round_number(int $rounding_mode, float $amount, int $decimals): string
-    {   // TODO: this needs to be replaced with a switch statement
-        if ($rounding_mode == Rounding_mode::ROUND_UP) {
-            $fig           = 10 ** $decimals;
-            $rounded_total = (ceil($fig * $amount) + ceil($fig * $amount - ceil($fig * $amount))) / $fig;
-        } elseif ($rounding_mode == Rounding_mode::ROUND_DOWN) {
-            $fig           = 10 ** $decimals;
-            $rounded_total = (floor($fig * $amount) + floor($fig * $amount - floor($fig * $amount))) / $fig;
+    {
+        if ($rounding_mode == Rounding_mode::ROUND_UP || $rounding_mode == Rounding_mode::ROUND_DOWN) {
+            $roundedTotal = self::directed($amount, $decimals, $rounding_mode == Rounding_mode::ROUND_UP, false);
         } elseif ($rounding_mode == Rounding_mode::HALF_FIVE) {
-            $rounded_total = round($amount / 5, $decimals, Rounding_mode::HALF_EVEN) * 5;
+            $roundedTotal = round($amount / 5, $decimals, Rounding_mode::HALF_EVEN) * 5;
         } else {
-            $rounded_total = round($amount, $decimals, $rounding_mode);
+            $roundedTotal = round($amount, $decimals, $rounding_mode);
         }
 
-        return $rounded_total;
+        return (string) $roundedTotal;
+    }
+
+    /**
+     * Rounds up or down to a number of decimals: by the size of the amount, so that a return is rounded as the
+     * sale it gives back was, or along the number line as the rounding of cash always went. The product is cut
+     * to six decimals before it is rounded, for 1.1 times 100 is a little more than 110 in floating point and
+     * would otherwise go up to 111.
+     */
+    public static function directed(float $amount, int $decimals, bool $up, bool $bySize = true): float
+    {
+        $factor = 10 ** $decimals;
+
+        if (! $bySize) {
+            $scaled = round($amount * $factor, 6);
+
+            return ($up ? ceil($scaled) : floor($scaled)) / $factor;
+        }
+
+        $scaled = round(abs($amount) * $factor, 6);
+        $whole  = $up ? ceil($scaled) : floor($scaled);
+
+        return ($amount < 0 ? -$whole : $whole) / $factor;
     }
 }

@@ -524,6 +524,21 @@ class Tax_libTest extends CIUnitTestCase
         $this->assertSame([1.235, 1.23], [$taxes['a']['sale_tax_amount'], $taxes['b']['sale_tax_amount']]);
     }
 
+    public function testRoundTaxes_RoundsUpAndDownToTheDecimalsOfTheTax(): void
+    {
+        $taxLib = $this->taxLib(true, false);
+        $taxes  = [
+            'up'      => ['tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'sale_tax_amount' => '1.234', 'rounding_code' => Rounding_mode::ROUND_UP, 'print_sequence' => 1],
+            'down'    => ['tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'sale_tax_amount' => '1.239', 'rounding_code' => Rounding_mode::ROUND_DOWN, 'print_sequence' => 2],
+            'exact'   => ['tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'sale_tax_amount' => '1.10', 'rounding_code' => Rounding_mode::ROUND_UP, 'print_sequence' => 3],
+            'returns' => ['tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'sale_tax_amount' => '-1.234', 'rounding_code' => Rounding_mode::ROUND_UP, 'print_sequence' => 4],
+        ];
+
+        $taxLib->round_taxes($taxes);
+
+        $this->assertSame([1.24, 1.23, 1.1, -1.24], [$taxes['up']['sale_tax_amount'], $taxes['down']['sale_tax_amount'], $taxes['exact']['sale_tax_amount'], $taxes['returns']['sale_tax_amount']]);
+    }
+
     public function testRoundTaxes_KeepsTheRoundingOfTheShopForTaxesByDestination(): void
     {
         $taxLib = $this->taxLib(true, true);
