@@ -115,6 +115,19 @@ class ReceivingLoaderTest extends CIUnitTestCase
         $this->assertSame($saved, (new ReceivingLoader())->load($purchase)->payments[0]->date, 'A payment saved before dates could be entered keeps the day it was saved');
     }
 
+    public function testLoad_TellsTheLinesOfAPurchaseSavedUnderTheSaudiRules(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '1', '10')]);
+        $loader      = new ReceivingLoader();
+
+        $this->assertFalse($loader->load($receivingId)->lines[0]->vatWorkedOnce);
+
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->update(['vat_calc_version' => 1]);
+
+        $this->assertTrue($loader->load($receivingId)->lines[0]->vatWorkedOnce);
+    }
+
     public function testLoad_IsNullForAPurchaseThatDoesNotExist(): void
     {
         $this->assertNull((new ReceivingLoader())->load(987654));

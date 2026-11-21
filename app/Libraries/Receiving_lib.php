@@ -18,6 +18,7 @@ use App\Libraries\Stock\StockTracking;
 use App\Libraries\Stock\TrackingEntry;
 use App\Libraries\Stock\UnitCart;
 use App\Libraries\Stock\UnitTemplates;
+use App\Libraries\Tax\PurchaseVat;
 use App\Models\Attribute;
 use App\Models\Item;
 use App\Models\Item_kit_items;
@@ -35,6 +36,7 @@ use Config\OSPOS;
  */
 class Receiving_lib
 {
+    private ?bool $vatWorkedOnce              = null;
     private ?AccountingException $unitFailure = null;
     private Attribute $attribute;
     private Item $item;
@@ -803,6 +805,13 @@ class Receiving_lib
             return $figures['tax'];
         }
 
+        if ($this->vatWorkedOnce() && $this->get_cart() !== []) {
+            $lines = array_map(static fn (array $item): ReceivingLine => ReceivingLine::ofCart($item, '0', true), array_values($this->get_cart()));
+            $sign  = ReceivingType::ofQuantities(array_map(static fn (ReceivingLine $line): string => $line->quantity, $lines)) === ReceivingType::Return ? '-1' : '1';
+
+            return bcmul(ReceivingAmounts::totals($lines)['tax'], $sign, ReceivingAmounts::SCALE);
+        }
+
         $tax = '0';
 
         foreach ($this->get_cart() as $item) {
@@ -811,6 +820,23 @@ class Receiving_lib
         }
 
         return $tax;
+    }
+
+    /**
+     * Whether the purchase the register holds will be saved under the Saudi rules, which round its input VAT to
+     * the halala once for each rate.
+     */
+    private function vatWorkedOnce(): bool
+    {
+        return $this->vatWorkedOnce ??= (new PurchaseVat())->columnsForNew() !== [];
+    }
+
+    /**
+     * Says whether the register works under the Saudi rules, for a test.
+     */
+    public function useVatRule(bool $workedOnce): void
+    {
+        $this->vatWorkedOnce = $workedOnce;
     }
 
     /**
@@ -875,7 +901,7 @@ class Receiving_lib
         $before = '0';
 
         foreach ($items as $index => $item) {
-            $shared[] = ReceivingLine::ofCart($item, $shares[$index]);
+            $shared[] = ReceivingLine::ofCart($item, $shares[$index], $this->vatWorkedOnce());
             $before   = bcadd($before, ReceivingAmounts::lineNet($lines[$index]), ReceivingAmounts::SCALE);
         }
 

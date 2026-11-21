@@ -14,9 +14,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
  */
 class ReceivingAmountsTest extends CIUnitTestCase
 {
-    private static function line(string $quantity, string $price, string $discount = '0', int $discountType = PERCENT, string $tax = '0', string $perPack = '1', string $share = '0'): ReceivingLine
+    private static function line(string $quantity, string $price, string $discount = '0', int $discountType = PERCENT, string $tax = '0', string $perPack = '1', string $share = '0', bool $saudi = false): ReceivingLine
     {
-        return new ReceivingLine(1, 0, $quantity, $perPack, $price, $discount, $discountType, $tax, 1, true, '0', invoiceDiscount: $share);
+        return new ReceivingLine(1, 0, $quantity, $perPack, $price, $discount, $discountType, $tax, 1, true, '0', invoiceDiscount: $share, vatWorkedOnce: $saudi);
     }
 
     /**
@@ -87,6 +87,24 @@ class ReceivingAmountsTest extends CIUnitTestCase
 
         $this->assertSame(['net' => '980.0000', 'tax' => '147.0000', 'total' => '1127.00'], ReceivingAmounts::totals($lines));
         $this->assertSame(ReceivingAmounts::totals($lines), ReceivingAmounts::totals(array_map(static fn (ReceivingLine $line): ReceivingLine => self::line($line->quantity, $line->unitPrice, $line->discount, $line->discountType, $line->taxPercent, share: '0'), $lines)));
+    }
+
+    public function testTotals_RoundTheTaxOfAPurchaseSavedUnderTheSaudiRulesToTheHalalaForEachRate(): void
+    {
+        $this->assertSame(['net' => '99.9990', 'tax' => '14.9999', 'total' => '115.00'], ReceivingAmounts::totals([self::line('3', '33.333', tax: '15')]));
+        $this->assertSame(['net' => '99.9990', 'tax' => '15.0000', 'total' => '115.00'], ReceivingAmounts::totals([self::line('3', '33.333', tax: '15', saudi: true)]));
+
+        $lines = [self::line('1', '0.10', tax: '15', saudi: true), self::line('1', '0.10', tax: '15', saudi: true), self::line('1', '0.10', tax: '15', saudi: true), self::line('1', '40', tax: '5', saudi: true)];
+
+        $this->assertSame(['15.000' => ['net' => '0.3000', 'tax' => '0.0500'], '5.000' => ['net' => '40.0000', 'tax' => '2.0000']], ReceivingAmounts::byRate($lines));
+        $this->assertSame('2.0500', ReceivingAmounts::totals($lines)['tax'], 'the tax of each rate on what its lines come to, not 0.0450 from the lines');
+    }
+
+    public function testByRate_SumsTheTaxOfTheLinesOfAPurchaseSavedBeforeTheSaudiRules(): void
+    {
+        $lines = [self::line('1', '0.10', tax: '15'), self::line('1', '0.10', tax: '15'), self::line('2', '5')];
+
+        $this->assertSame(['15.000' => ['net' => '0.2000', 'tax' => '0.0300']], ReceivingAmounts::byRate($lines));
     }
 
     public function testUnits_AreAlwaysPositive(): void

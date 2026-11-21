@@ -76,9 +76,9 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    private function line(string $quantity, string $price, string $tax = '0', string $discount = '0', int $discountType = PERCENT, ?int $location = null, bool $stock = true, string $cost = '0', int $itemId = 1, string $perPack = '1', ?int $branch = null): ReceivingLine
+    private function line(string $quantity, string $price, string $tax = '0', string $discount = '0', int $discountType = PERCENT, ?int $location = null, bool $stock = true, string $cost = '0', int $itemId = 1, string $perPack = '1', ?int $branch = null, bool $saudi = false): ReceivingLine
     {
-        return new ReceivingLine($itemId, $itemId, $quantity, $perPack, $price, $discount, $discountType, $tax, $location ?? $this->warehouse, $stock, $cost, $branch);
+        return new ReceivingLine($itemId, $itemId, $quantity, $perPack, $price, $discount, $discountType, $tax, $location ?? $this->warehouse, $stock, $cost, $branch, vatWorkedOnce: $saudi);
     }
 
     /**
@@ -237,6 +237,21 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
             ],
             $this->shape($plan->journal),
             'The lines come to 9.70 and the tax to 0.105, so the total 9.805 is kept as 9.81 and the 0.005 goes to the larger line',
+        );
+    }
+
+    public function testPurchase_PostsTheInputVatOfAPurchaseSavedUnderTheSaudiRulesToTheHalala(): void
+    {
+        $plan = $this->builder->purchase($this->purchase([$this->line('1', '0.70', '15', saudi: true), $this->line('1', '9.00', itemId: 2, saudi: true)]), 1);
+
+        $this->assertSame(
+            [
+                $this->stockAccount($this->warehouse) . ':9.7000:0.0000',
+                $this->accountId('tax_input') . ':0.1100:0.0000',
+                $this->supplierAccount() . ':0.0000:9.8100',
+            ],
+            $this->shape($plan->journal),
+            'the tax of the rate is 0.105 rounded to 0.11, and the total 9.81 leaves nothing for the goods to take',
         );
     }
 

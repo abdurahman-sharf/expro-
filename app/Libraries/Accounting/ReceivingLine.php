@@ -7,7 +7,8 @@ namespace App\Libraries\Accounting;
  * pack multiply it, as the purchase screen does. Amounts are strings so that nothing is rounded
  * before posting does it. The branch is the one the stock location of the line belongs to. The
  * invoice discount is what the line takes of the discount on the whole purchase, always positive,
- * and nothing for a line saved without one.
+ * and nothing for a line saved without one. A line of a purchase saved under the Saudi rules says so, and
+ * its purchase rounds its input VAT to the halala once for each rate.
  */
 final readonly class ReceivingLine
 {
@@ -25,6 +26,7 @@ final readonly class ReceivingLine
         public string $itemCost,
         public ?int $branchId = null,
         public string $invoiceDiscount = '0',
+        public bool $vatWorkedOnce = false,
     ) {
     }
 
@@ -34,7 +36,7 @@ final readonly class ReceivingLine
      *
      * @param array<string, mixed> $item
      */
-    public static function ofCart(array $item, string $invoiceDiscount = '0'): self
+    public static function ofCart(array $item, string $invoiceDiscount = '0', bool $vatWorkedOnce = false): self
     {
         return new self(
             itemId: (int) ($item['item_id'] ?? 0),
@@ -49,6 +51,7 @@ final readonly class ReceivingLine
             hasStock: true,
             itemCost: '0',
             invoiceDiscount: $invoiceDiscount,
+            vatWorkedOnce: $vatWorkedOnce,
         );
     }
 

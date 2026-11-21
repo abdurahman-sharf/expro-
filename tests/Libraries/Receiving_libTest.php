@@ -184,6 +184,20 @@ class Receiving_libTest extends CIUnitTestCase
         $this->assertSame([['7', -3.0, PERCENT, '10.00'], ['8', -3.0, FIXED, '2.50']], $handed);
     }
 
+    public function testGetTaxTotal_RoundsTheTaxOfEachRateToTheHalalaUnderTheSaudiRules(): void
+    {
+        session()->set('recv_cart', [
+            1 => ['item_id' => 1, 'line' => 1, 'quantity' => 1, 'price' => '0.70', 'discount' => 0, 'discount_type' => PERCENT, 'receiving_quantity' => 1, 'tax_percent' => '15', 'item_location' => 1],
+        ]);
+
+        $this->assertSame('0.1050', bcadd($this->receivingLib->get_tax_total(), '0', 4));
+
+        $this->receivingLib->useVatRule(true);
+
+        $this->assertSame('0.1100', bcadd($this->receivingLib->get_tax_total(), '0', 4));
+        $this->assertSame('0.8100', bcadd($this->receivingLib->get_total_with_tax(), '0', 4));
+    }
+
     public function testGetTotal_AddsTheLinesAfterTheirDiscounts(): void
     {
         session()->set('recv_cart', [

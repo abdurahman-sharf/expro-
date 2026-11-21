@@ -355,6 +355,18 @@ class TaxDocumentsTest extends CIUnitTestCase
         $this->assertFalse($document->discounted);
     }
 
+    public function testPurchases_ReadsAPurchaseSavedUnderTheSaudiRulesByTheTaxOfEachRate(): void
+    {
+        $item       = $this->item('0.00');
+        $receivings = [$this->buy([$this->purchaseLine($item, 0, '1', '0.10', '15'), $this->purchaseLine($item, 1, '1', '0.10', '15'), $this->purchaseLine($item, 2, '1', '0.10', '15')])];
+        $receivings[] = $this->buy([$this->purchaseLine($item, 0, '1', '0.10', '15'), $this->purchaseLine($item, 1, '1', '0.10', '15'), $this->purchaseLine($item, 2, '1', '0.10', '15')]);
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receivings[1])->update(['vat_calc_version' => 1]);
+
+        $this->assertSame(['0.3000', '0.0450'], [$this->purchase($receivings[0])->base, $this->purchase($receivings[0])->tax]);
+        $this->assertSame(['0.3000', '0.0500'], [$this->purchase($receivings[1])->base, $this->purchase($receivings[1])->tax]);
+        $this->assertSame(['15' => ['base' => '0.3000', 'tax' => '0.0500']], $this->purchase($receivings[1])->rates);
+    }
+
     public function testPurchases_GivesAReturnTheSectionOfReturnsAndAmountsWithoutASign(): void
     {
         $purchase = $this->buyTaxed('10', '100', '15');

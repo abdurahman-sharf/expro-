@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Tax\PurchaseVat;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -41,7 +42,7 @@ final class ReceivingLoader
             branchId: (int) $receiving->branch_id,
             paymentType: $receiving->payment_type === null || trim((string) $receiving->payment_type) === '' ? null : (string) $receiving->payment_type,
             returnOfReceivingId: $receiving->return_of_receiving_id === null ? null : (int) $receiving->return_of_receiving_id,
-            lines: $this->lines($receivingId),
+            lines: $this->lines($receivingId, (new PurchaseVat($this->db))->markedAmong([$receivingId]) !== []),
             origin: $origin,
             payments: $this->payments($receivingId),
             treasuryId: $receiving->treasury_id === null ? null : (int) $receiving->treasury_id,
@@ -101,7 +102,7 @@ final class ReceivingLoader
     /**
      * @return list<ReceivingLine>
      */
-    private function lines(int $receivingId): array
+    private function lines(int $receivingId, bool $vatWorkedOnce): array
     {
         $lines = [];
 
@@ -127,6 +128,7 @@ final class ReceivingLoader
                 itemCost: (string) $row->cost_price,
                 branchId: $row->location_branch_id === null ? null : (int) $row->location_branch_id,
                 invoiceDiscount: $row->invoice_discount_share === null ? '0' : (string) $row->invoice_discount_share,
+                vatWorkedOnce: $vatWorkedOnce,
             );
         }
 

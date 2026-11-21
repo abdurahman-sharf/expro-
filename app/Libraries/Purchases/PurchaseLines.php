@@ -4,6 +4,7 @@ namespace App\Libraries\Purchases;
 
 use App\Libraries\Accounting\ReceivingAmounts;
 use App\Libraries\Accounting\ReceivingLine;
+use App\Libraries\Tax\PurchaseVat;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -33,7 +34,8 @@ final class PurchaseLines
         $found = [];
 
         foreach (array_chunk($ids, self::CHUNK) as $chunk) {
-            $rows = $this->db->table('receivings_items ri')
+            $marked = (new PurchaseVat($this->db))->markedAmong($chunk);
+            $rows   = $this->db->table('receivings_items ri')
                 ->select('ri.receiving_id, ri.item_id, ri.line, ri.quantity_purchased, ri.receiving_quantity, ri.item_unit_price, ri.discount, ri.discount_type, ri.item_location, ri.tax_percent, ri.invoice_discount_share, i.name, i.item_number, i.category')
                 ->join('items i', 'i.item_id = ri.item_id', 'left')
                 ->whereIn('ri.receiving_id', $chunk)
@@ -56,6 +58,7 @@ final class PurchaseLines
                     hasStock: true,
                     itemCost: '0',
                     invoiceDiscount: $row->invoice_discount_share === null ? '0' : sprintf('%.4F', (float) $row->invoice_discount_share),
+                    vatWorkedOnce: isset($marked[(int) $row->receiving_id]),
                 );
 
                 $found[(int) $row->receiving_id]['purchase'][] = $line;

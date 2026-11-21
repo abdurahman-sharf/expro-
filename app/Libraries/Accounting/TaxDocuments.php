@@ -3,6 +3,7 @@
 namespace App\Libraries\Accounting;
 
 use App\Libraries\ShippingTaxOption;
+use App\Libraries\Tax\PurchaseVat;
 use App\Libraries\Tax\VatSnapshot;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -130,7 +131,9 @@ final class TaxDocuments
                 continue;
             }
 
-            $built = [];
+            $built  = [];
+            $marked = (new PurchaseVat($this->db))->markedAmong(array_keys($sections));
+            $once   = [];
 
             foreach ($this->db->table('receivings_items')
                 ->select('receiving_id, item_id, line, quantity_purchased, receiving_quantity, item_unit_price, discount, discount_type, tax_percent, invoice_discount_share')
@@ -152,11 +155,26 @@ final class TaxDocuments
                     hasStock: false,
                     itemCost: '0',
                     invoiceDiscount: (string) ($row->invoice_discount_share ?? '0'),
+                    vatWorkedOnce: isset($marked[(int) $row->receiving_id]),
                 );
+
+                if ($line->vatWorkedOnce) {
+                    $once[(int) $row->receiving_id][] = $line;
+                    $this->add($built[(int) $row->receiving_id], '0', '0', [], bccomp(SaleAmounts::absolute($line->invoiceDiscount), '0', self::SCALE) > 0);
+
+                    continue;
+                }
+
                 $tax   = ReceivingAmounts::tax($line);
                 $rates = bccomp($tax, '0', self::SCALE) > 0 ? [self::rateKey((string) $row->tax_percent) => $tax] : [];
 
                 $this->add($built[(int) $row->receiving_id], ReceivingAmounts::net($line), $tax, $rates, bccomp(SaleAmounts::absolute($line->invoiceDiscount), '0', self::SCALE) > 0);
+            }
+
+            foreach ($once as $receivingId => $lines) {
+                foreach (ReceivingAmounts::byRate($lines) as $rate => $figures) {
+                    $this->add($built[$receivingId], $figures['net'], $figures['tax'], [self::rateKey((string) $rate) => $figures['tax']], false);
+                }
             }
 
             foreach ($built as $receivingId => $totals) {
