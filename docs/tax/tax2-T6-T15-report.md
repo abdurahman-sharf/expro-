@@ -104,7 +104,18 @@
 | 3 | `TaxDefinitionsTest::testAccountOptions_ListsTheLiabilityAccountsThatTakeEntriesInCodeOrder` | الاختبار أنشأ حسابًا برمز 215010، وهو الآن حساب ضريبة الدفعات. صار 215020، ويتحقق أن 215010 لا يُعرض (`481b3ee86`) |
 | 4 | `JournalSourcesTest::testAll_OffersEverySourceThatTheServiceOfJournalsTreatsAsAutomatic` | مصادر ضريبة الدفعات لا يُرشَّح بها في التقارير. أُضيفت (`481b3ee86`) |
 
-**التشغيل الثاني على `481b3ee86`** (الحالة الأخيرة): `tests/Controllers` **OK (4,430)**، وبقية المجلدات تُضاف عند انتهائها.
+**التشغيل الثاني على `481b3ee86`** (الحالة الأخيرة للكود): **23,304 اختبارات، ولا فشل ولا خطأ.**
+
+| المجلد | النتيجة |
+|---|---|
+| `tests/Controllers` | OK (4,430) |
+| `tests/Libraries` | 11,919، تخطٍّ واحد (اختبار الـ SDK الرسمي، لغياب الملف) |
+| `tests/Models` | 827، 5 متخطاة (كما قبل TAX2) |
+| `tests/Database` | OK (649) |
+| `tests/Commands` | OK (170) |
+| `tests/Config` و`tests/Filters` و`tests/helpers` | 134 و307 و213، والمتخطاة كما قبل TAX2 |
+| `tests/Views` و`tests/Events` و`tests/libraries` و`tests/Support` | OK (35، و6، و10، و421) |
+| `tests/LanguageFilesTest.php` و`tests/EscapingAssertionsTest.php` | OK (4,182 و1) |
 
 ## 6. ملاحظة النشر
 
