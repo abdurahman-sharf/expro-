@@ -811,8 +811,8 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
     public function testGetIndex_OffersTheSwitchOffToTheOnboardHolderOnceDocumentsExist(): void
     {
         $this->registeredBusiness();
-        $this->accountingDb()->table('company_tax_profile')->where('company_id', 1)->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2026-01-01 00:00:00', 'ksa_mode_watermark' => 0]);
         $this->issued();
+        $this->accountingDb()->table('company_tax_profile')->where('company_id', 1)->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2026-01-01 00:00:00', 'ksa_mode_watermark' => 0]);
 
         $this->actAs($this->employeeWithGrants(['accounting_einvoicing', AccountingGuard::EINVOICING_MANAGE, CompanyTaxProfile::CONFIG_PERMISSION]));
         $this->get('/accounting_einvoicing')->assertDontSee('id="saudi_mode_disable"');
