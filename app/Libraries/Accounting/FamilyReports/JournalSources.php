@@ -23,6 +23,7 @@ use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Accounting\YearEndEntries;
 use App\Libraries\Assets\AssetSources;
 use App\Libraries\Stock\StockPermitSources;
+use App\Libraries\Tax\AdvanceVat;
 
 /**
  * The sources a journal can have in these books, for the filter of the reports of journals. The
@@ -72,6 +73,7 @@ final class JournalSources
             ...AssetSources::ALL,
             OpeningBalanceService::SOURCE_TYPE,
             YearEndEntries::SOURCE_TYPE,
+            ...AdvanceVat::SOURCES,
             JournalDraft::SOURCE_REVERSAL,
             ...CrossBranchPayments::companionsOf(SalePostingBuilder::SOURCE_PAYMENT),
             ...CrossBranchPayments::companionsOf(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT),

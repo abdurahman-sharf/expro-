@@ -213,7 +213,7 @@ final class TaxDefinitionsTest extends CIUnitTestCase
 
     public function testAccountOptions_ListsTheLiabilityAccountsThatTakeEntriesInCodeOrder(): void
     {
-        $this->customAccount('215', '215010', 'Tax on services');
+        $this->customAccount('215', '215020', 'Tax on services');
         $this->customAccount('215', '215005', 'Tax on food');
         $inactive = $this->customAccount('215', '215004', 'Old tax');
 
@@ -221,7 +221,8 @@ final class TaxDefinitionsTest extends CIUnitTestCase
 
         $codes = array_column($this->taxes->accountOptions(), 'code');
 
-        $this->assertSame(['215001', '215005', '215010'], array_values(array_intersect($codes, ['215001', '215004', '215005', '215010'])));
+        $this->assertSame(['215001', '215005', '215020'], array_values(array_intersect($codes, ['215001', '215004', '215005', '215020'])));
+        $this->assertNotContains('215010', $codes, 'the account the VAT of advances waits in is routed');
         $this->assertNotContains('215004', $codes);
         $this->assertNotContains('215002', $codes, 'the account of tax paid is kept for that');
     }
