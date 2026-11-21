@@ -23,6 +23,7 @@ $showDiscountTotals  = $config['receipt_show_total_discount'] && $discount > 0;
 $onlyCheck           = false;
 $showGiftcardBalance = false;
 $isReturn            = ($sale_type ?? SALE_TYPE_POS) === SALE_TYPE_RETURN || ! empty($is_return);
+$einvoice            = $einvoice_print ?? null;
 $qr                  = documentQr($isReturn ? 'credit_note' : 'tax_invoice', [
     'total'            => $total,
     'total_with_vat'   => $total_with_vat ?? null,
@@ -51,7 +52,7 @@ foreach ($payments as $payment) {
         <?php endif; ?>
         <div><?= nl2br(esc($config['address'])) ?></div>
         <div><?= documentIsolate((string) $config['phone']) ?></div>
-        <div class="rt-title"><?= lang('Sales.receipt') ?></div>
+        <div class="rt-title"><?= $einvoice === null ? lang('Sales.receipt') : esc(einvoiceWords('Documents.einvoice_title_' . $einvoice['title'])) ?></div>
     </div>
 
     <dl class="rt-info">
@@ -72,6 +73,9 @@ foreach ($payments as $payment) {
         <div><dt><?= lang('Employees.employee') ?></dt><dd><?= esc($employee) ?></dd></div>
     </dl>
 
+    <?php if ($einvoice !== null): ?>
+        <?= view('documents/einvoice', ['einvoice' => $einvoice, 'variant' => 'thermal', 'alignStart' => '', 'alignEnd' => '']) ?>
+    <?php else: ?>
     <div class="rt-items">
         <?php foreach ($cart as $item): ?>
             <div class="rt-item">
@@ -95,8 +99,10 @@ foreach ($payments as $payment) {
             </div>
         <?php endforeach; ?>
     </div>
+    <?php endif; ?>
 
     <dl class="rt-totals">
+        <?php if ($einvoice === null): ?>
         <?php if ($showDiscountTotals): ?>
             <div><dt><?= lang('Sales.sub_total') ?></dt><dd><?= documentIsolate(to_currency($prediscount_subtotal ?? $subtotal)) ?></dd></div>
             <div><dt><?= lang('Sales.discount') ?></dt><dd><?= documentIsolate(to_currency($discount * -1)) ?></dd></div>
@@ -114,6 +120,7 @@ foreach ($payments as $payment) {
             <div><dt><?= esc($chargeLabel) ?></dt><dd><?= documentIsolate(to_currency($chargeAmount)) ?></dd></div>
         <?php endforeach; ?>
         <div class="rt-grand"><dt><?= lang('Sales.total') ?></dt><dd><?= documentIsolate(to_currency($total)) ?></dd></div>
+        <?php endif; ?>
         <?php foreach ($payments as $payment): ?>
             <div><dt><?= esc(explode(':', $payment['payment_type'])[0]) ?></dt><dd><?= documentIsolate(to_currency($payment['payment_amount'] * -1)) ?></dd></div>
         <?php endforeach; ?>

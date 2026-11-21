@@ -336,6 +336,20 @@ function headerChargeRows(array $charges): array
 }
 
 /**
+ * A label of the printout of a document issued under the Saudi rules: always in Arabic, and in the language of the
+ * reader after it when that is another.
+ *
+ * @param list<string> $arguments
+ */
+function einvoiceWords(string $key, array $arguments = []): string
+{
+    $arabic = lang($key, $arguments, 'ar-EG');
+    $reader = lang($key, $arguments);
+
+    return $reader === $arabic || $reader === '' ? $arabic : $arabic . ' / ' . $reader;
+}
+
+/**
  * Keeps amounts and numbers in left-to-right order inside right-to-left text.
  */
 function documentIsolate(string $text): string

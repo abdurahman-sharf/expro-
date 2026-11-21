@@ -239,3 +239,17 @@
         padding: 4mm 3mm;
     }
 }
+
+.einvoice-thermal table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.einvoice-thermal td:last-child {
+    text-align: end;
+    white-space: nowrap;
+}
+
+.einvoice-thermal .einvoice-grand td {
+    font-weight: bold;
+}

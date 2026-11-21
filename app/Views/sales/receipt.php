@@ -6,11 +6,17 @@
  * @var string|null $creditNoteNumber
  * @var string|null $refundInvoiceNumber
  * @var array       $config
+ * @var array|null  $einvoice_print
  */
 
 use App\Models\Employee;
 
 $template = $receipt_template_view ?? 'receipt_default';
+
+// A sale whose electronic invoice was issued prints what the invoice holds, which only the thermal templates carry
+if (! empty($einvoice_print) && ! str_starts_with($template, 'receipt_thermal')) {
+    $template = 'receipt_thermal_80';
+}
 
 ?>
 

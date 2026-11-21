@@ -1544,7 +1544,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
     protected function createSecondBranch(): int
     {
         $db = Database::connect();
-        $db->table('branches')->insert(['company_id' => 1, 'code' => 'T' . random_int(100, 999), 'name' => 'Test branch', 'active' => 1]);
+        $db->table('branches')->insert(['company_id' => 1, 'code' => 'T' . strtoupper(bin2hex(random_bytes(5))), 'name' => 'Test branch', 'active' => 1]);
 
         return (int) $db->insertID();
     }

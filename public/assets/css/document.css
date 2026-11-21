@@ -340,3 +340,27 @@
     font-size: 9pt;
     color: #56657f;
 }
+
+.einvoice-meta,
+.einvoice-categories,
+.einvoice-totals {
+    border-collapse: collapse;
+    margin: 6px 0;
+}
+
+.einvoice-meta td,
+.einvoice-categories td,
+.einvoice-totals td {
+    padding: 2px 8px;
+    border-bottom: 1px solid #e3e8f0;
+}
+
+.einvoice-meta td:first-child,
+.einvoice-totals td:first-child {
+    color: #56657f;
+}
+
+.einvoice-grand td {
+    font-weight: bold;
+    color: #042359;
+}

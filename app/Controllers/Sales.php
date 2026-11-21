@@ -30,6 +30,7 @@ use App\Libraries\Barcode_lib;
 use App\Libraries\Documents\CustomFields;
 use App\Libraries\Documents\CustomFieldType;
 use App\Libraries\Documents\DocumentException;
+use App\Libraries\Documents\EInvoicePrint;
 use App\Libraries\Documents\RendersPdf;
 use App\Libraries\Documents\VoucherDocuments;
 use App\Libraries\EInvoicing\EInvoiceException;
@@ -2101,6 +2102,8 @@ class Sales extends Secure_Controller
             $data['invoice_date_raw'] = $timing['invoice_date'];
             $data['total_with_vat']   = (new VatSnapshot())->totalWithVatOf((int) $data['sale_id_num']);
             $data['einvoice_qr']      = $this->sale->documentQrOf((int) $data['sale_id_num']);
+            $data['einvoice_print']   = (new EInvoicePrint())->forSale((int) $data['sale_id_num']);
+            $data['einvoice_print']   = (new EInvoicePrint())->forSale((int) $data['sale_id_num']);
             $data['currency_code']    = $this->sale->getCurrencyCode((int) $data['sale_id_num']);
 
             $data['due_date'] = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
@@ -2302,6 +2305,7 @@ class Sales extends Secure_Controller
         $data['invoice_date_raw'] = $timing['invoice_date'];
         $data['total_with_vat']   = (new VatSnapshot())->totalWithVatOf((int) $data['sale_id_num']);
         $data['einvoice_qr']      = $this->sale->documentQrOf((int) $data['sale_id_num']);
+        $data['einvoice_print']   = (new EInvoicePrint())->forSale((int) $data['sale_id_num']);
         $data['currency_code']    = $this->sale->getCurrencyCode((int) $data['sale_id_num']);
         $data['sale_type']        = $saleType;
 
@@ -2710,6 +2714,7 @@ class Sales extends Secure_Controller
         $data['invoice_date_raw']       = $timing['invoice_date'] ?? null;
         $data['total_with_vat']         = (new VatSnapshot())->totalWithVatOf((int) $saleId);
         $data['einvoice_qr']            = $this->sale->documentQrOf((int) $saleId);
+        $data['einvoice_print']         = (new EInvoicePrint())->forSale((int) $saleId);
         $data['currency_code']          = $this->sale->getCurrencyCode((int) $saleId);
         $data['is_return']              = (int) ($saleInfo['sale_type'] ?? SALE_TYPE_POS) === SALE_TYPE_RETURN;
         $data['sale_type']              = (int) ($saleInfo['sale_type'] ?? SALE_TYPE_POS);

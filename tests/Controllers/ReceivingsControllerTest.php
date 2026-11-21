@@ -1841,7 +1841,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
     {
         $purchase = $this->purchaseOf('500.00');
         $this->treasuryOfBranch('Open drawer');
-        $this->accountingDb()->table('branches')->insert(['company_id' => 1, 'code' => 'T' . random_int(100, 999), 'name' => 'Test branch', 'active' => 1]);
+        $this->accountingDb()->table('branches')->insert(['company_id' => 1, 'code' => 'T' . strtoupper(bin2hex(random_bytes(5))), 'name' => 'Test branch', 'active' => 1]);
         $second    = (int) $this->accountingDb()->insertID();
         $elsewhere = $this->treasuryOfBranch('Main of another branch', $second);
         $payment   = $this->payPurchase($purchase, '100.00', 'Cash');

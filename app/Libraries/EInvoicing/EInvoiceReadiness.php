@@ -4,6 +4,7 @@ namespace App\Libraries\EInvoicing;
 
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Tax\CompanyTaxProfile;
+use App\Libraries\Tax\HistoryAudit;
 use App\Libraries\Tax\VatClassification;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -60,6 +61,14 @@ final class EInvoiceReadiness
         $businesses = $this->customersWithoutIdentification(1)['businesses'];
 
         $checks[] = new ReadinessCheck('customers', $businesses === 0 ? ReadinessCheck::PASS : ReadinessCheck::FAIL, (string) $businesses);
+
+        $findings = (new HistoryAudit($this->db))->run();
+
+        if ($findings !== []) {
+            $breaches = array_sum(array_map(static fn (array $finding): int => $finding['kind'] === HistoryAudit::BREACH ? $finding['count'] : 0, $findings));
+
+            $checks[] = new ReadinessCheck('history', $breaches === 0 ? ReadinessCheck::PASS : ReadinessCheck::FAIL, (string) $breaches);
+        }
 
         return $checks;
     }
