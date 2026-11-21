@@ -367,6 +367,8 @@ $routes->group('revenue_categories', static function (RouteCollection $routes): 
     $routes->post('delete', 'Revenue_categories::postDelete');
 });
 
+$routes->get('tax_settings', 'TaxSettingsHub::getIndex');
+
 $routes->group('vat_classes', static function (RouteCollection $routes): void {
     $routes->get('/', 'Vat_classes::getIndex');
     $routes->post('save_class', 'Vat_classes::postSaveClass');

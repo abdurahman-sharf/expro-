@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'card_accounts'         => '',
+    'card_accounts_help'    => '',
+    'card_classes'          => '',
+    'card_classes_help'     => '',
+    'card_company'          => '',
+    'card_company_help'     => '',
+    'card_definitions'      => '',
+    'card_definitions_help' => '',
+    'card_einvoicing'       => '',
+    'card_einvoicing_help'  => '',
+    'card_invoices'         => '',
+    'card_invoices_help'    => '',
+    'card_legacy'           => '',
+    'card_legacy_help'      => '',
+    'card_reports'          => '',
+    'card_reports_help'     => '',
+    'card_vat_mode'         => '',
+    'card_vat_mode_help'    => '',
+    'mode_off'              => '',
+    'mode_on'               => '',
+    'title'                 => '',
+];

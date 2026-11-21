@@ -12,6 +12,12 @@ use App\Libraries\Organization\BranchGuard;
  */
 final class SidebarMenu
 {
+    /**
+     * The modules any one of which opens the center of the tax settings: it stores nothing, and each of its cards is
+     * shown only to whoever holds the module of the screen the card opens (§6.1).
+     */
+    public const TAX_SETTINGS_GATES = ['config', 'taxes', 'accounting_einvoicing', 'accounting_routing', 'accounting_reports'];
+
     public const SETTINGS = 'settings';
 
     /**
@@ -179,6 +185,7 @@ final class SidebarMenu
                 ['label' => null, 'items' => [
                     $page('config', 'config', 'config', 'Module.config'),
                     $page('branches', 'branches', 'branches', 'Module.branches'),
+                    $page('tax_settings', 'taxes', 'tax_settings', 'Tax_settings.title', ['any_of' => self::TAX_SETTINGS_GATES]),
                     $page('taxes', 'taxes', 'taxes', 'Module.taxes', ['aliases' => ['tax_definitions', 'vat_classes']]),
                     $page('payment_methods', 'integrations', 'integrations/payment_methods', 'Integrations.payment_methods', ['permission' => 'acc_integrations_manage', 'also' => ['config']]),
                     $page('api_keys', 'integrations', 'api_keys', 'Integrations.api_keys', ['permission' => 'api_keys_manage', 'company' => true, 'also' => ['config']]),
@@ -331,7 +338,7 @@ final class SidebarMenu
     {
         $holds = static fn (string $module): bool => in_array($module, $allowedModules, true) && self::holdsModule($module, $held, $permissions);
 
-        if (! $holds($item['module'])) {
+        if (array_filter($item['any_of'] ?? [$item['module']], $holds) === []) {
             return false;
         }
 
