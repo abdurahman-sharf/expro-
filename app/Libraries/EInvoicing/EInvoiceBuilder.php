@@ -10,7 +10,10 @@ use App\Libraries\Accounting\SaleLoader;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Tax\LineVat;
+use App\Libraries\Tax\VatCategoryTotal;
 use App\Libraries\Tax\VatClassification;
+use App\Libraries\Tax\VatLineResult;
+use App\Libraries\Tax\VatSnapshot;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -84,11 +87,10 @@ final class EInvoiceBuilder
         $note = $this->noteFacts($kind, $reason, $original);
         $row  = $this->db->table('sales')->select('sale_time, invoice_date')->where('sale_id', $saleId)->get()->getRow();
 
-        $subtype = $original?->subtype ?? $subtype ?? $this->parties->defaultSubtype($sale->customerId);
-        $built   = $this->lines($sale);
-        $rules   = $this->assemble($built);
-
-        $this->tieToTheBooks($sale, $rules);
+        $subtype  = $original?->subtype ?? $subtype ?? $this->parties->defaultSubtype($sale->customerId);
+        $built    = $this->lines($sale);
+        $rules    = $this->assemble($built, $sale->vat);
+        $rounding = $this->tieToTheBooks($sale, $rules);
 
         $time = (int) strtotime((string) $row->sale_time);
 
@@ -110,6 +112,7 @@ final class EInvoiceBuilder
             paymentMeansCodes: $this->paymentMeans($sale),
             reason: $note['reason'],
             billingReference: $note['reference'],
+            rounding: $rounding,
         );
     }
 
@@ -200,6 +203,7 @@ final class EInvoiceBuilder
         $names    = $this->itemNames($sale);
         $taxRows  = $this->taxRows($sale->saleId);
         $soldAs   = $this->soldUnder($sale->saleId);
+        $amounts  = (new VatSnapshot($this->db))->linesOf($sale->saleId);
         $decimals = totals_decimals();
         $lines    = [];
         $number   = 0;
@@ -211,7 +215,8 @@ final class EInvoiceBuilder
 
             $number++;
 
-            $lines[] = $this->saleLine($number, $line, $names[$line->itemId] ?? '', $taxRows[$line->itemId . ':' . $line->line] ?? [], $decimals, $soldAs[$line->itemId . ':' . $line->line] ?? null);
+            $key     = $line->itemId . ':' . $line->line;
+            $lines[] = $this->saleLine($number, $line, $names[$line->itemId] ?? '', $taxRows[$key] ?? [], $decimals, $soldAs[$key] ?? null, $amounts[$key] ?? null);
         }
 
         if ($lines === []) {
@@ -226,19 +231,19 @@ final class EInvoiceBuilder
      *
      * @throws EInvoiceException
      */
-    private function saleLine(int $number, SaleLine $line, string $name, array $taxes, int $decimals, ?LineVat $vat = null): BuiltLine
+    private function saleLine(int $number, SaleLine $line, string $name, array $taxes, int $decimals, ?LineVat $vat = null, ?VatLineResult $amounts = null): BuiltLine
     {
         $quantity = SaleAmounts::absolute($line->quantity);
         $discount = SaleAmounts::lineDiscount($line, $decimals);
         $share    = SaleAmounts::absolute($line->invoiceDiscountShare);
         $included = SaleAmounts::absolute($line->includedTax);
-        $goods    = SaleAmounts::lineGoods($line, $decimals, false);
+        $goods    = $amounts === null || bccomp($included, '0', 8) === 0 ? SaleAmounts::lineGoods($line, $decimals, false) : SaleAmounts::absolute($amounts->net);
 
         if (bccomp($goods, '0', 8) < 0) {
             throw new EInvoiceException(EInvoiceError::RuleBroken, 'The line comes to less than nothing.', ['rule' => 'BR-24', 'line' => $number]);
         }
 
-        $net = SaleAmounts::round($goods, 2);
+        $net = $amounts === null ? SaleAmounts::round($goods, 2) : SaleAmounts::absolute($amounts->net);
 
         if (bccomp($included, '0', 8) === 0) {
             $price     = bcadd($line->unitPrice, '0', 4);
@@ -249,6 +254,7 @@ final class EInvoiceBuilder
         }
 
         $lineTax = bcadd($included, SaleAmounts::absolute($line->addedTax), SaleAmounts::SCALE);
+        $shown   = $amounts === null ? SaleAmounts::round($lineTax, 2) : SaleAmounts::absolute($amounts->vat);
 
         if (bccomp(bcsub(SaleAmounts::round(bcmul($quantity, $price, 8), 2), $allowance, 2), $net, 2) !== 0) {
             throw new EInvoiceException(EInvoiceError::RuleBroken, 'The line does not come to its quantity times its price less its discount.', ['rule' => 'BR-KSA-EN16931-11', 'line' => $number]);
@@ -262,7 +268,7 @@ final class EInvoiceBuilder
 
         $category = $vat === null ? $this->categoryOf($rows === [] ? '0' : (string) $rows[0]->percent, $name) : $this->categoryOfClass($vat, $name);
 
-        return new BuiltLine($this->lineOf($number, $name, $quantity, $price, $allowance, $net, $category, SaleAmounts::round($lineTax, 2)), $lineTax, $vat?->exemptionCode, $vat?->exemptionText);
+        return new BuiltLine($this->lineOf($number, $name, $quantity, $price, $allowance, $net, $category, $shown), $lineTax, $vat?->exemptionCode, $vat?->exemptionText);
     }
 
     /**
@@ -361,13 +367,17 @@ final class EInvoiceBuilder
     /**
      * Sums the lines the way the standard says and holds the sums to its rules.
      *
-     * @param list<BuiltLine> $lines
+     * A sale whose VAT was worked out once states the VAT of each category as it was kept, and its lines must add up
+     * to the taxable amount of their category.
+     *
+     * @param list<BuiltLine>                 $lines
+     * @param array<string, VatCategoryTotal> $kept
      *
      * @return array{subtotals: list<EInvoiceTaxSubtotal>, lineExtension: string, tax: string, total: string}
      *
      * @throws EInvoiceException
      */
-    private function assemble(array $lines): array
+    private function assemble(array $lines, array $kept = []): array
     {
         $values  = $this->settings->all();
         $buckets = [];
@@ -386,11 +396,26 @@ final class EInvoiceBuilder
         $extension = '0';
         $tax       = '0';
         $subtotals = [];
+        $byKey     = [];
+
+        foreach ($kept as $category) {
+            $byKey[$category->category . '|' . bcadd($category->percent, '0', 2) . '|' . ($category->exemptionCode ?? '')] = $category;
+        }
 
         foreach ($buckets as $key => $bucket) {
             [$category, $rate, $code] = explode('|', $key);
 
             $taxAmount = SaleAmounts::round($bucket['tax'], 2);
+
+            if ($kept !== []) {
+                $saved = $byKey[$key] ?? null;
+
+                if ($saved === null || bccomp(SaleAmounts::absolute($saved->taxable), $bucket['taxable'], 2) !== 0) {
+                    throw new EInvoiceException(EInvoiceError::RuleBroken, 'The lines of a category do not add up to the taxable amount the sale was saved with.', ['rule' => 'BR-CO-10', 'expected' => $saved === null ? '' : SaleAmounts::absolute($saved->taxable), 'actual' => $bucket['taxable']]);
+                }
+
+                $taxAmount = SaleAmounts::absolute($saved->vat);
+            }
 
             if (bccomp(SaleAmounts::round(bcdiv(bcmul($bucket['taxable'], $rate, 8), '100', 8), 2), $taxAmount, 2) !== 0) {
                 throw new EInvoiceException(EInvoiceError::RuleBroken, 'The tax of a category is not its taxable amount times its rate.', ['rule' => 'BR-CO-17', 'expected' => SaleAmounts::round(bcdiv(bcmul($bucket['taxable'], $rate, 8), '100', 8), 2), 'actual' => $taxAmount]);
@@ -407,19 +432,24 @@ final class EInvoiceBuilder
     /**
      * @param array{subtotals: list<EInvoiceTaxSubtotal>, lineExtension: string, tax: string, total: string} $rules
      *
+     * @return string The rounding amount (BT-114) by which the customer pays what the register charged.
+     *
      * @throws EInvoiceException
      */
-    private function tieToTheBooks(SaleDocument $sale, array $rules): void
+    private function tieToTheBooks(SaleDocument $sale, array $rules): string
     {
-        $figures = SaleAmounts::figures($sale, totals_decimals());
+        $figures  = SaleAmounts::figures($sale, totals_decimals());
+        $rounding = bcadd($figures['rounding'], '0', 2);
 
-        if (bccomp($rules['total'], $figures['total'], 2) !== 0) {
+        if (bccomp(bcadd($rules['total'], $rounding, 2), $figures['total'], 2) !== 0) {
             throw new EInvoiceException(EInvoiceError::TotalsDoNotTie, 'The document does not come to the total of the sale.', ['rule' => 'total', 'expected' => bcadd($figures['total'], '0', 2), 'actual' => $rules['total']]);
         }
 
         if (bccomp($rules['tax'], SaleAmounts::round($figures['tax'], 2), 2) !== 0) {
             throw new EInvoiceException(EInvoiceError::TotalsDoNotTie, 'The document does not hold the tax of the sale.', ['rule' => 'tax', 'expected' => SaleAmounts::round($figures['tax'], 2), 'actual' => $rules['tax']]);
         }
+
+        return $rounding;
     }
 
     private function quantity(string $quantity): string

@@ -377,6 +377,7 @@ enum AccountingError: string
     case HeaderChargesInvalid    = 'header_charges_invalid';
     case HeaderChargesNotAllowed = 'header_charges_not_allowed';
     case AdjustmentExceedsTotal  = 'adjustment_exceeds_total';
+    case AdjustmentInSaudiMode   = 'adjustment_in_saudi_mode';
 
     case DebitNoteOff              = 'debit_note_off';
     case DebitNoteNotFound         = 'debit_note_not_found';

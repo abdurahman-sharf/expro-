@@ -58,10 +58,12 @@ final class VatCalculator
 
     /**
      * Holds the categories of a return to what is left of its sale: a return never gives back more taxable amount
-     * or VAT than the sale charged less what earlier returns gave back, and the return that takes back the whole
-     * of what is left of a category, by its units or by its amount, gives back the whole of its taxable amount and VAT,
-     * so a sale returned in parts gives back exactly what it charged. The return's amounts are negative; what is left
-     * is positive.
+     * than the sale charged less what earlier returns gave back, and the return that takes back the last units of
+     * a category, or the whole of its taxable amount, gives back exactly what is left of it, its largest line
+     * carrying what that moves. The VAT of each category stays its taxable amount times its rate, rounded
+     * (BR-CO-17), which the credit note must hold: the standard rounds every document on its own, so returns in
+     * parts can part from the VAT of their sale by a halala each, as they did before. The return's amounts are
+     * negative; what is left is positive.
      *
      * @param array<string, array{taxable: string, vat: string}> $left      By category key.
      * @param list<string>                                       $exhausted The categories whose units the return takes back to the last, whatever its amounts round to.
@@ -73,23 +75,19 @@ final class VatCalculator
 
         foreach ($return->categories as $key => $category) {
             $taxable = bcadd(self::absolute($category->taxable), '0', 2);
-            $vat     = bcadd(self::absolute($category->vat), '0', 2);
-            $sign    = bccomp($category->taxable, '0', 2) < 0 || bccomp($category->vat, '0', 2) < 0 ? '-' : '';
+            $sign    = '-';
 
             if (isset($left[$key])) {
                 $leftTaxable = bcadd($left[$key]['taxable'], '0', 2);
-                $leftVat     = bcadd($left[$key]['vat'], '0', 2);
 
-                if (in_array($key, $exhausted, true) || bccomp($taxable, $leftTaxable, 2) >= 0) {
+                if (in_array($key, $exhausted, true) || bccomp($taxable, $leftTaxable, 2) > 0) {
                     $lines   = $this->moveOntoTheLargest($lines, $key, bcsub(self::signed($sign, $leftTaxable), $category->taxable, 2), $category->percent);
                     $taxable = $leftTaxable;
-                    $vat     = $leftVat;
-                } elseif (bccomp($vat, $leftVat, 2) > 0) {
-                    $vat = $leftVat;
                 }
             }
 
-            $categories[$key] = $category->withAmounts(self::signed($sign, $taxable), self::signed($sign, $vat));
+            $signed           = self::signed($sign, $taxable);
+            $categories[$key] = $category->withAmounts($signed, self::round(bcmul($signed, bcdiv($category->percent, '100', self::WORK_SCALE), self::WORK_SCALE), 2));
         }
 
         return new VatResult($lines, $categories);

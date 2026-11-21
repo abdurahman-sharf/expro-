@@ -51,6 +51,7 @@ use App\Libraries\Stock\NegativeStockGuard;
 use App\Libraries\Stock\StockTracking;
 use App\Libraries\Stock\TrackingEntry;
 use App\Libraries\Stock\UnitLines;
+use App\Libraries\Tax\CompanyTaxProfile;
 use App\Libraries\Tax\LineVat;
 use App\Libraries\Tax\VatClassification;
 use App\Libraries\Tax\VatLineResult;
@@ -2204,6 +2205,10 @@ class Sale extends Model
 
         if (($charges->hasAdjustment() && ! $settings->salesAdjustmentEnabled()) || ($charges->hasShipping() && ! $settings->salesShippingEnabled())) {
             return new AccountingException(AccountingError::HeaderChargesOff, 'The adjustment or the shipping is not turned on.', ['sale_id' => $saleId]);
+        }
+
+        if ($charges->hasAdjustment() && (new CompanyTaxProfile($this->db))->isSaudiMode()) {
+            return new AccountingException(AccountingError::AdjustmentInSaudiMode, 'An adjustment carries no VAT, which the Saudi rules do not allow: a discount on the invoice or a charge as an item does.', ['sale_id' => $saleId]);
         }
 
         if ($charges->shippingCompanyId !== null && $charges->hasShipping()) {

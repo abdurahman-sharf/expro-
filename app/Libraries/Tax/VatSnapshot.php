@@ -77,6 +77,33 @@ class VatSnapshot
     }
 
     /**
+     * The net, VAT and amount with VAT each line of a sale was saved with, by item and line; nothing for lines saved
+     * without them.
+     *
+     * @return array<string, VatLineResult>
+     */
+    public function linesOf(int $saleId): array
+    {
+        if (! $this->isInstalled()) {
+            return [];
+        }
+
+        $lines = [];
+
+        foreach ($this->db->table('sales_items_vat')->where('sale_id', $saleId)->where('calc_version IS NOT NULL', null, false)->get()->getResult() as $row) {
+            $lines[$row->item_id . ':' . $row->line] = new VatLineResult(
+                bcadd((string) $row->net, '0', 2),
+                bcadd((string) $row->vat, '0', 2),
+                bcadd((string) $row->gross, '0', 2),
+                bcmul((string) $row->net, bcdiv((string) $row->percent, '100', 10), 6),
+                VatCalculator::categoryKey((string) $row->category, (string) $row->percent, $row->exemption_code === null || $row->exemption_code === '' ? null : (string) $row->exemption_code),
+            );
+        }
+
+        return $lines;
+    }
+
+    /**
      * What is left of each category of a sale once the returns saved against it are taken off, by category key.
      *
      * @return array<string, array{taxable: string, vat: string}>

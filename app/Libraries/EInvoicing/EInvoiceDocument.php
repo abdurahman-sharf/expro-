@@ -37,7 +37,16 @@ final readonly class EInvoiceDocument
         public string $uuid = '',
         public int $icv = 0,
         public string $previousHash = '',
+        public string $rounding = '0.00',
     ) {
+    }
+
+    /**
+     * BT-115: the total with VAT and the rounding (BT-114) by which the customer pays what the register charged.
+     */
+    public function payable(): string
+    {
+        return bcadd($this->taxInclusive, $this->rounding, 2);
     }
 
     public function chained(string $uuid, int $icv, string $previousHash): self
@@ -64,6 +73,7 @@ final readonly class EInvoiceDocument
             $uuid,
             $icv,
             $previousHash,
+            $this->rounding,
         );
     }
 

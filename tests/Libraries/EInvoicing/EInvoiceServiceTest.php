@@ -21,6 +21,9 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Tax\LineVat;
+use App\Libraries\Tax\VatCategoryTotal;
+use App\Libraries\Tax\VatLineResult;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -79,6 +82,8 @@ class EInvoiceServiceTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->accountingDb()->table('sales_items_vat')->truncate();
+        $this->accountingDb()->table('sales_vat_totals')->truncate();
         $this->clearEInvoices();
         $this->restoreEInvoicingConfig();
         $this->accountingDb()->table('document_numbers')->truncate();
@@ -346,6 +351,31 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame('journal total', $refusal->context['rule']);
         $this->assertSame(0, $this->countRows('einvoice_documents'));
         $this->assertSame(0, $this->counter()['icv']);
+    }
+
+    public function testIssueSale_StatesTheRoundingThatTheJournalOfASaudiSalePutsOnTheAccountOfTaxRounding(): void
+    {
+        $vat   = new LineVat(null, 'S', '15.000', null, null, 'VAT');
+        $items = [];
+        $taxes = [];
+
+        for ($line = 0; $line < 10; $line++) {
+            $itemId  = $this->item('0', false);
+            $items[] = $this->line($itemId, $line, '1', '0.99');
+            $taxes[] = [...$this->taxRow($itemId, $line, 'VAT', '15.0000', 0, '0.129000'), 'vat' => $vat, 'vat_amounts' => new VatLineResult('0.86', '0.13', '0.99', '0.129000', 'S|15.000|')];
+        }
+
+        $status     = COMPLETED;
+        $salesTaxes = [[], $taxes, ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '8.60', '1.29', true)]];
+        $saleId     = $this->sales->save_value(NEW_ENTRY, $status, $items, $this->customerId, $this->employeeId, 'worked once', null, null, null, SALE_TYPE_INVOICE, [], null, $salesTaxes, true);
+        $this->saleIds[] = $saleId;
+
+        $this->assertSame([$this->customerAccount() . ':9.90:0.00', $this->accountId('sales_revenue') . ':0.00:8.60', $this->accountId('tax_output') . ':0.00:1.29', $this->accountId('tax_rounding') . ':0.00:0.01'], $this->standing($saleId, 'revenue')[0]['lines']);
+
+        $issued = $this->issue($saleId);
+
+        $this->assertSame(['8.60', '1.29', '9.89'], [$issued->taxExclusive, $issued->taxAmount, $issued->taxInclusive]);
+        $this->assertStringContainsString('<cbc:PayableRoundingAmount currencyID="SAR">0.01</cbc:PayableRoundingAmount><cbc:PayableAmount currencyID="SAR">9.90</cbc:PayableAmount>', $issued->xml);
     }
 
     public function testIssueSale_RefusesATaxOfTheDocumentThatTheJournalDoesNotHold(): void

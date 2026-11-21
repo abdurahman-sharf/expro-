@@ -293,6 +293,7 @@ return [
     'error_activation_unknown'                   => 'لا يوجد تشغيل بهذا المعرّف. ابدأ من جديد.',
     'error_activation_verification'              => 'شُغّلت المحاسبة لكن فشل التحقق «{0}». أعد المحاولة ليُعاد التحقق.',
     'error_adjustment_exceeds_total'             => 'لا يمكن للتسوية أن تُنزل إجمالي المستند دون الصفر.',
+    'error_adjustment_in_saudi_mode'             => 'لا تُقبل التسوية تحت قواعد ضريبة القيمة المضافة السعودية: استخدم خصم الفاتورة بدلًا منها، أو أضف الرسم صنفًا.',
     'error_advance_already_cancelled'            => 'هذه الدفعة أو الرصيد الافتتاحي ملغى أصلًا أو لا قيد له.',
     'error_advance_amount_invalid'               => 'يجب أن يكون المبلغ أكبر من الصفر.',
     'error_advance_customer_missing'             => 'هذا العميل غير موجود.',

@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\EInvoicing;
 
+use App\Libraries\EInvoicing\EInvoiceDocument;
 use App\Libraries\EInvoicing\EInvoiceKind;
 use App\Libraries\EInvoicing\EInvoiceLine;
 use App\Libraries\EInvoicing\EInvoiceSubtype;
@@ -90,6 +91,24 @@ class UblInvoiceXmlTest extends CIUnitTestCase
 
         $this->assertSame(1, $xpath->query('/*/cac:TaxTotal[not(cac:TaxSubtotal)]')->length);
         $this->assertSame(1, $xpath->query('/*/cac:TaxTotal[cac:TaxSubtotal]')->length);
+    }
+
+    public function testBuild_WritesTheRoundingAmountAndThePayableAmountItLeaves(): void
+    {
+        $sample   = $this->simplifiedDocument();
+        $rounded  = new EInvoiceDocument($sample->kind, $sample->subtype, $sample->number, $sample->issueDate, $sample->issueTime, $sample->supplyDate, $sample->seller, $sample->buyer, $sample->lines, $sample->taxSubtotals, $sample->lineExtension, $sample->taxExclusive, $sample->taxAmount, $sample->taxInclusive, $sample->paymentMeansCodes, uuid: $sample->uuid, icv: $sample->icv, previousHash: $sample->previousHash, rounding: '0.01');
+        $document = new DOMDocument();
+        $document->loadXML($this->xml->build($rounded, 'QR-TEXT'));
+        $xpath = new DOMXPath($document);
+
+        $xpath->registerNamespace('cac', UblInvoiceXml::NS_CAC);
+        $xpath->registerNamespace('cbc', UblInvoiceXml::NS_CBC);
+
+        $this->assertSame('24.15', $xpath->evaluate('string(//cac:LegalMonetaryTotal/cbc:TaxInclusiveAmount)'));
+        $this->assertSame('0.01', $xpath->evaluate('string(//cac:LegalMonetaryTotal/cbc:PayableRoundingAmount)'));
+        $this->assertSame('24.16', $xpath->evaluate('string(//cac:LegalMonetaryTotal/cbc:PayableAmount)'));
+        $this->assertSame('cbc:PayableAmount', $xpath->query('//cac:LegalMonetaryTotal/cbc:PayableRoundingAmount/following-sibling::*')->item(0)->nodeName);
+        $this->assertStringNotContainsString('PayableRoundingAmount', $this->xml->build($sample, 'QR-TEXT'), 'a document without rounding writes none');
     }
 
     #[DataProvider('typeCodes')]

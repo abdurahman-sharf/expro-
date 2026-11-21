@@ -15,6 +15,8 @@ use App\Libraries\EInvoicing\EInvoiceKind;
 use App\Libraries\EInvoicing\EInvoiceSubtype;
 use App\Libraries\EInvoicing\OriginalReference;
 use App\Libraries\Tax\LineVat;
+use App\Libraries\Tax\VatCategoryTotal;
+use App\Libraries\Tax\VatSnapshot;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -65,6 +67,7 @@ class EInvoiceBuilderTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->accountingDb()->table('sales_items_vat')->truncate();
+        $this->accountingDb()->table('sales_vat_totals')->truncate();
         $this->clearEInvoices();
         $this->restoreEInvoicingConfig();
         $this->accountingDb()->table('document_numbers')->truncate();
@@ -376,7 +379,7 @@ class EInvoiceBuilderTest extends CIUnitTestCase
 
         $rules['tax'] = SaleAmounts::round($figures['tax'], 2);
 
-        $this->assertNull($tie->invoke($this->builder, $sale, $rules));
+        $this->assertSame('0.00', $tie->invoke($this->builder, $sale, $rules), 'a sale saved without its VAT worked out once has no rounding amount');
     }
 
     public function testFromSale_RefusesATotalThatTheStandardCannotWriteTheWayTheBooksHaveIt(): void
@@ -647,5 +650,68 @@ class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertCount(1, $document->taxSubtotals);
         $this->assertSame('100.00', $document->taxSubtotals[0]->taxable);
         $this->assertSame('Export of goods', $document->taxSubtotals[0]->exemptionText);
+    }
+
+    /**
+     * Writes what a sale's VAT came to when it was worked out once, as the register keeps it.
+     *
+     * @param array<string, array{0: string, 1: string, 2: string}> $lines By "item:line": net, VAT, amount with VAT.
+     */
+    private function keepVat(int $saleId, array $lines, VatCategoryTotal $category): void
+    {
+        $db = Database::connect();
+
+        foreach ($lines as $key => [$net, $vat, $gross]) {
+            [$itemId, $line] = explode(':', $key);
+            $db->table('sales_items_vat')->replace(['sale_id' => $saleId, 'item_id' => (int) $itemId, 'line' => (int) $line, 'category' => $category->category, 'percent' => $category->percent, 'exemption_code' => $category->exemptionCode, 'exemption_text' => $category->exemptionText, 'net' => $net, 'vat' => $vat, 'gross' => $gross, 'calc_version' => 1]);
+        }
+
+        (new VatSnapshot())->record($saleId, [$category->key() => $category]);
+    }
+
+    public function testFromSale_StatesWhatPricesHoldingTheTaxLeaveAsTheRoundingAmount(): void
+    {
+        $items = [];
+        $lines = [];
+        $taxes = [];
+        $kept  = [];
+
+        for ($line = 0; $line < 10; $line++) {
+            $items[]                   = $this->item('0', false);
+            $lines[]                   = $this->line($items[$line], $line, '1', '0.99');
+            $taxes[]                   = $this->taxRow($items[$line], $line, 'VAT', '15.0000', 0, '0.1290');
+            $kept[$items[$line] . ':' . $line] = ['0.86', '0.13', '0.99'];
+        }
+
+        $saleId = $this->save($lines, $taxes);
+        $this->keepVat($saleId, $kept, new VatCategoryTotal('S', '15.000', null, null, '8.60', '1.29', true));
+
+        $document = $this->builder->fromSale($saleId);
+
+        $this->assertSame(['8.60', '1.29', '9.89', '0.01', '9.90'], [$document->taxExclusive, $document->taxAmount, $document->taxInclusive, $document->rounding, $document->payable()]);
+        $this->assertSame(['0.86', '0.13', '0.99'], [$document->lines[0]->netAmount, $document->lines[0]->vatAmount, $document->lines[0]->amountWithVat]);
+        $this->assertSame(['8.60', '1.29'], [$document->taxSubtotals[0]->taxable, $document->taxSubtotals[0]->taxAmount]);
+    }
+
+    public function testFromSale_StatesTheVatOfACategoryAsTheSaleKeptIt(): void
+    {
+        $items = [$this->item('0', false), $this->item('0', false), $this->item('0', false)];
+        $lines = [];
+        $taxes = [];
+        $kept  = [];
+
+        foreach ($items as $line => $itemId) {
+            $lines[]                  = $this->line($itemId, $line, '1', '0.10');
+            $taxes[]                  = $this->tax($itemId, $line, '0.0150');
+            $kept[$itemId . ':' . $line] = ['0.10', '0.02', '0.12'];
+        }
+
+        $saleId = $this->save($lines, $taxes);
+        $this->keepVat($saleId, $kept, new VatCategoryTotal('S', '15.000', null, null, '0.30', '0.05', false));
+
+        $document = $this->builder->fromSale($saleId);
+
+        $this->assertSame(['0.30', '0.05', '0.35', '0.00'], [$document->taxExclusive, $document->taxAmount, $document->taxInclusive, $document->rounding]);
+        $this->assertSame('0.02', $document->lines[0]->vatAmount, 'each line states its own VAT (KSA-11)');
     }
 }

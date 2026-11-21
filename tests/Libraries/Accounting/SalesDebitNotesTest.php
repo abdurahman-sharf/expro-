@@ -183,6 +183,22 @@ class SalesDebitNotesTest extends CIUnitTestCase
         $this->assertSame([$this->customerAccount() . '=0.8100/0.0000', $this->accountId('sales_revenue') . '=0.0000/0.7050', $this->accountId('tax_output') . '=0.0000/0.1050'], $this->linesOf($id, 4));
     }
 
+    public function testCreate_RoundsTheTaxToTheHalalaUnderTheSaudiRules(): void
+    {
+        $db      = $this->accountingDb();
+        $profile = $db->table('company_tax_profile')->get()->getRowArray();
+
+        try {
+            $db->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+            $id = $this->raise(['amount' => '33.33', 'tax_percent' => '15']);
+        } finally {
+            $db->table('company_tax_profile')->update(['ksa_mode' => $profile['ksa_mode'], 'ksa_mode_effective_at' => $profile['ksa_mode_effective_at']]);
+        }
+
+        $this->assertSame([$this->customerAccount() . '=38.3300/0.0000', $this->accountId('sales_revenue') . '=0.0000/33.3300', $this->accountId('tax_output') . '=0.0000/5.0000'], $this->linesOf($id, 4));
+    }
+
     public function testCreate_CreditsTheRevenueOrExpenseAccountTheNoteNames(): void
     {
         $other = $this->accountIdByCode('4201');

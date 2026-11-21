@@ -293,6 +293,7 @@ return [
     'error_activation_unknown'                   => '',
     'error_activation_verification'              => '',
     'error_adjustment_exceeds_total'             => '',
+    'error_adjustment_in_saudi_mode'             => '',
     'error_advance_already_cancelled'            => '',
     'error_advance_amount_invalid'               => '',
     'error_advance_customer_missing'             => '',

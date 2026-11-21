@@ -166,7 +166,8 @@ final class UblInvoiceXml
             $this->amount('cbc:TaxInclusiveAmount', $document->taxInclusive, $document->currency),
             $this->amount('cbc:AllowanceTotalAmount', '0', $document->currency),
             $this->amount('cbc:PrepaidAmount', '0', $document->currency),
-            $this->amount('cbc:PayableAmount', $document->taxInclusive, $document->currency),
+            bccomp($document->rounding, '0', 2) === 0 ? '' : $this->amount('cbc:PayableRoundingAmount', $document->rounding, $document->currency),
+            $this->amount('cbc:PayableAmount', $document->payable(), $document->currency),
         ]));
     }
 

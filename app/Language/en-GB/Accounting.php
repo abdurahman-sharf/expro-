@@ -293,6 +293,7 @@ return [
     'error_activation_unknown'                   => 'There is no such run. Start again.',
     'error_activation_verification'              => 'Accounting was turned on, but the check "{0}" failed. Try again and it checks again.',
     'error_adjustment_exceeds_total'             => 'The adjustment cannot take the total of the document below zero.',
+    'error_adjustment_in_saudi_mode'             => 'Under the Saudi VAT rules an adjustment is not accepted: give a discount on the invoice instead, or add the charge as an item.',
     'error_advance_already_cancelled'            => 'This payment or opening balance is already cancelled, or has nothing posted.',
     'error_advance_amount_invalid'               => 'The amount must be more than zero.',
     'error_advance_customer_missing'             => 'This customer does not exist.',

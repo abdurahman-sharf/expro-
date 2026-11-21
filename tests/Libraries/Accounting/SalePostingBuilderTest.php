@@ -254,14 +254,15 @@ use ItemFixtureTrait;
 
     public function testInvoice_GivesBackOnASaudiReturnWhatItsCategoriesWereHeldTo(): void
     {
-        $origin = $this->sale([$this->line('3', '0.10', added: '0.045')], vat: ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '0.30', '0.05', false)]);
-        $draft  = $this->builder->invoice($this->sale([$this->line('-1', '0.10', added: '-0.015')], type: SALE_TYPE_RETURN, origin: $origin, vat: ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '-0.10', '-0.01', false)]), 1);
+        $origin = $this->sale([$this->line('3', '0.333', added: '0.15')], vat: ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '1.00', '0.15', false)]);
+        $draft  = $this->builder->invoice($this->sale([$this->line('-1', '0.333', added: '-0.051')], type: SALE_TYPE_RETURN, origin: $origin, vat: ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '-0.34', '-0.05', false)]), 1);
 
         $this->assertSame(
             [
-                $this->accountId('sales_returns') . ':0.10:0.00',
-                $this->accountId('tax_output') . ':0.01:0.00',
-                $this->customerAccount() . ':0.00:0.11',
+                $this->accountId('sales_returns') . ':0.34:0.00',
+                $this->accountId('tax_output') . ':0.05:0.00',
+                $this->accountId('tax_rounding') . ':0.00:0.01',
+                $this->customerAccount() . ':0.00:0.38',
             ],
             $this->shape($draft),
         );

@@ -9,6 +9,7 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
 use App\Libraries\Roles\RecordScope;
+use App\Libraries\Tax\CompanyTaxProfile;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -442,7 +443,7 @@ final class SalesDebitNotes
         }
 
         $amount = bcadd($amount, '0', SaleAmounts::SCALE);
-        $tax    = SaleAmounts::round(bcmul($amount, bcdiv($percent, '100', 8), 8), SaleAmounts::SCALE);
+        $tax    = SaleAmounts::round(bcmul($amount, bcdiv($percent, '100', 8), 8), (new CompanyTaxProfile($this->db))->isSaudiMode() ? 2 : SaleAmounts::SCALE);
         $split  = InvoiceRounding::split($amount, $tax);
 
         if (bccomp($split['total'], '0', SaleAmounts::SCALE) <= 0 || bccomp($split['total'], self::TOTAL_MAX, SaleAmounts::SCALE) > 0) {

@@ -6396,6 +6396,27 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Fee', '-816.50')) ?: 0, 'an adjustment that brings the total to zero is allowed');
     }
 
+    public function testSaveValue_RefusesAnAdjustmentUnderTheSaudiRules(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $db      = $this->accountingDb();
+        $profile = $db->table('company_tax_profile')->get()->getRowArray();
+        $cycle   = $this->referenceInvoice();
+
+        try {
+            $db->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+            $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Fee', '-10')));
+            $this->assertSame(AccountingError::AdjustmentInSaudiMode, $this->failure()->error);
+            $this->assertSame(0, $this->countJournals());
+        } finally {
+            $db->table('company_tax_profile')->update(['ksa_mode' => $profile['ksa_mode'], 'ksa_mode_effective_at' => $profile['ksa_mode_effective_at']]);
+        }
+
+        $this->assertGreaterThan(0, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Fee', '-10')) ?: 0, 'outside the Saudi rules the adjustment is taken as before');
+    }
+
     public function testSaveValue_RefusesAShippingTaxThatIsNotTheRateAndTheModeTheCompanyWorksIn(): void
     {
         $this->turnOnHeaderCharges();

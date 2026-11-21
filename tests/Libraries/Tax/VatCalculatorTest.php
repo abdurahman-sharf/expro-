@@ -147,26 +147,23 @@ class VatCalculatorTest extends CIUnitTestCase
         $this->calculate([['100'], ['100', true]]);
     }
 
-    public function testCapReturn_GivesBackExactlyWhatTheSaleChargedAcrossPartialReturns(): void
+    public function testCapReturn_KeepsEachCreditNoteToTheRuleOfTheStandardAcrossPartialReturns(): void
     {
         $sale = $this->calculate([['0.30']]);
         $left = ['S|15.000|' => ['taxable' => $sale->taxable(), 'vat' => $sale->vat()]];
         $back = ['taxable' => '0.00', 'vat' => '0.00'];
 
-        $this->assertSame('0.05', $sale->vat());
+        foreach ([['-0.10', []], ['-0.10', []], ['-0.10', ['S|15.000|']]] as [$base, $exhausted]) {
+            $category = $this->calculator->capReturn($this->calculate([[$base]]), $left, $exhausted)->categories['S|15.000|'];
 
-        foreach (['-0.10', '-0.10', '-0.10'] as $base) {
-            $return   = $this->calculator->capReturn($this->calculate([[$base]]), $left);
-            $category = $return->categories['S|15.000|'];
+            $this->assertSame('-0.02', $category->vat, 'BR-CO-17 on the credit note');
 
-            $back['taxable']           = bcadd($back['taxable'], $category->taxable, 2);
-            $back['vat']               = bcadd($back['vat'], $category->vat, 2);
+            $back['taxable']              = bcadd($back['taxable'], $category->taxable, 2);
+            $back['vat']                  = bcadd($back['vat'], $category->vat, 2);
             $left['S|15.000|']['taxable'] = bcadd($left['S|15.000|']['taxable'], $category->taxable, 2);
-            $left['S|15.000|']['vat']     = bcadd($left['S|15.000|']['vat'], $category->vat, 2);
         }
 
-        $this->assertSame(['-0.30', '-0.05'], [$back['taxable'], $back['vat']]);
-        $this->assertSame(['0.00', '0.00'], [$left['S|15.000|']['taxable'], $left['S|15.000|']['vat']]);
+        $this->assertSame(['-0.30', '-0.06'], [$back['taxable'], $back['vat']], 'the taxable amount comes back exactly; the VAT of three documents rounded on their own parts by a halala');
     }
 
     public function testCapReturn_GivesBackWhatIsLeftForTheLastUnitsAndMovesItOntoTheLargestLine(): void
@@ -178,6 +175,7 @@ class VatCalculatorTest extends CIUnitTestCase
 
         $this->assertSame(['1.00', '0.34'], [$sale->taxable(), $left['S|15.000|']['taxable']]);
         $this->assertSame(['-0.34', '-0.05'], [$return->categories['S|15.000|']->taxable, $return->categories['S|15.000|']->vat]);
+        $this->assertSame('-0.05', $return->lines['0']->vat);
         $this->assertSame('-0.34', $return->lines['0']->net, 'the lines still add up to the category');
     }
 
@@ -220,30 +218,35 @@ class VatCalculatorTest extends CIUnitTestCase
         }
     }
 
-    public function testCapReturn_GivesBackExactlyWhatTheSaleChargedForRandomReturnsInParts(): void
+    public function testCapReturn_GivesBackExactlyTheTaxableAmountOfTheSaleForRandomReturnsInParts(): void
     {
         mt_srand(1121);
 
         for ($sale = 0; $sale < 2000; $sale++) {
             $units = mt_rand(2, 12);
-            $price = bcdiv((string) mt_rand(1, 50000), '100', 2);
-            $sold  = $this->calculate([[bcmul((string) $units, $price, 2)]]);
+            $price = bcdiv((string) mt_rand(1, 500000), '1000', 3);
+            $sold  = $this->calculate([[bcmul((string) $units, $price, 3)]]);
             $left  = ['S|15.000|' => ['taxable' => $sold->taxable(), 'vat' => $sold->vat()]];
-            $back  = '0.00';
+            $vat   = '0.00';
+            $notes = 0;
 
             while ($units > 0) {
                 $taken  = mt_rand(1, $units);
                 $units -= $taken;
-                $return = $this->calculator->capReturn($this->calculate([['-' . bcmul((string) $taken, $price, 2)]]), $left)->categories['S|15.000|'];
+                $notes++;
+                $return = $this->calculator->capReturn($this->calculate([['-' . bcmul((string) $taken, $price, 3)]]), $left, $units === 0 ? ['S|15.000|'] : []);
+                $total  = $return->categories['S|15.000|'];
 
-                $back                      = bcadd($back, $return->vat, 2);
-                $left['S|15.000|']['taxable'] = bcadd($left['S|15.000|']['taxable'], $return->taxable, 2);
-                $left['S|15.000|']['vat']     = bcadd($left['S|15.000|']['vat'], $return->vat, 2);
+                $this->assertSame(VatCalculator::round(bcmul($total->taxable, '0.15', 10), 2), $total->vat, 'BR-CO-17');
+                $this->assertSame($total->taxable, $return->lines['0']->net, 'the line adds up to its category');
+                $this->assertGreaterThanOrEqual(0, bccomp(bcadd($left['S|15.000|']['taxable'], $total->taxable, 2), '0', 2), 'never more taxable amount than was charged');
 
-                $this->assertGreaterThanOrEqual(0, bccomp($left['S|15.000|']['vat'], '0', 2), 'never more than was charged');
+                $left['S|15.000|']['taxable'] = bcadd($left['S|15.000|']['taxable'], $total->taxable, 2);
+                $vat                          = bcadd($vat, $total->vat, 2);
             }
 
-            $this->assertSame(bcsub('0', $sold->vat(), 2), $back);
+            $this->assertSame('0.00', $left['S|15.000|']['taxable']);
+            $this->assertLessThanOrEqual($notes * 0.005 + 0.0001, abs((float) bcadd($sold->vat(), $vat, 2)), 'the VAT parts by no more than the rounding of each credit note');
         }
     }
 }
