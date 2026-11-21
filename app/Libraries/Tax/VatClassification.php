@@ -181,9 +181,9 @@ final class VatClassification implements LineVatSource
      *
      * @throws AccountingException
      */
-    public function recordLine(int $saleId, int $itemId, int $line, LineVat $vat): void
+    public function recordLine(int $saleId, int $itemId, int $line, LineVat $vat, ?VatLineResult $amounts = null): void
     {
-        $saved = $this->db->table('sales_items_vat')->replace([
+        $row = [
             'sale_id'        => $saleId,
             'item_id'        => $itemId,
             'line'           => $line,
@@ -192,7 +192,13 @@ final class VatClassification implements LineVatSource
             'percent'        => $vat->percent,
             'exemption_code' => $vat->exemptionCode,
             'exemption_text' => $vat->exemptionText,
-        ]);
+        ];
+
+        if ($amounts !== null) {
+            $row += ['net' => $amounts->net, 'vat' => $amounts->vat, 'gross' => $amounts->gross, 'calc_version' => VatCalculator::VERSION];
+        }
+
+        $saved = $this->db->table('sales_items_vat')->replace($row);
 
         if ($saved === false) {
             throw new AccountingException(AccountingError::WriteFailed, 'The VAT class of a line could not be saved.');

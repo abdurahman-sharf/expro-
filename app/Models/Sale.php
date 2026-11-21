@@ -53,6 +53,8 @@ use App\Libraries\Stock\TrackingEntry;
 use App\Libraries\Stock\UnitLines;
 use App\Libraries\Tax\LineVat;
 use App\Libraries\Tax\VatClassification;
+use App\Libraries\Tax\VatLineResult;
+use App\Libraries\Tax\VatSnapshot;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -1610,6 +1612,10 @@ class Sale extends Model
         if ($customerId == NEW_ENTRY || $customer->taxable) {
             $this->save_sales_tax($saleId, $salesTaxes[0]);
             $this->save_sales_items_taxes($saleId, $salesTaxes[1]);
+
+            if (($salesTaxes[2] ?? []) !== []) {
+                (new VatSnapshot($this->db))->record($saleId, $salesTaxes[2]);
+            }
         }
 
         $chargesRefusal = $this->storeHeaderCharges($saleId, $saleType, $headerCharges, (bool) $config['tax_included']);
@@ -2470,7 +2476,7 @@ class Sale extends Model
         foreach ($salesItemTaxes as $taxItem) {
             if (($taxItem['vat'] ?? null) instanceof LineVat) {
                 $classification ??= new VatClassification($this->db);
-                $classification->recordLine($saleId, (int) $taxItem['item_id'], (int) $taxItem['line'], $taxItem['vat']);
+                $classification->recordLine($saleId, (int) $taxItem['item_id'], (int) $taxItem['line'], $taxItem['vat'], ($taxItem['vat_amounts'] ?? null) instanceof VatLineResult ? $taxItem['vat_amounts'] : null);
             }
         }
 
@@ -3441,6 +3447,10 @@ class Sale extends Model
 
         if ($this->db->tableExists($this->db->prefixTable('sales_items_vat'), false)) {
             $this->db->table('sales_items_vat')->delete(['sale_id' => $sale_id]);
+        }
+
+        if ((new VatSnapshot($this->db))->isInstalled()) {
+            $this->db->table('sales_vat_totals')->delete(['sale_id' => $sale_id]);
         }
 
         $builder = $this->db->table('sales_items');

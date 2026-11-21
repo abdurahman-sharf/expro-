@@ -6,6 +6,8 @@ use App\Libraries\Tax\LineVat;
 use App\Libraries\Tax\LineVatSource;
 use App\Libraries\Tax\VatClassificationError;
 use App\Libraries\Tax\VatClassificationException;
+use App\Libraries\Tax\VatCategoryTotal;
+use App\Libraries\Tax\VatSnapshot;
 use App\Libraries\Tax_lib;
 use App\Models\Attribute;
 use App\Models\Customer;
@@ -120,7 +122,40 @@ class Tax_libTest extends CIUnitTestCase
 
         session()->destroy();
 
-        return new Tax_lib();
+        $taxLib = new Tax_lib();
+        $taxLib->useVatSnapshot($this->snapshot(false));
+
+        return $taxLib;
+    }
+
+    /**
+     * @param array<string, VatCategoryTotal>                    $saved
+     * @param array<string, array{taxable: string, vat: string}> $left
+     */
+    private function snapshot(bool $installed, array $saved = [], array $left = []): VatSnapshot
+    {
+        $snapshot = $this->createStub(VatSnapshot::class);
+        $snapshot->method('isInstalled')->willReturn($installed);
+        $snapshot->method('totalsOf')->willReturn($saved);
+        $snapshot->method('leftOf')->willReturn($left);
+
+        return $snapshot;
+    }
+
+    /**
+     * @param list<string> $prices
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function cartOf(array $prices, string $quantity = '1'): array
+    {
+        $cart = [];
+
+        foreach ($prices as $index => $price) {
+            $cart[$index + 1] = ['item_id' => $index + 3, 'line' => $index + 1, 'quantity' => $quantity, 'price' => $price, 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null];
+        }
+
+        return $cart;
     }
 
     /**
@@ -684,5 +719,77 @@ class Tax_libTest extends CIUnitTestCase
 
         $this->assertSame(['20.250', '33.000'], array_map(static fn (array $row): string => bcadd($row['item_tax_amount'], '0', 3), $taxes[1]));
         $this->assertNull($taxes[1][0]['vat']);
+    }
+
+    public function testGetTaxes_WorksTheVatOfASaudiSaleOnceAndRoundsEachCategoryOnItsTaxableAmount(): void
+    {
+        $standard = new LineVat(1, 'S', '15.000', null, null, 'VAT');
+        $taxLib   = $this->taxLib(false);
+        $taxLib->useVatSource($this->vatSource(true, [3 => $standard, 4 => $standard, 5 => $standard]));
+        $taxLib->useVatSnapshot($this->snapshot(true));
+
+        $cart  = $this->cartOf(['0.10', '0.10', '0.10']);
+        $taxes = $taxLib->get_taxes($cart);
+
+        $this->assertSame(['0.015000', '0.015000', '0.015000'], array_column($taxes[1], 'item_tax_amount'));
+        $this->assertSame(['0.10', '0.02', '0.12'], [$taxes[1][0]['vat_amounts']->net, $taxes[1][0]['vat_amounts']->vat, $taxes[1][0]['vat_amounts']->gross]);
+        $this->assertSame(['0.30', '0.05'], [$taxes[2]['S|15.000|']->taxable, $taxes[2]['S|15.000|']->vat]);
+        $this->assertSame([['0.30', '0.05', Tax_lib::TAX_TYPE_EXCLUDED]], array_map(static fn (array $row): array => [$row['sale_tax_basis'], $row['sale_tax_amount'], $row['tax_type']], array_values($taxes[0])));
+    }
+
+    public function testGetTaxes_TakesTheNetOutOfAPriceThatHoldsTheTaxInASaudiSale(): void
+    {
+        $taxLib = $this->taxLib(false, false, ['vat' => ['included' => true, 'account' => 41]]);
+        $taxLib->useVatSource($this->vatSource(true, [3 => new LineVat(1, 'S', '15.000', null, null, 'VAT')]));
+        $taxLib->useVatSnapshot($this->snapshot(true));
+
+        $cart  = $this->cartOf(['100']);
+        $taxes = $taxLib->get_taxes($cart);
+
+        $this->assertSame(['86.96', '13.04', '100.00'], [$taxes[1][0]['vat_amounts']->net, $taxes[1][0]['vat_amounts']->vat, $taxes[1][0]['vat_amounts']->gross]);
+        $this->assertSame([Tax_lib::TAX_TYPE_INCLUDED, 41], [$taxes[1][0]['tax_type'], $taxes[1][0]['liability_account_id']]);
+        $this->assertSame('13.04', array_values($taxes[0])[0]['sale_tax_amount']);
+    }
+
+    public function testGetTaxes_KeepsTheTaxesOfASaudiSaleWithAnUnclassifiedLineAsTheyWere(): void
+    {
+        $taxLib = $this->taxLib(false);
+        $taxLib->useVatSource($this->vatSource(true, [3 => new LineVat(1, 'S', '15.000', null, null, 'VAT')]));
+        $taxLib->useVatSnapshot($this->snapshot(true));
+
+        $cart  = $this->cartOf(['0.10', '0.10']);
+        $taxes = $taxLib->get_taxes($cart);
+
+        $this->assertArrayNotHasKey(2, $taxes);
+        $this->assertArrayNotHasKey('vat_amounts', $taxes[1][0]);
+    }
+
+    public function testGetTaxes_GivesBackNoMoreThanIsLeftOfASaudiSaleOnAReturn(): void
+    {
+        $stored = [3 => [['item_id' => 3, 'name' => 'VAT', 'percent' => '15', 'tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'liability_account_id' => null]]];
+        $taxLib = $this->taxLib(false, false, [], [['name' => 'VAT', 'percent' => '15']], $stored);
+        $taxLib->useVatSource($this->vatSource(true, [], [3 => new LineVat(1, 'S', '15.000', null, null, 'VAT')]));
+        $taxLib->useVatSnapshot($this->snapshot(true, [], ['S|15.000|' => ['taxable' => '0.10', 'vat' => '0.01']]));
+
+        session()->set('sales_mode', 'return');
+        session()->set('sales_return_origin', 12);
+
+        $cart  = [1 => ['item_id' => 3, 'line' => 1, 'quantity' => '-1', 'price' => '0.10', 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null]];
+        $taxes = $taxLib->get_taxes($cart);
+
+        $this->assertSame(['-0.10', '-0.01'], [$taxes[2]['S|15.000|']->taxable, $taxes[2]['S|15.000|']->vat], 'the last of the sale, not the 0.02 a unit would round to');
+        $this->assertSame('-0.01', array_values($taxes[0])[0]['sale_tax_amount']);
+    }
+
+    public function testGetTaxes_ReadsTheHeaderOfASavedSaudiSaleAsItWasSaved(): void
+    {
+        $stored = [3 => [['item_id' => 3, 'name' => 'VAT', 'percent' => '15', 'tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'liability_account_id' => null, 'item_tax_amount' => '-0.0150', 'sold_quantity' => '-1']]];
+        $taxLib = $this->taxLib(false, false, [], [['name' => 'VAT', 'percent' => '15']], $stored);
+        $taxLib->useVatSnapshot($this->snapshot(true, ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '-0.10', '-0.01', false)]));
+
+        $cart  = $this->cartOf(['0.10'], '-1');
+        $taxes = $taxLib->get_taxes($cart, 77);
+
+        $this->assertSame([['-0.10', '-0.01']], array_map(static fn (array $row): array => [$row['sale_tax_basis'], $row['sale_tax_amount']], array_values($taxes[0])), 'the return as it was held to its sale, not the -0.02 its line rounds to');
     }
 }
