@@ -237,6 +237,18 @@ use ItemFixtureTrait;
         );
     }
 
+    public function testInvoice_LeavesTheShippingTaxOfASaudiSaleOnTheTaxCollectedWhenItsLinesTaxOnAccountsOfTheirOwn(): void
+    {
+        $own   = $this->customAccount('215', '215003', 'Tax on services');
+        $lines = array_map(fn (int $item): SaleLine => $this->line('1', '0.10', added: '0.015', itemId: $item, accounts: [$own => '0.0150']), range(1, 3));
+        $draft = $this->builder->invoice($this->sale($lines, charges: new ResolvedCharges(shipping: '10.0000', shippingTax: '1.5000'), vat: ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '0.30', '0.05', false)]), 1);
+
+        $shape = $this->shape($draft);
+
+        $this->assertContains($this->accountId('tax_output') . ':0.00:1.50', $shape);
+        $this->assertContains($own . ':0.00:0.05', $shape, 'the VAT of the category on the account its lines name');
+    }
+
     public function testInvoice_PostsTheVatOfEachCategoryOfASaudiSaleToTheHalala(): void
     {
         $lines = array_map(fn (int $item): SaleLine => $this->line('1', '0.10', added: '0.015', itemId: $item), range(1, 3));

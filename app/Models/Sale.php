@@ -1619,7 +1619,7 @@ class Sale extends Model
             }
         }
 
-        $chargesRefusal = $this->storeHeaderCharges($saleId, $saleType, $headerCharges, (bool) $config['tax_included']);
+        $chargesRefusal = $this->storeHeaderCharges($saleId, $saleType, $headerCharges, (bool) $config['tax_included'], (int) $saleStatus === COMPLETED);
 
         if ($chargesRefusal !== null) {
             $this->db->transRollback();
@@ -2191,7 +2191,7 @@ class Sale extends Model
      * mode the company works in, and never so that the document comes to less than nothing. What is
      * stored is what counts: the adjustment is nothing when the lines came to nothing.
      */
-    private function storeHeaderCharges(int $saleId, int $saleType, ?HeaderCharges $charges, bool $taxIncluded): ?AccountingException
+    private function storeHeaderCharges(int $saleId, int $saleType, ?HeaderCharges $charges, bool $taxIncluded, bool $completed = true): ?AccountingException
     {
         if ($charges === null || $charges->isEmpty()) {
             return null;
@@ -2207,7 +2207,7 @@ class Sale extends Model
             return new AccountingException(AccountingError::HeaderChargesOff, 'The adjustment or the shipping is not turned on.', ['sale_id' => $saleId]);
         }
 
-        if ($charges->hasAdjustment() && (new CompanyTaxProfile($this->db))->isSaudiMode()) {
+        if ($completed && $charges->hasAdjustment() && (new CompanyTaxProfile($this->db))->isSaudiMode()) {
             return new AccountingException(AccountingError::AdjustmentInSaudiMode, 'An adjustment carries no VAT, which the Saudi rules do not allow: a discount on the invoice or a charge as an item does.', ['sale_id' => $saleId]);
         }
 

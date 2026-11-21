@@ -6410,6 +6410,7 @@ class SalePostingTest extends CIUnitTestCase
             $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Fee', '-10')));
             $this->assertSame(AccountingError::AdjustmentInSaudiMode, $this->failure()->error);
             $this->assertSame(0, $this->countJournals());
+            $this->assertGreaterThan(0, $this->save($cycle['items'], $cycle['taxes'], status: SUSPENDED, headerCharges: new HeaderCharges('Fee', '-10')) ?: 0, 'a sale set aside is refused only when it is completed');
         } finally {
             $db->table('company_tax_profile')->update(['ksa_mode' => $profile['ksa_mode'], 'ksa_mode_effective_at' => $profile['ksa_mode_effective_at']]);
         }

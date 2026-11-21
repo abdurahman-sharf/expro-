@@ -33,7 +33,7 @@ final class DocumentQr
     }
 
     /**
-     * @param array<string, mixed> $sale   The sale as the documents are given it: total, taxes, header_charges, sale_time_raw, invoice_date_raw, sale_status, sale_type and currency_code.
+     * @param array<string, mixed> $sale   The sale as the documents are given it: total, taxes, header_charges, sale_time_raw, invoice_date_raw, sale_status, sale_type and currency_code, and, for a sale whose VAT was worked out once, total_with_vat (BT-112), which the code holds instead of what the register charged.
      * @param array<string, mixed> $config The settings of the shop: company and tax_id.
      */
     public function forDocument(string $type, array $sale, array $config): QrResult
@@ -59,7 +59,7 @@ final class DocumentQr
                 $sellerName,
                 $vatNumber,
                 self::timestamp((string) ($sale['sale_time_raw'] ?? ''), isset($sale['invoice_date_raw']) ? (string) $sale['invoice_date_raw'] : null),
-                self::amount((string) ($sale['total'] ?? '0')),
+                self::amount((string) ($sale['total_with_vat'] ?? $sale['total'] ?? '0')),
                 self::amount(self::taxOf($sale)),
             ));
         } catch (DocumentException $exception) {

@@ -25,6 +25,7 @@ $showGiftcardBalance = false;
 $isReturn            = ($sale_type ?? SALE_TYPE_POS) === SALE_TYPE_RETURN || ! empty($is_return);
 $qr                  = documentQr($isReturn ? 'credit_note' : 'tax_invoice', [
     'total'            => $total,
+    'total_with_vat'   => $total_with_vat ?? null,
     'taxes'            => $taxes,
     'header_charges'   => $header_charges ?? [],
     'sale_time_raw'    => $sale_time_raw ?? '',

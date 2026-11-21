@@ -378,6 +378,18 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertStringContainsString('<cbc:PayableRoundingAmount currencyID="SAR">0.01</cbc:PayableRoundingAmount><cbc:PayableAmount currencyID="SAR">9.90</cbc:PayableAmount>', $issued->xml);
     }
 
+    public function testIssueSale_IssuesASaleWithoutItsVatWorkedOnceWhenTheRoundingAccountIsNotRouted(): void
+    {
+        $saleId = $this->referenceSale();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'tax.rounding')->delete();
+
+        try {
+            $this->assertSame($saleId, $this->issue($saleId)->sourceId);
+        } finally {
+            $this->accountingDb()->table('accounting_routing')->insert(['routing_key' => 'tax.rounding', 'routing_type' => 'auto', 'account_id' => $this->accountId('tax_rounding')]);
+        }
+    }
+
     public function testIssueSale_RefusesATaxOfTheDocumentThatTheJournalDoesNotHold(): void
     {
         $saleId  = $this->referenceSale();

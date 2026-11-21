@@ -51,6 +51,7 @@ use App\Libraries\Stock\StockUnitPermissions;
 use App\Libraries\Stock\TrackingType;
 use App\Libraries\Stock\UnitLine;
 use App\Libraries\Stock\UnitTemplates;
+use App\Libraries\Tax\VatSnapshot;
 use App\Libraries\Tax_lib;
 use App\Libraries\Token_lib;
 use App\Models\Customer;
@@ -2096,6 +2097,7 @@ class Sales extends Secure_Controller
 
             $data['sale_time_raw']    = $this->sale->getSaleTime((int) $data['sale_id_num']);
             $data['invoice_date_raw'] = $timing['invoice_date'];
+            $data['total_with_vat']   = (new VatSnapshot())->totalWithVatOf((int) $data['sale_id_num']);
             $data['currency_code']    = $this->sale->getCurrencyCode((int) $data['sale_id_num']);
 
             $data['due_date'] = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
@@ -2292,6 +2294,7 @@ class Sales extends Secure_Controller
 
         $data['sale_time_raw']    = $this->sale->getSaleTime((int) $data['sale_id_num']);
         $data['invoice_date_raw'] = $timing['invoice_date'];
+        $data['total_with_vat']   = (new VatSnapshot())->totalWithVatOf((int) $data['sale_id_num']);
         $data['currency_code']    = $this->sale->getCurrencyCode((int) $data['sale_id_num']);
         $data['sale_type']        = $saleType;
 
@@ -2698,6 +2701,7 @@ class Sales extends Secure_Controller
         $data['transaction_date']       = to_date(strtotime($timing['invoice_date'] ?? $saleInfo['sale_time']));
         $data['sale_time_raw']          = (string) $saleInfo['sale_time'];
         $data['invoice_date_raw']       = $timing['invoice_date'] ?? null;
+        $data['total_with_vat']         = (new VatSnapshot())->totalWithVatOf((int) $saleId);
         $data['currency_code']          = $this->sale->getCurrencyCode((int) $saleId);
         $data['is_return']              = (int) ($saleInfo['sale_type'] ?? SALE_TYPE_POS) === SALE_TYPE_RETURN;
         $data['sale_type']              = (int) ($saleInfo['sale_type'] ?? SALE_TYPE_POS);

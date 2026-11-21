@@ -693,6 +693,17 @@ class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(['8.60', '1.29'], [$document->taxSubtotals[0]->taxable, $document->taxSubtotals[0]->taxAmount]);
     }
 
+    public function testFromSale_GivesALineWhoseNetWasHeldToItsSaleTheAllowanceThatBringsItThere(): void
+    {
+        $itemId = $this->item('0', false);
+        $saleId = $this->save([$this->line($itemId, 0, '1', '1.00')], [$this->tax($itemId, 0, '0.1440')]);
+        $this->keepVat($saleId, [$itemId . ':0' => ['0.96', '0.14', '1.10']], new VatCategoryTotal('S', '15.000', null, null, '0.96', '0.14', false));
+
+        $line = $this->builder->fromSale($saleId)->lines[0];
+
+        $this->assertSame(['1.0000', '0.04', '0.96'], [$line->priceNet, $line->allowance, $line->netAmount], 'quantity times price less the allowance is the net (BR-KSA-EN16931-11)');
+    }
+
     public function testFromSale_StatesTheVatOfACategoryAsTheSaleKeptIt(): void
     {
         $items = [$this->item('0', false), $this->item('0', false), $this->item('0', false)];

@@ -653,9 +653,10 @@ final class SalePostingBuilder
         $remainder = bcsub($tax, array_reduce($own, static fn (string $sum, string $amount): string => bcadd($sum, $amount, SaleAmounts::SCALE), '0'), SaleAmounts::SCALE);
 
         if ($sale->vat !== [] && $own !== [] && $this->everyTaxHasAnAccount($sale)) {
+            $shippingTax   = bcadd($sale->charges?->shippingTax ?? '0', '0', SaleAmounts::SCALE);
             $largest       = array_search(max($own), $own, true);
-            $own[$largest] = bcadd($own[$largest], $remainder, SaleAmounts::SCALE);
-            $remainder     = '0';
+            $own[$largest] = bcadd($own[$largest], bcsub($remainder, $shippingTax, SaleAmounts::SCALE), SaleAmounts::SCALE);
+            $remainder     = $shippingTax;
         }
 
         if (bccomp($remainder, '0', SaleAmounts::SCALE) < 0) {

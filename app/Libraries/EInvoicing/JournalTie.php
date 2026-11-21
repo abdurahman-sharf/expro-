@@ -66,7 +66,7 @@ final class JournalTie
         }
 
         $taxes[]  = $resolver->accountFor(RoutingKey::TaxOutput);
-        $rounding = $resolver->accountFor(RoutingKey::TaxRounding);
+        $rounding = $sale instanceof SaleDocument && $sale->vat !== [] ? $resolver->accountFor(RoutingKey::TaxRounding) : null;
 
         $own     = '0';
         $tax     = '0';

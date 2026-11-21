@@ -77,6 +77,27 @@ class VatSnapshot
     }
 
     /**
+     * BT-112 of a sale saved with its categories: their taxable amounts and their VAT, without the rounding by which
+     * the customer paid what the register charged; null for a sale saved without them.
+     */
+    public function totalWithVatOf(int $saleId): ?string
+    {
+        $totals = $this->totalsOf($saleId);
+
+        if ($totals === []) {
+            return null;
+        }
+
+        $sum = '0.00';
+
+        foreach ($totals as $total) {
+            $sum = bcadd($sum, bcadd(ltrim($total->taxable, '-'), ltrim($total->vat, '-'), 2), 2);
+        }
+
+        return $sum;
+    }
+
+    /**
      * The categories of several sales, by sale and then by category key; a sale saved without them is not there.
      *
      * @param list<int> $saleIds
@@ -128,6 +149,8 @@ class VatSnapshot
 
     /**
      * What is left of each category of a sale once the returns saved against it are taken off, by category key.
+     * Nothing when a completed return of the sale was saved without its categories, since what it gave back
+     * cannot be told by category and a cap worked from the rest would let the next return give back too much.
      *
      * @return array<string, array{taxable: string, vat: string}>
      */
@@ -140,6 +163,16 @@ class VatSnapshot
         }
 
         if ($left === []) {
+            return [];
+        }
+
+        $untold = $this->db->table('sales AS s')
+            ->join('sales_vat_totals AS t', 't.sale_id = s.sale_id', 'left')
+            ->where(['s.return_of_sale_id' => $saleId, 's.sale_status' => COMPLETED])
+            ->where('t.sale_id IS NULL', null, false)
+            ->countAllResults();
+
+        if ($untold > 0) {
             return [];
         }
 

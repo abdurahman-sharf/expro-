@@ -247,7 +247,11 @@ final class EInvoiceBuilder
 
         if (bccomp($included, '0', 8) === 0) {
             $price     = bcadd($line->unitPrice, '0', 4);
-            $allowance = SaleAmounts::round(bcadd($discount, $share, 8), 2);
+            $allowance = $amounts === null ? SaleAmounts::round(bcadd($discount, $share, 8), 2) : bcsub(SaleAmounts::round(bcmul($quantity, $price, 8), 2), $net, 2);
+
+            if (bccomp($allowance, '0', 2) < 0) {
+                throw new EInvoiceException(EInvoiceError::RuleBroken, 'The line comes to more than its quantity times its price.', ['rule' => 'BR-KSA-EN16931-11', 'line' => $number]);
+            }
         } else {
             $price     = SaleAmounts::round(bcdiv($goods, $quantity, 8), 4);
             $allowance = '0.00';
