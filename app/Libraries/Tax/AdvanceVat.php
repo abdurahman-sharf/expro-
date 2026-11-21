@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Tax;
 
+use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\JournalDraft;
@@ -127,6 +128,10 @@ class AdvanceVat
      */
     public function applied(int $applicationId, int $advanceId, ?int $saleId, string $amount, ?int $employeeId): void
     {
+        if ($saleId !== null && $this->issued($saleId)) {
+            return;
+        }
+
         $part = $this->partOf($advanceId, $amount);
 
         if ($part === null) {
@@ -292,6 +297,17 @@ class AdvanceVat
         ];
     }
 
+    /**
+     * Whether the electronic document of a sale was issued. A document issued before the advance paid the sale does
+     * not state it, so no VAT of the advance is given back on it: the VAT stays with the advance, owed once more
+     * rather than not at all, until a note corrects the invoice.
+     */
+    private function issued(int $saleId): bool
+    {
+        return $this->db->tableExists($this->db->prefixTable('einvoice_documents'), false)
+            && $this->db->table('einvoice_documents')->where(['source_type' => 'sale', 'source_id' => $saleId])->countAllResults() > 0;
+    }
+
     private function hasReturns(): bool
     {
         return $this->db->tableExists($this->db->prefixTable('customer_advance_vat_returns'), false);
@@ -322,6 +338,10 @@ class AdvanceVat
 
         if ($use === null) {
             return;
+        }
+
+        if ($use->sale_id !== null && $this->issued((int) $use->sale_id)) {
+            throw new AccountingException(AccountingError::AdvanceTakenByIssuedInvoice, 'An invoice whose electronic document was issued states the advance as a prepayment; what it takes of the advance stays.', ['advance_id' => (int) $use->advance_id]);
         }
 
         $this->reverse(self::SOURCE_USE, $applicationId, 'The credit of the advance was released from the invoice', $employeeId);

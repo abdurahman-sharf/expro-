@@ -80,6 +80,10 @@ trait EInvoiceSaleFixtureTrait
             $db->table($table)->truncate();
         }
 
+        if ($db->tableExists($db->prefixTable('einvoice_outbox'), false)) {
+            $db->table('einvoice_outbox')->truncate();
+        }
+
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
         $db->table('einvoice_counters')->update(['last_icv' => 0, 'last_hash' => '']);
 

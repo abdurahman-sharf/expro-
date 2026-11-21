@@ -2776,6 +2776,11 @@ class Sale extends Model
         }
     }
 
+    private static function decimal(string $value): bool
+    {
+        return preg_match('/^-?\d+(\.\d+)?$/', $value) === 1;
+    }
+
     /**
      * A change to what the issued document of a sale holds is refused: its customer, its time, its date, its
      * number and its currency. A field sent as it is stored is no change, so a screen that posts every field
@@ -2801,7 +2806,7 @@ class Sale extends Model
         foreach ($typed as $column => $value) {
             $before = trim((string) ($stored[$column] ?? ''));
             $after  = trim((string) ($value ?? ''));
-            $same   = is_numeric($before) && is_numeric($after) ? bccomp($before, $after, 6) === 0 : $before === $after;
+            $same   = self::decimal($before) && self::decimal($after) ? bccomp($before, $after, 6) === 0 : $before === $after;
 
             if (! $same) {
                 throw new AccountingException(AccountingError::ElectronicDocumentLocked, 'The electronic invoice of the sale has been issued: what it holds does not change.', ['sale_id' => $saleId]);

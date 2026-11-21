@@ -8,7 +8,8 @@ use Config\Database;
 use Throwable;
 
 /**
- * The queue that sends the documents of the second phase (§4.4 and §4.5). A worker claims due documents with a token
+ * The queue that sends the documents of the second phase (§4.4 and §4.5), kept apart from the documents, which are
+ * never written to once issued. A worker claims due documents with a token
  * and a lease, sends each, keeps every answer in a log that is only ever added to, and moves the document on only
  * while it still holds the claim: a worker that lost its lease can write nothing, its answer staying in the log. A
  * document is never built again: the same file goes out every time, so ZATCA tells a request sent again after no
@@ -38,10 +39,15 @@ final class SubmissionService
      */
     public function queue(int $documentId): void
     {
-        $this->db->table('einvoice_documents')
-            ->where(['company_id' => CompanyContext::id(), 'document_id' => $documentId])
-            ->where('outbox_status IS NULL', null, false)
-            ->update(['outbox_status' => self::PENDING, 'environment' => $this->environment, 'next_attempt_at' => null, 'attempts' => 0]);
+        self::enqueue($this->db, $documentId, $this->environment);
+    }
+
+    /**
+     * Puts an issued document in the queue of an environment, once; asking again changes nothing.
+     */
+    public static function enqueue(BaseConnection $db, int $documentId, string $environment): void
+    {
+        $db->query('INSERT IGNORE INTO ' . $db->prefixTable('einvoice_outbox') . ' (document_id, company_id, environment, status) VALUES (?, ?, ?, ?)', [$documentId, CompanyContext::id(), $environment, self::PENDING]);
     }
 
     /**
@@ -67,18 +73,24 @@ final class SubmissionService
      */
     private function claim(string $token, int $limit, int $leaseSeconds): array
     {
-        $table = $this->db->prefixTable('einvoice_documents');
+        $table = $this->db->prefixTable('einvoice_outbox');
         $due   = implode(', ', array_fill(0, count(self::DUE), '?'));
 
         $this->db->query(
             "UPDATE {$table} SET claim_token = ?, lease_until = DATE_ADD(NOW(), INTERVAL ? SECOND)
-             WHERE company_id = ? AND environment = ? AND outbox_status IN ({$due})
+             WHERE company_id = ? AND environment = ? AND status IN ({$due})
                AND (lease_until IS NULL OR lease_until < NOW()) AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
              ORDER BY document_id LIMIT ?",
             [$token, max(1, $leaseSeconds), CompanyContext::id(), $this->environment, ...self::DUE, max(1, $limit)],
         );
 
-        return $this->db->table('einvoice_documents')->select('document_id, subtype, uuid, invoice_hash, xml, attempts')->where('claim_token', $token)->orderBy('document_id', 'ASC')->get()->getResult();
+        return $this->db->table('einvoice_outbox o')
+            ->select('o.document_id, o.attempts, d.subtype, d.uuid, d.invoice_hash, d.xml')
+            ->join('einvoice_documents d', 'd.document_id = o.document_id')
+            ->where('o.claim_token', $token)
+            ->orderBy('o.document_id', 'ASC')
+            ->get()
+            ->getResult();
     }
 
     private function send(object $document, string $token): string
@@ -122,15 +134,15 @@ final class SubmissionService
             default                                       => self::RETRY,
         };
 
-        $table = $this->db->prefixTable('einvoice_documents');
+        $table = $this->db->prefixTable('einvoice_outbox');
         $wait  = in_array($state, [self::RETRY, self::UNKNOWN], true) ? min(self::LONGEST_WAIT, 60 * 2 ** min($attempt, 6)) : null;
 
         $this->db->transStart();
         $this->db->query(
-            "UPDATE {$table} SET outbox_status = ?, attempts = ?, last_error_code = ?, claim_token = NULL, lease_until = NULL,
+            "UPDATE {$table} SET status = ?, attempts = ?, last_error_code = ?, claim_token = NULL, lease_until = NULL,
                 next_attempt_at = " . ($wait === null ? 'NULL' : 'DATE_ADD(NOW(), INTERVAL ' . $wait . ' SECOND)') . '
              WHERE document_id = ? AND claim_token = ?',
-            [$state, $attempt, $response->errors[0] ?? ($state === self::RETRY ? $response->outcome->value : null), (int) $document->document_id, $token],
+            [$state, $attempt, mb_substr($response->errors[0] ?? ($state === self::RETRY ? $response->outcome->value : ''), 0, 255) ?: null, (int) $document->document_id, $token],
         );
 
         if ($this->db->affectedRows() === 0) {

@@ -252,7 +252,7 @@ final class EInvoiceBuilder
             );
 
             $prepayments[] = $prepayment;
-            $rounding      = bcadd($rounding, bcsub(bcadd((string) $use->gross, '0', 2), $prepayment->amount(), 2), 2);
+            $rounding      = bcadd($rounding, bcsub($prepayment->amount(), bcadd((string) $use->gross, '0', 2), 2), 2);
         }
 
         return [$prepayments, $rounding];

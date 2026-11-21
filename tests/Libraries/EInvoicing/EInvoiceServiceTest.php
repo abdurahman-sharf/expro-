@@ -526,16 +526,17 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $first = $this->issue();
         $row   = $this->accountingDb()->table('einvoice_documents')->where('document_id', $first->documentId)->get()->getRow();
 
-        $this->assertNull($row->outbox_status, 'a document of the first phase is not sent');
+        $this->assertSame(0, $this->accountingDb()->table('einvoice_outbox')->where('document_id', $first->documentId)->countAllResults(), 'a document of the first phase is not sent');
         $this->assertNotNull($row->unit_id);
 
         $this->configureEInvoicing([EInvoiceSettings::PHASE_TWO => '1']);
 
         $second = $this->issue($this->referenceSale());
-        $queued = $this->accountingDb()->table('einvoice_documents')->where('document_id', $second->documentId)->get()->getRow();
-        $unit   = $this->accountingDb()->table('einvoice_unit_counters')->where(['unit_id' => $queued->unit_id, 'environment' => EInvoiceService::LIVE])->get()->getRow();
+        $unitId = $this->accountingDb()->table('einvoice_documents')->where('document_id', $second->documentId)->get()->getRow()->unit_id;
+        $queued = $this->accountingDb()->table('einvoice_outbox')->where('document_id', $second->documentId)->get()->getRow();
+        $unit   = $this->accountingDb()->table('einvoice_unit_counters')->where(['unit_id' => $unitId, 'environment' => EInvoiceService::LIVE])->get()->getRow();
 
-        $this->assertSame([SubmissionService::PENDING, EInvoiceService::LIVE], [$queued->outbox_status, $queued->environment]);
+        $this->assertSame([SubmissionService::PENDING, EInvoiceService::LIVE], [$queued->status, $queued->environment]);
         $this->assertSame([(string) $second->icv, $second->hash], [(string) $unit->last_icv, $unit->last_hash], 'the unit holds the chain as it stands');
     }
 
@@ -1002,7 +1003,7 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $after = $this->databaseFingerprint();
 
         foreach ($before as $table => $print) {
-            if (in_array($table, ['ospos_einvoice_counters', 'ospos_einvoice_documents', 'ospos_einvoice_transport_log', 'ospos_accounting_audit_log'], true)) {
+            if (in_array($table, ['ospos_einvoice_counters', 'ospos_einvoice_unit_counters', 'ospos_einvoice_documents', 'ospos_einvoice_transport_log', 'ospos_accounting_audit_log'], true)) {
                 continue;
             }
 

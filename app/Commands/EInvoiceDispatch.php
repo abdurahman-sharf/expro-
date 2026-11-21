@@ -17,8 +17,8 @@ class EInvoiceDispatch extends BaseCommand
     public function run(array $params): int
     {
         $db      = Database::connect();
-        $waiting = $db->tableExists($db->prefixTable('einvoice_units'), false)
-            ? $db->table('einvoice_documents')->whereIn('outbox_status', SubmissionService::DUE)->countAllResults()
+        $waiting = $db->tableExists($db->prefixTable('einvoice_outbox'), false)
+            ? $db->table('einvoice_outbox')->whereIn('status', SubmissionService::DUE)->countAllResults()
             : 0;
 
         CLI::write("No client to ZATCA is configured: nothing is sent. Documents waiting: {$waiting}.", $waiting === 0 ? 'green' : 'yellow');

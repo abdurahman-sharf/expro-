@@ -12,24 +12,15 @@ use RuntimeException;
  *   environment, the default unit taking over the counter of the company as it stands, to the figure;
  * - the certificates of each unit, whose secrets and keys are kept only encrypted;
  * - every attempt to send a document, kept as it was answered, and the cleared file of a tax invoice;
- * - on each document, its place in the queue to be sent: a claim and a lease so that two workers never send it
- *   at once, and none for a document of the first phase, which is not sent.
+ * - the queue of the documents to be sent, a table of its own so that an issued document is never written to
+ *   again: a claim and a lease so that two workers never send one at once. A document of the first phase is not
+ *   queued. Each document names the unit that issued it, written when it is issued.
  *
  * Safe to run again; down() refuses once a document was queued or a certificate stored.
  */
 class EInvoiceIntegration extends Migration
 {
     private const TABLE_OPTIONS = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci';
-    private const OUTBOX        = [
-        'unit_id'         => 'INT UNSIGNED NULL DEFAULT NULL',
-        'environment'     => 'VARCHAR(16) NULL DEFAULT NULL',
-        'outbox_status'   => 'VARCHAR(24) NULL DEFAULT NULL',
-        'attempts'        => 'INT UNSIGNED NOT NULL DEFAULT 0',
-        'next_attempt_at' => 'DATETIME NULL DEFAULT NULL',
-        'last_error_code' => 'VARCHAR(64) NULL DEFAULT NULL',
-        'claim_token'     => 'CHAR(32) NULL DEFAULT NULL',
-        'lease_until'     => 'DATETIME NULL DEFAULT NULL',
-    ];
 
     public function up(): void
     {
@@ -118,16 +109,29 @@ class EInvoiceIntegration extends Migration
             ) {$options}",
         );
 
+        $outbox = $this->db->prefixTable('einvoice_outbox');
+
+        $this->db->query(
+            "CREATE TABLE IF NOT EXISTS `{$outbox}` (
+                `document_id` BIGINT UNSIGNED NOT NULL,
+                `company_id` INT UNSIGNED NOT NULL,
+                `environment` VARCHAR(16) NOT NULL,
+                `status` VARCHAR(24) NOT NULL,
+                `attempts` INT UNSIGNED NOT NULL DEFAULT 0,
+                `next_attempt_at` DATETIME NULL DEFAULT NULL,
+                `last_error_code` VARCHAR(255) NULL DEFAULT NULL,
+                `claim_token` CHAR(32) NULL DEFAULT NULL,
+                `lease_until` DATETIME NULL DEFAULT NULL,
+                `queued_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`document_id`),
+                KEY `{$outbox}_due` (`company_id`, `environment`, `status`, `next_attempt_at`)
+            ) {$options}",
+        );
+
         $documents = $this->db->prefixTable('einvoice_documents');
 
-        foreach (self::OUTBOX as $column => $definition) {
-            if (! $this->hasColumn('einvoice_documents', $column)) {
-                $this->db->query("ALTER TABLE `{$documents}` ADD COLUMN `{$column}` {$definition}");
-            }
-        }
-
-        if (! $this->hasIndex('einvoice_documents', $documents . '_outbox')) {
-            $this->db->query("ALTER TABLE `{$documents}` ADD KEY `{$documents}_outbox` (`outbox_status`, `next_attempt_at`)");
+        if (! $this->hasColumn('einvoice_documents', 'unit_id')) {
+            $this->db->query("ALTER TABLE `{$documents}` ADD COLUMN `unit_id` INT UNSIGNED NULL DEFAULT NULL");
         }
 
         $this->defaultUnits();
@@ -135,7 +139,7 @@ class EInvoiceIntegration extends Migration
 
     public function down(): void
     {
-        if ($this->hasColumn('einvoice_documents', 'outbox_status') && $this->db->table('einvoice_documents')->where('outbox_status IS NOT NULL')->countAllResults() > 0) {
+        if ($this->hasTable('einvoice_outbox') && $this->db->table('einvoice_outbox')->countAllResults() > 0) {
             throw new RuntimeException('Documents were queued to be sent; taking the migration down would lose where each of them stands.');
         }
 
@@ -143,19 +147,11 @@ class EInvoiceIntegration extends Migration
             throw new RuntimeException('Certificates are stored; taking the migration down would lose them.');
         }
 
-        $documents = $this->db->prefixTable('einvoice_documents');
-
-        if ($this->hasIndex('einvoice_documents', $documents . '_outbox')) {
-            $this->db->query("ALTER TABLE `{$documents}` DROP KEY `{$documents}_outbox`");
+        if ($this->hasColumn('einvoice_documents', 'unit_id')) {
+            $this->db->query('ALTER TABLE `' . $this->db->prefixTable('einvoice_documents') . '` DROP COLUMN `unit_id`');
         }
 
-        foreach (array_keys(self::OUTBOX) as $column) {
-            if ($this->hasColumn('einvoice_documents', $column)) {
-                $this->db->query("ALTER TABLE `{$documents}` DROP COLUMN `{$column}`");
-            }
-        }
-
-        foreach (['einvoice_cleared_documents', 'einvoice_submissions', 'einvoice_credentials', 'einvoice_unit_counters', 'einvoice_units'] as $table) {
+        foreach (['einvoice_outbox', 'einvoice_cleared_documents', 'einvoice_submissions', 'einvoice_credentials', 'einvoice_unit_counters', 'einvoice_units'] as $table) {
             $this->db->query('DROP TABLE IF EXISTS `' . $this->db->prefixTable($table) . '`');
         }
     }
@@ -194,14 +190,6 @@ class EInvoiceIntegration extends Migration
         return $this->db->query(
             'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
             [$this->db->prefixTable($table), $column],
-        )->getRow() !== null;
-    }
-
-    private function hasIndex(string $table, string $index): bool
-    {
-        return $this->db->query(
-            'SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?',
-            [$this->db->prefixTable($table), $index],
         )->getRow() !== null;
     }
 

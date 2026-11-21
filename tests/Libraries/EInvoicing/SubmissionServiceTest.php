@@ -38,6 +38,7 @@ class SubmissionServiceTest extends CIUnitTestCase
 
         $db->table('einvoice_submissions')->truncate();
         $db->table('einvoice_cleared_documents')->truncate();
+        $db->table('einvoice_outbox')->truncate();
         $db->table('einvoice_documents')->where('source_type', 'sale')->where('source_id >=', 880000)->delete();
 
         parent::tearDown();
@@ -64,21 +65,23 @@ class SubmissionServiceTest extends CIUnitTestCase
             'tax_amount'      => '15.00',
             'tax_inclusive'   => '115.00',
             'xml'             => '<Invoice id="' . $id . '"/>',
-            'outbox_status'   => SubmissionService::PENDING,
-            'environment'     => 'production',
         ]);
 
-        return (int) $db->insertID();
+        $documentId = (int) $db->insertID();
+
+        SubmissionService::enqueue($db, $documentId, 'production');
+
+        return $documentId;
     }
 
     private function row(int $documentId): object
     {
-        return Database::connect()->table('einvoice_documents')->where('document_id', $documentId)->get()->getRow();
+        return Database::connect()->table('einvoice_outbox')->where('document_id', $documentId)->get()->getRow();
     }
 
     private function makeDue(): void
     {
-        Database::connect()->table('einvoice_documents')->where('source_id >', 880000)->where('next_attempt_at IS NOT NULL', null, false)->update(['next_attempt_at' => '2000-01-01 00:00:00']);
+        Database::connect()->table('einvoice_outbox')->where('next_attempt_at IS NOT NULL', null, false)->update(['next_attempt_at' => '2000-01-01 00:00:00']);
     }
 
     public function testDispatch_ReportsASimplifiedInvoiceAndClearsATaxInvoice(): void
@@ -88,9 +91,9 @@ class SubmissionServiceTest extends CIUnitTestCase
         $zatca      = new FakeZatcaTransport(static fn (ZatcaRequest $request): ZatcaResponse => new ZatcaResponse(ZatcaOutcome::Accepted, 200, [], [], $request->kind === ZatcaRequest::CLEARANCE ? '<Invoice cleared="1"/>' : null));
 
         $this->assertSame([SubmissionService::REPORTED => 1, SubmissionService::CLEARED => 1], (new SubmissionService($zatca))->dispatch());
-        $this->assertSame([SubmissionService::REPORTED, SubmissionService::CLEARED], [$this->row($simplified)->outbox_status, $this->row($standard)->outbox_status]);
+        $this->assertSame([SubmissionService::REPORTED, SubmissionService::CLEARED], [$this->row($simplified)->status, $this->row($standard)->status]);
         $this->assertSame([ZatcaRequest::REPORTING, ZatcaRequest::CLEARANCE], array_map(static fn (ZatcaRequest $request): string => $request->kind, $zatca->requests));
-        $this->assertSame(base64_encode($this->row($simplified)->xml), $zatca->requests[0]->body()['invoice'], 'the file goes out as it was issued');
+        $this->assertSame(base64_encode((string) Database::connect()->table('einvoice_documents')->where('document_id', $simplified)->get()->getRow()->xml), $zatca->requests[0]->body()['invoice'], 'the file goes out as it was issued');
         $this->assertSame('<Invoice cleared="1"/>', Database::connect()->table('einvoice_cleared_documents')->where('document_id', $standard)->get()->getRow()->xml);
         $this->assertSame(2, Database::connect()->table('einvoice_submissions')->countAllResults());
     }
@@ -103,7 +106,7 @@ class SubmissionServiceTest extends CIUnitTestCase
 
         $submission = Database::connect()->table('einvoice_submissions')->where('document_id', $document)->get()->getRow();
 
-        $this->assertSame(SubmissionService::REPORTED, $this->row($document)->outbox_status);
+        $this->assertSame(SubmissionService::REPORTED, $this->row($document)->status);
         $this->assertSame(['BR-KSA-08: the identification is missing'], json_decode((string) $submission->warnings, true));
         $this->assertSame(ZatcaOutcome::AcceptedWithWarnings->value, $submission->outcome);
     }
@@ -118,7 +121,7 @@ class SubmissionServiceTest extends CIUnitTestCase
         $this->makeDue();
         $service->dispatch();
 
-        $this->assertSame([SubmissionService::REJECTED, 'BR-KSA-51: the line does not add up'], [$this->row($document)->outbox_status, $this->row($document)->last_error_code]);
+        $this->assertSame([SubmissionService::REJECTED, 'BR-KSA-51: the line does not add up'], [$this->row($document)->status, $this->row($document)->last_error_code]);
         $this->assertCount(1, $zatca->requests, 'a refused document is not sent again');
     }
 
@@ -130,18 +133,18 @@ class SubmissionServiceTest extends CIUnitTestCase
 
         $service->dispatch();
 
-        $this->assertSame([SubmissionService::RETRY, '1'], [$this->row($document)->outbox_status, (string) $this->row($document)->attempts]);
+        $this->assertSame([SubmissionService::RETRY, '1'], [$this->row($document)->status, (string) $this->row($document)->attempts]);
         $this->assertSame([], $service->dispatch(), 'nothing is due before the wait is over');
 
         $this->makeDue();
         $service->dispatch();
 
-        $this->assertSame(SubmissionService::UNKNOWN, $this->row($document)->outbox_status);
+        $this->assertSame(SubmissionService::UNKNOWN, $this->row($document)->status);
 
         $this->makeDue();
         $service->dispatch();
 
-        $this->assertSame([SubmissionService::REPORTED, '3'], [$this->row($document)->outbox_status, (string) $this->row($document)->attempts]);
+        $this->assertSame([SubmissionService::REPORTED, '3'], [$this->row($document)->status, (string) $this->row($document)->attempts]);
         $this->assertCount(3, $zatca->requests);
         $this->assertSame($zatca->requests[0]->fingerprint(), $zatca->requests[2]->fingerprint(), 'the same request every time');
     }
@@ -151,14 +154,14 @@ class SubmissionServiceTest extends CIUnitTestCase
         $document = $this->queued();
         $second   = new SubmissionService(new FakeZatcaTransport([new ZatcaResponse(ZatcaOutcome::Accepted, 200)]));
         $first    = new SubmissionService(new FakeZatcaTransport(static function () use ($document, $second): ZatcaResponse {
-            Database::connect()->table('einvoice_documents')->where('document_id', $document)->update(['lease_until' => '2000-01-01 00:00:00']);
+            Database::connect()->table('einvoice_outbox')->where('document_id', $document)->update(['lease_until' => '2000-01-01 00:00:00']);
             $second->dispatch();
 
             return new ZatcaResponse(ZatcaOutcome::Rejected, 400, [], ['too late']);
         }));
 
         $this->assertSame(['late' => 1], $first->dispatch());
-        $this->assertSame(SubmissionService::REPORTED, $this->row($document)->outbox_status, 'the answer of the worker that lost its lease changes nothing');
+        $this->assertSame(SubmissionService::REPORTED, $this->row($document)->status, 'the answer of the worker that lost its lease changes nothing');
         $this->assertSame(2, Database::connect()->table('einvoice_submissions')->where('document_id', $document)->countAllResults(), 'both answers are kept');
     }
 
@@ -177,14 +180,14 @@ class SubmissionServiceTest extends CIUnitTestCase
         });
         $service = new SubmissionService($zatca);
 
-        for ($round = 0; $round < 40 && Database::connect()->table('einvoice_documents')->whereIn('document_id', $documents)->whereIn('outbox_status', SubmissionService::DUE)->countAllResults() > 0; $round++) {
+        for ($round = 0; $round < 40 && Database::connect()->table('einvoice_outbox')->whereIn('document_id', $documents)->whereIn('status', SubmissionService::DUE)->countAllResults() > 0; $round++) {
             $service->dispatch(50);
             $this->makeDue();
         }
 
         $successes = Database::connect()->table('einvoice_submissions')->select('document_id, COUNT(*) AS n')->whereIn('document_id', $documents)->where('outcome', ZatcaOutcome::Accepted->value)->groupBy('document_id')->get()->getResult();
 
-        $this->assertSame(count($documents), Database::connect()->table('einvoice_documents')->whereIn('document_id', $documents)->where('outbox_status', SubmissionService::REPORTED)->countAllResults());
+        $this->assertSame(count($documents), Database::connect()->table('einvoice_outbox')->whereIn('document_id', $documents)->where('status', SubmissionService::REPORTED)->countAllResults());
         $this->assertCount(count($documents), $successes);
         $this->assertSame([1], array_values(array_unique(array_map(static fn (object $row): int => (int) $row->n, $successes))), 'no document was sent with success twice');
     }

@@ -109,7 +109,7 @@ final class JournalTie
     public function assertAdvanceTies(int $advanceId, string $payable, string $taxAmount): void
     {
         $credited = $this->movementOf(CustomerAdvances::SOURCE, $advanceId, null);
-        $taxed    = $this->movementOf(AdvanceVat::SOURCE, $advanceId, (new RoutingResolver($this->db))->accountFor(RoutingKey::TaxOutput));
+        $taxed    = $this->movementOf(AdvanceVat::SOURCE, $advanceId, (new RoutingResolver($this->db))->accountFor(RoutingKey::TaxOutput)) ?? self::noTax($taxAmount);
         $charged  = (new AdvanceVat($this->db))->of($advanceId);
 
         if ($credited === null || $taxed === null || $charged === null) {
@@ -128,7 +128,7 @@ final class JournalTie
     public function assertAdvanceReturnTies(int $returnId, string $payable, string $taxAmount): void
     {
         $return = (new AdvanceVat($this->db))->returnOf($returnId);
-        $taxed  = $this->movementOf(AdvanceVat::SOURCE_RETURN, $returnId, (new RoutingResolver($this->db))->accountFor(RoutingKey::TaxAdvances));
+        $taxed  = $this->movementOf(AdvanceVat::SOURCE_RETURN, $returnId, (new RoutingResolver($this->db))->accountFor(RoutingKey::TaxAdvances)) ?? self::noTax($taxAmount);
 
         if ($return === null || $taxed === null) {
             throw new EInvoiceException(EInvoiceError::SourceNotPosted, 'The books hold no posted journal for what went back of the advance.', ['number' => (string) $returnId]);
@@ -137,6 +137,14 @@ final class JournalTie
         $gross = bcadd((string) $return->gross, '0', 2);
 
         $this->assertPart($gross, $gross, $payable, SaleAmounts::round($taxed, 2), $taxAmount);
+    }
+
+    /**
+     * A part of an advance whose VAT rounds to nothing has no journal of VAT: it stands for a tax of nothing.
+     */
+    private static function noTax(string $taxAmount): ?string
+    {
+        return bccomp($taxAmount, '0', 2) === 0 ? '0' : null;
     }
 
     /**

@@ -196,6 +196,44 @@ class CustomerAdvancesTest extends CIUnitTestCase
         $this->assertStringContainsString('<cbc:PayableAmount currencyID="SAR">100.01</cbc:PayableAmount>', $prepayment->xml);
     }
 
+    public function testReceive_LetsAnInvoiceThatTakesAnAdvanceThatDoesNotSplitExactlyAskWhatIsStillOwed(): void
+    {
+        $this->underTheSaudiRules();
+        $this->receive('11.54');
+
+        $xml = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_SALE, $this->saudiSaleOf('100.00'))->xml;
+
+        $this->assertStringContainsString('<cbc:PrepaidAmount currencyID="SAR">11.53</cbc:PrepaidAmount>', $xml, 'the taxable amount and VAT of the advance (BR-KSA-80)');
+        $this->assertStringContainsString('<cbc:PayableAmount currencyID="SAR">103.46</cbc:PayableAmount>', $xml, '115.00 less the 11.54 the customer paid ahead');
+    }
+
+    public function testReceive_IssuesThePrepaymentInvoiceOfAnAdvanceTooSmallToCarryVat(): void
+    {
+        $this->underTheSaudiRules();
+
+        $prepayment = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_ADVANCE, $this->receive('0.03'));
+
+        $this->assertSame(['0.03', '0.00', '0.03'], [$prepayment->taxExclusive, $prepayment->taxAmount, $prepayment->taxInclusive]);
+    }
+
+    public function testReceive_KeepsWhatAnIssuedInvoiceTakesOfTheAdvanceWhenItsCreditWouldBeReleased(): void
+    {
+        $this->underTheSaudiRules();
+
+        $advanceId   = $this->receive('115.00');
+        $this->saudiSaleOf('200.00');
+        $application = $this->accountingDb()->table('customer_credit_applications')->where(['source_type' => CreditSource::CUSTOMER_ADVANCE, 'source_id' => $advanceId])->where('released_at IS NULL', null, false)->get()->getRow();
+
+        try {
+            (new AdvanceVat())->released((int) $application->application_id, $this->clerk);
+            $this->fail('A prepayment the issued invoice states was given back.');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::AdvanceTakenByIssuedInvoice, $refusal->error);
+        }
+
+        $this->assertSame(0, (int) $this->accountingDb()->table('customer_advance_vat_uses')->where('application_id', $application->application_id)->get()->getRow()->released);
+    }
+
     public function testReceive_UndoesTheAdvanceWhenItsPrepaymentInvoiceCannotBeIssued(): void
     {
         $this->underTheSaudiRules();

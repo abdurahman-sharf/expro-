@@ -653,6 +653,10 @@ final class EInvoiceService
         $this->db->table('einvoice_counters')->where('company_id', CompanyContext::id())->update(['last_icv' => $icv, 'last_hash' => $stamped->hash]);
         $this->mirrorUnitCounter($icv, $stamped->hash);
 
+        if ($this->settings->phaseTwo() && $this->defaultUnit() !== null) {
+            SubmissionService::enqueue($this->db, $documentId, self::LIVE);
+        }
+
         $this->audit->write('einvoice_document', $documentId, 'issued', $employeeId, JournalOrigin::User, [
             'source'  => $sourceType . ':' . $sourceId,
             'kind'    => $chained->kind->value,
@@ -677,8 +681,7 @@ final class EInvoiceService
     }
 
     /**
-     * The unit a document is issued by, the default unit of the company, and, once the second phase is turned on, its
-     * place in the queue to be sent. Nothing while the units are not installed.
+     * The unit a document is issued by, the default unit of the company; nothing while the units are not installed.
      *
      * @return array<string, mixed>
      */
@@ -690,7 +693,7 @@ final class EInvoiceService
             return [];
         }
 
-        return ['unit_id' => $unit, ...($this->settings->phaseTwo() ? ['outbox_status' => SubmissionService::PENDING, 'environment' => self::LIVE] : [])];
+        return ['unit_id' => $unit];
     }
 
     /**
