@@ -71,6 +71,7 @@ return [
     'error_buyer_identification_missing'  => 'The customer {0} has neither a tax number nor an identification.',
     'error_buyer_name_missing'            => 'The customer has no name.',
     'error_buyer_vat_invalid'             => 'The tax number {0} of the customer {1} is not fifteen digits that begin and end with 3.',
+    'error_certificate_expired'           => 'The certificate of the unit ran out on {0}: renew it before issuing.',
     'error_certificate_key_mismatch'      => 'The certificate is not the one of the private key.',
     'error_certificate_unreadable'        => 'The certificate cannot be read.',
     'error_chain_broken'                  => 'The chain of hashes is broken.',

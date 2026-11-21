@@ -71,6 +71,7 @@ return [
     'error_buyer_identification_missing'  => '',
     'error_buyer_name_missing'            => '',
     'error_buyer_vat_invalid'             => '',
+    'error_certificate_expired'           => '',
     'error_certificate_key_mismatch'      => '',
     'error_certificate_unreadable'        => '',
     'error_chain_broken'                  => '',

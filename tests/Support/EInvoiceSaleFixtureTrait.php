@@ -82,6 +82,10 @@ trait EInvoiceSaleFixtureTrait
 
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
         $db->table('einvoice_counters')->update(['last_icv' => 0, 'last_hash' => '']);
+
+        if ($db->tableExists($db->prefixTable('einvoice_unit_counters'), false)) {
+            $db->table('einvoice_unit_counters')->update(['last_icv' => 0, 'last_hash' => '']);
+        }
         $db->table('accounting_audit_log')->whereIn('entity_type', ['einvoice_document', 'einvoice_settings', 'customer_einvoice_party'])->delete();
     }
 

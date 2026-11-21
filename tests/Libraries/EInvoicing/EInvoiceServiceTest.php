@@ -16,6 +16,7 @@ use App\Libraries\EInvoicing\EInvoiceTransport;
 use App\Libraries\EInvoicing\InvoiceHash;
 use App\Libraries\EInvoicing\IssuedEInvoice;
 use App\Libraries\EInvoicing\StampVerifier;
+use App\Libraries\EInvoicing\SubmissionService;
 use App\Libraries\EInvoicing\TransportResult;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -518,6 +519,24 @@ class EInvoiceServiceTest extends CIUnitTestCase
 
         $this->assertSame(EInvoiceError::BuyerAddressIncomplete, $this->refusal(fn () => $this->service->assertIssuable($customerId, SALE_TYPE_INVOICE, null))->error);
         $this->service->assertIssuable(null, SALE_TYPE_POS, null);
+    }
+
+    public function testIssueSale_QueuesTheDocumentOnceTheSecondPhaseIsOnAndKeepsTheCounterOfTheUnit(): void
+    {
+        $first = $this->issue();
+        $row   = $this->accountingDb()->table('einvoice_documents')->where('document_id', $first->documentId)->get()->getRow();
+
+        $this->assertNull($row->outbox_status, 'a document of the first phase is not sent');
+        $this->assertNotNull($row->unit_id);
+
+        $this->configureEInvoicing([EInvoiceSettings::PHASE_TWO => '1']);
+
+        $second = $this->issue($this->referenceSale());
+        $queued = $this->accountingDb()->table('einvoice_documents')->where('document_id', $second->documentId)->get()->getRow();
+        $unit   = $this->accountingDb()->table('einvoice_unit_counters')->where(['unit_id' => $queued->unit_id, 'environment' => EInvoiceService::LIVE])->get()->getRow();
+
+        $this->assertSame([SubmissionService::PENDING, EInvoiceService::LIVE], [$queued->outbox_status, $queued->environment]);
+        $this->assertSame([(string) $second->icv, $second->hash], [(string) $unit->last_icv, $unit->last_hash], 'the unit holds the chain as it stands');
     }
 
     public function testIssueSale_RefusesATaxOfTheDocumentThatTheJournalDoesNotHold(): void

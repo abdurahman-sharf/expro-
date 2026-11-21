@@ -45,6 +45,7 @@ final class EInvoiceService
     public const SOURCE_NOTE    = SalesDebitNotes::SOURCE;
     public const SOURCE_ADVANCE = CustomerAdvances::SOURCE;
     public const SOURCE_RETURN  = 'advance_return';
+    public const LIVE           = 'production';
 
     private BaseConnection $db;
     private AccountingGuard $guard;
@@ -637,18 +638,20 @@ final class EInvoiceService
             'tax_amount'           => $chained->taxAmount,
             'tax_inclusive'        => $chained->taxInclusive,
             'original_document_id' => $original?->documentId,
+            'reason'               => $chained->reason,
+            'xml'                  => $stamped->xml,
+            'qr_text'              => $stamped->qr,
+            'signed'               => $stamped->signed ? 1 : 0,
+            'profile'              => 'candidate',
+            'created_by'           => $employeeId,
             ...($original !== null && $original->isPrinted() ? ['original_reference' => $original->number, 'original_sale_id' => $original->saleId] : []),
-            'reason'     => $chained->reason,
-            'xml'        => $stamped->xml,
-            'qr_text'    => $stamped->qr,
-            'signed'     => $stamped->signed ? 1 : 0,
-            'profile'    => 'candidate',
-            'created_by' => $employeeId,
+            ...$this->unitColumns(),
         ]);
 
         $documentId = (int) $this->db->insertID();
 
         $this->db->table('einvoice_counters')->where('company_id', CompanyContext::id())->update(['last_icv' => $icv, 'last_hash' => $stamped->hash]);
+        $this->mirrorUnitCounter($icv, $stamped->hash);
 
         $this->audit->write('einvoice_document', $documentId, 'issued', $employeeId, JournalOrigin::User, [
             'source'  => $sourceType . ':' . $sourceId,
@@ -671,6 +674,47 @@ final class EInvoiceService
         $this->db->table('einvoice_transport_log')->insert(['document_id' => $documentId, 'transport' => $this->transport->name(), 'status' => $result->status, 'note' => mb_substr($result->note, 0, 500)]);
 
         return $issued;
+    }
+
+    /**
+     * The unit a document is issued by, the default unit of the company, and, once the second phase is turned on, its
+     * place in the queue to be sent. Nothing while the units are not installed.
+     *
+     * @return array<string, mixed>
+     */
+    private function unitColumns(): array
+    {
+        $unit = $this->defaultUnit();
+
+        if ($unit === null) {
+            return [];
+        }
+
+        return ['unit_id' => $unit, ...($this->settings->phaseTwo() ? ['outbox_status' => SubmissionService::PENDING, 'environment' => self::LIVE] : [])];
+    }
+
+    /**
+     * The counter of the default unit follows the counter of the company to the figure, in the same transaction, so
+     * that the chain goes on unbroken when the unit takes it over (§4.6).
+     */
+    private function mirrorUnitCounter(int $icv, string $hash): void
+    {
+        $unit = $this->defaultUnit();
+
+        if ($unit !== null) {
+            $this->db->table('einvoice_unit_counters')->where(['unit_id' => $unit, 'environment' => self::LIVE])->update(['last_icv' => $icv, 'last_hash' => $hash]);
+        }
+    }
+
+    private function defaultUnit(): ?int
+    {
+        if (! $this->db->tableExists($this->db->prefixTable('einvoice_units'), false)) {
+            return null;
+        }
+
+        $row = $this->db->table('einvoice_units')->select('unit_id')->where(['company_id' => CompanyContext::id(), 'is_default' => 1])->get()->getRow();
+
+        return $row === null ? null : (int) $row->unit_id;
     }
 
     /**

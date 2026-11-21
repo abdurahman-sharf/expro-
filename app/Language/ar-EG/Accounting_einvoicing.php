@@ -71,6 +71,7 @@ return [
     'error_buyer_identification_missing'  => 'العميل {0} ليس له رقم ضريبي ولا معرِّف.',
     'error_buyer_name_missing'            => 'ليس للعميل اسم.',
     'error_buyer_vat_invalid'             => 'الرقم الضريبي {0} للعميل {1} ليس خمسة عشر رقمًا يبدأ وينتهي بالرقم 3.',
+    'error_certificate_expired'           => 'انتهت شهادة الوحدة في {0}: جدّدها قبل الإصدار.',
     'error_certificate_key_mismatch'      => 'الشهادة ليست شهادة المفتاح الخاص.',
     'error_certificate_unreadable'        => 'تعذّرت قراءة الشهادة.',
     'error_chain_broken'                  => 'سلسلة التجزئة مكسورة.',

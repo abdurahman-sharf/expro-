@@ -48,6 +48,7 @@ enum EInvoiceError: string
     case CurveUnsupported       = 'curve_unsupported';
     case CertificateUnreadable  = 'certificate_unreadable';
     case CertificateKeyMismatch = 'certificate_key_mismatch';
+    case CertificateExpired     = 'certificate_expired';
     case SigningFailed          = 'signing_failed';
     case QrTooLong              = 'qr_too_long';
 
