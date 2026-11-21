@@ -9,6 +9,7 @@ use App\Libraries\Accounting\SaleLine;
 use App\Libraries\Accounting\SaleLoader;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Tax\AdvanceVat;
 use App\Libraries\Tax\LineVat;
 use App\Libraries\Tax\VatCategoryTotal;
 use App\Libraries\Tax\VatClassification;
@@ -75,11 +76,11 @@ final class EInvoiceBuilder
             throw new EInvoiceException(EInvoiceError::SourceNotIssuable, 'Only a completed invoice or return becomes a document.', ['number' => (string) $saleId]);
         }
 
-        if ($sale->currency !== null) {
+        if ($sale->currency !== null && $sale->vat === []) {
             throw new EInvoiceException(EInvoiceError::ForeignCurrency, 'A sale in a foreign currency is not written to the document.', ['number' => (string) $saleId]);
         }
 
-        if ($sale->charges !== null) {
+        if ($sale->charges !== null && ! $this->chargesWritable($sale)) {
             throw new EInvoiceException(EInvoiceError::HeaderChargesUnsupported, 'A sale with shipping or an adjustment in its header is not written to the document.', ['number' => (string) $saleId]);
         }
 
@@ -106,14 +107,113 @@ final class EInvoiceBuilder
             lines: array_map(static fn (BuiltLine $built): EInvoiceLine => $built->line, $built),
             taxSubtotals: $rules['subtotals'],
             lineExtension: $rules['lineExtension'],
-            taxExclusive: $rules['lineExtension'],
+            taxExclusive: $rules['taxExclusive'],
             taxAmount: $rules['tax'],
             taxInclusive: $rules['total'],
             paymentMeansCodes: $this->paymentMeans($sale),
             reason: $note['reason'],
             billingReference: $note['reference'],
             rounding: $rounding,
+            charges: $rules['charges'],
+            currency: $sale->currency?->code ?? 'SAR',
+            taxAmountInSar: $sale->currency === null ? null : SaleAmounts::round(bcmul($rules['tax'], $sale->currency->rate, 8), 2),
+            prepayments: $sale->vat === [] ? [] : $this->prepaymentsOf($sale->saleId),
         );
+    }
+
+    /**
+     * The prepayment invoice an advance received under the Saudi rules is issued on (R-04 §9.5, type 386): one line
+     * of the advance without its VAT, at the standard rate it was charged at.
+     *
+     * @throws EInvoiceException
+     */
+    public function fromAdvance(int $advanceId, ?EInvoiceSubtype $subtype = null): EInvoiceDocument
+    {
+        $advance = $this->db->table('customer_advances')->where('advance_id', $advanceId)->get()->getRow();
+        $vat     = (new AdvanceVat($this->db))->of($advanceId);
+
+        if ($advance === null) {
+            throw new EInvoiceException(EInvoiceError::SourceNotFound, 'The advance does not exist.', ['number' => (string) $advanceId]);
+        }
+
+        if ($vat === null || (int) $vat->cancelled === 1 || $advance->status === 'cancelled') {
+            throw new EInvoiceException(EInvoiceError::SourceNotIssuable, 'Only an advance that carries VAT under the Saudi rules is a prepayment invoice.', ['number' => (string) $advanceId]);
+        }
+
+        $customerId = (int) $advance->customer_id;
+        $subtype ??= $this->parties->defaultSubtype($customerId);
+        $rate    = bcadd((string) $vat->percent, '0', 2);
+        $taxable = bcadd((string) $vat->taxable, '0', 2);
+        $tax     = bcadd((string) $vat->vat, '0', 2);
+        $type    = PaymentType::fromLabel((string) $advance->payment_type);
+        $means   = $type === null || ! isset(self::PAYMENT_MEANS[$type->value]) ? [] : [self::PAYMENT_MEANS[$type->value]];
+
+        return new EInvoiceDocument(
+            kind: EInvoiceKind::Prepayment,
+            subtype: $subtype,
+            number: $this->advanceNumber($advanceId),
+            issueDate: (string) $advance->advance_date,
+            issueTime: date('H:i:s', (int) strtotime((string) $advance->created_at)),
+            supplyDate: (string) $advance->advance_date,
+            seller: $this->parties->seller(),
+            buyer: $this->parties->buyer($customerId, $subtype),
+            lines: [$this->lineOf(1, 'Advance payment', '1.00', $taxable, '0.00', $taxable, ['S', $rate], $tax)],
+            taxSubtotals: [new EInvoiceTaxSubtotal('S', $rate, $taxable, $tax)],
+            lineExtension: $taxable,
+            taxExclusive: $taxable,
+            taxAmount: $tax,
+            taxInclusive: bcadd($taxable, $tax, 2),
+            paymentMeansCodes: $means,
+        );
+    }
+
+    /**
+     * The prepayments an invoice takes off what is due, each with the prepayment invoice it was issued on, or the
+     * number and day of its advance while none was.
+     *
+     * @return list<EInvoicePrepayment>
+     */
+    private function prepaymentsOf(int $saleId): array
+    {
+        $prepayments = [];
+
+        foreach ((new AdvanceVat($this->db))->usesOf($saleId) as $use) {
+            $issued = $this->db->table('einvoice_documents')->select('document_number, issue_date, issue_time')->where(['source_type' => EInvoiceService::SOURCE_ADVANCE, 'source_id' => (int) $use->advance_id])->get()->getRow();
+
+            $prepayments[] = new EInvoicePrepayment(
+                $issued === null ? $this->advanceNumber((int) $use->advance_id) : (string) $issued->document_number,
+                $issued === null ? (string) $use->advance_date : (string) $issued->issue_date,
+                $issued === null ? date('H:i:s', (int) strtotime((string) $use->created_at)) : (string) $issued->issue_time,
+                (string) $use->category,
+                bcadd((string) $use->percent, '0', 2),
+                bcadd((string) $use->taxable, '0', 2),
+                bcadd((string) $use->vat, '0', 2),
+            );
+        }
+
+        return $prepayments;
+    }
+
+    private function advanceNumber(int $advanceId): string
+    {
+        $given = (new DocumentNumbering($this->db))->numbers(DocumentType::CustomerPayment, 'customer_advances', [$advanceId]);
+
+        return $given[$advanceId] ?? (string) $advanceId;
+    }
+
+    /**
+     * Whether the charges of the header can be written: the shipping of a sale whose VAT was worked out once, which
+     * its categories hold, and no adjustment, which carries no VAT.
+     */
+    private function chargesWritable(SaleDocument $sale): bool
+    {
+        if ($sale->vat === [] || bccomp($sale->charges->adjustment, '0', SaleAmounts::SCALE) !== 0) {
+            return false;
+        }
+
+        $held = array_reduce($sale->vat, static fn (string $sum, VatCategoryTotal $category): string => bcadd($sum, SaleAmounts::absolute($category->charges), 2), '0');
+
+        return bccomp($held, '0', 2) !== 0;
     }
 
     /**
@@ -204,6 +304,7 @@ final class EInvoiceBuilder
         $taxRows  = $this->taxRows($sale->saleId);
         $soldAs   = $this->soldUnder($sale->saleId);
         $amounts  = (new VatSnapshot($this->db))->linesOf($sale->saleId);
+        $units    = $this->unitCodes($sale);
         $decimals = totals_decimals();
         $lines    = [];
         $number   = 0;
@@ -216,7 +317,7 @@ final class EInvoiceBuilder
             $number++;
 
             $key     = $line->itemId . ':' . $line->line;
-            $lines[] = $this->saleLine($number, $line, $names[$line->itemId] ?? '', $taxRows[$key] ?? [], $decimals, $soldAs[$key] ?? null, $amounts[$key] ?? null);
+            $lines[] = $this->saleLine($number, $line, $names[$line->itemId] ?? '', $taxRows[$key] ?? [], $decimals, $soldAs[$key] ?? null, $amounts[$key] ?? null, $units[$line->itemId] ?? 'PCE');
         }
 
         if ($lines === []) {
@@ -231,7 +332,7 @@ final class EInvoiceBuilder
      *
      * @throws EInvoiceException
      */
-    private function saleLine(int $number, SaleLine $line, string $name, array $taxes, int $decimals, ?LineVat $vat = null, ?VatLineResult $amounts = null): BuiltLine
+    private function saleLine(int $number, SaleLine $line, string $name, array $taxes, int $decimals, ?LineVat $vat = null, ?VatLineResult $amounts = null, string $unitCode = 'PCE'): BuiltLine
     {
         $quantity = SaleAmounts::absolute($line->quantity);
         $discount = SaleAmounts::lineDiscount($line, $decimals);
@@ -272,13 +373,13 @@ final class EInvoiceBuilder
 
         $category = $vat === null ? $this->categoryOf($rows === [] ? '0' : (string) $rows[0]->percent, $name) : $this->categoryOfClass($vat, $name);
 
-        return new BuiltLine($this->lineOf($number, $name, $quantity, $price, $allowance, $net, $category, $shown), $lineTax, $vat?->exemptionCode, $vat?->exemptionText);
+        return new BuiltLine($this->lineOf($number, $name, $quantity, $price, $allowance, $net, $category, $shown, $unitCode), $lineTax, $vat?->exemptionCode, $vat?->exemptionText);
     }
 
     /**
      * @param array{0: string, 1: string} $category
      */
-    private function lineOf(int $number, string $name, string $quantity, string $price, string $allowance, string $net, array $category, string $tax): EInvoiceLine
+    private function lineOf(int $number, string $name, string $quantity, string $price, string $allowance, string $net, array $category, string $tax, string $unitCode = 'PCE'): EInvoiceLine
     {
         [$category, $rate] = $category;
 
@@ -286,7 +387,7 @@ final class EInvoiceBuilder
             id: $number,
             name: $name,
             quantity: $this->quantity($quantity),
-            unitCode: 'PCE',
+            unitCode: $unitCode,
             priceNet: $price,
             allowance: $allowance,
             netAmount: $net,
@@ -377,7 +478,7 @@ final class EInvoiceBuilder
      * @param list<BuiltLine>                 $lines
      * @param array<string, VatCategoryTotal> $kept
      *
-     * @return array{subtotals: list<EInvoiceTaxSubtotal>, lineExtension: string, tax: string, total: string}
+     * @return array{subtotals: list<EInvoiceTaxSubtotal>, lineExtension: string, taxExclusive: string, tax: string, total: string, charges: list<EInvoiceCharge>}
      *
      * @throws EInvoiceException
      */
@@ -406,19 +507,38 @@ final class EInvoiceBuilder
             $byKey[$category->category . '|' . bcadd($category->percent, '0', 2) . '|' . ($category->exemptionCode ?? '')] = $category;
         }
 
+        $exclusive = '0';
+        $written   = [];
+        $charges   = [];
+
+        foreach ($kept as $saved) {
+            $key = $saved->category . '|' . bcadd($saved->percent, '0', 2) . '|' . ($saved->exemptionCode ?? '');
+
+            if (bccomp($saved->charges, '0', 2) !== 0) {
+                $charges[] = new EInvoiceCharge(SaleAmounts::absolute($saved->charges), $saved->category, bcadd($saved->percent, '0', 2));
+            }
+
+            if (! isset($buckets[$key]) && bccomp($saved->charges, '0', 2) !== 0) {
+                $buckets[$key] = ['taxable' => '0.00', 'tax' => '0', 'text' => ''];
+            }
+        }
+
         foreach ($buckets as $key => $bucket) {
             [$category, $rate, $code] = explode('|', $key);
 
             $taxAmount = SaleAmounts::round($bucket['tax'], 2);
+            $ofLines   = $bucket['taxable'];
 
             if ($kept !== []) {
                 $saved = $byKey[$key] ?? null;
 
-                if ($saved === null || bccomp(SaleAmounts::absolute($saved->taxable), $bucket['taxable'], 2) !== 0) {
-                    throw new EInvoiceException(EInvoiceError::RuleBroken, 'The lines of a category do not add up to the taxable amount the sale was saved with.', ['rule' => 'BR-CO-10', 'expected' => $saved === null ? '' : SaleAmounts::absolute($saved->taxable), 'actual' => $bucket['taxable']]);
+                if ($saved === null || bccomp(SaleAmounts::absolute($saved->lines()), $bucket['taxable'], 2) !== 0) {
+                    throw new EInvoiceException(EInvoiceError::RuleBroken, 'The lines of a category do not add up to the taxable amount the sale was saved with.', ['rule' => 'BR-CO-10', 'expected' => $saved === null ? '' : SaleAmounts::absolute($saved->lines()), 'actual' => $bucket['taxable']]);
                 }
 
-                $taxAmount = SaleAmounts::absolute($saved->vat);
+                $taxAmount         = SaleAmounts::absolute($saved->vat);
+                $bucket['taxable'] = SaleAmounts::absolute($saved->taxable);
+                $written[$key]     = true;
             }
 
             if (bccomp(SaleAmounts::round(bcdiv(bcmul($bucket['taxable'], $rate, 8), '100', 8), 2), $taxAmount, 2) !== 0) {
@@ -426,15 +546,16 @@ final class EInvoiceBuilder
             }
 
             $subtotals[] = new EInvoiceTaxSubtotal($category, $rate, $bucket['taxable'], $taxAmount, $code, (string) $bucket['text']);
-            $extension   = bcadd($extension, $bucket['taxable'], 2);
+            $extension   = bcadd($extension, $ofLines, 2);
+            $exclusive   = bcadd($exclusive, $bucket['taxable'], 2);
             $tax         = bcadd($tax, $taxAmount, 2);
         }
 
-        return ['subtotals' => $subtotals, 'lineExtension' => $extension, 'tax' => $tax, 'total' => bcadd($extension, $tax, 2)];
+        return ['subtotals' => $subtotals, 'lineExtension' => $extension, 'taxExclusive' => $exclusive, 'tax' => $tax, 'total' => bcadd($exclusive, $tax, 2), 'charges' => $charges];
     }
 
     /**
-     * @param array{subtotals: list<EInvoiceTaxSubtotal>, lineExtension: string, tax: string, total: string} $rules
+     * @param array{subtotals: list<EInvoiceTaxSubtotal>, lineExtension: string, taxExclusive: string, tax: string, total: string, charges: list<EInvoiceCharge>} $rules
      *
      * @return string The rounding amount (BT-114) by which the customer pays what the register charged.
      *
@@ -493,6 +614,34 @@ final class EInvoiceBuilder
         $label = (new DocumentNumbering($this->db))->label($type, 'sales', $sale->saleId);
 
         return $label !== '' ? $label : (string) $sale->saleId;
+    }
+
+    /**
+     * The UN/ECE code of the main unit of the template each item is kept in, for the items whose template names one;
+     * the lines of a sale are kept in the main unit.
+     *
+     * @return array<int, string>
+     */
+    private function unitCodes(SaleDocument $sale): array
+    {
+        $ids = array_values(array_unique(array_map(static fn (SaleLine $line): int => $line->itemId, $sale->lines)));
+
+        $coded = $this->db->query(
+            'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$this->db->prefixTable('unit_templates'), 'main_unit_code'],
+        )->getRow() !== null;
+
+        if ($ids === [] || ! $coded) {
+            return [];
+        }
+
+        $codes = [];
+
+        foreach ($this->db->table('item_stock_profiles AS p')->select('p.item_id, t.main_unit_code')->join('unit_templates AS t', 't.template_id = p.unit_template_id')->whereIn('p.item_id', $ids)->where('t.main_unit_code IS NOT NULL', null, false)->get()->getResult() as $row) {
+            $codes[(int) $row->item_id] = (string) $row->main_unit_code;
+        }
+
+        return $codes;
     }
 
     /**

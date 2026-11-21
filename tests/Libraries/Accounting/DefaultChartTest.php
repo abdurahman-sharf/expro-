@@ -227,7 +227,7 @@ class DefaultChartTest extends CIUnitTestCase
         $codes    = array_column($this->accountingDb()->table('accounting_accounts')->select('code')->get()->getResultArray(), 'code');
         $observed = array_merge(['1', '2', '3', '4', '5'], array_column(self::observedChartProvider(), 0));
 
-        $this->assertEqualsCanonicalizing([...$observed, '216', '12043', '12044', '2214', '120601', '120602', '212001', '546', '4204', '4208', '4209', '4213', '5410', '111006', '112006', '5301', '5420'], $codes);
+        $this->assertEqualsCanonicalizing([...$observed, '216', '12043', '12044', '2214', '120601', '120602', '212001', '546', '4204', '4208', '4209', '4213', '215010', '5410', '111006', '112006', '5301', '5420'], $codes);
     }
 
     public function testInstall_PutsInputTaxAmongTheLiabilitiesBesideOutputTax(): void

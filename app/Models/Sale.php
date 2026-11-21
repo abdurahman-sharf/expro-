@@ -53,6 +53,8 @@ use App\Libraries\Stock\TrackingEntry;
 use App\Libraries\Stock\UnitLines;
 use App\Libraries\Tax\CompanyTaxProfile;
 use App\Libraries\Tax\LineVat;
+use App\Libraries\Tax\VatCalculator;
+use App\Libraries\Tax\VatCategoryTotal;
 use App\Libraries\Tax\VatClassification;
 use App\Libraries\Tax\VatLineResult;
 use App\Libraries\Tax\VatSnapshot;
@@ -1613,10 +1615,6 @@ class Sale extends Model
         if ($customerId == NEW_ENTRY || $customer->taxable) {
             $this->save_sales_tax($saleId, $salesTaxes[0]);
             $this->save_sales_items_taxes($saleId, $salesTaxes[1]);
-
-            if (($salesTaxes[2] ?? []) !== []) {
-                (new VatSnapshot($this->db))->record($saleId, $salesTaxes[2]);
-            }
         }
 
         $chargesRefusal = $this->storeHeaderCharges($saleId, $saleType, $headerCharges, (bool) $config['tax_included'], (int) $saleStatus === COMPLETED);
@@ -1626,6 +1624,10 @@ class Sale extends Model
             $this->accountingFailure = $chargesRefusal;
 
             return ACCOUNTING_FAILED;
+        }
+
+        if (($customerId == NEW_ENTRY || $customer->taxable) && ($salesTaxes[2] ?? []) !== []) {
+            (new VatSnapshot($this->db))->record($saleId, $this->withShipping($salesTaxes[2], $headerCharges));
         }
 
         if ($config['dinner_table_enable']) {
@@ -2191,6 +2193,28 @@ class Sale extends Model
      * mode the company works in, and never so that the document comes to less than nothing. What is
      * stored is what counts: the adjustment is nothing when the lines came to nothing.
      */
+    /**
+     * The categories of a sale whose VAT was worked out once, with its shipping in the category of its rate (R-04
+     * §9.2): the shipping without its tax, with the sign of the document.
+     *
+     * @param array<string, VatCategoryTotal> $categories
+     *
+     * @return array<string, VatCategoryTotal>
+     */
+    private function withShipping(array $categories, ?HeaderCharges $charges): array
+    {
+        if ($charges === null || ! $charges->hasShipping() || $charges->shippingTaxOption === ShippingTaxOption::None) {
+            return $categories;
+        }
+
+        $shipping = bcadd(trim($charges->shipping) === '' ? '0' : $charges->shipping, '0', HeaderCharges::SCALE);
+        $included = $charges->shippingTaxOption === ShippingTaxOption::Included;
+        $net      = $included ? bcsub($shipping, $charges->shippingTax($shipping), HeaderCharges::SCALE) : $shipping;
+        $return   = array_reduce($categories, static fn (bool $negative, VatCategoryTotal $category): bool => $negative || bccomp($category->taxable, '0', 2) < 0, false);
+
+        return (new VatCalculator())->withCharge($categories, $return ? bcsub('0', $net, HeaderCharges::SCALE) : $net, $charges->shippingTaxPercent, $included);
+    }
+
     private function storeHeaderCharges(int $saleId, int $saleType, ?HeaderCharges $charges, bool $taxIncluded, bool $completed = true): ?AccountingException
     {
         if ($charges === null || $charges->isEmpty()) {
@@ -2209,6 +2233,10 @@ class Sale extends Model
 
         if ($completed && $charges->hasAdjustment() && (new CompanyTaxProfile($this->db))->isSaudiMode()) {
             return new AccountingException(AccountingError::AdjustmentInSaudiMode, 'An adjustment carries no VAT, which the Saudi rules do not allow: a discount on the invoice or a charge as an item does.', ['sale_id' => $saleId]);
+        }
+
+        if ($completed && bccomp(trim($charges->shipping) === '' ? '0' : $charges->shipping, '0', 4) > 0 && ($charges->shippingTaxOption === ShippingTaxOption::None || bccomp($charges->shippingTaxPercent === '' ? '0' : $charges->shippingTaxPercent, '0', 4) === 0) && (new CompanyTaxProfile($this->db))->isSaudiMode()) {
+            return new AccountingException(AccountingError::ShippingUntaxedInSaudiMode, 'Shipping is a taxable service under the Saudi rules: it carries the tax of the settings.', ['sale_id' => $saleId]);
         }
 
         if ($charges->shippingCompanyId !== null && $charges->hasShipping()) {

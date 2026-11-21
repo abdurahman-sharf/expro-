@@ -32,6 +32,9 @@ use App\Libraries\HeaderCharges;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\ShippingTaxOption;
+use App\Libraries\Tax\VatLineResult;
+use App\Libraries\Tax\VatCategoryTotal;
+use App\Libraries\Tax\LineVat;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
@@ -6416,6 +6419,59 @@ class SalePostingTest extends CIUnitTestCase
         }
 
         $this->assertGreaterThan(0, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Fee', '-10')) ?: 0, 'outside the Saudi rules the adjustment is taken as before');
+    }
+
+    public function testSaveValue_PutsTheShippingOfASaudiSaleInTheCategoryOfItsRate(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $db      = $this->accountingDb();
+        $profile = $db->table('company_tax_profile')->get()->getRowArray();
+        $itemId  = $this->item('0', false);
+        $taxes   = [[], [[...$this->taxRow($itemId, 0, 'VAT', '15.0000', 1, '0.015000'), 'vat' => new LineVat(null, 'S', '15.000', null, null, 'VAT'), 'vat_amounts' => new VatLineResult('0.10', '0.02', '0.12', '0.015000', 'S|15.000|')]], ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '0.10', '0.02', false)]];
+        $status  = COMPLETED;
+
+        try {
+            $db->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+            $items  = [$this->line($itemId, 0, '1', '0.10')];
+            $saleId = $this->sales->save_value(NEW_ENTRY, $status, $items, $this->customerId, $this->employeeId, 'shipped', null, null, null, SALE_TYPE_INVOICE, [], null, $taxes, true, headerCharges: new HeaderCharges(shipping: '0.10', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+        } finally {
+            $db->table('company_tax_profile')->update(['ksa_mode' => $profile['ksa_mode'], 'ksa_mode_effective_at' => $profile['ksa_mode_effective_at']]);
+        }
+
+        $this->saleIds[] = $saleId;
+        $total           = $db->table('sales_vat_totals')->where('sale_id', $saleId)->get()->getRow();
+
+        try {
+            $this->assertSame(['0.20', '0.03', '0.10'], [$total->taxable, $total->vat, $total->charges], 'the tax of the category is rounded once on the goods and the shipping');
+            $this->assertEqualsCanonicalizing(
+                [$this->customerAccount() . ':0.24:0.00', $this->accountId('sales_revenue') . ':0.00:0.10', $this->accountId('sales_shipping') . ':0.00:0.10', $this->accountId('tax_output') . ':0.00:0.03', $this->accountId('tax_rounding') . ':0.00:0.01'],
+                $this->standing($saleId, 'revenue')[0]['lines'],
+                'the register charged 0.10 + 0.02 + 0.10 + 0.015, which comes to 0.24',
+            );
+        } finally {
+            $db->table('sales_vat_totals')->where('sale_id', $saleId)->delete();
+            $db->table('sales_items_vat')->where('sale_id', $saleId)->delete();
+        }
+    }
+
+    public function testSaveValue_RefusesShippingWithoutTaxUnderTheSaudiRules(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $db      = $this->accountingDb();
+        $profile = $db->table('company_tax_profile')->get()->getRowArray();
+        $cycle   = $this->referenceInvoice();
+
+        try {
+            $db->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+            $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges(shipping: '20')));
+            $this->assertSame(AccountingError::ShippingUntaxedInSaudiMode, $this->failure()->error);
+        } finally {
+            $db->table('company_tax_profile')->update(['ksa_mode' => $profile['ksa_mode'], 'ksa_mode_effective_at' => $profile['ksa_mode_effective_at']]);
+        }
     }
 
     public function testSaveValue_RefusesAShippingTaxThatIsNotTheRateAndTheModeTheCompanyWorksIn(): void

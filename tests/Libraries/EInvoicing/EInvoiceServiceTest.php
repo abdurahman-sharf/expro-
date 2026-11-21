@@ -21,6 +21,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Tax\LineVat;
 use App\Libraries\Tax\VatCategoryTotal;
 use App\Libraries\Tax\VatLineResult;
@@ -84,6 +85,9 @@ class EInvoiceServiceTest extends CIUnitTestCase
     {
         $this->accountingDb()->table('sales_items_vat')->truncate();
         $this->accountingDb()->table('sales_vat_totals')->truncate();
+        $this->accountingDb()->table('customer_advance_vat_uses')->truncate();
+        $this->accountingDb()->table('customer_advance_vat')->truncate();
+        $this->accountingDb()->table('company_tax_profile')->update(['ksa_mode' => 0, 'ksa_mode_effective_at' => null]);
         $this->clearEInvoices();
         $this->restoreEInvoicingConfig();
         $this->accountingDb()->table('document_numbers')->truncate();
@@ -388,6 +392,55 @@ class EInvoiceServiceTest extends CIUnitTestCase
         } finally {
             $this->accountingDb()->table('accounting_routing')->insert(['routing_key' => 'tax.rounding', 'routing_type' => 'auto', 'account_id' => $this->accountId('tax_rounding')]);
         }
+    }
+
+    private function advanceOf(string $amount): int
+    {
+        $receiver = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::TREASURIES_MANAGE]);
+
+        return (new CustomerAdvances())->receive($this->customerId, $amount, date('Y-m-d'), 'Cash', null, '', '', $receiver);
+    }
+
+    public function testIssueAdvance_IssuesThePrepaymentInvoiceOfAnAdvanceReceivedUnderTheSaudiRules(): void
+    {
+        $this->accountingDb()->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+        $advanceId = $this->advanceOf('115.00');
+        $issued    = $this->service->issueAdvance($advanceId, null, $this->clerk);
+
+        $this->assertSame(EInvoiceKind::Prepayment, $issued->kind);
+        $this->assertSame(['100.00', '15.00', '115.00'], [$issued->taxExclusive, $issued->taxAmount, $issued->taxInclusive]);
+        $this->assertStringContainsString('>386</cbc:InvoiceTypeCode>', $issued->xml);
+        $this->assertSame($issued->documentId, $this->service->issueAdvance($advanceId, null, $this->clerk)->documentId, 'issued once');
+    }
+
+    public function testIssueAdvance_RefusesAnAdvanceThatCarriesNoVat(): void
+    {
+        $advanceId = $this->advanceOf('115.00');
+
+        $this->assertSame(EInvoiceError::SourceNotIssuable, $this->refusal(fn () => $this->service->issueAdvance($advanceId, null, $this->clerk))->error);
+    }
+
+    public function testIssueSale_TakesTheAdvancesItWasPaidByOffWhatIsDue(): void
+    {
+        $this->accountingDb()->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+        $advanceId = $this->advanceOf('115.00');
+        $prepaid   = $this->service->issueAdvance($advanceId, null, $this->clerk);
+        $itemId    = $this->item('0', false);
+        $vat       = new LineVat(null, 'S', '15.000', null, null, 'VAT');
+        $status    = COMPLETED;
+        $taxes     = [[], [[...$this->taxRow($itemId, 0, 'VAT', '15.0000', 1, '30.000000'), 'vat' => $vat, 'vat_amounts' => new VatLineResult('200.00', '30.00', '230.00', '30.000000', 'S|15.000|')]], ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '200.00', '30.00', false)]];
+        $items     = [$this->line($itemId, 0, '1', '200.00')];
+        $saleId    = $this->sales->save_value(NEW_ENTRY, $status, $items, $this->customerId, $this->employeeId, 'final', null, null, null, SALE_TYPE_INVOICE, [], null, $taxes, true);
+        $this->saleIds[] = $saleId;
+
+        $issued = $this->issue($saleId);
+
+        $this->assertSame(['200.00', '30.00', '230.00'], [$issued->taxExclusive, $issued->taxAmount, $issued->taxInclusive]);
+        $this->assertStringContainsString('<cbc:PrepaidAmount currencyID="SAR">115.00</cbc:PrepaidAmount>', $issued->xml);
+        $this->assertStringContainsString('<cbc:PayableAmount currencyID="SAR">115.00</cbc:PayableAmount>', $issued->xml);
+        $this->assertStringContainsString('<cbc:ID>' . $prepaid->number . '</cbc:ID><cbc:IssueDate>' . $prepaid->issueDate . '</cbc:IssueDate>', $issued->xml);
     }
 
     public function testIssueSale_RefusesATaxOfTheDocumentThatTheJournalDoesNotHold(): void

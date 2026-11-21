@@ -143,6 +143,7 @@ return [
     'kind_credit_note'                    => 'Credit note',
     'kind_debit_note'                     => 'Debit note',
     'kind_invoice'                        => 'Invoice',
+    'kind_prepayment'                     => 'Prepayment invoice',
     'number'                              => 'Number',
     'original_document'                   => 'Refers to',
     'original_missing'                    => 'The invoice this return takes back has not been issued as a document yet, so its credit note cannot be.',

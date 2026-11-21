@@ -2,6 +2,8 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Tax\VatCalculator;
+
 /**
  * The amounts of a sale from its saved lines, by the same rules the sales report applies:
  * a percentage discount is rounded to the decimals the shop works in and a fixed discount is
@@ -125,18 +127,27 @@ final class SaleAmounts
         $taxable = '0';
         $vat     = '0';
         $added   = '0';
+        $charges = '0';
 
         foreach ($sale->vat as $category) {
-            $taxable = bcadd($taxable, self::absolute($category->taxable), self::SCALE);
+            $lines   = self::absolute($category->lines());
+            $taxable = bcadd($taxable, $lines, self::SCALE);
+            $charges = bcadd($charges, self::absolute($category->charges), self::SCALE);
             $vat     = bcadd($vat, self::absolute($category->vat), self::SCALE);
-            $added   = $category->included ? $added : bcadd($added, self::absolute($category->vat), self::SCALE);
+
+            if (! $category->included) {
+                $ofLines = bccomp($category->charges, '0', 2) === 0 ? self::absolute($category->vat) : VatCalculator::round(bcmul($lines, bcdiv($category->percent, '100', self::WORK_SCALE), self::WORK_SCALE), 2);
+                $added   = bcadd($added, $ofLines, self::SCALE);
+            }
         }
 
+        $folded      = bccomp($charges, '0', self::SCALE) !== 0;
         $shippingTax = $sale->charges?->shippingTax ?? '0';
         $lines       = bcsub(bcsub($amounts['gross'], $amounts['discount'], self::SCALE), $amounts['invoiceDiscount'], self::SCALE);
         $charged     = bcadd(bcadd(bcadd($lines, $added, self::SCALE), bcadd($shipping, $adjusted, self::SCALE), self::SCALE), $shippingTax, self::SCALE);
         $total       = InvoiceRounding::split($charged, '0', $sale->currency?->decimals ?? 2)['total'];
-        $tax         = bcadd($vat, $shippingTax, self::SCALE);
+        $tax         = $folded ? $vat : bcadd($vat, $shippingTax, self::SCALE);
+        $shipping    = $folded ? $charges : $shipping;
         $rounding    = bcsub(bcsub(bcsub(bcsub($total, $tax, self::SCALE), $taxable, self::SCALE), $shipping, self::SCALE), $adjusted, self::SCALE);
 
         return [

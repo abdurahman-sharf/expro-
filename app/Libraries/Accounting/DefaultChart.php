@@ -153,6 +153,7 @@ final class DefaultChart
             ['215', 'القيمة المضافة المطلوبة', AccountType::Liability, '21', true, null, false],
             ['215001', 'القيمة المضافة المحصلة', AccountType::Liability, '215', false, 'tax_output', false],
             ['215002', 'القيمة المضافة المدفوعة', AccountType::Liability, '215', false, 'tax_input', false],
+            ['215010', 'ضريبة الدفعات المقدمة من العملاء', AccountType::Liability, '215', false, 'tax_advances', false],
             ['216', 'بطاقات الهدايا غير المستخدمة', AccountType::Liability, '21', false, 'giftcard_liability', false],
             ['22', 'الخصوم طويلة الأجل', AccountType::Liability, '2', true, null, false],
 

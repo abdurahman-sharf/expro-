@@ -53,6 +53,7 @@ return [
     'item_stock_permits_count_in'   => 'Stocktake surplus',
     'item_stock_permits_count_out'  => 'Stocktake shortage',
     'item_stock_permits_issue'      => 'Stock issue note',
+    'item_tax_advances'             => 'VAT on customer advances',
     'item_tax_output'               => 'Output tax',
     'item_tax_rounding'             => 'Tax rounding differences',
     'item_treasuries_accounts'      => 'Treasuries (main account)',

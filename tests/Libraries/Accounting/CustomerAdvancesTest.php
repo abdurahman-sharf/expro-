@@ -14,6 +14,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Tax\AdvanceVat;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -68,6 +69,9 @@ class CustomerAdvancesTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $db = $this->accountingDb();
+        $db->table('company_tax_profile')->update(['ksa_mode' => 0, 'ksa_mode_effective_at' => null]);
+        $db->table('customer_advance_vat_uses')->truncate();
+        $db->table('customer_advance_vat')->truncate();
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
@@ -152,6 +156,71 @@ class CustomerAdvancesTest extends CIUnitTestCase
             'applied_to_open_invoices_at_once' => bcadd($this->position()->invoice($invoice)->applied, '0', 2) === '60.00',
         ], 'advance payment');
         $this->assertTies();
+    }
+
+    private function underTheSaudiRules(): void
+    {
+        $this->accountingDb()->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+    }
+
+    public function testReceive_ChargesVatOnAnAdvanceReceivedUnderTheSaudiRules(): void
+    {
+        $this->underTheSaudiRules();
+
+        $advanceId = $this->receive('115.00');
+        $vat       = (new AdvanceVat())->of($advanceId);
+
+        $this->assertSame(['115.00', '100.00', '15.00', '15.000'], [$vat->gross, $vat->taxable, $vat->vat, $vat->percent]);
+        $this->assertSame([$this->accountId('tax_advances') . '=15.00/0.00', $this->accountId('tax_output') . '=0.00/15.00'], $this->linesOf(AdvanceVat::SOURCE, $advanceId));
+        $this->assertContains($this->customerAccount() . '=0.00/115.00', $this->linesOf(CustomerAdvances::SOURCE, $advanceId), 'the customer keeps the whole advance as credit');
+    }
+
+    public function testReceive_ChargesNoVatOnWhatAnOpenInvoiceTakesAtOnce(): void
+    {
+        $this->invoiceOf('46.00');
+        $this->underTheSaudiRules();
+
+        $vat = (new AdvanceVat())->of($this->receive('115.00'));
+
+        $this->assertSame(['69.00', '60.00', '9.00'], [$vat->gross, $vat->taxable, $vat->vat]);
+    }
+
+    public function testReceive_GivesBackTheVatOfTheAdvanceWhenAnInvoiceTakesItLater(): void
+    {
+        $this->underTheSaudiRules();
+
+        $advanceId = $this->receive('115.00');
+        $invoiceId = $this->invoiceOf('230.00');
+        $uses      = (new AdvanceVat())->usesOf($invoiceId);
+
+        $this->assertCount(1, $uses);
+        $this->assertSame(['115.00', '100.00', '15.00'], [$uses[0]->gross, $uses[0]->taxable, $uses[0]->vat]);
+
+        $application = $this->accountingDb()->table('customer_credit_applications')->where(['source_type' => CreditSource::CUSTOMER_ADVANCE, 'source_id' => $advanceId])->where('released_at IS NULL', null, false)->get()->getRow();
+
+        $this->assertSame([$this->accountId('tax_output') . '=15.00/0.00', $this->accountId('tax_advances') . '=0.00/15.00'], $this->linesOf(AdvanceVat::SOURCE_USE, (int) $application->application_id));
+    }
+
+    public function testCancel_ReversesTheVatOfTheAdvanceAndWhatItsInvoicesTookOfIt(): void
+    {
+        $this->underTheSaudiRules();
+
+        $advanceId = $this->receive('115.00');
+        $invoiceId = $this->invoiceOf('46.00');
+
+        $this->advances->cancel($advanceId, 'Paid by mistake', $this->clerk);
+
+        $db = $this->accountingDb();
+
+        $this->assertSame('1', (string) (new AdvanceVat())->of($advanceId)->cancelled);
+        $this->assertSame([], (new AdvanceVat())->usesOf($invoiceId));
+        $this->assertSame(0, $db->table('accounting_journals')->whereIn('source_type', [AdvanceVat::SOURCE, AdvanceVat::SOURCE_USE])->where('status', 'posted')->countAllResults(), 'every VAT journal of the advance stands reversed');
+        $this->assertGreaterThanOrEqual(2, $db->table('accounting_journals')->whereIn('source_type', [AdvanceVat::SOURCE, AdvanceVat::SOURCE_USE])->where('status', 'reversed')->countAllResults());
+    }
+
+    public function testReceive_ChargesNoVatOutsideTheSaudiRules(): void
+    {
+        $this->assertNull((new AdvanceVat())->of($this->receive('115.00')));
     }
 
     public function testReceive_DebitsTheTreasuryItWasPaidIntoAndTakesItsBranch(): void

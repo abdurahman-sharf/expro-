@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Tax\AdvanceVat;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -13,7 +14,8 @@ use Config\Database;
  * applies the credit that is free to the invoices that are open, the one dated earliest first, and
  * among invoices of one date the one created first. The invoice a credit note came from has no
  * priority: the reference system walks the open invoices by date alone. No journal is written,
- * because the account of the customer already carries the credit.
+ * because the account of the customer already carries the credit; under the Saudi rules the VAT an advance carries
+ * moves with its applications (AdvanceVat).
  *
  * The caller holds the lock of the customer (CustomerLock) and is inside a transaction, so the
  * ledger it reads is the ledger as the last change left it.
@@ -243,6 +245,10 @@ final class CreditSettlement
             'created_by'      => $employeeId,
         ]);
 
+        if ($source->type === CreditSource::CUSTOMER_ADVANCE) {
+            (new AdvanceVat($this->db))->applied((int) $this->db->insertID(), $source->sourceId, $invoiceId > 0 ? $invoiceId : null, $take, $employeeId);
+        }
+
         $open[$invoiceId] = bcsub($owed, $take, SaleAmounts::SCALE);
 
         if (bccomp($open[$invoiceId], '0', SaleAmounts::SCALE) <= 0) {
@@ -267,6 +273,9 @@ final class CreditSettlement
             'released_by' => $employeeId,
         ]);
 
+        $vat = new AdvanceVat($this->db);
+        $vat->released($applicationId, $employeeId);
+
         $rest = bcsub($amount, $cut, SaleAmounts::SCALE);
 
         if (bccomp($rest, '0', SaleAmounts::SCALE) > 0) {
@@ -281,6 +290,10 @@ final class CreditSettlement
                 'automatic'       => $row->automatic,
                 'created_by'      => $row->created_by,
             ]);
+
+            if ($row->source_type === CreditSource::CUSTOMER_ADVANCE) {
+                $vat->applied((int) $this->db->insertID(), (int) $row->source_id, $row->invoice_sale_id === null ? null : (int) $row->invoice_sale_id, $rest, $employeeId);
+            }
         }
     }
 

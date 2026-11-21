@@ -15,11 +15,12 @@ use App\Libraries\EInvoicing\StampVerifier;
 use App\Libraries\EInvoicing\UblInvoiceXml;
 use App\Libraries\EInvoicing\XadesStamp;
 use CodeIgniter\Test\CIUnitTestCase;
-use Tests\Support\EInvoiceFixtureTrait;
+use PHPUnit\Framework\Attributes\Group;
+use Tests\Support\EInvoiceMatrixTrait;
 
 class DocumentStamperTest extends CIUnitTestCase
 {
-    use EInvoiceFixtureTrait;
+    use EInvoiceMatrixTrait;
 
     private DocumentStamper $stamper;
 
@@ -177,6 +178,73 @@ class DocumentStamperTest extends CIUnitTestCase
         } catch (EInvoiceException $failure) {
             $this->assertSame(EInvoiceError::SigningFailed, $failure->error);
             $this->assertStringContainsString('not the hash that was signed', $failure->getMessage());
+        }
+    }
+
+    /**
+     * Signs every sample of the matrix (TAX2 §5.3), the chain in its order, and writes each file where the official
+     * validator can read it.
+     *
+     * @return array{0: string, 1: list<string>} The directory and the broken samples in it.
+     */
+    private function writeMatrix(): array
+    {
+        $directory = WRITEPATH . 'zatca-matrix';
+        $material  = $this->material();
+        $previous  = InvoiceHash::FIRST;
+        $broken    = [];
+
+        if (! is_dir($directory)) {
+            mkdir($directory, 0700, true);
+        }
+
+        foreach ($this->matrix() as $id => $document) {
+            if (str_starts_with($id, 'C-01-')) {
+                $document = $this->amended($document, ['previousHash' => $previous]);
+            }
+
+            $stamped = $this->stamper->signed($document, $material, '2022-08-17T14:41:08Z');
+
+            if (str_starts_with($id, 'C-01-')) {
+                $previous = $stamped->hash;
+            }
+
+            $this->assertSame(['signed' => true, 'document' => true, 'properties' => true, 'signature' => true], (new StampVerifier())->verify($stamped->xml), $id);
+            file_put_contents($directory . '/' . $id . '.xml', $stamped->xml);
+        }
+
+        foreach ($this->brokenMatrix() as $id => $document) {
+            file_put_contents($directory . '/' . $id . '.xml', $this->stamper->signed($document, $material, '2022-08-17T14:41:08Z')->xml);
+            $broken[] = $id;
+        }
+
+        return [$directory, $broken];
+    }
+
+    public function testSigned_StampsEverySampleOfTheMatrixSoThatItVerifies(): void
+    {
+        [$directory] = $this->writeMatrix();
+
+        $this->assertCount(count($this->matrix()) + count($this->brokenMatrix()), glob($directory . '/*.xml'));
+    }
+
+    #[Group('zatca-sdk')]
+    public function testSigned_PassesTheOfficialValidatorForEverySampleOfTheMatrix(): void
+    {
+        $sdk = (string) getenv('ZATCA_SDK_HOME');
+
+        if ($sdk === '' || ! is_file($sdk . '/Apps/fatoora')) {
+            $this->markTestSkipped('The official SDK is not installed (D-09): set ZATCA_SDK_HOME to the folder it was unpacked in.');
+        }
+
+        [$directory, $broken] = $this->writeMatrix();
+
+        foreach (glob($directory . '/*.xml') as $file) {
+            $id     = basename($file, '.xml');
+            $output = (string) shell_exec(escapeshellarg($sdk . '/Apps/fatoora') . ' -validate -invoice ' . escapeshellarg($file) . ' 2>&1');
+            $passed = str_contains($output, 'GLOBAL VALIDATION RESULT = PASSED');
+
+            $this->assertSame(! in_array($id, $broken, true), $passed, $id . ': ' . $output);
         }
     }
 }

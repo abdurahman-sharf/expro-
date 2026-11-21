@@ -8,6 +8,7 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
 use App\Libraries\Roles\RecordScope;
+use App\Libraries\Tax\AdvanceVat;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -20,7 +21,7 @@ use Config\Database;
  * keeps the account, the invoices and the aging of the customer in agreement at every moment
  * instead (an assumption the owner can veto). An advance is never edited and never deleted: one that
  * is wrong is cancelled, which reverses its journal, and what had been spent from it goes back to the
- * customer's credit.
+ * customer's credit. Under the Saudi rules an advance carries VAT on what no invoice takes of it at once (AdvanceVat).
  */
 final class CustomerAdvances
 {
@@ -101,6 +102,7 @@ final class CustomerAdvances
             ));
 
             $this->settlement->settle($customerId, $employeeId);
+            (new AdvanceVat($this->db))->received($advanceId, $employeeId);
             $this->audit->write('customer_advance', $advanceId, 'created', $employeeId, JournalOrigin::User, ['customer_id' => $customerId, 'amount' => $amount], $place['branch']);
 
             return $advanceId;
@@ -153,6 +155,7 @@ final class CustomerAdvances
             ]);
 
             $this->settlement->settle($customerId, $employeeId);
+            (new AdvanceVat($this->db))->cancelled($advanceId, $reason, $employeeId);
             $this->audit->write('customer_advance', $advanceId, 'cancelled', $employeeId, JournalOrigin::User, ['reason' => $reason], $branchId);
         }));
     }

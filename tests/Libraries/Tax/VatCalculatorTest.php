@@ -147,6 +147,23 @@ class VatCalculatorTest extends CIUnitTestCase
         $this->calculate([['100'], ['100', true]]);
     }
 
+    public function testWithCharge_RoundsTheVatOfACategoryOnceOnItsLinesAndItsCharge(): void
+    {
+        $result     = $this->calculate([['0.10'], ['0.10'], ['0.10']]);
+        $categories = $this->calculator->withCharge($result->categories, '0.03', '15', false);
+        $standard   = $categories['S|15.000|'];
+
+        $this->assertSame(['0.33', '0.05', '0.03', '0.30'], [$standard->taxable, $standard->vat, $standard->charges, $standard->lines()]);
+    }
+
+    public function testWithCharge_OpensACategoryForARateNoLineCarriesAndKeepsTheSignOfAReturn(): void
+    {
+        $categories = $this->calculator->withCharge($this->calculate([['-40', false, self::zero()]])->categories, '-10', '15', false);
+
+        $this->assertSame(['-10.00', '-1.50', '-10.00'], [$categories['S|15.000|']->taxable, $categories['S|15.000|']->vat, $categories['S|15.000|']->charges]);
+        $this->assertSame('-40.00', $categories['Z|0.000|VATEX-SA-32']->taxable);
+    }
+
     public function testCapReturn_KeepsEachCreditNoteToTheRuleOfTheStandardAcrossPartialReturns(): void
     {
         $sale = $this->calculate([['0.30']]);

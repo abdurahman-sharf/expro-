@@ -8,6 +8,7 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
 use App\Libraries\Stock\StockPermitSources;
+use App\Libraries\Tax\AdvanceVat;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\RawSql;
@@ -44,6 +45,8 @@ final class JournalService
         CustomerAdvances::SOURCE,
         CreditRefunds::CUSTOMER_SOURCE,
         CreditRefunds::SUPPLIER_SOURCE,
+        AdvanceVat::SOURCE,
+        AdvanceVat::SOURCE_USE,
     ];
     public const FX_SOURCES = [
         SalePostingBuilder::SOURCE_PAYMENT_FX,

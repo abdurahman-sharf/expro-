@@ -78,6 +78,10 @@ final class TaxDocuments
             }
 
             foreach ($this->shippingTaxes(array_keys($sections)) as $saleId => $shipping) {
+                if (isset($kept[$saleId])) {
+                    continue;
+                }
+
                 $this->add($built[$saleId], $shipping['net'], $shipping['tax'], [$shipping['rate'] => $shipping['tax']], false);
             }
 

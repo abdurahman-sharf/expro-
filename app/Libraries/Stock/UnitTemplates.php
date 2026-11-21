@@ -40,6 +40,7 @@ final class UnitTemplates
     private AccountingGuard $guard;
     private StockOptions $options;
     private AuditLog $audit;
+    private ?bool $codes = null;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null)
     {
@@ -100,8 +101,9 @@ final class UnitTemplates
                 'name'            => $data['name'],
                 'main_unit_name'  => $data['main_unit_name'],
                 'main_small_name' => $data['main_small_name'],
-                'active'          => $data['active'] ? 1 : 0,
-                'updated_at'      => date('Y-m-d H:i:s'),
+                ...$this->codeColumn($data),
+                'active'     => $data['active'] ? 1 : 0,
+                'updated_at' => date('Y-m-d H:i:s'),
             ]);
 
             if (! $this->isUsed($templateId)) {
@@ -163,7 +165,7 @@ final class UnitTemplates
             $this->db->table('unit_template_units')->where('template_id', $templateId)->orderBy('position', 'ASC')->orderBy('unit_id', 'ASC')->get()->getResult(),
         );
 
-        return new UnitTemplate((int) $row->template_id, (string) $row->name, (string) $row->main_unit_name, (string) $row->main_small_name, (int) $row->version, $row->previous_template_id === null ? null : (int) $row->previous_template_id, (bool) $row->active, $units);
+        return new UnitTemplate((int) $row->template_id, (string) $row->name, (string) $row->main_unit_name, (string) $row->main_small_name, (int) $row->version, $row->previous_template_id === null ? null : (int) $row->previous_template_id, (bool) $row->active, $units, isset($row->main_unit_code) && $row->main_unit_code !== '' ? (string) $row->main_unit_code : null);
     }
 
     /**
@@ -262,10 +264,11 @@ final class UnitTemplates
     private function insertTemplate(array $data, int $version, ?int $previousId, ?int $employeeId): int
     {
         $this->db->table('unit_templates')->insert([
-            'company_id'           => CompanyContext::id(),
-            'name'                 => $data['name'],
-            'main_unit_name'       => $data['main_unit_name'],
-            'main_small_name'      => $data['main_small_name'],
+            'company_id'      => CompanyContext::id(),
+            'name'            => $data['name'],
+            'main_unit_name'  => $data['main_unit_name'],
+            'main_small_name' => $data['main_small_name'],
+            ...$this->codeColumn($data),
             'version'              => $version,
             'previous_template_id' => $previousId,
             'active'               => $data['active'] ? 1 : 0,
@@ -329,7 +332,30 @@ final class UnitTemplates
             $units[] = ['name' => $unitName, 'factor' => bcadd($factor, '0', UnitLine::FACTOR_SCALE), 'small_name' => $unitSmall];
         }
 
-        return ['name' => $name, 'main_unit_name' => $main, 'main_small_name' => $small, 'active' => (bool) ($input['active'] ?? true), 'units' => $units];
+        $code = strtoupper(trim((string) ($input['main_unit_code'] ?? '')));
+
+        if ($code !== '' && preg_match('/^[A-Z0-9]{1,3}$/', $code) !== 1) {
+            throw new AccountingException(AccountingError::UnitCodeInvalid, 'The code of a unit is the UN/ECE one: up to three capital letters or digits.', ['name' => $main]);
+        }
+
+        return ['name' => $name, 'main_unit_name' => $main, 'main_small_name' => $small, 'main_unit_code' => $code === '' ? null : $code, 'active' => (bool) ($input['active'] ?? true), 'units' => $units];
+    }
+
+    /**
+     * The column of the UN/ECE code of the main unit, once the migration added it.
+     *
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, string|null>
+     */
+    private function codeColumn(array $data): array
+    {
+        $this->codes ??= $this->db->query(
+            'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$this->db->prefixTable('unit_templates'), 'main_unit_code'],
+        )->getRow() !== null;
+
+        return $this->codes ? ['main_unit_code' => $data['main_unit_code'] ?? null] : [];
     }
 
     /**

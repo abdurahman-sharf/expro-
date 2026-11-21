@@ -53,6 +53,7 @@ return [
     'item_stock_permits_count_in'   => '',
     'item_stock_permits_count_out'  => '',
     'item_stock_permits_issue'      => '',
+    'item_tax_advances'             => '',
     'item_tax_output'               => '',
     'item_tax_rounding'             => '',
     'item_treasuries_accounts'      => '',

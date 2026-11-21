@@ -143,6 +143,7 @@ return [
     'kind_credit_note'                    => '',
     'kind_debit_note'                     => '',
     'kind_invoice'                        => '',
+    'kind_prepayment'                     => '',
     'number'                              => '',
     'original_document'                   => '',
     'original_missing'                    => '',

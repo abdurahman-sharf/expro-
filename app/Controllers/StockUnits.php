@@ -162,6 +162,7 @@ class StockUnits extends AccountingController
             'name'            => $this->textOf($this->request->getPost('name')),
             'main_unit_name'  => $this->textOf($this->request->getPost('main_unit_name')),
             'main_small_name' => $this->textOf($this->request->getPost('main_small_name')),
+            'main_unit_code'  => $this->textOf($this->request->getPost('main_unit_code')),
             'active'          => $this->request->getPost('active') !== '0',
             'units'           => $units,
         ];

@@ -16,6 +16,7 @@ final readonly class UnitTemplate
         public ?int $previousTemplateId,
         public bool $active,
         public array $units,
+        public ?string $mainUnitCode = null,
     ) {
     }
 

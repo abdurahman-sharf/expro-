@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AuditLog;
+use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\LockedRead;
 use App\Libraries\Accounting\RunsInTransaction;
@@ -36,8 +37,9 @@ final class EInvoiceService
 {
     use RunsInTransaction;
 
-    public const SOURCE_SALE = SalePostingBuilder::SOURCE_SALE;
-    public const SOURCE_NOTE = SalesDebitNotes::SOURCE;
+    public const SOURCE_SALE    = SalePostingBuilder::SOURCE_SALE;
+    public const SOURCE_NOTE    = SalesDebitNotes::SOURCE;
+    public const SOURCE_ADVANCE = CustomerAdvances::SOURCE;
 
     private BaseConnection $db;
     private AccountingGuard $guard;
@@ -108,6 +110,40 @@ final class EInvoiceService
             $this->tie->assertTies(self::SOURCE_SALE, $saleId, $document->taxInclusive, $document->taxAmount, $document->taxExclusive);
 
             return $this->store($document, self::SOURCE_SALE, $saleId, (int) $sale->branch_id, $original, $counter, $employeeId);
+        });
+    }
+
+    /**
+     * Issues the prepayment invoice (386) of an advance received under the Saudi rules.
+     *
+     * @throws AccountingException|BranchException|EInvoiceException
+     */
+    public function issueAdvance(int $advanceId, ?EInvoiceSubtype $subtype = null, ?int $employeeId = null): IssuedEInvoice
+    {
+        $this->guard->require(AccountingGuard::EINVOICING_MANAGE, $employeeId);
+        $this->assertOn();
+
+        $advance = $this->db->table('customer_advances')->select('branch_id, created_by')->where(['company_id' => CompanyContext::id(), 'advance_id' => $advanceId])->get()->getRow();
+
+        if ($advance === null || ! $this->scope->allows($employeeId, $advance->created_by)) {
+            throw new EInvoiceException(EInvoiceError::SourceNotFound, 'The advance does not exist.', ['number' => (string) $advanceId]);
+        }
+
+        $this->branches->requireBranch((int) $advance->branch_id, $employeeId);
+
+        return $this->transactional(function () use ($advanceId, $subtype, $employeeId, $advance): IssuedEInvoice {
+            $counter = $this->lockCounter();
+            $known   = $this->documentOf(self::SOURCE_ADVANCE, $advanceId);
+
+            if ($known !== null) {
+                return $known;
+            }
+
+            $document = $this->builder->fromAdvance($advanceId, $subtype);
+
+            $this->tie->assertAdvanceTies($advanceId, $document->taxInclusive, $document->taxAmount);
+
+            return $this->store($document, self::SOURCE_ADVANCE, $advanceId, (int) $advance->branch_id, null, $counter, $employeeId);
         });
     }
 
@@ -274,6 +310,7 @@ final class EInvoiceService
             $builder->groupStart()
                 ->groupStart()->where('source_type', self::SOURCE_SALE)->whereIn('source_id', static fn (BaseBuilder $sales): BaseBuilder => $sales->select('sale_id')->from('sales', true)->where('employee_id', $mine))->groupEnd()
                 ->orGroupStart()->where('source_type', self::SOURCE_NOTE)->whereIn('source_id', static fn (BaseBuilder $notes): BaseBuilder => $notes->select('debit_note_id')->from('sales_debit_notes', true)->where('created_by', $mine))->groupEnd()
+                ->orGroupStart()->where('source_type', self::SOURCE_ADVANCE)->whereIn('source_id', static fn (BaseBuilder $advances): BaseBuilder => $advances->select('advance_id')->from('customer_advances', true)->where('created_by', $mine))->groupEnd()
                 ->groupEnd();
         }
 
@@ -308,18 +345,22 @@ final class EInvoiceService
             return false;
         }
 
-        $row = $sourceType === self::SOURCE_NOTE
-            ? $this->db->table('sales_debit_notes')->select('created_by AS owner')->where('debit_note_id', $sourceId)->get()->getRow()
-            : $this->db->table('sales')->select('employee_id AS owner')->where('sale_id', $sourceId)->get()->getRow();
+        $row = match ($sourceType) {
+            self::SOURCE_NOTE    => $this->db->table('sales_debit_notes')->select('created_by AS owner')->where('debit_note_id', $sourceId)->get()->getRow(),
+            self::SOURCE_ADVANCE => $this->db->table('customer_advances')->select('created_by AS owner')->where('advance_id', $sourceId)->get()->getRow(),
+            default              => $this->db->table('sales')->select('employee_id AS owner')->where('sale_id', $sourceId)->get()->getRow(),
+        };
 
         return ! $this->scope->allows($employeeId, $row?->owner);
     }
 
     private function customerOf(string $sourceType, int $sourceId): ?int
     {
-        $row = $sourceType === self::SOURCE_NOTE
-            ? $this->db->table('sales_debit_notes')->select('customer_id')->where('debit_note_id', $sourceId)->get()->getRow()
-            : $this->db->table('sales')->select('customer_id')->where('sale_id', $sourceId)->get()->getRow();
+        $row = match ($sourceType) {
+            self::SOURCE_NOTE    => $this->db->table('sales_debit_notes')->select('customer_id')->where('debit_note_id', $sourceId)->get()->getRow(),
+            self::SOURCE_ADVANCE => $this->db->table('customer_advances')->select('customer_id')->where('advance_id', $sourceId)->get()->getRow(),
+            default              => $this->db->table('sales')->select('customer_id')->where('sale_id', $sourceId)->get()->getRow(),
+        };
 
         return $row === null || $row->customer_id === null ? null : (int) $row->customer_id;
     }

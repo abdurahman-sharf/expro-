@@ -14,6 +14,8 @@ use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\EInvoiceKind;
 use App\Libraries\EInvoicing\EInvoiceSubtype;
 use App\Libraries\EInvoicing\OriginalReference;
+use App\Libraries\HeaderCharges;
+use App\Libraries\ShippingTaxOption;
 use App\Libraries\Tax\LineVat;
 use App\Libraries\Tax\VatCategoryTotal;
 use App\Libraries\Tax\VatSnapshot;
@@ -724,5 +726,71 @@ class EInvoiceBuilderTest extends CIUnitTestCase
 
         $this->assertSame(['0.30', '0.05', '0.35', '0.00'], [$document->taxExclusive, $document->taxAmount, $document->taxInclusive, $document->rounding]);
         $this->assertSame('0.02', $document->lines[0]->vatAmount, 'each line states its own VAT (KSA-11)');
+    }
+
+    public function testFromSale_WritesTheShippingOfASaleWhoseVatWasWorkedOnceAsAChargeOfItsCategory(): void
+    {
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', '15');
+
+        $itemId = $this->item('0', false);
+        $saleId = $this->save([$this->line($itemId, 0, '1', '100.00')], [$this->tax($itemId, 0, '15.0000')], headerCharges: new HeaderCharges(shipping: '10', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+        $this->keepVat($saleId, [$itemId . ':0' => ['100.00', '15.00', '115.00']], new VatCategoryTotal('S', '15.000', null, null, '110.00', '16.50', false, '10.00'));
+
+        try {
+            $document = $this->builder->fromSale($saleId);
+        } finally {
+            $this->setConfigValue('accounting_sales_shipping', '0');
+        }
+
+        $this->assertSame(['100.00', '110.00', '16.50', '126.50', '10.00'], [$document->lineExtension, $document->taxExclusive, $document->taxAmount, $document->taxInclusive, $document->chargeTotal()]);
+        $this->assertSame(['10.00', 'S', '15.00'], [$document->charges[0]->amount, $document->charges[0]->category, $document->charges[0]->rate]);
+        $this->assertSame(['110.00', '16.50'], [$document->taxSubtotals[0]->taxable, $document->taxSubtotals[0]->taxAmount]);
+    }
+
+    public function testFromSale_StillRefusesShippingOnASaleWhoseVatWasNotWorkedOnce(): void
+    {
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', '15');
+
+        $itemId = $this->item('0', false);
+        $saleId = $this->save([$this->line($itemId, 0, '1', '100.00')], [$this->tax($itemId, 0, '15.0000')], headerCharges: new HeaderCharges(shipping: '10', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+
+        try {
+            $this->assertSame(EInvoiceError::HeaderChargesUnsupported, $this->refusal(fn () => $this->builder->fromSale($saleId))->error);
+        } finally {
+            $this->setConfigValue('accounting_sales_shipping', '0');
+        }
+    }
+
+    public function testFromSale_WritesTheTaxOfASaleInAForeignCurrencyInRiyalsToo(): void
+    {
+        $this->enableDollars();
+        $saleId = $this->foreignInvoice('100');
+        $itemId = (int) $this->accountingDb()->table('sales_items')->where('sale_id', $saleId)->get()->getRow()->item_id;
+        $this->accountingDb()->table('sales_items_taxes')->insert([...$this->tax($itemId, 0, '15.0000'), 'sale_id' => $saleId]);
+        $this->keepVat($saleId, [$itemId . ':0' => ['100.00', '15.00', '115.00']], new VatCategoryTotal('S', '15.000', null, null, '100.00', '15.00', false));
+
+        $document = $this->builder->fromSale($saleId);
+
+        $this->assertSame('USD', $document->currency);
+        $this->assertSame(['15.00', '56.25'], [$document->taxAmount, $document->taxAmountInSar], 'at the rate of the sale, 3.75');
+    }
+
+    public function testFromSale_WritesTheUnitCodeOfTheTemplateOfTheItem(): void
+    {
+        $db         = $this->accountingDb();
+        $itemId     = $this->item('0', false);
+        $db->table('unit_templates')->insert(['company_id' => 1, 'name' => 'Weights ' . $itemId, 'main_unit_name' => 'Kilogram', 'main_small_name' => 'kg', 'main_unit_code' => 'KGM', 'version' => 1, 'active' => 1]);
+        $templateId = (int) $db->insertID();
+        $db->table('item_stock_profiles')->replace(['item_id' => $itemId, 'unit_template_id' => $templateId]);
+        $saleId     = $this->save([$this->line($itemId, 0, '2', '50.00')], [$this->tax($itemId, 0, '15.0000')]);
+
+        try {
+            $this->assertSame('KGM', $this->builder->fromSale($saleId)->lines[0]->unitCode);
+        } finally {
+            $db->table('item_stock_profiles')->where('item_id', $itemId)->delete();
+            $db->table('unit_templates')->where('template_id', $templateId)->delete();
+        }
     }
 }

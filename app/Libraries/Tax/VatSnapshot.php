@@ -16,6 +16,7 @@ class VatSnapshot
 {
     private BaseConnection $db;
     private ?bool $installed = null;
+    private ?bool $charges   = null;
 
     public function __construct(?BaseConnection $db = null)
     {
@@ -45,8 +46,9 @@ class VatSnapshot
                 'exemption_text' => $category->exemptionText,
                 'taxable'        => $category->taxable,
                 'vat'            => $category->vat,
-                'included'       => $category->included ? 1 : 0,
-                'calc_version'   => VatCalculator::VERSION,
+                ...($this->hasCharges() ? ['charges' => $category->charges] : []),
+                'included'     => $category->included ? 1 : 0,
+                'calc_version' => VatCalculator::VERSION,
             ]);
 
             if ($saved === false) {
@@ -262,6 +264,15 @@ class VatSnapshot
             bcadd((string) $row->taxable, '0', 2),
             bcadd((string) $row->vat, '0', 2),
             (int) $row->included === 1,
+            bcadd((string) ($row->charges ?? '0'), '0', 2),
         );
+    }
+
+    private function hasCharges(): bool
+    {
+        return $this->charges ??= $this->db->query(
+            'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$this->db->prefixTable('sales_vat_totals'), 'charges'],
+        )->getRow() !== null;
     }
 }

@@ -115,6 +115,19 @@ class TaxDocumentsTest extends CIUnitTestCase
         $this->assertSame(['15' => ['base' => '0.3000', 'tax' => '0.0500']], $document->rates);
     }
 
+    public function testSales_CountsTheShippingOfASaudiSaleOnceThroughItsCategory(): void
+    {
+        $this->turnOnShipping();
+
+        $item   = $this->item('0', false);
+        $saleId = $this->save([$this->line($item, 0, '1', '100.00')], [$this->tax($item, 0, '15.0000')], headerCharges: new HeaderCharges(shipping: '10', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+        (new VatSnapshot())->record($saleId, ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '110.00', '16.50', false, '10.00')]);
+
+        $document = $this->sale($saleId);
+
+        $this->assertSame(['110.0000', '16.5000'], [$document->base, $document->tax], 'the shipping is in the category, and not added again from the header');
+    }
+
     public function testSales_GivesAReturnTheSectionOfReturnsAndAmountsWithoutASign(): void
     {
         $invoice  = $this->sell('1000.00', '150.00');

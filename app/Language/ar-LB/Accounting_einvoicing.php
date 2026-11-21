@@ -143,6 +143,7 @@ return [
     'kind_credit_note'                    => 'إشعار دائن',
     'kind_debit_note'                     => 'إشعار مدين',
     'kind_invoice'                        => 'فاتورة',
+    'kind_prepayment'                     => 'فاتورة دفعة مقدمة',
     'number'                              => 'الرقم',
     'original_document'                   => 'يشير إلى',
     'original_missing'                    => 'الفاتورة التي يعيدها هذا المرتجع لم تصدر مستندًا بعد، فلا يصدر إشعارها الدائن.',

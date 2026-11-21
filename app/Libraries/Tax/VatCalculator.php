@@ -122,6 +122,33 @@ final class VatCalculator
         return $lines;
     }
 
+    /**
+     * Adds a charge of the document, its shipping, to the category of its rate: the taxable amount of the category
+     * takes the net of the charge and its VAT is rounded once on the whole (R-04 §9.2, BR-CO-17). A charge whose rate
+     * no line carries opens a category of its own. The net has the sign of the document: below nothing on a return.
+     *
+     * @param array<string, VatCategoryTotal> $categories
+     *
+     * @return array<string, VatCategoryTotal>
+     */
+    public function withCharge(array $categories, string $net, string $percent, bool $included): array
+    {
+        $net = self::round($net, 2);
+
+        if (bccomp($net, '0', 2) === 0) {
+            return $categories;
+        }
+
+        $percent = self::percent($percent);
+        $key     = self::categoryKey('S', $percent, null);
+        $current = $categories[$key] ?? new VatCategoryTotal('S', $percent, null, null, '0.00', '0.00', $included);
+        $taxable = bcadd($current->taxable, $net, 2);
+
+        $categories[$key] = $current->withCharges($taxable, self::round(bcmul($taxable, bcdiv($percent, '100', self::WORK_SCALE), self::WORK_SCALE), 2), bcadd($current->charges, $net, 2));
+
+        return $categories;
+    }
+
     public static function categoryKey(string $category, string $percent, ?string $exemptionCode): string
     {
         return $category . '|' . self::percent($percent) . '|' . ($exemptionCode ?? '');

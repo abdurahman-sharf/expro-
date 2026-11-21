@@ -373,11 +373,13 @@ enum AccountingError: string
     case TaxNameTaken               = 'tax_name_taken';
     case TaxOneRequired             = 'tax_one_required';
 
-    case HeaderChargesOff        = 'header_charges_off';
-    case HeaderChargesInvalid    = 'header_charges_invalid';
-    case HeaderChargesNotAllowed = 'header_charges_not_allowed';
-    case AdjustmentExceedsTotal  = 'adjustment_exceeds_total';
-    case AdjustmentInSaudiMode   = 'adjustment_in_saudi_mode';
+    case HeaderChargesOff           = 'header_charges_off';
+    case HeaderChargesInvalid       = 'header_charges_invalid';
+    case HeaderChargesNotAllowed    = 'header_charges_not_allowed';
+    case AdjustmentExceedsTotal     = 'adjustment_exceeds_total';
+    case AdjustmentInSaudiMode      = 'adjustment_in_saudi_mode';
+    case ShippingUntaxedInSaudiMode = 'shipping_untaxed_in_saudi_mode';
+    case UnitCodeInvalid            = 'unit_code_invalid';
 
     case DebitNoteOff              = 'debit_note_off';
     case DebitNoteNotFound         = 'debit_note_not_found';
