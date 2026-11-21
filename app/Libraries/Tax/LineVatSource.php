@@ -15,5 +15,5 @@ interface LineVatSource
      */
     public function lineVat(int $itemId, string $date): ?LineVat;
 
-    public function soldUnder(int $saleId, int $itemId): ?LineVat;
+    public function soldUnder(int $saleId, int $itemId, int $line): ?LineVat;
 }

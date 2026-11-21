@@ -71,6 +71,33 @@ class VatClassificationMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $db->table('item_vat_classes')->countAllResults());
     }
 
+    public function testUp_WritesTheModeFlagForACompanyAlreadyInSaudiMode(): void
+    {
+        $db   = Database::connect();
+        $flag = static fn (): ?string => $db->table('app_config')->where('key', 'ksa_vat_mode')->get()->getRow()?->value;
+
+        try {
+            $db->table('company_tax_profile')->update(['ksa_mode' => 1]);
+
+            (new VatClassification())->up();
+
+            $this->assertSame('1', $flag());
+        } finally {
+            $db->table('company_tax_profile')->update(['ksa_mode' => 0]);
+            $db->table('app_config')->where('key', 'ksa_vat_mode')->delete();
+        }
+    }
+
+    public function testUp_WritesNoModeFlagWhileTheModeIsOff(): void
+    {
+        $db = Database::connect();
+        $db->table('app_config')->where('key', 'ksa_vat_mode')->delete();
+
+        (new VatClassification())->up();
+
+        $this->assertNull($db->table('app_config')->where('key', 'ksa_vat_mode')->get()->getRow());
+    }
+
     public function testDown_RefusesOnceALineWasSoldUnderAClass(): void
     {
         Database::connect()->table('sales_items_vat')->insert(['sale_id' => 1, 'item_id' => 1, 'line' => 1, 'category' => 'S', 'percent' => '15.000']);

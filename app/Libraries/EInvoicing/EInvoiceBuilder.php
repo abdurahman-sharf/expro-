@@ -369,17 +369,20 @@ final class EInvoiceBuilder
      */
     private function assemble(array $lines): array
     {
+        $values  = $this->settings->all();
         $buckets = [];
 
         foreach ($lines as $built) {
-            $key = $built->line->vatCategory . '|' . $built->line->vatRate . '|' . ($built->exemptionCode ?? '');
+            $exempt  = $built->line->vatCategory !== 'S';
+            $ownCode = (string) ($built->exemptionCode ?? '') !== '';
+            $code    = $exempt ? ($ownCode ? (string) $built->exemptionCode : $values['exempt_reason_code']) : '';
+            $key     = $built->line->vatCategory . '|' . $built->line->vatRate . '|' . $code;
 
             $buckets[$key]['taxable'] = bcadd($buckets[$key]['taxable'] ?? '0', $built->line->netAmount, 2);
             $buckets[$key]['tax']     = bcadd($buckets[$key]['tax'] ?? '0', $built->exactTax, SaleAmounts::SCALE);
-            $buckets[$key]['text']    = $built->exemptionText;
+            $buckets[$key]['text'] ??= $exempt ? ($ownCode ? (string) $built->exemptionText : $values['exempt_reason_text']) : '';
         }
 
-        $values    = $this->settings->all();
         $extension = '0';
         $tax       = '0';
         $subtotals = [];
@@ -393,9 +396,7 @@ final class EInvoiceBuilder
                 throw new EInvoiceException(EInvoiceError::RuleBroken, 'The tax of a category is not its taxable amount times its rate.', ['rule' => 'BR-CO-17', 'expected' => SaleAmounts::round(bcdiv(bcmul($bucket['taxable'], $rate, 8), '100', 8), 2), 'actual' => $taxAmount]);
             }
 
-            $exempt      = $category !== 'S';
-            $ownReason   = $code !== '';
-            $subtotals[] = new EInvoiceTaxSubtotal($category, $rate, $bucket['taxable'], $taxAmount, $exempt ? ($ownReason ? $code : $values['exempt_reason_code']) : '', $exempt ? ($ownReason ? (string) $bucket['text'] : $values['exempt_reason_text']) : '');
+            $subtotals[] = new EInvoiceTaxSubtotal($category, $rate, $bucket['taxable'], $taxAmount, $code, (string) $bucket['text']);
             $extension   = bcadd($extension, $bucket['taxable'], 2);
             $tax         = bcadd($tax, $taxAmount, 2);
         }

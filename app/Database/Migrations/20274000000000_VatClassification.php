@@ -100,6 +100,7 @@ class VatClassification extends Migration
         );
 
         $this->seed();
+        $this->carryTheModeFlag();
     }
 
     public function down(): void
@@ -143,6 +144,19 @@ class VatClassification extends Migration
                 }
             }
         }
+    }
+
+    /**
+     * A company that turned the Saudi mode on before the classes existed has no flag for the calculation to read;
+     * it is written once here, as turning the mode on writes it from now on.
+     */
+    private function carryTheModeFlag(): void
+    {
+        if (! $this->hasTable('company_tax_profile') || $this->db->table('company_tax_profile')->where('ksa_mode', 1)->countAllResults() === 0) {
+            return;
+        }
+
+        $this->db->table('app_config')->replace(['key' => 'ksa_vat_mode', 'value' => '1']);
     }
 
     private function hasTable(string $table): bool

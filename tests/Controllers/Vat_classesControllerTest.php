@@ -100,12 +100,14 @@ class Vat_classesControllerTest extends CIUnitTestCase
     public function testPostAddRate_SavesAndAudits(): void
     {
         $this->actAs($this->employeeWithGrants([VatClassification::TAXES_PERMISSION]));
-        $this->post('/vat_classes/save_class', ['code' => 'TEST-S', 'name' => 'Test', 'category' => 'S', 'tax_name' => 'VAT', 'percent' => '15', 'valid_from' => '2026-01-01']);
+        $nextYear = (int) date('Y') + 1;
+        $this->post('/vat_classes/save_class', ['code' => 'TEST-S', 'name' => 'Test', 'category' => 'S', 'tax_name' => 'VAT', 'percent' => '15', 'valid_from' => date('Y-m-d')]);
         $classId = (int) Database::connect()->table('vat_classes')->where('code', 'TEST-S')->get()->getRow()->class_id;
 
-        $result = $this->json($this->post('/vat_classes/add_rate/' . $classId, ['percent' => '16', 'valid_from' => '2027-01-01']));
+        $result = $this->json($this->post('/vat_classes/add_rate/' . $classId, ['percent' => '16', 'valid_from' => $nextYear . '-01-01']));
 
         $this->assertTrue($result['success']);
-        $this->assertSame('16.000', (new VatClassification())->rateOn($classId, '2027-06-01'));
+        $this->assertSame('16.000', (new VatClassification())->rateOn($classId, $nextYear . '-06-01'));
+        $this->assertSame(2, Database::connect()->table('accounting_audit_log')->where(['entity_type' => 'vat_classification', 'action' => 'rate_added', 'entity_id' => $classId])->countAllResults());
     }
 }

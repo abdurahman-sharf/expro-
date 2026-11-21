@@ -12,6 +12,7 @@ use App\Libraries\Accounting\RunsInTransaction;
 use App\Libraries\EInvoicing\EInvoiceRules;
 use App\Libraries\EInvoicing\EInvoiceSettings;
 use App\Libraries\Organization\CompanyContext;
+use Closure;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use DateTimeImmutable;
@@ -41,12 +42,27 @@ final class VatClassification implements LineVatSource
     private CompanyTaxProfile $profile;
     private AuditLog $audit;
 
-    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?CompanyTaxProfile $profile = null)
+    /**
+     * @var Closure(): string The day of the server, as Y-m-d.
+     */
+    private Closure $today;
+
+    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?CompanyTaxProfile $profile = null, ?Closure $today = null)
     {
         $this->db      = $db ?? Database::connect();
         $this->guard   = $guard ?? new AccountingGuard();
         $this->profile = $profile ?? new CompanyTaxProfile($this->db, $this->guard);
         $this->audit   = new AuditLog($this->db);
+        $this->today   = $today ?? static fn (): string => date('Y-m-d');
+    }
+
+    /**
+     * Whether the tables of the classification are in place, so that a screen reached before the migration ran
+     * works as it did before it.
+     */
+    public function isInstalled(): bool
+    {
+        return $this->db->tableExists($this->db->prefixTable('item_vat_classes'), false);
     }
 
     public function appliesNow(): bool
@@ -126,12 +142,17 @@ final class VatClassification implements LineVatSource
         return new LineVat((int) $class->class_id, (string) $class->category, $percent, $class->exemption_code, $class->exemption_text, (string) $class->tax_name);
     }
 
-    public function soldUnder(int $saleId, int $itemId): ?LineVat
+    /**
+     * What a line of a stored sale was sold under: that very line, or, for a return whose lines are numbered on
+     * their own, the first line of the item in the sale it takes the goods back from.
+     */
+    public function soldUnder(int $saleId, int $itemId, int $line): ?LineVat
     {
         $row = $this->db->table('sales_items_vat AS siv')
             ->select('siv.*, vc.tax_name')
             ->join('vat_classes AS vc', 'vc.class_id = siv.class_id', 'left')
             ->where(['siv.sale_id' => $saleId, 'siv.item_id' => $itemId])
+            ->orderBy('siv.line = ' . $line, 'DESC', false)
             ->orderBy('siv.line')
             ->get(1)
             ->getRow();
@@ -383,7 +404,16 @@ final class VatClassification implements LineVatSource
 
         LockedRead::row($this->db, "SELECT class_id FROM {$classes} WHERE class_id = ? FOR UPDATE", [$classId]);
 
-        $last = $this->db->table('vat_class_rates')->where('class_id', $classId)->orderBy('valid_from', 'DESC')->get(1)->getRow();
+        $last  = $this->db->table('vat_class_rates')->where('class_id', $classId)->orderBy('valid_from', 'DESC')->get(1)->getRow();
+        $today = ($this->today)();
+
+        if ($last === null && strcmp($from, $today) > 0) {
+            throw new VatClassificationException(VatClassificationError::FirstRateAfterToday, 'A new class starts with a rate in force today.');
+        }
+
+        if ($last !== null && strcmp($from, $today) < 0) {
+            throw new VatClassificationException(VatClassificationError::RateBeforeToday, 'A rate added to a class starts today or later.');
+        }
 
         if ($last !== null && strcmp($from, (string) $last->valid_from) <= 0) {
             throw new VatClassificationException(VatClassificationError::RateNotAfterLast, 'A new rate starts after the start of the last one.', ['date' => (string) $last->valid_from]);

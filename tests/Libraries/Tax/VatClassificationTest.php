@@ -27,6 +27,8 @@ class VatClassificationTest extends CIUnitTestCase
     protected $refresh     = false;
     protected $namespace   = null;
 
+    private const TODAY = '2026-11-21';
+
     private VatClassification $classes;
     private int $manager;
 
@@ -45,7 +47,7 @@ class VatClassificationTest extends CIUnitTestCase
     {
         parent::setUp();
 
-        $this->classes = new VatClassification();
+        $this->classes = new VatClassification(null, null, null, static fn (): string => self::TODAY);
         $this->manager = $this->employeeWithGrants([VatClassification::TAXES_PERMISSION]);
     }
 
@@ -146,9 +148,9 @@ class VatClassificationTest extends CIUnitTestCase
 
     public function testAddRate_RejectsAStartBeforeTheLastOne(): void
     {
-        $classId = $this->testClass('TEST-S');
+        $classId = $this->testClass('TEST-S', 'S', '15', self::TODAY);
 
-        $this->assertSame(VatClassificationError::RateNotAfterLast, $this->refusal(fn () => $this->classes->addRate($classId, '16', '2026-01-01', $this->manager))->error);
+        $this->assertSame(VatClassificationError::RateNotAfterLast, $this->refusal(fn () => $this->classes->addRate($classId, '16', self::TODAY, $this->manager))->error);
     }
 
     public function testAddRate_RejectsAPositiveRateForAZeroRatedClass(): void
@@ -267,7 +269,43 @@ class VatClassificationTest extends CIUnitTestCase
 
         $this->classes->recordLine(900001, $itemId, 1, new LineVat($this->classId('Z-EXPORT-GOODS'), 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT'));
 
-        $this->assertSame('VATEX-SA-32', $this->classes->soldUnder(900001, $itemId)->exemptionCode);
+        $this->assertSame('VATEX-SA-32', $this->classes->soldUnder(900001, $itemId, 1)->exemptionCode);
         $this->assertSame('Z', $this->classes->linesOfSale(900001)[$itemId . ':1']->category);
+    }
+
+    public function testAddRate_RejectsAStartBeforeToday(): void
+    {
+        $classId = $this->testClass('TEST-S');
+
+        $this->assertSame(VatClassificationError::RateBeforeToday, $this->refusal(fn () => $this->classes->addRate($classId, '16', '2026-11-20', $this->manager))->error);
+        $this->assertSame('15.000', $this->classes->rateOn($classId, '2026-11-20'));
+    }
+
+    public function testAddRate_AcceptsAStartToday(): void
+    {
+        $classId = $this->testClass('TEST-S');
+
+        $this->classes->addRate($classId, '16', self::TODAY, $this->manager);
+
+        $this->assertSame('16.000', $this->classes->rateOn($classId, self::TODAY));
+    }
+
+    public function testSaveClass_RejectsAFirstRateAfterToday(): void
+    {
+        $failure = $this->refusal(fn () => $this->testClass('TEST-S', 'S', '15', '2026-11-22'));
+
+        $this->assertSame(VatClassificationError::FirstRateAfterToday, $failure->error);
+        $this->assertSame(0, Database::connect()->table('vat_classes')->where('code', 'TEST-S')->countAllResults());
+    }
+
+    public function testSoldUnder_ReadsTheLineItselfAndTheFirstLineOfTheItemForAReturn(): void
+    {
+        $itemId = $this->item();
+
+        $this->classes->recordLine(900002, $itemId, 1, new LineVat(null, 'S', '15.000', null, null, 'VAT'));
+        $this->classes->recordLine(900002, $itemId, 2, new LineVat(null, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT'));
+
+        $this->assertSame('Z', $this->classes->soldUnder(900002, $itemId, 2)->category);
+        $this->assertSame('S', $this->classes->soldUnder(900002, $itemId, 7)->category);
     }
 }

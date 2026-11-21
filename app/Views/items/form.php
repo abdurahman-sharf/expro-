@@ -355,18 +355,20 @@ echo form_radio($radio_button) ?> <?= lang('Items.kit') ?>
             <?php endforeach; ?>
         <?php endif; ?>
 
+        <?php if (isset($vat_classes)): ?>
         <div class="field">
             <?= form_label(lang('Vat_classes.item_class'), 'vat_class_id', ['class' => 'form-label']) ?>
             <div class="field-control">
                 <select name="vat_class_id" id="vat_class_id" class="form-select form-select-sm">
                     <option value="0"><?= lang('Vat_classes.item_unclassified') ?></option>
-                    <?php foreach ($vat_classes ?? [] as $vatClass): ?>
+                    <?php foreach ($vat_classes as $vatClass): ?>
                         <option value="<?= (int) $vatClass->class_id ?>"<?= (int) ($item_vat_class ?? 0) === (int) $vatClass->class_id ? ' selected' : '' ?>><?= esc($vatClass->code . ' - ' . $vatClass->name) ?></option>
                     <?php endforeach; ?>
                 </select>
                 <p class="form-text mb-0"><?= lang('Vat_classes.item_class_help') ?></p>
             </div>
         </div>
+        <?php endif; ?>
 
         <?php if (! $use_destination_based_tax) { ?>
             <div class="field">

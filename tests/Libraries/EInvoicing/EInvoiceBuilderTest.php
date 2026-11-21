@@ -630,4 +630,22 @@ class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(['Z', 'E'], array_map(static fn ($subtotal): string => $subtotal->category, $document->taxSubtotals));
         $this->assertSame('VATEX-SA-29', $document->taxSubtotals[1]->exemptionCode);
     }
+
+    public function testFromSale_MergesALineWithoutASnapshotIntoTheSubtotalOfTheSameReason(): void
+    {
+        $this->configureEInvoicing(['einvoice_exempt_category' => 'Z', 'einvoice_exempt_reason_code' => 'VATEX-SA-32', 'einvoice_exempt_reason_text' => 'Export']);
+
+        $classified   = $this->item('0', false);
+        $unclassified = $this->item('0', false);
+
+        $saleId = $this->save([$this->line($classified, 0, '1', '60'), $this->line($unclassified, 1, '1', '40')], [
+            $this->classifiedTax($classified, 0, '0.0000', '0.00', new LineVat(null, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT')),
+        ]);
+
+        $document = $this->builder->fromSale($saleId);
+
+        $this->assertCount(1, $document->taxSubtotals);
+        $this->assertSame('100.00', $document->taxSubtotals[0]->taxable);
+        $this->assertSame('Export of goods', $document->taxSubtotals[0]->exemptionText);
+    }
 }

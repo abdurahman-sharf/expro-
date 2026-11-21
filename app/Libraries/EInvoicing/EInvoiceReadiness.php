@@ -46,13 +46,16 @@ final class EInvoiceReadiness
         $checks[] = $this->signing($values);
         $checks[] = new ReadinessCheck('transport', ReadinessCheck::WARN, EInvoiceService::defaultTransport()->name());
 
-        $classes     = new VatClassification($this->db);
-        $saudi       = (new CompanyTaxProfile($this->db))->isSaudiMode();
-        $unclassed   = $classes->unclassifiedCount();
-        $conflicting = $classes->ambiguousCount();
+        $classes = new VatClassification($this->db);
 
-        $checks[] = new ReadinessCheck('classification', $unclassed === 0 ? ReadinessCheck::PASS : ReadinessCheck::WARN, (string) $unclassed);
-        $checks[] = new ReadinessCheck('ambiguous_taxes', $conflicting === 0 ? ReadinessCheck::PASS : ($saudi ? ReadinessCheck::FAIL : ReadinessCheck::WARN), (string) $conflicting);
+        if ($classes->isInstalled()) {
+            $saudi       = (new CompanyTaxProfile($this->db))->isSaudiMode();
+            $unclassed   = $classes->unclassifiedCount();
+            $conflicting = $classes->ambiguousCount();
+
+            $checks[] = new ReadinessCheck('classification', $unclassed === 0 ? ReadinessCheck::PASS : ReadinessCheck::WARN, (string) $unclassed);
+            $checks[] = new ReadinessCheck('ambiguous_taxes', $conflicting === 0 ? ReadinessCheck::PASS : ($saudi ? ReadinessCheck::FAIL : ReadinessCheck::WARN), (string) $conflicting);
+        }
 
         $businesses = $this->customersWithoutIdentification(1)['businesses'];
 

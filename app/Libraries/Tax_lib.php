@@ -4,8 +4,10 @@ namespace app\Libraries;
 
 use App\Libraries\Sale_lib;
 use App\Libraries\Tax\CompanyTaxProfile;
+use App\Libraries\Tax\LineVat;
 use App\Libraries\Tax\LineVatSource;
 use App\Libraries\Tax\VatClassification;
+use App\Libraries\Tax\VatClassificationException;
 use App\Models\Customer;
 use App\Models\Enums\Rounding_mode;
 use App\Models\Item_taxes;
@@ -114,7 +116,7 @@ class Tax_lib
                 $supplyDate = $this->sale_lib->getInvoiceDate() ?? date('Y-m-d');
 
                 foreach ($cart as $line => $item) {
-                    $vat = $vatSource === null ? null : ($storedSale === null ? $vatSource->lineVat((int) $item['item_id'], $supplyDate) : $vatSource->soldUnder($storedSale, (int) $item['item_id']));
+                    $vat = $vatSource === null ? null : $this->lineVatOf($vatSource, $storedSale, (int) $item['item_id'], (int) $line, $supplyDate);
 
                     if ($vat !== null) {
                         $vatByLine[$line] = $vat;
@@ -385,6 +387,25 @@ class Tax_lib
         }
 
         return $this->vatSource !== null && $this->vatSource->appliesNow() ? $this->vatSource : null;
+    }
+
+    /**
+     * A class with no rate on the day of the supply, which only an invoice dated before the first rate of the
+     * class can meet, leaves the line charged as the item always was rather than stopping the register.
+     */
+    private function lineVatOf(LineVatSource $source, ?int $storedSale, int $itemId, int $line, string $supplyDate): ?LineVat
+    {
+        if ($storedSale !== null) {
+            return $source->soldUnder($storedSale, $itemId, $line);
+        }
+
+        try {
+            return $source->lineVat($itemId, $supplyDate);
+        } catch (VatClassificationException $exception) {
+            log_message('warning', 'Item ' . $itemId . ' charged as before: ' . $exception->getMessage());
+
+            return null;
+        }
     }
 
     /**

@@ -4,6 +4,8 @@ namespace Tests\Libraries;
 
 use App\Libraries\Tax\LineVat;
 use App\Libraries\Tax\LineVatSource;
+use App\Libraries\Tax\VatClassificationError;
+use App\Libraries\Tax\VatClassificationException;
 use App\Libraries\Tax_lib;
 use App\Models\Attribute;
 use App\Models\Customer;
@@ -569,7 +571,7 @@ class Tax_libTest extends CIUnitTestCase
                 return $this->classes[$itemId] ?? null;
             }
 
-            public function soldUnder(int $saleId, int $itemId): ?LineVat
+            public function soldUnder(int $saleId, int $itemId, int $line): ?LineVat
             {
                 return $this->sold[$itemId] ?? null;
             }
@@ -640,5 +642,32 @@ class Tax_libTest extends CIUnitTestCase
 
         $this->assertSame('Z', $taxes[1][0]['vat']->category);
         $this->assertNull($taxes[1][1]['vat']);
+    }
+
+    public function testGetTaxes_KeepsTheTaxesOfTheItemWhenItsClassHasNoRateOnTheDay(): void
+    {
+        $taxLib = $this->taxLib(false);
+        $taxLib->useVatSource(new class () implements LineVatSource {
+            public function appliesNow(): bool
+            {
+                return true;
+            }
+
+            public function lineVat(int $itemId, string $date): ?LineVat
+            {
+                throw new VatClassificationException(VatClassificationError::NoRateOnDate, 'No rate.');
+            }
+
+            public function soldUnder(int $saleId, int $itemId, int $line): ?LineVat
+            {
+                return null;
+            }
+        });
+
+        $cart  = $this->cart('', '');
+        $taxes = $taxLib->get_taxes($cart);
+
+        $this->assertSame(['20.250', '33.000'], array_map(static fn (array $row): string => bcadd($row['item_tax_amount'], '0', 3), $taxes[1]));
+        $this->assertNull($taxes[1][0]['vat']);
     }
 }
