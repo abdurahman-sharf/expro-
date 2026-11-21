@@ -19,6 +19,8 @@ return [
     'card_reports_help'     => 'The tax report, and the draft of the VAT return.',
     'card_vat_mode'         => 'VAT settings',
     'card_vat_mode_help'    => 'The Saudi rules, the date they apply from, and the readiness checks.',
+    'missing_none'          => 'Nothing is missing for the Saudi rules.',
+    'missing_title'         => 'What the Saudi rules still need',
     'mode_off'              => 'The Saudi rules are off: the settings can be prepared, and nothing is charged or issued differently.',
     'mode_on'               => 'The Saudi rules are on: every completed sale issues its electronic invoice.',
     'title'                 => 'Taxes and e-invoicing',

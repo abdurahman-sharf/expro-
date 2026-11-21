@@ -39,7 +39,7 @@ class TaxSettingsHubControllerTest extends CIUnitTestCase
 
     private function actAs(int $personId): void
     {
-        $this->withSession(['person_id' => $personId, 'menu_group' => 'office']);
+        $this->withSession(['person_id' => $personId, 'menu_group' => 'home']);
     }
 
     public function testGetIndex_ShowsTheCardsOfTheScreensTheEmployeeMayOpenOnly(): void
@@ -54,6 +54,7 @@ class TaxSettingsHubControllerTest extends CIUnitTestCase
         $page->assertDontSee('tax_card_company');
         $page->assertDontSee('tax_card_einvoicing');
         $page->assertDontSee('tax_card_reports');
+        $page->assertDontSee('tax_missing');
     }
 
     public function testGetIndex_OpensForTheSettingsModuleAlone(): void
@@ -65,6 +66,30 @@ class TaxSettingsHubControllerTest extends CIUnitTestCase
         $page->assertOK();
         $page->assertSee('tax_card_company');
         $page->assertDontSee('tax_card_classes');
+    }
+
+    public function testGetIndex_ShowsWhatTheSaudiRulesStillNeedOnlyToWhoeverHoldsElectronicInvoicing(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+
+        try {
+            $this->actAs($this->employeeWithGrants(['accounting_einvoicing']));
+
+            $page = $this->get('/tax_settings');
+
+            $page->assertOK();
+            $page->assertSee('tax_missing');
+            $page->assertSee('tax_card_einvoicing');
+        } finally {
+            $this->setConfigValue('accounting_enabled', '0');
+        }
+    }
+
+    public function testGetIndex_CountsNoScreenOfTheBooksWhileTheBooksAreOff(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_einvoicing']));
+
+        $this->get('/tax_settings')->assertRedirectTo('no_access/taxes');
     }
 
     public function testGetIndex_SendsAnEmployeeWithNoneOfTheModulesToTheNoAccessPage(): void
