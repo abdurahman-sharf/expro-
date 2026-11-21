@@ -50,6 +50,8 @@ enum RoutingKey: string
     case FxGain = 'fx.gain';
     case FxLoss = 'fx.loss';
 
+    case TaxRounding = 'tax.rounding';
+
     case AssetCost        = 'assets.cost';
     case AssetAccumulated = 'assets.accumulated';
     case AssetExpense     = 'assets.expense';
@@ -279,6 +281,8 @@ enum RoutingKey: string
 
             self::FxGain => 'fx_gain',
             self::FxLoss => 'fx_loss',
+
+            self::TaxRounding => 'tax_rounding',
 
             self::AssetCost        => 'fixed_assets',
             self::AssetAccumulated => 'accumulated_depreciation',

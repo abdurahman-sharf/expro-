@@ -54,6 +54,7 @@ return [
     'item_stock_permits_count_out'  => 'Stocktake shortage',
     'item_stock_permits_issue'      => 'Stock issue note',
     'item_tax_output'               => 'Output tax',
+    'item_tax_rounding'             => 'Tax rounding differences',
     'item_treasuries_accounts'      => 'Treasuries (main account)',
     'item_treasuries_banks'         => 'Bank accounts (main account)',
     'locked_note'                   => 'Always follows: {0}',

@@ -7,10 +7,12 @@ use App\Libraries\Tax\VatSnapshot;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Tests\Support\ItemFixtureTrait;
 
 class VatSnapshotTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use ItemFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -23,6 +25,11 @@ class VatSnapshotTest extends CIUnitTestCase
      * @var list<int>
      */
     private array $returns = [];
+
+    /**
+     * @var list<int>
+     */
+    private array $items = [];
 
     public static function setUpBeforeClass(): void
     {
@@ -42,12 +49,20 @@ class VatSnapshotTest extends CIUnitTestCase
         $db = Database::connect();
 
         $db->table('sales_vat_totals')->whereIn('sale_id', [$this->sale, ...$this->returns])->delete();
+        $db->table('sales_items_vat')->whereIn('sale_id', [$this->sale, ...$this->returns])->delete();
+        $db->table('sales_items')->whereIn('sale_id', [$this->sale, ...$this->returns])->delete();
 
         if ($this->returns !== []) {
             $db->table('sales')->whereIn('sale_id', $this->returns)->delete();
         }
 
         $db->table('sales')->where('sale_id', $this->sale)->delete();
+
+        if ($this->items !== []) {
+            $db->table('item_quantities')->whereIn('item_id', $this->items)->delete();
+            $db->table('inventory')->whereIn('trans_items', $this->items)->delete();
+            $db->table('items')->whereIn('item_id', $this->items)->delete();
+        }
 
         parent::tearDown();
     }
@@ -60,12 +75,21 @@ class VatSnapshotTest extends CIUnitTestCase
         return (int) $db->insertID();
     }
 
-    private function returnOf(int $status, string $taxable, string $vat): void
+    private function lineOf(int $saleId, int $itemId, int $line, string $quantity, string $category = 'S', string $percent = '15.000'): void
+    {
+        $db = Database::connect();
+        $db->table('sales_items')->insert(['sale_id' => $saleId, 'item_id' => $itemId, 'line' => $line, 'quantity_purchased' => $quantity, 'item_cost_price' => '0', 'item_unit_price' => '1', 'discount' => '0', 'discount_type' => 0, 'item_location' => 1, 'description' => '', 'serialnumber' => '']);
+        $db->table('sales_items_vat')->insert(['sale_id' => $saleId, 'item_id' => $itemId, 'line' => $line, 'category' => $category, 'percent' => $percent]);
+    }
+
+    private function returnOf(int $status, string $taxable, string $vat): int
     {
         $saleId          = $this->saleRow($status, SALE_TYPE_RETURN, $this->sale);
         $this->returns[] = $saleId;
 
         (new VatSnapshot())->record($saleId, ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, $taxable, $vat, false)]);
+
+        return $saleId;
     }
 
     public function testTotalsOf_ReadsTheCategoriesASaleWasSavedWith(): void
@@ -91,5 +115,21 @@ class VatSnapshotTest extends CIUnitTestCase
     public function testLeftOf_GivesNothingForASaleSavedWithoutItsVatWorkedOnce(): void
     {
         $this->assertSame([], (new VatSnapshot())->leftOf($this->sale));
+    }
+
+    public function testExhaustedBy_NamesTheCategoriesWhoseLastUnitsTheReturnTakesBack(): void
+    {
+        $first       = $this->createTestItem();
+        $second      = $this->createTestItem();
+        $this->items = [$first, $second];
+        $this->lineOf($this->sale, $first, 1, '3');
+        $this->lineOf($this->sale, $second, 2, '2', 'Z', '0.000');
+        $this->lineOf($this->returnOf(COMPLETED, '-1.00', '-0.15'), $first, 1, '-1');
+
+        $snapshot = new VatSnapshot();
+
+        $this->assertSame([], $snapshot->exhaustedBy($this->sale, [$first => '1']));
+        $this->assertSame(['S|15.000|'], $snapshot->exhaustedBy($this->sale, [$first => '2']));
+        $this->assertSame(['Z|0.000|'], $snapshot->exhaustedBy($this->sale, [$second => '2']));
     }
 }

@@ -27,8 +27,8 @@ final class VatCalculator
 
         foreach ($lines as $line) {
             $percent = self::percent($line->vat->percent);
-            $result  = $this->line($line->base, $percent, $line->included);
             $key     = self::categoryKey($line->vat->category, $percent, $line->vat->exemptionCode);
+            $result  = $this->line($line->base, $percent, $line->included, $key);
 
             if (isset($categories[$key]) && $categories[$key]['included'] !== $line->included) {
                 throw new InvalidArgumentException('A category mixes prices that hold the tax with prices that do not.');
@@ -59,24 +59,29 @@ final class VatCalculator
     /**
      * Holds the categories of a return to what is left of its sale: a return never gives back more taxable amount
      * or VAT than the sale charged less what earlier returns gave back, and the return that takes back the whole
-     * of what is left of a category gives back the whole of its VAT, so a sale returned in parts gives back exactly
-     * what it charged. The return's amounts are negative; what is left is positive.
+     * of what is left of a category, by its units or by its amount, gives back the whole of its taxable amount and VAT,
+     * so a sale returned in parts gives back exactly what it charged. The return's amounts are negative; what is left
+     * is positive.
      *
-     * @param array<string, array{taxable: string, vat: string}> $left By category key.
+     * @param array<string, array{taxable: string, vat: string}> $left      By category key.
+     * @param list<string>                                       $exhausted The categories whose units the return takes back to the last, whatever its amounts round to.
      */
-    public function capReturn(VatResult $return, array $left): VatResult
+    public function capReturn(VatResult $return, array $left, array $exhausted = []): VatResult
     {
         $categories = [];
+        $lines      = $return->lines;
 
         foreach ($return->categories as $key => $category) {
             $taxable = bcadd(self::absolute($category->taxable), '0', 2);
             $vat     = bcadd(self::absolute($category->vat), '0', 2);
+            $sign    = bccomp($category->taxable, '0', 2) < 0 || bccomp($category->vat, '0', 2) < 0 ? '-' : '';
 
             if (isset($left[$key])) {
                 $leftTaxable = bcadd($left[$key]['taxable'], '0', 2);
                 $leftVat     = bcadd($left[$key]['vat'], '0', 2);
 
-                if (bccomp($taxable, $leftTaxable, 2) >= 0) {
+                if (in_array($key, $exhausted, true) || bccomp($taxable, $leftTaxable, 2) >= 0) {
+                    $lines   = $this->moveOntoTheLargest($lines, $key, bcsub(self::signed($sign, $leftTaxable), $category->taxable, 2), $category->percent);
                     $taxable = $leftTaxable;
                     $vat     = $leftVat;
                 } elseif (bccomp($vat, $leftVat, 2) > 0) {
@@ -84,11 +89,39 @@ final class VatCalculator
                 }
             }
 
-            $sign             = bccomp($category->taxable, '0', 2) < 0 || bccomp($category->vat, '0', 2) < 0 ? '-' : '';
             $categories[$key] = $category->withAmounts(self::signed($sign, $taxable), self::signed($sign, $vat));
         }
 
-        return new VatResult($return->lines, $categories);
+        return new VatResult($lines, $categories);
+    }
+
+    /**
+     * Moves what the taxable amount of a category was held by onto its largest line, so that its lines still add
+     * up to it (BR-CO-10 and the taxable amount of the category).
+     *
+     * @param array<string, VatLineResult> $lines
+     *
+     * @return array<string, VatLineResult>
+     */
+    private function moveOntoTheLargest(array $lines, string $key, string $difference, string $percent): array
+    {
+        if (bccomp($difference, '0', 2) === 0) {
+            return $lines;
+        }
+
+        $largest = null;
+
+        foreach ($lines as $lineKey => $line) {
+            if ($line->category === $key && ($largest === null || bccomp(self::absolute($line->net), self::absolute($lines[$largest]->net), 2) > 0)) {
+                $largest = $lineKey;
+            }
+        }
+
+        if ($largest !== null) {
+            $lines[$largest] = $this->ofNet(bcadd($lines[$largest]->net, $difference, 2), bcdiv($percent, '100', self::WORK_SCALE), $key);
+        }
+
+        return $lines;
     }
 
     public static function categoryKey(string $category, string $percent, ?string $exemptionCode): string
@@ -107,7 +140,7 @@ final class VatCalculator
         return self::signed(bccomp($amount, '0', self::WORK_SCALE) < 0 ? '-' : '', bcadd($size, $half, $decimals));
     }
 
-    private function line(string $base, string $percent, bool $included): VatLineResult
+    private function line(string $base, string $percent, bool $included, string $key): VatLineResult
     {
         $rate = bcdiv($percent, '100', self::WORK_SCALE);
 
@@ -118,10 +151,15 @@ final class VatCalculator
             $net = self::round($base, 2);
         }
 
+        return $this->ofNet($net, $rate, $key);
+    }
+
+    private function ofNet(string $net, string $rate, string $key): VatLineResult
+    {
         $exact = bcmul($net, $rate, self::WORK_SCALE);
         $vat   = self::round($exact, 2);
 
-        return new VatLineResult($net, $vat, bcadd($net, $vat, 2), self::trim($exact));
+        return new VatLineResult($net, $vat, bcadd($net, $vat, 2), self::trim($exact), $key);
     }
 
     private static function percent(string $percent): string

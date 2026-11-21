@@ -89,16 +89,21 @@ final class SalePostingBuilder
             $incomeSide[] = [$this->shippingAccount($sale), $figures['shipping']];
         }
 
-        $against        = null;
-        $adjustmentSign = bccomp($figures['adjustment'], '0', SaleAmounts::SCALE);
+        $against = [];
 
-        if ($adjustmentSign !== 0) {
-            $adjustment = [$this->required(RoutingKey::SalesAdjustment), SaleAmounts::absolute($figures['adjustment'])];
+        foreach ([[RoutingKey::SalesAdjustment, $figures['adjustment']], [RoutingKey::TaxRounding, $figures['rounding']]] as [$key, $amount]) {
+            $sign = bccomp($amount, '0', SaleAmounts::SCALE);
 
-            if ($adjustmentSign > 0) {
-                $incomeSide[] = $adjustment;
+            if ($sign === 0) {
+                continue;
+            }
+
+            $entry = [$this->required($key), SaleAmounts::absolute($amount)];
+
+            if ($sign > 0) {
+                $incomeSide[] = $entry;
             } else {
-                $against = $adjustment;
+                $against[] = $entry;
             }
         }
 
@@ -123,7 +128,7 @@ final class SalePostingBuilder
             return $draft;
         }
 
-        $first = $sale->isReturn() ? 0 : 1 + ($discount !== null ? 1 : 0) + ($against !== null ? 1 : 0);
+        $first = $sale->isReturn() ? 0 : 1 + ($discount !== null ? 1 : 0) + count($against);
 
         return ForeignConversion::toBase($draft, $sale->currency, $this->baseDecimalsOf(), $goodsCount > 0
             ? $first + $this->largestOf(array_slice($incomeSide, 0, $goodsCount))
@@ -647,6 +652,12 @@ final class SalePostingBuilder
         $own       = SaleAmounts::accountTaxes($sale);
         $remainder = bcsub($tax, array_reduce($own, static fn (string $sum, string $amount): string => bcadd($sum, $amount, SaleAmounts::SCALE), '0'), SaleAmounts::SCALE);
 
+        if ($sale->vat !== [] && $own !== [] && $this->everyTaxHasAnAccount($sale)) {
+            $largest       = array_search(max($own), $own, true);
+            $own[$largest] = bcadd($own[$largest], $remainder, SaleAmounts::SCALE);
+            $remainder     = '0';
+        }
+
         if (bccomp($remainder, '0', SaleAmounts::SCALE) < 0) {
             throw new PostingException(PostingError::TaxAccountsExceedTax, 'The tax rows of the sale that carry an account add up to more than the tax of the sale.', ['saleId' => $sale->saleId]);
         }
@@ -658,6 +669,24 @@ final class SalePostingBuilder
         }
 
         return $lines;
+    }
+
+    /**
+     * Whether every tax row of the sale went to an account of its own, so that the VAT of its categories, rounded
+     * on the taxable amounts, is all theirs and the few halalas it parts from their rows by fall on the largest.
+     */
+    private function everyTaxHasAnAccount(SaleDocument $sale): bool
+    {
+        foreach ($sale->lines as $line) {
+            $tax  = bcadd(SaleAmounts::absolute($line->includedTax), SaleAmounts::absolute($line->addedTax), SaleAmounts::SCALE);
+            $held = array_reduce($line->accountTaxes, static fn (string $sum, string $amount): string => bcadd($sum, $amount, SaleAmounts::SCALE), '0');
+
+            if (bccomp($tax, $held, SaleAmounts::SCALE) !== 0) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -685,11 +714,11 @@ final class SalePostingBuilder
     /**
      * @param array{int, string}                    $customer
      * @param list<array{int, string, 2?: ?string}> $income
-     * @param array{int, string}|null               $against  A negative adjustment, which takes from the income.
+     * @param list<array{int, string}>              $against  What takes from the income: a negative adjustment, a rounding below the revenue.
      *
      * @return list<JournalLineDraft>
      */
-    private function forward(array $customer, array $income, ?int $discountAccount, string $discount, ?array $against): array
+    private function forward(array $customer, array $income, ?int $discountAccount, string $discount, array $against): array
     {
         $lines = [new JournalLineDraft($customer[0], debit: $customer[1])];
 
@@ -697,8 +726,8 @@ final class SalePostingBuilder
             $lines[] = new JournalLineDraft($discountAccount, debit: $discount);
         }
 
-        if ($against !== null) {
-            $lines[] = new JournalLineDraft($against[0], debit: $against[1]);
+        foreach ($against as $entry) {
+            $lines[] = new JournalLineDraft($entry[0], debit: $entry[1]);
         }
 
         foreach ($income as $entry) {
@@ -711,11 +740,11 @@ final class SalePostingBuilder
     /**
      * @param array{int, string}                    $customer
      * @param list<array{int, string, 2?: ?string}> $income
-     * @param array{int, string}|null               $against  A negative adjustment, which takes from the income.
+     * @param list<array{int, string}>              $against  What takes from the income: a negative adjustment, a rounding below the revenue.
      *
      * @return list<JournalLineDraft>
      */
-    private function mirror(array $customer, array $income, ?int $discountAccount, string $discount, ?array $against): array
+    private function mirror(array $customer, array $income, ?int $discountAccount, string $discount, array $against): array
     {
         $lines = [];
 
@@ -727,8 +756,8 @@ final class SalePostingBuilder
             $lines[] = new JournalLineDraft($discountAccount, credit: $discount);
         }
 
-        if ($against !== null) {
-            $lines[] = new JournalLineDraft($against[0], credit: $against[1]);
+        foreach ($against as $entry) {
+            $lines[] = new JournalLineDraft($entry[0], credit: $entry[1]);
         }
 
         $lines[] = new JournalLineDraft($customer[0], credit: $customer[1]);

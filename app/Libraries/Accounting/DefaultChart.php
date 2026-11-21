@@ -169,6 +169,7 @@ final class DefaultChart
             ['4204', 'تسويات المبيعات', AccountType::Revenue, '42', false, 'sales_adjustment', false],
             ['4208', 'إيرادات الشحن', AccountType::Revenue, '42', false, 'sales_shipping', false],
             ['4209', 'أرباح فروق العملة', AccountType::Revenue, '42', false, 'fx_gain', false],
+            ['4213', 'فروق تقريب ضريبية', AccountType::Revenue, '42', false, 'tax_rounding', false],
 
             ['51', 'تكلفة المبيعات', AccountType::Expense, '5', true, null, false],
             ['511', 'تكلفة المبيعات', AccountType::Expense, '51', false, 'cogs', false],

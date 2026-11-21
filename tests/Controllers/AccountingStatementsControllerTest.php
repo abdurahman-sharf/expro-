@@ -225,7 +225,7 @@ class AccountingStatementsControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsStringIgnoringCase('gross', $body);
         $this->assertMatchesRegularExpression('#id="section_total_expenses">.*data-account="511".*id="total_expenses"#s', $body, 'The cost of sales is a line of the expenses');
         $this->assertDoesNotMatchRegularExpression('#id="section_total_revenue">.*data-account="511".*id="total_revenue"#s', $body);
-        $this->assertSame(['4', '41', '411', '412', '42', '4201', '4202', '4203', '4204', '4208', '4209', '5', '51', '511', '512', '513', '52', '5201', '5202', '5203', '5204', '5205', '5206', '53', '5301', '54', '541', '5410', '542', '5420', '543', '544', '545', '546'], $this->listedCodes($response));
+        $this->assertSame(['4', '41', '411', '412', '42', '4201', '4202', '4203', '4204', '4208', '4209', '4213', '5', '51', '511', '512', '513', '52', '5201', '5202', '5203', '5204', '5205', '5206', '53', '5301', '54', '541', '5410', '542', '5420', '543', '544', '545', '546'], $this->listedCodes($response));
     }
 
     public function testGetIncomeStatement_ShowsSalesReturnsAsANegativeInsideTheRevenue(): void

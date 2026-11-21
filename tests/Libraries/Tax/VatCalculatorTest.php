@@ -169,6 +169,18 @@ class VatCalculatorTest extends CIUnitTestCase
         $this->assertSame(['0.00', '0.00'], [$left['S|15.000|']['taxable'], $left['S|15.000|']['vat']]);
     }
 
+    public function testCapReturn_GivesBackWhatIsLeftForTheLastUnitsAndMovesItOntoTheLargestLine(): void
+    {
+        $sale = $this->calculate([['0.999']]);
+        $left = ['S|15.000|' => ['taxable' => bcsub($sale->taxable(), '0.66', 2), 'vat' => bcsub($sale->vat(), '0.10', 2)]];
+
+        $return = $this->calculator->capReturn($this->calculate([['-0.333']]), $left, ['S|15.000|']);
+
+        $this->assertSame(['1.00', '0.34'], [$sale->taxable(), $left['S|15.000|']['taxable']]);
+        $this->assertSame(['-0.34', '-0.05'], [$return->categories['S|15.000|']->taxable, $return->categories['S|15.000|']->vat]);
+        $this->assertSame('-0.34', $return->lines['0']->net, 'the lines still add up to the category');
+    }
+
     public function testCapReturn_LeavesAReturnWithinWhatIsLeftAsItWasWorkedOut(): void
     {
         $return = $this->calculator->capReturn($this->calculate([['-50']]), ['S|15.000|' => ['taxable' => '100.00', 'vat' => '15.00']]);

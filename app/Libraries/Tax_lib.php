@@ -472,7 +472,13 @@ class Tax_lib
                 return null;
             }
 
-            $result = (new VatCalculator())->capReturn($result, $left);
+            $returning = [];
+
+            foreach ($cart as $item) {
+                $returning[(int) $item['item_id']] = bcadd($returning[(int) $item['item_id']] ?? '0', ltrim((string) $item['quantity'], '-'), 3);
+            }
+
+            $result = (new VatCalculator())->capReturn($result, $left, $this->vatSnapshot()->exhaustedBy($storedSale, $returning));
         }
 
         $itemTaxes = [];

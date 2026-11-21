@@ -3,6 +3,7 @@
 namespace App\Libraries\Accounting;
 
 use App\Libraries\ResolvedCharges;
+use App\Libraries\Tax\VatCategoryTotal;
 
 /**
  * A saved sale, with what posting needs to know about it. Its date is the day its journals take:
@@ -11,14 +12,16 @@ use App\Libraries\ResolvedCharges;
  * let it through with no sale to take it back from, which is then costed at the cost of the day.
  * The units of an invoice that came back before its goods were delivered are kept apart, because
  * the delivery takes out only what stayed sold. The charges of its header, an adjustment and shipping
- * with its tax, are the amounts it was saved with.
+ * with its tax, are the amounts it was saved with. A sale saved under the Saudi rules carries the categories its
+ * VAT was worked out in, which its journal takes the tax and the revenue from.
  */
 final readonly class SaleDocument
 {
     /**
-     * @param list<SaleLine>     $lines
-     * @param list<SalePayment>  $payments
-     * @param array<int, string> $returnedUnits Units by item that came back before the goods were delivered.
+     * @param list<SaleLine>                  $lines
+     * @param list<SalePayment>               $payments
+     * @param array<int, string>              $returnedUnits Units by item that came back before the goods were delivered.
+     * @param array<string, VatCategoryTotal> $vat           By category key; empty for a sale saved without them.
      */
     public function __construct(
         public int $saleId,
@@ -38,6 +41,7 @@ final readonly class SaleDocument
         public array $returnedUnits = [],
         public ?ResolvedCharges $charges = null,
         public ?DocumentCurrency $currency = null,
+        public array $vat = [],
     ) {
     }
 
@@ -64,6 +68,7 @@ final readonly class SaleDocument
             $units,
             $this->charges,
             $this->currency,
+            $this->vat,
         );
     }
 

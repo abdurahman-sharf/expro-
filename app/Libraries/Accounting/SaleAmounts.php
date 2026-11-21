@@ -76,7 +76,11 @@ final class SaleAmounts
      * shipping and the adjustment are the amounts that were typed; when the lines come to nothing there
      * are no goods to carry it, and it falls on the shipping, which is then the whole of the revenue.
      *
-     * @return array{total: numeric-string, tax: numeric-string, revenue: numeric-string, shipping: numeric-string, adjustment: numeric-string, discount: numeric-string}
+     * A sale saved under the Saudi rules keeps the total the register charged, takes its tax from the VAT of its
+     * categories and its revenue from their taxable amounts, and leaves what the two part by as its rounding
+     * (BT-114), which is never folded into the revenue.
+     *
+     * @return array{total: numeric-string, tax: numeric-string, revenue: numeric-string, shipping: numeric-string, adjustment: numeric-string, discount: numeric-string, rounding: numeric-string}
      */
     public static function figures(SaleDocument $sale, int $decimals): array
     {
@@ -87,6 +91,10 @@ final class SaleAmounts
         $adjusted = $sale->charges?->adjustment ?? '0.0000';
         $split    = InvoiceRounding::split(bcadd(bcadd($amounts['net'], $shipping, self::SCALE), $adjusted, self::SCALE), $tax, $sale->currency?->decimals ?? 2);
         $revenue  = bcsub(bcsub($split['revenue'], $shipping, self::SCALE), $adjusted, self::SCALE);
+
+        if ($sale->vat !== []) {
+            return self::workedOnce($sale, $amounts, $shipping, $adjusted);
+        }
 
         if (bccomp($amounts['net'], '0', self::SCALE) === 0 && bccomp($shipping, '0', self::SCALE) > 0) {
             $shipping = bcadd($shipping, $revenue, self::SCALE);
@@ -100,6 +108,45 @@ final class SaleAmounts
             'shipping'   => $shipping,
             'adjustment' => $adjusted,
             'discount'   => $amounts['discount'],
+            'rounding'   => '0.0000',
+        ];
+    }
+
+    /**
+     * The total is what the register charged: the lines as they sold, the VAT of the categories whose prices did
+     * not hold it, and the charges, to the cent.
+     *
+     * @param array{gross: numeric-string, discount: numeric-string, invoiceDiscount: numeric-string, net: numeric-string, tax: numeric-string} $amounts
+     *
+     * @return array{total: numeric-string, tax: numeric-string, revenue: numeric-string, shipping: numeric-string, adjustment: numeric-string, discount: numeric-string, rounding: numeric-string}
+     */
+    private static function workedOnce(SaleDocument $sale, array $amounts, string $shipping, string $adjusted): array
+    {
+        $taxable = '0';
+        $vat     = '0';
+        $added   = '0';
+
+        foreach ($sale->vat as $category) {
+            $taxable = bcadd($taxable, self::absolute($category->taxable), self::SCALE);
+            $vat     = bcadd($vat, self::absolute($category->vat), self::SCALE);
+            $added   = $category->included ? $added : bcadd($added, self::absolute($category->vat), self::SCALE);
+        }
+
+        $shippingTax = $sale->charges?->shippingTax ?? '0';
+        $lines       = bcsub(bcsub($amounts['gross'], $amounts['discount'], self::SCALE), $amounts['invoiceDiscount'], self::SCALE);
+        $charged     = bcadd(bcadd(bcadd($lines, $added, self::SCALE), bcadd($shipping, $adjusted, self::SCALE), self::SCALE), $shippingTax, self::SCALE);
+        $total       = InvoiceRounding::split($charged, '0', $sale->currency?->decimals ?? 2)['total'];
+        $tax         = bcadd($vat, $shippingTax, self::SCALE);
+        $rounding    = bcsub(bcsub(bcsub(bcsub($total, $tax, self::SCALE), $taxable, self::SCALE), $shipping, self::SCALE), $adjusted, self::SCALE);
+
+        return [
+            'total'      => $total,
+            'tax'        => $tax,
+            'revenue'    => $taxable,
+            'shipping'   => $shipping,
+            'adjustment' => $adjusted,
+            'discount'   => $amounts['discount'],
+            'rounding'   => $rounding,
         ];
     }
 

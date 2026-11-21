@@ -113,6 +113,62 @@ class VatSnapshot
         return $left;
     }
 
+    /**
+     * The categories of a sale whose units a return takes back to the last, with the returns saved before it.
+     *
+     * @param array<int, string> $returning Units by item the return gives back, positive.
+     *
+     * @return list<string> Category keys.
+     */
+    public function exhaustedBy(int $saleId, array $returning): array
+    {
+        if (! $this->isInstalled()) {
+            return [];
+        }
+
+        $sold = [];
+
+        foreach ($this->db->table('sales_items AS i')
+            ->select('i.item_id, v.category, v.percent, v.exemption_code, SUM(ABS(i.quantity_purchased)) AS units', false)
+            ->join('sales_items_vat AS v', 'v.sale_id = i.sale_id AND v.item_id = i.item_id AND v.line = i.line')
+            ->where('i.sale_id', $saleId)
+            ->groupBy('i.item_id, v.category, v.percent, v.exemption_code')
+            ->get()
+            ->getResult() as $row) {
+            $sold[VatCalculator::categoryKey((string) $row->category, (string) $row->percent, $row->exemption_code === null || $row->exemption_code === '' ? null : (string) $row->exemption_code)][(int) $row->item_id] = (string) $row->units;
+        }
+
+        $earlier = [];
+
+        foreach ($this->db->table('sales_items AS i')
+            ->select('i.item_id, SUM(ABS(i.quantity_purchased)) AS units', false)
+            ->join('sales AS s', 's.sale_id = i.sale_id')
+            ->where(['s.return_of_sale_id' => $saleId, 's.sale_status' => COMPLETED, 's.sale_type' => SALE_TYPE_RETURN])
+            ->groupBy('i.item_id')
+            ->get()
+            ->getResult() as $row) {
+            $earlier[(int) $row->item_id] = (string) $row->units;
+        }
+
+        $exhausted = [];
+
+        foreach ($sold as $key => $items) {
+            $last = true;
+
+            foreach ($items as $itemId => $units) {
+                if (bccomp(bcadd($earlier[$itemId] ?? '0', $returning[$itemId] ?? '0', 3), $units, 3) < 0) {
+                    $last = false;
+                }
+            }
+
+            if ($last) {
+                $exhausted[] = $key;
+            }
+        }
+
+        return $exhausted;
+    }
+
     private function total(object $row): VatCategoryTotal
     {
         return new VatCategoryTotal(

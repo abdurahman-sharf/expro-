@@ -4,6 +4,7 @@ namespace App\Libraries\Accounting;
 
 use App\Libraries\ResolvedCharges;
 use App\Libraries\ShippingTaxOption;
+use App\Libraries\Tax\VatSnapshot;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -53,6 +54,7 @@ final class SaleLoader
             refundInvoice: $sale->return_document === ReturnDocument::RefundInvoice->storedValue(),
             charges: $this->charges($sale),
             currency: (new Currencies($this->db))->stored($sale->currency_code, $sale->currency_rate),
+            vat: (new VatSnapshot($this->db))->totalsOf($saleId),
         );
     }
 

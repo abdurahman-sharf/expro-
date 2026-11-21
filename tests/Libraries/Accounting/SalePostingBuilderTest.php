@@ -21,6 +21,7 @@ use App\Libraries\Accounting\SaleDocument;
 use App\Libraries\Accounting\SaleLine;
 use App\Libraries\Accounting\SalePayment;
 use App\Libraries\Accounting\SalePostingBuilder;
+use App\Libraries\Tax\VatCategoryTotal;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -89,10 +90,11 @@ use ItemFixtureTrait;
     }
 
     /**
-     * @param list<SaleLine>    $lines
-     * @param list<SalePayment> $payments
+     * @param list<SaleLine>                  $lines
+     * @param list<SalePayment>               $payments
+     * @param array<string, VatCategoryTotal> $vat
      */
-    private function sale(array $lines, array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?SaleDocument $origin = null, bool $override = false, bool $refundInvoice = false, ?ResolvedCharges $charges = null, ?DocumentCurrency $currency = null): SaleDocument
+    private function sale(array $lines, array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?SaleDocument $origin = null, bool $override = false, bool $refundInvoice = false, ?ResolvedCharges $charges = null, ?DocumentCurrency $currency = null, array $vat = []): SaleDocument
     {
         return new SaleDocument(
             saleId: 7,
@@ -110,6 +112,7 @@ use ItemFixtureTrait;
             refundInvoice: $refundInvoice,
             charges: $charges,
             currency: $currency,
+            vat: $vat,
         );
     }
 
@@ -199,6 +202,82 @@ use ItemFixtureTrait;
                 $this->accountId('tax_output') . ':0.0000:0.1050',
             ],
             $this->shape($draft, 4),
+        );
+    }
+
+    public function testInvoice_PostsTheVatOfASaudiSaleOnItsCategoriesAndWhatThePricesLeaveAsRounding(): void
+    {
+        $lines = array_map(fn (int $item): SaleLine => $this->line('1', '0.99', included: '0.129', itemId: $item), range(1, 10));
+        $draft = $this->builder->invoice($this->sale($lines, vat: ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '8.60', '1.29', true)]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':9.90:0.00',
+                $this->accountId('sales_revenue') . ':0.00:8.60',
+                $this->accountId('tax_output') . ':0.00:1.29',
+                $this->accountId('tax_rounding') . ':0.00:0.01',
+            ],
+            $this->shape($draft),
+        );
+    }
+
+    public function testInvoice_TakesARoundingOfASaudiSaleAboveWhatThePricesComeToFromTheIncome(): void
+    {
+        $lines = array_map(fn (int $item): SaleLine => $this->line('1', '0.01', included: '0.0015', itemId: $item), range(1, 4));
+        $draft = $this->builder->invoice($this->sale($lines, vat: ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '0.04', '0.01', true)]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':0.04:0.00',
+                $this->accountId('tax_rounding') . ':0.01:0.00',
+                $this->accountId('sales_revenue') . ':0.00:0.04',
+                $this->accountId('tax_output') . ':0.00:0.01',
+            ],
+            $this->shape($draft),
+        );
+    }
+
+    public function testInvoice_PostsTheVatOfEachCategoryOfASaudiSaleToTheHalala(): void
+    {
+        $lines = array_map(fn (int $item): SaleLine => $this->line('1', '0.10', added: '0.015', itemId: $item), range(1, 3));
+        $draft = $this->builder->invoice($this->sale($lines, vat: ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '0.30', '0.05', false)]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':0.3500:0.0000',
+                $this->accountId('sales_revenue') . ':0.0000:0.3000',
+                $this->accountId('tax_output') . ':0.0000:0.0500',
+            ],
+            $this->shape($draft, 4),
+        );
+    }
+
+    public function testInvoice_GivesBackOnASaudiReturnWhatItsCategoriesWereHeldTo(): void
+    {
+        $origin = $this->sale([$this->line('3', '0.10', added: '0.045')], vat: ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '0.30', '0.05', false)]);
+        $draft  = $this->builder->invoice($this->sale([$this->line('-1', '0.10', added: '-0.015')], type: SALE_TYPE_RETURN, origin: $origin, vat: ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '-0.10', '-0.01', false)]), 1);
+
+        $this->assertSame(
+            [
+                $this->accountId('sales_returns') . ':0.10:0.00',
+                $this->accountId('tax_output') . ':0.01:0.00',
+                $this->customerAccount() . ':0.00:0.11',
+            ],
+            $this->shape($draft),
+        );
+    }
+
+    public function testInvoice_LeavesASaleWithoutItsVatWorkedOnceAsItWasPosted(): void
+    {
+        $lines = array_map(fn (int $item): SaleLine => $this->line('1', '0.10', added: '0.015', itemId: $item), range(1, 3));
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':0.3500:0.0000',
+                $this->accountId('sales_revenue') . ':0.0000:0.3050',
+                $this->accountId('tax_output') . ':0.0000:0.0450',
+            ],
+            $this->shape($this->builder->invoice($this->sale($lines), 1), 4),
         );
     }
 
