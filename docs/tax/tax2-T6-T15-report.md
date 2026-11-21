@@ -84,7 +84,27 @@
 
 ## 5. نتائج الحزمة الكاملة
 
-تُكمل عند انتهاء التشغيل (§6 أدناه يُحدَّث).
+**التشغيل الأول على `f17a206b8`** (كل المراحل، قبل آخر الإصلاحات)، في شجرة عمل منفصلة بقاعدة مستقلة: **23,293 اختبارًا**، منها 4 أعطال كلها من أثر TAX2، **وأُصلحت كلها** ونجحت ملفاتها وحدها:
+
+| المجلد | النتيجة |
+|---|---|
+| `tests/Controllers` | 4,428: خطأ وفشل (1 و2 أدناه) |
+| `tests/Libraries` | 11,912: خطأ وفشل (3 و4 أدناه)، وتخطٍّ واحد (اختبار الـ SDK الرسمي) |
+| `tests/Models` | 827، 5 متخطاة (كما قبل) |
+| `tests/Database` | OK (647) |
+| `tests/Commands` | OK (170) |
+| `tests/Config` و`tests/Filters` و`tests/helpers` | 134 و307 و213، والمتخطاة كما قبل |
+| `tests/Views` و`tests/Events` و`tests/libraries` و`tests/Support` | OK (35، و6، و10، و421) |
+| `tests/LanguageFilesTest.php` و`tests/EscapingAssertionsTest.php` | OK (4,182 و1) |
+
+| # | العطل | السبب والإصلاح |
+|---|---|---|
+| 1 | `AccountingEInvoicingControllerTest::testGetIndex_OffersTheSwitchOffToTheOnboardHolderOnceDocumentsExist` | الاختبار حفظ بيعًا غير مصنف **بعد** تفعيل الوضع، والوضع يرفضه الآن (صحيح). صار يحفظ البيع قبل التفعيل (`849ab6c53`) |
+| 2 | `AccountingJournalsControllerTest::testGetView_HidesTheReverseButtonOfTheJournalsOfAnAdvanceAndOfACashRefund` | قيود ضريبة الدفعات بلا اسم في شاشات القيود. أُضيفت أسماؤها في كل اللغات (`849ab6c53`) |
+| 3 | `TaxDefinitionsTest::testAccountOptions_ListsTheLiabilityAccountsThatTakeEntriesInCodeOrder` | الاختبار أنشأ حسابًا برمز 215010، وهو الآن حساب ضريبة الدفعات. صار 215020، ويتحقق أن 215010 لا يُعرض (`481b3ee86`) |
+| 4 | `JournalSourcesTest::testAll_OffersEverySourceThatTheServiceOfJournalsTreatsAsAutomatic` | مصادر ضريبة الدفعات لا يُرشَّح بها في التقارير. أُضيفت (`481b3ee86`) |
+
+**التشغيل الثاني على `481b3ee86`** (الحالة الأخيرة): `tests/Controllers` **OK (4,430)**، وبقية المجلدات تُضاف عند انتهائها.
 
 ## 6. ملاحظة النشر
 
