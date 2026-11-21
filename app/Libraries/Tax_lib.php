@@ -365,11 +365,6 @@ class Tax_lib
     }
 
     /**
-     * The sale whose saved tax rows the taxes of these lines are read from, or null when they are
-     * worked out from the items: the sale itself when it is saved, or the sale a return in the register
-     * takes its goods back from.
-     */
-    /**
      * Gives the calculation where it learns what a classified item is sold under, for a test.
      */
     public function useVatSource(?LineVatSource $source): void
@@ -392,6 +387,11 @@ class Tax_lib
         return $this->vatSource !== null && $this->vatSource->appliesNow() ? $this->vatSource : null;
     }
 
+    /**
+     * The sale whose saved tax rows the taxes of these lines are read from, or null when they are
+     * worked out from the items: the sale itself when it is saved, or the sale a return in the register
+     * takes its goods back from.
+     */
     private function storedSource(int $saleId, ?string $registerMode): ?int
     {
         if ($saleId !== NEW_ENTRY) {
