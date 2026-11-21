@@ -9,6 +9,8 @@ use App\Libraries\Accounting\SaleLine;
 use App\Libraries\Accounting\SaleLoader;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Tax\LineVat;
+use App\Libraries\Tax\VatClassification;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -197,6 +199,7 @@ final class EInvoiceBuilder
     {
         $names    = $this->itemNames($sale);
         $taxRows  = $this->taxRows($sale->saleId);
+        $soldAs   = $this->soldUnder($sale->saleId);
         $decimals = totals_decimals();
         $lines    = [];
         $number   = 0;
@@ -208,7 +211,7 @@ final class EInvoiceBuilder
 
             $number++;
 
-            $lines[] = $this->saleLine($number, $line, $names[$line->itemId] ?? '', $taxRows[$line->itemId . ':' . $line->line] ?? [], $decimals);
+            $lines[] = $this->saleLine($number, $line, $names[$line->itemId] ?? '', $taxRows[$line->itemId . ':' . $line->line] ?? [], $decimals, $soldAs[$line->itemId . ':' . $line->line] ?? null);
         }
 
         if ($lines === []) {
@@ -223,7 +226,7 @@ final class EInvoiceBuilder
      *
      * @throws EInvoiceException
      */
-    private function saleLine(int $number, SaleLine $line, string $name, array $taxes, int $decimals): BuiltLine
+    private function saleLine(int $number, SaleLine $line, string $name, array $taxes, int $decimals, ?LineVat $vat = null): BuiltLine
     {
         $quantity = SaleAmounts::absolute($line->quantity);
         $discount = SaleAmounts::lineDiscount($line, $decimals);
@@ -257,7 +260,9 @@ final class EInvoiceBuilder
             throw new EInvoiceException(EInvoiceError::LineTaxAmbiguous, 'A line carries more than one tax, and the standard has one VAT rate for a line.', ['item' => $name]);
         }
 
-        return new BuiltLine($this->lineOf($number, $name, $quantity, $price, $allowance, $net, $this->categoryOf($rows === [] ? '0' : (string) $rows[0]->percent, $name), SaleAmounts::round($lineTax, 2)), $lineTax);
+        $category = $vat === null ? $this->categoryOf($rows === [] ? '0' : (string) $rows[0]->percent, $name) : $this->categoryOfClass($vat, $name);
+
+        return new BuiltLine($this->lineOf($number, $name, $quantity, $price, $allowance, $net, $category, SaleAmounts::round($lineTax, 2)), $lineTax, $vat?->exemptionCode, $vat?->exemptionText);
     }
 
     /**
@@ -306,6 +311,38 @@ final class EInvoiceBuilder
     }
 
     /**
+     * The category and rate of a line sold under a VAT class, from what the line kept when it was sold.
+     *
+     * @return array{0: string, 1: string}
+     *
+     * @throws EInvoiceException
+     */
+    private function categoryOfClass(LineVat $vat, string $name): array
+    {
+        if ($vat->category !== 'S') {
+            return [$vat->category, '0.00'];
+        }
+
+        $rate = bcadd($vat->percent, '0', 2);
+
+        if (bccomp($rate, $vat->percent, 4) !== 0) {
+            throw new EInvoiceException(EInvoiceError::RateNotRepresentable, 'A VAT rate has two decimals in the standard.', ['item' => $name, 'actual' => $vat->percent]);
+        }
+
+        return ['S', $rate];
+    }
+
+    /**
+     * What the lines of a sale were sold under, by item and line; nothing for a sale made before the classes.
+     *
+     * @return array<string, LineVat>
+     */
+    private function soldUnder(int $saleId): array
+    {
+        return $this->db->tableExists($this->db->prefixTable('sales_items_vat'), false) ? (new VatClassification($this->db))->linesOfSale($saleId) : [];
+    }
+
+    /**
      * @return array{0: string, 1: string}
      *
      * @throws EInvoiceException
@@ -335,10 +372,11 @@ final class EInvoiceBuilder
         $buckets = [];
 
         foreach ($lines as $built) {
-            $key = $built->line->vatCategory . '|' . $built->line->vatRate;
+            $key = $built->line->vatCategory . '|' . $built->line->vatRate . '|' . ($built->exemptionCode ?? '');
 
             $buckets[$key]['taxable'] = bcadd($buckets[$key]['taxable'] ?? '0', $built->line->netAmount, 2);
             $buckets[$key]['tax']     = bcadd($buckets[$key]['tax'] ?? '0', $built->exactTax, SaleAmounts::SCALE);
+            $buckets[$key]['text']    = $built->exemptionText;
         }
 
         $values    = $this->settings->all();
@@ -347,7 +385,7 @@ final class EInvoiceBuilder
         $subtotals = [];
 
         foreach ($buckets as $key => $bucket) {
-            [$category, $rate] = explode('|', $key);
+            [$category, $rate, $code] = explode('|', $key);
 
             $taxAmount = SaleAmounts::round($bucket['tax'], 2);
 
@@ -356,7 +394,8 @@ final class EInvoiceBuilder
             }
 
             $exempt      = $category !== 'S';
-            $subtotals[] = new EInvoiceTaxSubtotal($category, $rate, $bucket['taxable'], $taxAmount, $exempt ? $values['exempt_reason_code'] : '', $exempt ? $values['exempt_reason_text'] : '');
+            $ownReason   = $code !== '';
+            $subtotals[] = new EInvoiceTaxSubtotal($category, $rate, $bucket['taxable'], $taxAmount, $exempt ? ($ownReason ? $code : $values['exempt_reason_code']) : '', $exempt ? ($ownReason ? (string) $bucket['text'] : $values['exempt_reason_text']) : '');
             $extension   = bcadd($extension, $bucket['taxable'], 2);
             $tax         = bcadd($tax, $taxAmount, 2);
         }

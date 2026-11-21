@@ -13,6 +13,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\ShippingTaxOption;
+use App\Libraries\Tax\LineVat;
 use App\Models\Appconfig;
 use App\Models\Price_list;
 use App\Models\Sale;
@@ -2552,6 +2553,27 @@ class SaleTest extends CIUnitTestCase
         $this->assertSame(0, $sale->get_suspended_sale_info($theirs, $own)->getNumRows());
         $this->assertSame(1, $sale->get_suspended_sale_info($mine, $own)->getNumRows());
         $this->assertSame(1, $sale->get_suspended_sale_info($theirs, $this->createEmployee())->getNumRows());
+    }
+
+    public function testSaveSalesItemsTaxes_KeepsTheVatClassOfTheLineUntilTheSuspendedSaleIsCleared(): void
+    {
+        $db     = Database::connect();
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $vat    = new LineVat(null, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT');
+        $taxes  = [[], [['item_id' => $itemId, 'line' => 0, 'name' => 'VAT', 'percent' => '0.000', 'tax_type' => 1, 'rounding_code' => 1, 'cascade_sequence' => 0, 'item_tax_amount' => '0.00', 'sales_tax_code_id' => null, 'tax_category_id' => null, 'jurisdiction_id' => null, 'vat' => $vat]]];
+        $status = SUSPENDED;
+        $items  = $this->buildCartLine($itemId, 1, 10.00);
+        $saleId = model(Sale::class)->save_value(NEW_ENTRY, $status, $items, NEW_ENTRY, $this->createEmployee(), 'vat class', null, null, null, SALE_TYPE_POS, [], null, $taxes, true);
+
+        try {
+            $row = $db->table('sales_items_vat')->where('sale_id', $saleId)->get()->getRow();
+
+            $this->assertSame(['Z', '0.000', 'VATEX-SA-32'], [$row->category, $row->percent, $row->exemption_code]);
+            $this->assertTrue(model(Sale::class)->clear_suspended_sale_detail($saleId));
+            $this->assertSame(0, $db->table('sales_items_vat')->where('sale_id', $saleId)->countAllResults());
+        } finally {
+            $db->table('sales_items_vat')->where('sale_id', $saleId)->delete();
+        }
     }
 
     public function testDeleteSuspendedSale_RefusesAnotherEmployeesSuspendedSaleForTheEmployeeOfTheSession(): void

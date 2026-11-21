@@ -51,6 +51,8 @@ use App\Libraries\Stock\NegativeStockGuard;
 use App\Libraries\Stock\StockTracking;
 use App\Libraries\Stock\TrackingEntry;
 use App\Libraries\Stock\UnitLines;
+use App\Libraries\Tax\LineVat;
+use App\Libraries\Tax\VatClassification;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -2462,7 +2464,15 @@ class Sale extends Model
      */
     public function save_sales_items_taxes(int $saleId, array $salesItemTaxes): void
     {
-        $builder = $this->db->table('sales_items_taxes');
+        $builder        = $this->db->table('sales_items_taxes');
+        $classification = null;
+
+        foreach ($salesItemTaxes as $taxItem) {
+            if (($taxItem['vat'] ?? null) instanceof LineVat) {
+                $classification ??= new VatClassification($this->db);
+                $classification->recordLine($saleId, (int) $taxItem['item_id'], (int) $taxItem['line'], $taxItem['vat']);
+            }
+        }
 
         foreach ($salesItemTaxes as $line => $taxItem) {
             $salesItemsTaxes = [
@@ -3428,6 +3438,10 @@ class Sale extends Model
 
         $builder = $this->db->table('sales_items_taxes');
         $builder->delete(['sale_id' => $sale_id]);
+
+        if ($this->db->tableExists($this->db->prefixTable('sales_items_vat'), false)) {
+            $this->db->table('sales_items_vat')->delete(['sale_id' => $sale_id]);
+        }
 
         $builder = $this->db->table('sales_items');
         $builder->delete(['sale_id' => $sale_id]);

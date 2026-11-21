@@ -367,6 +367,13 @@ $routes->group('revenue_categories', static function (RouteCollection $routes): 
     $routes->post('delete', 'Revenue_categories::postDelete');
 });
 
+$routes->group('vat_classes', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Vat_classes::getIndex');
+    $routes->post('save_class', 'Vat_classes::postSaveClass');
+    $routes->post('add_rate/(:num)', 'Vat_classes::postAddRate/$1');
+    $routes->post('classify', 'Vat_classes::postClassify');
+});
+
 $routes->group('tax_definitions', static function (RouteCollection $routes): void {
     $routes->get('/', 'Tax_definitions::getIndex');
     $routes->get('search', 'Tax_definitions::getSearch');

@@ -82,6 +82,7 @@ class CompanyTaxProfileTest extends CIUnitTestCase
             'ksa_mode_watermark'    => null,
         ]);
         $this->setConfigValue('tax_id', $number);
+        $this->setConfigValue(CompanyTaxProfile::MODE_FLAG, '0');
         $db->table('companies')->where('company_id', 1)->update(['tax_id' => $number === '' ? null : $number]);
     }
 
@@ -417,6 +418,19 @@ class CompanyTaxProfileTest extends CIUnitTestCase
 
         $this->assertFalse($this->profile()->current()->saudiMode);
         $this->assertSame(1, Database::connect()->table('accounting_audit_log')->where(['entity_type' => 'tax_profile', 'action' => 'saudi_mode_disabled'])->countAllResults());
+    }
+
+    public function testEnableSaudiMode_WritesTheFlagTheTaxCalculationReadsAndDisableClearsIt(): void
+    {
+        $flag = static fn (): string => (string) Database::connect()->table('app_config')->where('key', CompanyTaxProfile::MODE_FLAG)->get()->getRow()?->value;
+
+        $this->inSaudiMode();
+
+        $this->assertSame('1', $flag());
+
+        $this->profile()->disableSaudiMode('', $this->manager);
+
+        $this->assertSame('0', $flag());
     }
 
     public function testDisableSaudiMode_RequiresTheOnboardPermissionOnceADocumentExists(): void

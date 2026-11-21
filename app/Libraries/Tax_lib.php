@@ -3,6 +3,9 @@
 namespace app\Libraries;
 
 use App\Libraries\Sale_lib;
+use App\Libraries\Tax\CompanyTaxProfile;
+use App\Libraries\Tax\LineVatSource;
+use App\Libraries\Tax\VatClassification;
 use App\Models\Customer;
 use App\Models\Enums\Rounding_mode;
 use App\Models\Item_taxes;
@@ -34,6 +37,8 @@ class Tax_lib
     private Tax_definition $taxDefinition;
     private Tax_jurisdiction $tax_jurisdiction;
     private array $config;
+    private ?LineVatSource $vatSource = null;
+    private bool $vatSourceChosen     = false;
 
     public function __construct()
     {
@@ -102,11 +107,24 @@ class Tax_lib
             $taxInfoByLine = [];
             $definitions   = [];
 
+            $vatByLine = [];
+
             if (! $this->config['use_destination_based_tax']) {
+                $vatSource  = $this->vatSource();
+                $supplyDate = $this->sale_lib->getInvoiceDate() ?? date('Y-m-d');
+
                 foreach ($cart as $line => $item) {
-                    $taxInfoByLine[$line] = $storedSale === null
-                        ? $this->item_taxes->get_info($item['item_id'])
-                        : $this->sale->get_sales_item_taxes($storedSale, $item['item_id']);
+                    $vat = $vatSource === null ? null : ($storedSale === null ? $vatSource->lineVat((int) $item['item_id'], $supplyDate) : $vatSource->soldUnder($storedSale, (int) $item['item_id']));
+
+                    if ($vat !== null) {
+                        $vatByLine[$line] = $vat;
+                    }
+
+                    $taxInfoByLine[$line] = match (true) {
+                        $storedSale !== null => $this->sale->get_sales_item_taxes($storedSale, $item['item_id']),
+                        $vat !== null        => [['name' => $vat->taxName, 'percent' => $vat->percent]],
+                        default              => $this->item_taxes->get_info($item['item_id']),
+                    };
                 }
 
                 if ($storedSale === null) {
@@ -142,6 +160,7 @@ class Tax_lib
                             'jurisdiction_id'      => null,
                             'tax_category_id'      => null,
                             'liability_account_id' => $tax['account'],
+                            'vat'                  => $vatByLine[$line] ?? null,
                         ];
                     }
                 } else {
@@ -350,6 +369,29 @@ class Tax_lib
      * worked out from the items: the sale itself when it is saved, or the sale a return in the register
      * takes its goods back from.
      */
+    /**
+     * Gives the calculation where it learns what a classified item is sold under, for a test.
+     */
+    public function useVatSource(?LineVatSource $source): void
+    {
+        $this->vatSource       = $source;
+        $this->vatSourceChosen = true;
+    }
+
+    /**
+     * What tells the classes of the items, when the Saudi rules apply now; null otherwise, so that a sale made
+     * while the mode is off is charged exactly as before and asks the database nothing more.
+     */
+    private function vatSource(): ?LineVatSource
+    {
+        if (! $this->vatSourceChosen) {
+            $this->vatSource       = ($this->config[CompanyTaxProfile::MODE_FLAG] ?? '0') === '1' ? new VatClassification() : null;
+            $this->vatSourceChosen = true;
+        }
+
+        return $this->vatSource !== null && $this->vatSource->appliesNow() ? $this->vatSource : null;
+    }
+
     private function storedSource(int $saleId, ?string $registerMode): ?int
     {
         if ($saleId !== NEW_ENTRY) {

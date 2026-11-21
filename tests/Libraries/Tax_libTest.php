@@ -2,6 +2,8 @@
 
 namespace Tests\Libraries;
 
+use App\Libraries\Tax\LineVat;
+use App\Libraries\Tax\LineVatSource;
 use App\Libraries\Tax_lib;
 use App\Models\Attribute;
 use App\Models\Customer;
@@ -536,5 +538,107 @@ class Tax_libTest extends CIUnitTestCase
 
         $this->assertSame(['13.0435', '4.3478'], array_map(static fn (array $tax): string => bcadd($tax['amount'], '0', 4), $taxes));
         $this->assertSame([Tax_lib::TAX_TYPE_INCLUDED, Tax_lib::TAX_TYPE_EXCLUDED], array_column($taxes, 'type'));
+    }
+
+    /**
+     * @param array<int, LineVat> $classes What each classified item is sold under.
+     * @param array<int, LineVat> $sold    What each item of a saved sale was sold under.
+     * @param list<string>        $dates   The days the rates were asked for.
+     */
+    private function vatSource(bool $applies, array $classes, array $sold = [], array &$dates = []): LineVatSource
+    {
+        return new class ($applies, $classes, $sold, $dates) implements LineVatSource {
+            /**
+             * @param array<int, LineVat> $classes
+             * @param array<int, LineVat> $sold
+             * @param list<string>        $dates
+             */
+            public function __construct(private bool $applies, private array $classes, private array $sold, private array &$dates)
+            {
+            }
+
+            public function appliesNow(): bool
+            {
+                return $this->applies;
+            }
+
+            public function lineVat(int $itemId, string $date): ?LineVat
+            {
+                $this->dates[] = $date;
+
+                return $this->classes[$itemId] ?? null;
+            }
+
+            public function soldUnder(int $saleId, int $itemId): ?LineVat
+            {
+                return $this->sold[$itemId] ?? null;
+            }
+        };
+    }
+
+    public function testGetTaxes_ChargesAClassifiedItemTheRateOfItsClassInSaudiMode(): void
+    {
+        $taxLib = $this->taxLib(false);
+        $taxLib->useVatSource($this->vatSource(true, [
+            3 => new LineVat(2, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT'),
+            4 => new LineVat(1, 'S', '15.000', null, null, 'VAT'),
+        ]));
+
+        $cart  = $this->cart('', '');
+        $taxes = $taxLib->get_taxes($cart);
+
+        $this->assertSame(['0.000', '33.000'], array_map(static fn (array $row): string => bcadd($row['item_tax_amount'], '0', 3), $taxes[1]));
+        $this->assertSame(['Z', 'S'], array_map(static fn (array $row): string => $row['vat']->category, $taxes[1]));
+        $this->assertSame('VATEX-SA-32', $taxes[1][0]['vat']->exemptionCode);
+    }
+
+    public function testGetTaxes_KeepsTheTaxesOfAnUnclassifiedItemInSaudiMode(): void
+    {
+        $taxLib = $this->taxLib(false);
+        $taxLib->useVatSource($this->vatSource(true, [3 => new LineVat(2, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT')]));
+
+        $cart  = $this->cart('', '');
+        $taxes = $taxLib->get_taxes($cart);
+
+        $this->assertSame(['0.000', '33.000'], array_map(static fn (array $row): string => bcadd($row['item_tax_amount'], '0', 3), $taxes[1]));
+        $this->assertNull($taxes[1][1]['vat']);
+    }
+
+    public function testGetTaxes_KeepsTheTaxesOfTheItemWhileTheModeIsOff(): void
+    {
+        $taxLib = $this->taxLib(false);
+        $taxLib->useVatSource($this->vatSource(false, [3 => new LineVat(2, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT')]));
+
+        $cart  = $this->cart('', '');
+        $taxes = $taxLib->get_taxes($cart);
+
+        $this->assertSame(['20.250', '33.000'], array_map(static fn (array $row): string => bcadd($row['item_tax_amount'], '0', 3), $taxes[1]));
+        $this->assertNull($taxes[1][0]['vat']);
+    }
+
+    public function testGetTaxes_AsksForTheRateOfTheDayOfTheInvoice(): void
+    {
+        $dates  = [];
+        $taxLib = $this->taxLib(false);
+        $taxLib->useVatSource($this->vatSource(true, [3 => new LineVat(1, 'S', '5.000', null, null, 'VAT')], [], $dates));
+        session()->set('sales_invoice_date', '2020-06-30');
+
+        $cart  = $this->cart('', '');
+        $taxes = $taxLib->get_taxes($cart);
+
+        $this->assertSame(['2020-06-30', '2020-06-30'], $dates);
+        $this->assertSame('6.750', bcadd($taxes[1][0]['item_tax_amount'], '0', 3));
+    }
+
+    public function testGetTaxes_CarriesTheClassASavedSaleWasSoldUnder(): void
+    {
+        $taxLib = $this->taxLib(false, false, [], [['name' => 'VAT', 'percent' => '15']], [3 => [['name' => 'VAT', 'percent' => '0']], 4 => [['name' => 'VAT', 'percent' => '15']]]);
+        $taxLib->useVatSource($this->vatSource(true, [], [3 => new LineVat(2, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT')]));
+
+        $cart  = $this->cart('', '');
+        $taxes = $taxLib->get_taxes($cart, 77);
+
+        $this->assertSame('Z', $taxes[1][0]['vat']->category);
+        $this->assertNull($taxes[1][1]['vat']);
     }
 }

@@ -179,7 +179,7 @@ final class SidebarMenu
                 ['label' => null, 'items' => [
                     $page('config', 'config', 'config', 'Module.config'),
                     $page('branches', 'branches', 'branches', 'Module.branches'),
-                    $page('taxes', 'taxes', 'taxes', 'Module.taxes', ['aliases' => ['tax_definitions']]),
+                    $page('taxes', 'taxes', 'taxes', 'Module.taxes', ['aliases' => ['tax_definitions', 'vat_classes']]),
                     $page('payment_methods', 'integrations', 'integrations/payment_methods', 'Integrations.payment_methods', ['permission' => 'acc_integrations_manage', 'also' => ['config']]),
                     $page('api_keys', 'integrations', 'api_keys', 'Integrations.api_keys', ['permission' => 'api_keys_manage', 'company' => true, 'also' => ['config']]),
                     $page('integrations', 'integrations', 'integrations', 'Module.integrations', ['also' => ['config']]),

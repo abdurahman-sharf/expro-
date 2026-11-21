@@ -5,6 +5,7 @@ namespace Tests\Libraries\EInvoicing;
 use App\Libraries\EInvoicing\EInvoiceReadiness;
 use App\Libraries\EInvoicing\EInvoiceSettings;
 use App\Libraries\EInvoicing\ReadinessCheck;
+use App\Libraries\Tax\VatClassification;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -12,6 +13,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EInvoiceFixtureTrait;
 use Tests\Support\EInvoiceSaleFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
 
 /**
  * What the readiness check says: the seller, the classification of a line without tax, the key, and the
@@ -22,6 +24,7 @@ class EInvoiceReadinessTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
+    use ItemFixtureTrait;
     use EInvoiceFixtureTrait;
     use EInvoiceSaleFixtureTrait;
 
@@ -131,6 +134,30 @@ class EInvoiceReadinessTest extends CIUnitTestCase
         $this->configureEInvoicing(['einvoice_exempt_category' => 'Z', 'einvoice_exempt_reason_code' => 'VATEX-SA-32']);
 
         $this->assertSame(ReadinessCheck::PASS, $this->statusOf('exemption'));
+    }
+
+    public function testChecks_WarnsOfUnclassifiedItemsAndFailsItemsWithSeveralTaxesInSaudiMode(): void
+    {
+        $db     = $this->accountingDb();
+        $itemId = $this->createTestItem();
+        $db->table('items_taxes')->insertBatch([['item_id' => $itemId, 'name' => 'Tax A', 'percent' => '10'], ['item_id' => $itemId, 'name' => 'Tax B', 'percent' => '5']]);
+        $profile = $db->table('company_tax_profile')->get()->getRowArray();
+
+        try {
+            $this->assertSame(ReadinessCheck::WARN, $this->statusOf('classification'));
+            $this->assertSame((string) (new VatClassification())->unclassifiedCount(), $this->detail('classification'));
+            $this->assertSame(ReadinessCheck::WARN, $this->statusOf('ambiguous_taxes'));
+
+            $db->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+            $this->assertSame(ReadinessCheck::FAIL, $this->statusOf('ambiguous_taxes'));
+        } finally {
+            $db->table('company_tax_profile')->update(['ksa_mode' => $profile['ksa_mode'], 'ksa_mode_effective_at' => $profile['ksa_mode_effective_at']]);
+            $db->table('items_taxes')->where('item_id', $itemId)->delete();
+            $db->table('item_quantities')->where('item_id', $itemId)->delete();
+            $db->table('inventory')->where('trans_items', $itemId)->delete();
+            $db->table('items')->where('item_id', $itemId)->delete();
+        }
     }
 
     public function testChecks_SayThatNothingIsSentBecauseNoTransportIsInPlace(): void

@@ -29,6 +29,8 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\Stock\UnitBarcodes;
+use App\Libraries\Tax\VatClassification;
+use App\Libraries\Tax\VatClassificationException;
 use App\Models\Attribute;
 use App\Models\Inventory;
 use App\Models\Item;
@@ -392,6 +394,8 @@ class Items extends Secure_Controller
 
         $data['allow_temp_item']    = $this->session->get('allow_temp_items'); // allow_temp_items is set in the index function of items.php or sales.php
         $data['item_tax_info']      = $this->item_taxes->get_info($item_id);
+        $data['vat_classes']        = array_values(array_filter((new VatClassification())->classes(), static fn (object $class): bool => (int) $class->active === 1));
+        $data['item_vat_class']     = $item_id === NEW_ENTRY ? null : (new VatClassification())->classOf($item_id)?->class_id;
         $data['default_tax_1_rate'] = '';
         $data['default_tax_2_rate'] = '';
         $data['item_kit_disabled']  = ! $this->employee->has_grant('item_kits', $this->employee->get_logged_in_employee_info()->person_id);
@@ -1142,6 +1146,16 @@ class Items extends Secure_Controller
                     $taxNameIndex++;
                 }
                 $success = $success && $this->item_taxes->save_value($itemsTaxesData, $itemId);
+            }
+
+            if ($success && $this->request->getPost('vat_class_id') !== null) {
+                $classId = (int) $this->request->getPost('vat_class_id');
+
+                try {
+                    (new VatClassification($db))->classifyItems([$itemId], $classId > 0 ? $classId : null, (int) $employeeId, VatClassification::ITEMS_PERMISSION);
+                } catch (AccountingException|VatClassificationException) {
+                    $success = false;
+                }
             }
 
             // Save item quantity

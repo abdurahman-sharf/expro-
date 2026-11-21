@@ -38,6 +38,7 @@ final class CompanyTaxProfile
     public const CONFIG_PERMISSION = 'config';
     public const NUMBER_MAX        = 64;
     public const REASON_MAX        = 500;
+    public const MODE_FLAG         = 'ksa_vat_mode';
 
     private BaseConnection $db;
     private AccountingGuard $guard;
@@ -250,6 +251,7 @@ final class CompanyTaxProfile
             }
 
             $this->writeRow($current->companyId, ['ksa_mode' => 1, 'ksa_mode_effective_at' => $effective, 'ksa_mode_activated_at' => $now, 'ksa_mode_activated_by' => $employeeId, 'ksa_mode_watermark' => $this->lastDocumentId()], $employeeId);
+            $this->writeModeFlag(true);
             $this->audit->write('tax_profile', $current->companyId, 'saudi_mode_enabled', $employeeId, JournalOrigin::User, ['effective_at' => $effective]);
         });
     }
@@ -286,6 +288,7 @@ final class CompanyTaxProfile
             }
 
             $this->writeRow($current->companyId, ['ksa_mode' => 0, 'ksa_mode_effective_at' => null, 'ksa_mode_activated_at' => null, 'ksa_mode_activated_by' => null, 'ksa_mode_watermark' => null], $employeeId);
+            $this->writeModeFlag(false);
             $this->audit->write('tax_profile', $current->companyId, 'saudi_mode_disabled', $employeeId, JournalOrigin::User, ['reason' => $reason, 'documents_issued' => $issued, 'was_effective_at' => $current->effectiveAt]);
         });
     }
@@ -411,6 +414,19 @@ final class CompanyTaxProfile
         }
 
         $this->db->table('companies')->where('company_id', $companyId)->update(['tax_id' => $number === '' ? null : $number]);
+    }
+
+    /**
+     * A copy of whether the mode is on, in the settings the calculation of a sale already holds, so that a sale
+     * asks the profile whether the Saudi rules apply only when the mode is on at all.
+     *
+     * @throws AccountingException
+     */
+    private function writeModeFlag(bool $on): void
+    {
+        if (! $this->config->batch_save([self::MODE_FLAG => $on ? '1' : '0'])) {
+            throw new AccountingException(AccountingError::WriteFailed, 'The Saudi mode could not be saved.');
+        }
     }
 
     private function hasTable(): bool

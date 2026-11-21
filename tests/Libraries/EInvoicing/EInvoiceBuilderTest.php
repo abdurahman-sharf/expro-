@@ -14,6 +14,7 @@ use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\EInvoiceKind;
 use App\Libraries\EInvoicing\EInvoiceSubtype;
 use App\Libraries\EInvoicing\OriginalReference;
+use App\Libraries\Tax\LineVat;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -63,6 +64,7 @@ class EInvoiceBuilderTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->accountingDb()->table('sales_items_vat')->truncate();
         $this->clearEInvoices();
         $this->restoreEInvoicingConfig();
         $this->accountingDb()->table('document_numbers')->truncate();
@@ -565,5 +567,67 @@ class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::TotalsDoNotTie, $refusal->error);
         $this->assertSame('230.01', $refusal->context['expected']);
         $this->assertSame('230.00', $refusal->context['actual']);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function classifiedTax(int $itemId, int $line, string $percent, string $amount, LineVat $vat): array
+    {
+        return [...$this->tax($itemId, $line, $amount), 'percent' => $percent, 'vat' => $vat];
+    }
+
+    public function testFromSale_WritesTheCategoryAndReasonOfEachLine(): void
+    {
+        $export   = $this->item('0', false);
+        $standard = $this->item('0', false);
+
+        $saleId = $this->save([$this->line($export, 0, '2', '50'), $this->line($standard, 1, '1', '100')], [
+            $this->classifiedTax($export, 0, '0.0000', '0.00', new LineVat(null, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT')),
+            $this->classifiedTax($standard, 1, '15.0000', '15.00', new LineVat(null, 'S', '15.000', null, null, 'VAT')),
+        ]);
+
+        $document = $this->builder->fromSale($saleId);
+
+        $this->assertSame(['Z', 'S'], array_map(static fn ($line): string => $line->vatCategory, $document->lines));
+        $this->assertSame('215.00', $document->taxInclusive);
+        $this->assertSame('VATEX-SA-32', $document->taxSubtotals[0]->exemptionCode);
+        $this->assertSame('Export of goods', $document->taxSubtotals[0]->exemptionText);
+    }
+
+    public function testFromSale_SplitsTheSubtotalsByReason(): void
+    {
+        $this->configureEInvoicing(['einvoice_exempt_category' => 'Z', 'einvoice_exempt_reason_code' => 'VATEX-SA-35', 'einvoice_exempt_reason_text' => 'Medicines']);
+
+        $goods    = $this->item('0', false);
+        $services = $this->item('0', false);
+
+        $saleId = $this->save([$this->line($goods, 0, '1', '60'), $this->line($services, 1, '1', '40')], [
+            $this->classifiedTax($goods, 0, '0.0000', '0.00', new LineVat(null, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT')),
+            $this->classifiedTax($services, 1, '0.0000', '0.00', new LineVat(null, 'Z', '0.000', 'VATEX-SA-33', 'Export of services', 'VAT')),
+        ]);
+
+        $document = $this->builder->fromSale($saleId);
+
+        $this->assertCount(2, $document->taxSubtotals);
+        $this->assertSame(['VATEX-SA-32', 'VATEX-SA-33'], array_map(static fn ($subtotal): string => $subtotal->exemptionCode, $document->taxSubtotals));
+        $this->assertSame(['60.00', '40.00'], array_map(static fn ($subtotal): string => $subtotal->taxable, $document->taxSubtotals));
+    }
+
+    public function testFromSale_KeepsTheGlobalExemptionForALineWithoutASnapshot(): void
+    {
+        $this->configureEInvoicing(['einvoice_exempt_category' => 'E', 'einvoice_exempt_reason_code' => 'VATEX-SA-29', 'einvoice_exempt_reason_text' => 'Financial services']);
+
+        $classified   = $this->item('0', false);
+        $unclassified = $this->item('0', false);
+
+        $saleId = $this->save([$this->line($classified, 0, '1', '60'), $this->line($unclassified, 1, '1', '40')], [
+            $this->classifiedTax($classified, 0, '0.0000', '0.00', new LineVat(null, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT')),
+        ]);
+
+        $document = $this->builder->fromSale($saleId);
+
+        $this->assertSame(['Z', 'E'], array_map(static fn ($subtotal): string => $subtotal->category, $document->taxSubtotals));
+        $this->assertSame('VATEX-SA-29', $document->taxSubtotals[1]->exemptionCode);
     }
 }
