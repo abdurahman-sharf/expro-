@@ -8,6 +8,7 @@ on:
 jobs:
   delete_unstable_release:
     runs-on: ubuntu-latest
+    if: vars.PUBLISH_ENABLED == 'true'
     steps:
       - name: "Delete the unstable release (matched by name)"
         env:
