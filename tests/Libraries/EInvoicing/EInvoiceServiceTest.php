@@ -642,6 +642,33 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(['signed' => true, 'document' => true, 'properties' => true, 'signature' => true], (new StampVerifier())->verify($second->xml));
     }
 
+    public function testReissueRejected_IssuesARefusedDocumentAgainWithTheNextCounterAndTheLastHashAndLeavesTheRefusedOneAsItWas(): void
+    {
+        $this->onboardedUnit();
+        $this->configureEInvoicing([EInvoiceSettings::PHASE_TWO => '1']);
+
+        $saleId  = $this->referenceSale();
+        $refused = $this->issue($saleId);
+        $manager = $this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]);
+
+        $this->assertSame(EInvoiceError::SubmissionNotRejected, $this->refusal(fn () => $this->service->reissueRejected($refused->documentId, $manager))->error, 'a document waiting for its answer is sent again as it is');
+
+        $this->accountingDb()->table('einvoice_outbox')->where('document_id', $refused->documentId)->update(['status' => SubmissionService::REJECTED, 'last_error_code' => 'BR-KSA-08']);
+
+        $again  = $this->service->reissueRejected($refused->documentId, $manager);
+        $stored = $this->accountingDb()->table('einvoice_documents')->where('document_id', $refused->documentId)->get()->getRow();
+
+        $this->assertSame([EInvoiceService::SOURCE_REISSUE, $refused->documentId], [$again->sourceType, $again->sourceId]);
+        $this->assertSame([$refused->icv + 1, $refused->hash], [$again->icv, $again->previousHash], 'the next counter, after the refused document, whose hash it carries');
+        $this->assertNotSame($refused->uuid, $again->uuid);
+        $this->assertSame([$refused->taxInclusive, $refused->number], [$again->taxInclusive, $again->number]);
+        $this->assertSame([$refused->xml, $refused->hash], [(string) $stored->xml, (string) $stored->invoice_hash], 'the refused document stays as it was');
+        $this->assertSame(SubmissionService::PENDING, $this->accountingDb()->table('einvoice_outbox')->where('document_id', $again->documentId)->get()->getRow()->status);
+        $this->assertSame($again->documentId, $this->service->documentOf(EInvoiceService::SOURCE_SALE, $saleId)->documentId, 'the sale stands by the document issued again');
+        $this->assertSame($again->documentId, $this->service->reissueRejected($refused->documentId, $manager)->documentId, 'issued again once at most');
+        $this->assertTrue($this->service->inSync($again));
+    }
+
     public function testIssueSale_IssuesNothingInTheSecondPhaseWithoutTheProductionCertificateOfTheUnit(): void
     {
         $this->configureEInvoicing([EInvoiceSettings::PHASE_TWO => '1']);

@@ -22,12 +22,15 @@ class EInvoiceDispatchTest extends CIUnitTestCase
         Database::seeder('tests')->call('TestDatabaseBootstrapSeeder');
     }
 
-    public function testRun_SendsNothingAndSaysHowManyDocumentsWait(): void
+    public function testRun_SendsNothingAndSaysWhyAndHowManyDocumentsWait(): void
     {
         $this->resetStreamFilterBuffer();
 
         command('einvoice:dispatch');
 
-        $this->assertStringContainsString('nothing is sent. Documents waiting: 0.', $this->getStreamFilterBuffer());
+        $output = $this->getStreamFilterBuffer();
+
+        $this->assertStringContainsString('Nothing is sent to ZATCA: testing, network_off, environment_not_approved, integration_off. Documents waiting: 0.', $output);
+        $this->assertSame(0, Database::connect()->table('einvoice_submissions')->countAllResults(), 'not a single attempt');
     }
 }

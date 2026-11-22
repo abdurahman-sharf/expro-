@@ -3,6 +3,7 @@
 namespace Tests\Database;
 
 use App\Database\Migrations\AdvanceVatReturns;
+use App\Database\Migrations\EInvoiceReissue;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -34,6 +35,7 @@ class AdvanceVatReturnsMigrationTest extends CIUnitTestCase
         }
 
         (new AdvanceVatReturns())->up();
+        (new EInvoiceReissue())->up();
 
         parent::tearDown();
     }
