@@ -181,6 +181,14 @@
 
 النتيجة الحالية بالـ SDK 2.0.3: الاختباران «غير مكتملين»، بلا أي فشل.
 
+**التشغيل الأخير (2026-11-22، على الإيداع `0992d60e0`، آخر تعديل برمجي):**
+
+| الاختبارات | النتيجة |
+|---|---|
+| الفوترة الإلكترونية: `tests/Libraries/EInvoicing` و`tests/Libraries/Documents` و`AccountingEInvoicingControllerTest` | 662 اختبارًا ناجحًا، وتُخطي اختبارا الـ SDK لأن `ZATCA_SDK_HOME` لم يُضبط |
+| مجموعة `zatca-sdk` بالـ SDK 2.0.3 | اختباران «غير مكتملين» (48 تأكيدًا)، بلا فشل |
+| الحزمة الكاملة (قاعدة اختبار مستقلة) | **23,307 اختبارات، بلا فشل ولا خطأ.** و13 متخطى: اختبارا الـ SDK، و11 تخطيًا قائمًا قبل هذه المرحلة. Controllers 4,430، وLibraries 11,922، وModels 827، وDatabase 649، وSupport 421، وLanguageFiles 4,182، والباقي 876 |
+
 ```bash
 ZATCA_SDK_HOME=/path/to/sdk vendor/bin/phpunit --no-coverage --display-incomplete --group zatca-sdk tests/Libraries/EInvoicing/DocumentStamperTest.php tests/Libraries/EInvoicing/EInvoiceServiceTest.php
 ```
