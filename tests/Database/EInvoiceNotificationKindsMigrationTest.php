@@ -31,6 +31,11 @@ class EInvoiceNotificationKindsMigrationTest extends CIUnitTestCase
         parent::tearDown();
     }
 
+    private function checksAreKept(): bool
+    {
+        return Database::connect()->query("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_NAME = 'CHECK_CONSTRAINTS'")->getRow() !== null;
+    }
+
     private function insert(string $kind): bool
     {
         try {
@@ -46,7 +51,7 @@ class EInvoiceNotificationKindsMigrationTest extends CIUnitTestCase
 
         $this->assertTrue($this->insert('einvoice_certificate_expiry'));
         $this->assertTrue($this->insert('einvoice_reporting_late'));
-        $this->assertFalse($this->insert('something_else'), 'the check names the kinds');
+        $this->assertSame(! $this->checksAreKept(), $this->insert('something_else'), 'the check names the kinds, where the database keeps checks (not MySQL 5.7)');
     }
 
     public function testDown_RefusesWhileARuleOfAKindOfZatcaExists(): void
@@ -63,6 +68,6 @@ class EInvoiceNotificationKindsMigrationTest extends CIUnitTestCase
         (new EInvoiceNotificationKinds())->down();
 
         $this->assertTrue($this->insert('cheque_due'));
-        $this->assertFalse($this->insert('einvoice_reporting_late'));
+        $this->assertSame(! $this->checksAreKept(), $this->insert('einvoice_reporting_late'));
     }
 }
