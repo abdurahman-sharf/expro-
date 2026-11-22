@@ -90,7 +90,7 @@ final class EInvoiceBuilder
 
         $subtype  = $original?->subtype ?? $subtype ?? $this->parties->defaultSubtype($sale->customerId);
         $built    = $this->lines($sale);
-        $rules    = $this->assemble($built, $sale->vat);
+        $rules    = $this->assemble($built, $sale->vat, $sale->isReturn());
         $rounding = $this->tieToTheBooks($sale, $rules);
 
         [$prepayments, $prepaidRounding] = $sale->vat === [] ? [[], '0.00'] : $this->prepaymentsOf($sale->saleId);
@@ -418,8 +418,14 @@ final class EInvoiceBuilder
                 throw new EInvoiceException(EInvoiceError::RuleBroken, 'The line comes to more than its quantity times its price.', ['rule' => 'BR-KSA-EN16931-11', 'line' => $number]);
             }
         } else {
-            $price     = SaleAmounts::round(bcdiv($goods, $quantity, 8), 4);
+            $exact     = bcdiv($goods, $quantity, 8);
+            $price     = SaleAmounts::round($exact, 4);
             $allowance = '0.00';
+
+            if (bccomp(SaleAmounts::round(bcmul($quantity, $price, 8), 2), $net, 2) !== 0) {
+                $price     = self::upToFourDecimals($exact);
+                $allowance = bcsub(SaleAmounts::round(bcmul($quantity, $price, 8), 2), $net, 2);
+            }
         }
 
         $lineTax = bcadd($included, SaleAmounts::absolute($line->addedTax), SaleAmounts::SCALE);
@@ -537,16 +543,22 @@ final class EInvoiceBuilder
      * Sums the lines the way the standard says and holds the sums to its rules.
      *
      * A sale whose VAT was worked out once states the VAT of each category as it was kept, and its lines must add up
-     * to the taxable amount of their category.
+     * to the taxable amount of their category. The VAT of a return of such a sale is rounded on all that came back of
+     * its sale, so that partial returns never give back more VAT than the sale charged (VatCalculator::capReturn): it
+     * may part from its own taxable amount times its rate by a halala, which the standard allows for a line. Lines whose
+     * VAT was not worked once (the return of a sale saved before the Saudi rules) carry the tax as it was rounded line
+     * by line, which may part from the taxable amount of their category times its rate by a halala a line, as the
+     * official validator allows (BR-CO-17, BR-S-09).
      *
      * @param list<BuiltLine>                 $lines
      * @param array<string, VatCategoryTotal> $kept
+     * @param bool                            $return Whether the lines are those of a return.
      *
      * @return array{subtotals: list<EInvoiceTaxSubtotal>, lineExtension: string, taxExclusive: string, tax: string, total: string, charges: list<EInvoiceCharge>}
      *
      * @throws EInvoiceException
      */
-    private function assemble(array $lines, array $kept = []): array
+    private function assemble(array $lines, array $kept = [], bool $return = false): array
     {
         $values  = $this->settings->all();
         $buckets = [];
@@ -605,8 +617,15 @@ final class EInvoiceBuilder
                 $written[$key]     = true;
             }
 
-            if (bccomp(SaleAmounts::round(bcdiv(bcmul($bucket['taxable'], $rate, 8), '100', 8), 2), $taxAmount, 2) !== 0) {
-                throw new EInvoiceException(EInvoiceError::RuleBroken, 'The tax of a category is not its taxable amount times its rate.', ['rule' => 'BR-CO-17', 'expected' => SaleAmounts::round(bcdiv(bcmul($bucket['taxable'], $rate, 8), '100', 8), 2), 'actual' => $taxAmount]);
+            $expected = SaleAmounts::round(bcdiv(bcmul($bucket['taxable'], $rate, 8), '100', 8), 2);
+            $allowed  = match (true) {
+                $kept === [] => bcmul('0.01', (string) count($lines), 2),
+                $return      => '0.01',
+                default      => '0.00',
+            };
+
+            if (bccomp(SaleAmounts::absolute(bcsub($expected, $taxAmount, 2)), $allowed, 2) > 0) {
+                throw new EInvoiceException(EInvoiceError::RuleBroken, 'The tax of a category is not its taxable amount times its rate.', ['rule' => 'BR-CO-17', 'expected' => $expected, 'actual' => $taxAmount]);
             }
 
             $subtotals[] = new EInvoiceTaxSubtotal($category, $rate, $bucket['taxable'], $taxAmount, $code, (string) $bucket['text']);
@@ -639,6 +658,18 @@ final class EInvoiceBuilder
         }
 
         return $rounding;
+    }
+
+    /**
+     * A price that holds the tax is the net of its line over its quantity, which four decimals do not always carry:
+     * rounded up, the quantity times it comes to the net or a little above, and the line takes what is above as an
+     * allowance, so that it comes to its quantity times its price less its allowance (BR-KSA-EN16931-11).
+     */
+    private static function upToFourDecimals(string $amount): string
+    {
+        $cut = bcadd($amount, '0', 4);
+
+        return bccomp($cut, $amount, 8) < 0 ? bcadd($cut, '0.0001', 4) : $cut;
     }
 
     private function quantity(string $quantity): string

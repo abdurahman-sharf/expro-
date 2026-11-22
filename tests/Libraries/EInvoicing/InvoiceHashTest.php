@@ -62,7 +62,7 @@ class InvoiceHashTest extends CIUnitTestCase
         $xml = new UblInvoiceXml();
 
         $this->assertSame('neq5gp7Skzhzrjpicf/zLlSRzbXD54QNO4zq6PC5+pM=', InvoiceHash::of($xml->build($this->simplifiedDocument(), 'QR-TEXT')));
-        $this->assertSame('dl+Xk3EmnCRA3u062eT6K3zQDxijIPsePLv0junn1qM=', InvoiceHash::of($xml->build($this->creditNoteDocument(), 'QR-TEXT')));
+        $this->assertSame('T6qbEH3npIq96rMEojGBMsmcI7eQih60vcI6Dt8UepA=', InvoiceHash::of($xml->build($this->creditNoteDocument(), 'QR-TEXT')), 'written down again when a note without payment came to name the instrument as not defined (code 1)');
     }
 
     public function testCanonical_LeavesTheNamespaceDeclarationsOfTheRootInPlaceWhenTheExtensionsAreTakenOut(): void

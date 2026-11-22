@@ -2,6 +2,8 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\EInvoicing\EInvoiceRules;
+use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\Tax\AdvanceVat;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -246,7 +248,15 @@ final class CreditSettlement
         ]);
 
         if ($source->type === CreditSource::CUSTOMER_ADVANCE) {
-            (new AdvanceVat($this->db))->applied((int) $this->db->insertID(), $source->sourceId, $invoiceId > 0 ? $invoiceId : null, $take, $employeeId);
+            $returnId = (new AdvanceVat($this->db))->applied((int) $this->db->insertID(), $source->sourceId, $invoiceId > 0 ? $invoiceId : null, $take, $employeeId);
+
+            if ($returnId !== null) {
+                $documents = new EInvoiceService($this->db);
+
+                if ($documents->documentOf(EInvoiceService::SOURCE_ADVANCE, $source->sourceId) !== null) {
+                    $documents->issueForAdvanceReturn($returnId, EInvoiceRules::NOTE_REASONS[0], $employeeId);
+                }
+            }
         }
 
         $open[$invoiceId] = bcsub($owed, $take, SaleAmounts::SCALE);
@@ -259,7 +269,9 @@ final class CreditSettlement
     }
 
     /**
-     * Releases an application, or the part of it that is cut and keeps the rest as a new one.
+     * Releases an application, or the part of it that is cut and keeps the rest as a new one. What an advance paid of
+     * something no document states it on went back with a credit note when it was applied, so the rest kept takes
+     * nothing more of its VAT.
      *
      * @param numeric-string $amount
      * @param numeric-string $cut
@@ -291,8 +303,8 @@ final class CreditSettlement
                 'created_by'      => $row->created_by,
             ]);
 
-            if ($row->source_type === CreditSource::CUSTOMER_ADVANCE) {
-                $vat->applied((int) $this->db->insertID(), (int) $row->source_id, $row->invoice_sale_id === null ? null : (int) $row->invoice_sale_id, $rest, $employeeId);
+            if ($row->source_type === CreditSource::CUSTOMER_ADVANCE && $row->invoice_sale_id !== null && $vat->statesPrepayments((int) $row->invoice_sale_id)) {
+                $vat->applied((int) $this->db->insertID(), (int) $row->source_id, (int) $row->invoice_sale_id, $rest, $employeeId);
             }
         }
     }

@@ -695,6 +695,18 @@ class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(['8.60', '1.29'], [$document->taxSubtotals[0]->taxable, $document->taxSubtotals[0]->taxAmount]);
     }
 
+    public function testFromSale_PricesALineHoldingTheTaxSoThatItsQuantityTimesItsPriceLessItsAllowanceIsItsNet(): void
+    {
+        $itemId = $this->item('0', false);
+        $saleId = $this->save([$this->line($itemId, 0, '200', '1.00')], [$this->taxRow($itemId, 0, 'VAT', '15.0000', 0, '26.0870')]);
+
+        $this->keepVat($saleId, [$itemId . ':0' => ['173.91', '26.09', '200.00']], new VatCategoryTotal('S', '15.000', null, null, '173.91', '26.09', true));
+
+        $line = $this->builder->fromSale($saleId)->lines[0];
+
+        $this->assertSame(['200.00', '0.8696', '0.01', '173.91'], [$line->quantity, $line->priceNet, $line->allowance, $line->netAmount], '200 times 0.8696 is 173.92: the halala above the net is the allowance (BR-KSA-EN16931-11)');
+    }
+
     public function testFromSale_GivesALineWhoseNetWasHeldToItsSaleTheAllowanceThatBringsItThere(): void
     {
         $itemId = $this->item('0', false);
@@ -726,6 +738,37 @@ class EInvoiceBuilderTest extends CIUnitTestCase
 
         $this->assertSame(['0.30', '0.05', '0.35', '0.00'], [$document->taxExclusive, $document->taxAmount, $document->taxInclusive, $document->rounding]);
         $this->assertSame('0.02', $document->lines[0]->vatAmount, 'each line states its own VAT (KSA-11)');
+    }
+
+    public function testFromSale_StatesTheVatAReturnWasHeldToWithinTheHalalaTheStandardAllowsAndNoMore(): void
+    {
+        $itemId  = $this->item('0', false);
+        $invoice = $this->save([$this->line($itemId, 0, '11', '0.10')], [$this->tax($itemId, 0, '0.1650')]);
+        $return  = $this->save([$this->line($itemId, 0, '-1', '0.10')], [$this->tax($itemId, 0, '-0.0150')], [], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $this->keepVat($return, [$itemId . ':0' => ['-0.10', '-0.02', '-0.12']], new VatCategoryTotal('S', '15.000', null, null, '-0.10', '-0.01', false));
+
+        $document = $this->builder->fromSale($return, null, 'In case of goods or services refund.', new OriginalReference(7, 'INV-7', EInvoiceSubtype::Simplified));
+
+        $this->assertSame(['0.10', '0.01', '0.11'], [$document->taxExclusive, $document->taxAmount, $document->taxInclusive], 'the second of eleven returns of one unit gives back 0.01, so that together they give back the 0.17 of the sale');
+
+        $sale = $this->save([$this->line($itemId, 0, '1', '0.10')], [$this->tax($itemId, 0, '0.0150')]);
+
+        $this->keepVat($sale, [$itemId . ':0' => ['0.10', '0.02', '0.12']], new VatCategoryTotal('S', '15.000', null, null, '0.10', '0.01', false));
+
+        $this->assertSame(EInvoiceError::RuleBroken, $this->refusal(fn () => $this->builder->fromSale($sale))->error, 'an invoice states its taxable amount times its rate, to the halala');
+    }
+
+    public function testFromSale_StatesTheTaxOfAReturnOfASaleSavedBeforeTheRulesAsItWasRoundedLineByLine(): void
+    {
+        $first   = $this->item('0', false);
+        $second  = $this->item('0', false);
+        $invoice = $this->save([$this->line($first, 0, '1', '1.10'), $this->line($second, 1, '1', '1.10')], [$this->tax($first, 0, '0.1700'), $this->tax($second, 1, '0.1700')]);
+        $return  = $this->save([$this->line($first, 0, '-1', '1.10'), $this->line($second, 1, '-1', '1.10')], [$this->tax($first, 0, '-0.1700'), $this->tax($second, 1, '-0.1700')], [], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $document = $this->builder->fromSale($return, null, 'In case of goods or services refund.', new OriginalReference(null, 'INV-OLD-1', EInvoiceSubtype::Simplified, $invoice));
+
+        $this->assertSame(['2.20', '0.34', '2.54'], [$document->taxExclusive, $document->taxAmount, $document->taxInclusive], 'two lines rounded each to 0.17 part from the 0.33 of 2.20 by a halala, within the halala a line the standard allows');
     }
 
     public function testFromSale_WritesTheShippingOfASaleWhoseVatWasWorkedOnceAsAChargeOfItsCategory(): void

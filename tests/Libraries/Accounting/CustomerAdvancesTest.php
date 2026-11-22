@@ -17,6 +17,8 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\EInvoiceKind;
 use App\Libraries\EInvoicing\EInvoiceService;
+use App\Libraries\Accounting\SalesDebitNotes;
+use App\Libraries\EInvoicing\EInvoiceRules;
 use App\Libraries\Tax\AdvanceVat;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -295,6 +297,31 @@ class CustomerAdvancesTest extends CIUnitTestCase
         $this->assertSame(['100.00', '15.00', '115.00'], [$note->taxExclusive, $note->taxAmount, $note->taxInclusive]);
         $this->assertSame($prepayment->documentId, $note->originalDocumentId);
         $this->assertStringContainsString('<cbc:ID>' . $prepayment->number . '</cbc:ID>', $note->xml);
+        $this->assertSame([$this->accountId('tax_output') . '=15.00/0.00', $this->accountId('tax_advances') . '=0.00/15.00'], $this->linesOf(AdvanceVat::SOURCE_RETURN, (int) $return->return_id));
+    }
+
+    public function testReceive_GivesBackTheVatOfWhatAnAdvancePaysOfADebitNoteByACreditNoteOfItsPrepaymentInvoice(): void
+    {
+        $this->underTheSaudiRules();
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $invoiceId = $this->saudiSaleOf('100.00', -1, [$this->payment('Cash', '115.00')]);
+        $advanceId = $this->receive('1150.00');
+        $original  = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_SALE, $invoiceId);
+        $noteId    = (new SalesDebitNotes())->create(['customer_id' => $this->customerId, 'date' => date('Y-m-d'), 'amount' => '100.00', 'tax_percent' => '15', 'note' => 'Freight', 'original_document' => $original->number, 'note_reason' => EInvoiceRules::NOTE_REASONS[1]], $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]));
+        $return    = $this->accountingDb()->table('customer_advance_vat_returns')->where('advance_id', $advanceId)->get()->getRow();
+
+        $this->assertNotNull($return, 'what the advance paid of the note went back as a return of the advance');
+        $this->assertSame(['115.00', '100.00', '15.00'], [$return->gross, $return->taxable, $return->vat]);
+        $this->assertSame(0, $this->accountingDb()->table('customer_advance_vat_uses')->where('advance_id', $advanceId)->countAllResults(), 'no VAT is given back without a document that gives it back');
+
+        $documents = new EInvoiceService();
+        $credit    = $documents->documentOf(EInvoiceService::SOURCE_RETURN, (int) $return->return_id);
+
+        $this->assertNotNull($credit, 'a credit note of the prepayment invoice states it');
+        $this->assertSame(['100.00', '15.00'], [$credit->taxExclusive, $credit->taxAmount]);
+        $this->assertSame($documents->documentOf(EInvoiceService::SOURCE_ADVANCE, $advanceId)->documentId, $credit->originalDocumentId);
+        $this->assertSame('15.00', $documents->documentOf(EInvoiceService::SOURCE_NOTE, $noteId)->taxAmount, 'the debit note charges its own VAT');
         $this->assertSame([$this->accountId('tax_output') . '=15.00/0.00', $this->accountId('tax_advances') . '=0.00/15.00'], $this->linesOf(AdvanceVat::SOURCE_RETURN, (int) $return->return_id));
     }
 

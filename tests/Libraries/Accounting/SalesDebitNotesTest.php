@@ -218,6 +218,19 @@ class SalesDebitNotesTest extends CIUnitTestCase
         $this->assertSame('In case of essential change or amendment in the supply, which leads to the change of the VAT due', $document->reason);
     }
 
+    public function testCreate_TakesTheAmountToTheHalalaBeforeItsTaxUnderTheSaudiRules(): void
+    {
+        $this->underTheSaudiRules();
+
+        $original = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_SALE, $this->saudiSaleOf('100.00'));
+        $id       = $this->raise(['amount' => '10.0349', 'tax_percent' => '15', 'original_document' => $original->number, 'note_reason' => 'In case of essential change or amendment in the supply, which leads to the change of the VAT due']);
+        $document = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_NOTE, $id);
+
+        $this->assertNotNull($document, 'the note is issued: its tax is that of the 10.03 it states, not the 1.51 of 10.0349');
+        $this->assertSame(['10.03', '1.50', '11.53'], [$document->taxExclusive, $document->taxAmount, $document->taxInclusive]);
+        $this->assertSame([$this->customerAccount() . '=11.5300/0.0000', $this->accountId('sales_revenue') . '=0.0000/10.0300', $this->accountId('tax_output') . '=0.0000/1.5000'], $this->linesOf($id, 4));
+    }
+
     public function testCreate_RefusesANoteThatNamesNoIssuedDocumentUnderTheSaudiRules(): void
     {
         $this->underTheSaudiRules();

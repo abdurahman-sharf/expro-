@@ -122,20 +122,28 @@ class AdvanceVat
     }
 
     /**
-     * Gives back the part of the VAT of an advance that an application of its credit takes.
+     * Gives back the part of the VAT of an advance that an application of its credit takes, on the invoice whose
+     * document will state it as a prepayment. What pays something whose document never will (a debit note, an
+     * opening balance, an invoice saved before the Saudi rules) goes back as a return of the advance instead, which
+     * a credit note of its prepayment invoice states, so that the books never give back VAT that no document gives
+     * back. The return is given, for its note to be issued, or null.
      *
      * @throws AccountingException|PostingException
      */
-    public function applied(int $applicationId, int $advanceId, ?int $saleId, string $amount, ?int $employeeId): void
+    public function applied(int $applicationId, int $advanceId, ?int $saleId, string $amount, ?int $employeeId): ?int
     {
         if ($saleId !== null && $this->issued($saleId)) {
-            return;
+            return null;
+        }
+
+        if ($saleId === null || ! $this->statesPrepayments($saleId)) {
+            return $this->returned($advanceId, $amount, null, $this->dayOf($saleId), $employeeId);
         }
 
         $part = $this->partOf($advanceId, $amount);
 
         if ($part === null) {
-            return;
+            return null;
         }
 
         $advance = $this->db->table('customer_advances')->select('branch_id')->where('advance_id', $advanceId)->get()->getRow();
@@ -150,6 +158,19 @@ class AdvanceVat
         ]);
 
         $this->post(self::SOURCE_USE, $applicationId, $this->openDay($this->dayOf($saleId), (int) $advance->branch_id), (int) $advance->branch_id, RoutingKey::TaxOutput, RoutingKey::TaxAdvances, $part['vat'], 'VAT of advance #' . $advanceId . ' taken by an invoice', $employeeId);
+
+        return null;
+    }
+
+    /**
+     * Whether a sale was made under the Saudi rules, and so is issued with a document that states the prepayments
+     * it takes.
+     */
+    public function statesPrepayments(int $saleId): bool
+    {
+        $sale = $this->db->table('sales')->select('sale_time')->where('sale_id', $saleId)->get()->getRow();
+
+        return $sale !== null && (new CompanyTaxProfile($this->db))->current()->inSaudiModeAt((string) $sale->sale_time);
     }
 
     /**

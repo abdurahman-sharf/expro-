@@ -441,7 +441,8 @@ final class SalesDebitNotes
 
     /**
      * The amount, the rate and what comes of them, the way an invoice rounds: the tax as calculated, the
-     * total to the cent, and the revenue what is left of the total after the tax.
+     * total to the cent, and the revenue what is left of the total after the tax. Under the Saudi rules the
+     * amount is taken to the halala first, as its document states it, and the tax worked out on that.
      *
      * @return array{amount: numeric-string, percent: numeric-string, tax: numeric-string, total: numeric-string, revenue: numeric-string}
      *
@@ -460,8 +461,9 @@ final class SalesDebitNotes
             throw new AccountingException(AccountingError::DebitNoteTaxInvalid, 'The tax must be a percentage from 0 to 100.');
         }
 
-        $amount = bcadd($amount, '0', SaleAmounts::SCALE);
-        $tax    = SaleAmounts::round(bcmul($amount, bcdiv($percent, '100', 8), 8), (new CompanyTaxProfile($this->db))->isSaudiMode() ? 2 : SaleAmounts::SCALE);
+        $saudi  = (new CompanyTaxProfile($this->db))->isSaudiMode();
+        $amount = bcadd($saudi ? SaleAmounts::round($amount, 2) : $amount, '0', SaleAmounts::SCALE);
+        $tax    = SaleAmounts::round(bcmul($amount, bcdiv($percent, '100', 8), 8), $saudi ? 2 : SaleAmounts::SCALE);
         $split  = InvoiceRounding::split($amount, $tax);
 
         if (bccomp($split['total'], '0', SaleAmounts::SCALE) <= 0 || bccomp($split['total'], self::TOTAL_MAX, SaleAmounts::SCALE) > 0) {

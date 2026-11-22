@@ -16,7 +16,10 @@ use App\Libraries\EInvoicing\PartyIdentificationType;
 /**
  * The samples of the matrix of the plan (TAX2 §5.3) as documents, each consistent with the rules of the standard as
  * Expro reads them, so that the official validator can be run on them offline (T5). The chain samples carry their
- * counters, and the broken samples are made wrong on purpose and must be refused.
+ * counters, and the broken samples are made wrong on purpose and must be refused. S-14 is the second of eleven
+ * returns of one unit of a sale of 1.10, whose VAT is rounded on all that came back (0.01, a halala below 0.10 times
+ * the rate); S-15 a line whose price holds the tax, rounded up to four decimals with the halala above its net as an
+ * allowance; S-16 the return of a sale saved before the Saudi rules, its tax rounded line by line.
  */
 trait EInvoiceMatrixTrait
 {
@@ -81,6 +84,9 @@ trait EInvoiceMatrixTrait
             'S-13' => $this->amended($this->sample(EInvoiceKind::Invoice, EInvoiceSubtype::Simplified, [$this->row(1, 'Project', '1.00', '200.0000', '0.00', '200.00', $standard, '30.00')]), [
                 'prepayments' => [new EInvoicePrepayment('ADV-2', '2022-08-01', '09:00:00', 'S', '15.00', '100.00', '15.00')],
             ]),
+            'S-14' => $this->sample(EInvoiceKind::CreditNote, EInvoiceSubtype::Simplified, [$this->row(1, 'Book', '1.00', '0.1000', '0.00', '0.10', $standard, '0.02')], [], '0.01'),
+            'S-15' => $this->sample(EInvoiceKind::Invoice, EInvoiceSubtype::Simplified, [$this->row(1, 'Water', '200.00', '0.8696', '0.01', '173.91', $standard, '26.09')]),
+            'S-16' => $this->sample(EInvoiceKind::CreditNote, EInvoiceSubtype::Simplified, [$this->row(1, 'Pen', '1.00', '1.1000', '0.00', '1.10', $standard, '0.17'), $this->row(2, 'Pencil', '1.00', '1.1000', '0.00', '1.10', $standard, '0.17')]),
         ];
 
         foreach ($this->chain() as $key => $document) {
