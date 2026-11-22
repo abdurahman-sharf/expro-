@@ -60,13 +60,14 @@ final class VatCalculator
      * Holds the categories of a return to what is left of its sale: a return never gives back more taxable amount
      * than the sale charged less what earlier returns gave back, and the return that takes back the last units of
      * a category, or the whole of its taxable amount, gives back exactly what is left of it, its largest line
-     * carrying what that moves. The VAT of each category stays its taxable amount times its rate, rounded
-     * (BR-CO-17), which the credit note must hold: the standard rounds every document on its own, so returns in
-     * parts can part from the VAT of their sale by a halala each, as they did before. The return's amounts are
-     * negative; what is left is positive.
+     * carrying what that moves. The VAT of a category is rounded on everything the returns of the sale gave back,
+     * this one with them, less the VAT the earlier ones gave back, and never more than the VAT left: returns in
+     * parts thus give back together the VAT of their sale and never more, whatever each part rounds to. Each credit
+     * note parts from its own taxable amount times its rate by a halala at most, within what the standard allows
+     * for one line (BR-CO-17, BR-S-09). The return's amounts are negative; what is left is positive.
      *
-     * @param array<string, array{taxable: string, vat: string}> $left      By category key.
-     * @param list<string>                                       $exhausted The categories whose units the return takes back to the last, whatever its amounts round to.
+     * @param array<string, array{taxable: string, vat: string, returned_taxable?: string, returned_vat?: string}> $left      By category key.
+     * @param list<string>                                                                                         $exhausted The categories whose units the return takes back to the last, whatever its amounts round to.
      */
     public function capReturn(VatResult $return, array $left, array $exhausted = []): VatResult
     {
@@ -76,6 +77,8 @@ final class VatCalculator
         foreach ($return->categories as $key => $category) {
             $taxable = bcadd(self::absolute($category->taxable), '0', 2);
             $sign    = '-';
+            $rate    = bcdiv($category->percent, '100', self::WORK_SCALE);
+            $vat     = self::round(bcmul($taxable, $rate, self::WORK_SCALE), 2);
 
             if (isset($left[$key])) {
                 $leftTaxable = bcadd($left[$key]['taxable'], '0', 2);
@@ -84,10 +87,13 @@ final class VatCalculator
                     $lines   = $this->moveOntoTheLargest($lines, $key, bcsub(self::signed($sign, $leftTaxable), $category->taxable, 2), $category->percent);
                     $taxable = $leftTaxable;
                 }
+
+                $returned = bcadd($left[$key]['returned_taxable'] ?? '0', $taxable, 2);
+                $vat      = bcsub(self::round(bcmul($returned, $rate, self::WORK_SCALE), 2), bcadd($left[$key]['returned_vat'] ?? '0', '0', 2), 2);
+                $vat      = self::between($vat, '0.00', self::absolute(bcadd($left[$key]['vat'], '0', 2)));
             }
 
-            $signed           = self::signed($sign, $taxable);
-            $categories[$key] = $category->withAmounts($signed, self::round(bcmul($signed, bcdiv($category->percent, '100', self::WORK_SCALE), self::WORK_SCALE), 2));
+            $categories[$key] = $category->withAmounts(self::signed($sign, $taxable), self::signed($sign, $vat));
         }
 
         return new VatResult($lines, $categories);
@@ -185,6 +191,15 @@ final class VatCalculator
         $vat   = self::round($exact, 2);
 
         return new VatLineResult($net, $vat, bcadd($net, $vat, 2), self::trim($exact), $key);
+    }
+
+    private static function between(string $amount, string $lowest, string $highest): string
+    {
+        if (bccomp($amount, $lowest, 2) < 0) {
+            return bcadd($lowest, '0', 2);
+        }
+
+        return bccomp($amount, $highest, 2) > 0 ? bcadd($highest, '0', 2) : bcadd($amount, '0', 2);
     }
 
     private static function percent(string $percent): string

@@ -130,7 +130,7 @@ class Tax_libTest extends CIUnitTestCase
 
     /**
      * @param array<string, VatCategoryTotal>                    $saved
-     * @param array<string, array{taxable: string, vat: string}> $left
+     * @param array<string, array{taxable: string, vat: string, returned_taxable?: string, returned_vat?: string}> $left
      * @param list<string>                                       $exhausted
      */
     private function snapshot(bool $installed, array $saved = [], array $left = [], array $exhausted = []): VatSnapshot
@@ -782,6 +782,23 @@ class Tax_libTest extends CIUnitTestCase
         $this->assertSame(['-0.34', '-0.05'], [$taxes[2]['S|15.000|']->taxable, $taxes[2]['S|15.000|']->vat], 'the last units give back what is left, not the 0.33 they come to');
         $this->assertSame('-0.34', $taxes[1][0]['vat_amounts']->net);
         $this->assertSame('-0.05', array_values($taxes[0])[0]['sale_tax_amount']);
+    }
+
+    public function testGetTaxes_RoundsTheVatOfASaudiReturnOnAllThatCameBackOfItsSale(): void
+    {
+        $stored = [3 => [['item_id' => 3, 'name' => 'VAT', 'percent' => '15', 'tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'liability_account_id' => null]]];
+        $taxLib = $this->taxLib(false, false, [], [['name' => 'VAT', 'percent' => '15']], $stored);
+        $taxLib->useVatSource($this->vatSource(true, [], [3 => new LineVat(1, 'S', '15.000', null, null, 'VAT')]));
+        $taxLib->useVatSnapshot($this->snapshot(true, [], ['S|15.000|' => ['taxable' => '0.20', 'vat' => '0.03', 'returned_taxable' => '0.10', 'returned_vat' => '0.02']]));
+
+        session()->set('sales_mode', 'return');
+        session()->set('sales_return_origin', 12);
+
+        $cart  = [1 => ['item_id' => 3, 'line' => 1, 'quantity' => '-1', 'price' => '0.10', 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null]];
+        $taxes = $taxLib->get_taxes($cart);
+
+        $this->assertSame(['-0.10', '-0.01'], [$taxes[2]['S|15.000|']->taxable, $taxes[2]['S|15.000|']->vat], 'the 0.20 that came back carry 0.03 of VAT, of which the first return gave back 0.02');
+        $this->assertSame('-0.01', array_values($taxes[0])[0]['sale_tax_amount'], 'the register charges back what the note states');
     }
 
     public function testGetTaxes_ReadsTheHeaderOfASavedSaudiSaleAsItWasSaved(): void

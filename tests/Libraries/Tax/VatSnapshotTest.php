@@ -109,7 +109,7 @@ class VatSnapshotTest extends CIUnitTestCase
         $this->returnOf(COMPLETED, '-0.10', '-0.02');
         $this->returnOf(CANCELED, '-0.10', '-0.02');
 
-        $this->assertSame(['S|15.000|' => ['taxable' => '0.20', 'vat' => '0.03']], (new VatSnapshot())->leftOf($this->sale));
+        $this->assertSame(['S|15.000|' => ['taxable' => '0.20', 'vat' => '0.03', 'returned_taxable' => '0.10', 'returned_vat' => '0.02']], (new VatSnapshot())->leftOf($this->sale));
     }
 
     public function testLeftOf_LeavesTheShippingACategoryTookInOutOfWhatAReturnGivesBack(): void
@@ -124,6 +124,7 @@ class VatSnapshotTest extends CIUnitTestCase
         (new VatSnapshot())->record($saleId, ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '-45.00', '-6.75', false, '-5.00')]);
 
         $this->assertSame('60.00', (new VatSnapshot())->leftOf($this->sale)['S|15.000|']['taxable'], 'a return takes off its lines only');
+        $this->assertSame(['45.00', '6.75'], [(new VatSnapshot())->leftOf($this->sale)['S|15.000|']['returned_taxable'], (new VatSnapshot())->leftOf($this->sale)['S|15.000|']['returned_vat']], 'what came back is counted whole, its shipping with it, for the rounding of the next return');
     }
 
     public function testLeftOf_GivesNothingWhenAReturnOfTheSaleWasSavedWithoutItsVatWorkedOnce(): void

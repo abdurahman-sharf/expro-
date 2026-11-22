@@ -150,19 +150,21 @@ class VatSnapshot
     }
 
     /**
-     * What is left of each category of a sale once the returns saved against it are taken off, by category key.
-     * The taxable amount left is that of the lines: the shipping a category took in is not given back with goods.
-     * Nothing when a completed return of the sale was saved without its categories, since what it gave back
-     * cannot be told by category and a cap worked from the rest would let the next return give back too much.
+     * What is left of each category of a sale once the returns saved against it are taken off, by category key,
+     * and what those returns gave back. The taxable amount left is that of the lines: the shipping a category took
+     * in is not given back with goods. What the returns gave back is their whole taxable amount and VAT, so that the
+     * VAT of the next return is rounded on all that came back (VatCalculator::capReturn). Nothing when a completed
+     * return of the sale was saved without its categories, since what it gave back cannot be told by category and a
+     * cap worked from the rest would let the next return give back too much.
      *
-     * @return array<string, array{taxable: string, vat: string}>
+     * @return array<string, array{taxable: string, vat: string, returned_taxable: string, returned_vat: string}>
      */
     public function leftOf(int $saleId): array
     {
         $left = [];
 
         foreach ($this->totalsOf($saleId) as $key => $total) {
-            $left[$key] = ['taxable' => $total->lines(), 'vat' => $total->vat];
+            $left[$key] = ['taxable' => $total->lines(), 'vat' => $total->vat, 'returned_taxable' => '0.00', 'returned_vat' => '0.00'];
         }
 
         if ($left === []) {
@@ -188,11 +190,14 @@ class VatSnapshot
             ->getResult();
 
         foreach ($returns as $row) {
-            $key = $this->total($row)->key();
+            $total = $this->total($row);
+            $key   = $total->key();
 
             if (isset($left[$key])) {
-                $left[$key]['taxable'] = bcadd($left[$key]['taxable'], $this->total($row)->lines(), 2);
-                $left[$key]['vat']     = bcadd($left[$key]['vat'], (string) $row->vat, 2);
+                $left[$key]['taxable']          = bcadd($left[$key]['taxable'], $total->lines(), 2);
+                $left[$key]['vat']              = bcadd($left[$key]['vat'], (string) $row->vat, 2);
+                $left[$key]['returned_taxable'] = bcsub($left[$key]['returned_taxable'], $total->taxable, 2);
+                $left[$key]['returned_vat']     = bcsub($left[$key]['returned_vat'], (string) $row->vat, 2);
             }
         }
 

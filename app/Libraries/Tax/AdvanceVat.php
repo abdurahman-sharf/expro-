@@ -274,7 +274,31 @@ class AdvanceVat
             return [...$left, 'percent' => (string) $charged->percent];
         }
 
-        return ['gross' => $part, ...self::split($part, (string) $charged->percent), 'percent' => (string) $charged->percent];
+        return ['gross' => $part, ...self::within($part, $left, (string) $charged->percent), 'percent' => (string) $charged->percent];
+    }
+
+    /**
+     * The split of a part of an advance that never takes more VAT, nor more taxable amount, than is left of it, so
+     * that parts taken one after another never give back more VAT than the advance carried, whatever each rounds to.
+     * A part whose own split would take too much keeps the rest of it and takes the difference on the other side.
+     *
+     * @param array{taxable: numeric-string, vat: numeric-string} $left
+     *
+     * @return array{taxable: numeric-string, vat: numeric-string}
+     */
+    public static function within(string $part, array $left, string $percent): array
+    {
+        $split = self::split($part, $percent);
+
+        if (bccomp($split['vat'], $left['vat'], 2) > 0) {
+            return ['taxable' => bcsub($part, $left['vat'], 2), 'vat' => bcadd($left['vat'], '0', 2)];
+        }
+
+        if (bccomp($split['taxable'], $left['taxable'], 2) > 0) {
+            return ['taxable' => bcadd($left['taxable'], '0', 2), 'vat' => bcsub($part, $left['taxable'], 2)];
+        }
+
+        return $split;
     }
 
     /**
