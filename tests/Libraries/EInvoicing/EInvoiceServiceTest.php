@@ -7,6 +7,13 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\SalesDebitNotes;
 use App\Libraries\EInvoicing\EInvoiceError;
+use App\Libraries\EInvoicing\ZatcaOutcome;
+use App\Libraries\EInvoicing\ZatcaIntegration;
+use App\Libraries\EInvoicing\ZatcaHttpClient;
+use App\Libraries\EInvoicing\ZatcaEnvironment;
+use App\Libraries\EInvoicing\OnboardingService;
+use App\Libraries\EInvoicing\KeyVault;
+use App\Libraries\EInvoicing\EInvoiceCredentials;
 use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\EInvoiceKind;
 use App\Libraries\EInvoicing\EInvoiceRules;
@@ -30,14 +37,17 @@ use App\Libraries\Accounting\Currencies;
 use App\Libraries\Tax\LineVat;
 use App\Libraries\Tax\VatCategoryTotal;
 use App\Libraries\Tax\VatLineResult;
+use App\Models\Appconfig;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use PHPUnit\Framework\Attributes\Group;
 use Config\Database;
+use Config\Zatca;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EInvoiceFixtureTrait;
+use Tests\Support\FakeZatcaAuthority;
 use Tests\Support\EInvoiceSaleFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -105,6 +115,11 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $this->accountingDb()->table('document_sequences')->truncate();
         $this->accountingDb()->table('app_config')->where('key', 'accounting_debit_note')->delete();
         $this->forgetOnboardedUnit();
+        model(Appconfig::class)->batch_save([EInvoiceSettings::PHASE_TWO => '0']);
+        $this->accountingDb()->table('einvoice_submissions')->truncate();
+        $this->accountingDb()->table('einvoice_cleared_documents')->truncate();
+        $this->accountingDb()->table('einvoice_outbox')->truncate();
+        $this->accountingDb()->table('accounting_audit_log')->whereIn('entity_type', ['einvoice_unit', 'einvoice_integration'])->delete();
         $this->removeTemporaryDirectories();
         $this->stopSelling();
 
@@ -667,6 +682,89 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame($again->documentId, $this->service->documentOf(EInvoiceService::SOURCE_SALE, $saleId)->documentId, 'the sale stands by the document issued again');
         $this->assertSame($again->documentId, $this->service->reissueRejected($refused->documentId, $manager)->documentId, 'issued again once at most');
         $this->assertTrue($this->service->inSync($again));
+    }
+
+    public function testIssueSale_CarriesTheDocumentsOfAnOnboardedUnitThroughReportingClearanceRefusalAndRetryAgainstAZatcaInMemory(): void
+    {
+        $this->skipWithoutTheCurve();
+
+        $authority = new FakeZatcaAuthority();
+        $transport = $authority->transport();
+        $directory = $this->temporaryDirectory();
+        $now       = date('Y-m-d H:i:s');
+
+        file_put_contents($directory . '/ring.key', KeyVault::newKeyLine('v1') . "\n");
+        chmod($directory . '/ring.key', 0o600);
+        config(Zatca::class)->keyRing = $directory . '/ring.key';
+
+        $credentials = new EInvoiceCredentials(KeyVault::fromFile($directory . '/ring.key'));
+        $onboarder   = $this->employeeWithGrants([AccountingGuard::EINVOICING_ONBOARD]);
+        $unitId      = (int) $this->accountingDb()->table('einvoice_units')->where(['company_id' => 1, 'is_default' => 1])->get()->getRow()->unit_id;
+        $client      = new ZatcaHttpClient($transport, ZatcaEnvironment::Production, $credentials, new Zatca());
+        $onboarding  = new OnboardingService(new ZatcaHttpClient($transport, ZatcaEnvironment::Production, null, new Zatca()), $credentials, null, new AccountingGuard(), $client);
+        $unit        = ['common_name' => 'EGS1-399999999', 'organization' => 'Maximum Speed Tech Supply LTD', 'organization_unit' => 'Riyadh', 'serial' => '1-Expro|2-1.0|3-cycle', 'vat_number' => self::SELLER_VAT, 'invoice_types' => '1100', 'address' => 'RRRD2929', 'business' => 'Supply activities'];
+
+        $onboarding->complianceStep($unitId, 'production', $unit, FakeZatcaAuthority::OTP, $onboarder);
+        $this->assertSame(array_fill(0, 6, ZatcaOutcome::Accepted->value), array_column($onboarding->complianceChecks($unitId, 'production', $now, $onboarder), 'outcome'));
+        $onboarding->productionStep($unitId, 'production', $now, $onboarder);
+        (new ZatcaIntegration())->enablePhaseTwo('Onboarded in production', $onboarder, $now, $credentials);
+
+        $reported = $this->issue($this->counterSale());
+        $cleared  = $this->issue($this->referenceSale($this->makeBusinessCustomer()));
+        $refused  = $this->issue($this->counterSale());
+        $silent   = $this->issue($this->counterSale());
+        $faulty   = $this->issue($this->counterSale());
+        $all      = [$reported, $cleared, $refused, $silent, $faulty];
+        $state    = fn (IssuedEInvoice $document): string => (string) $this->accountingDb()->table('einvoice_outbox')->where('document_id', $document->documentId)->get()->getRow()->status;
+
+        $this->assertSame(array_fill(0, 5, SubmissionService::PENDING), array_map($state, $all), 'each document of the second phase is queued when it is issued');
+        $this->assertSame(array_fill(0, 5, true), array_map(static fn (IssuedEInvoice $document): bool => $document->signed, $all), 'and stamped with the production certificate of the unit');
+
+        $authority->next = [$refused->uuid => 'reject', $silent->uuid => 'silent', $faulty->uuid => 'fail'];
+        $queue           = new SubmissionService($client);
+
+        $queue->dispatch();
+
+        $this->assertSame([SubmissionService::REPORTED, SubmissionService::CLEARED, SubmissionService::REJECTED, SubmissionService::UNKNOWN, SubmissionService::RETRY], array_map($state, $all));
+        $this->assertSame(1, $this->accountingDb()->table('einvoice_cleared_documents')->where('document_id', $cleared->documentId)->countAllResults(), 'the file ZATCA cleared is kept');
+        $this->assertStringContainsString('BR-KSA-08', (string) $this->accountingDb()->table('einvoice_submissions')->where('document_id', $refused->documentId)->get()->getRow()->errors);
+
+        $authority->next = [];
+        $this->accountingDb()->table('einvoice_outbox')->where('next_attempt_at IS NOT NULL', null, false)->update(['next_attempt_at' => '2000-01-01 00:00:00']);
+        $queue->dispatch();
+
+        $silentBodies = array_values(array_unique(array_map(static fn ($request): string => $request->body, array_filter($authority->requests, static fn ($request): bool => str_contains($request->body, $silent->uuid)))));
+
+        $this->assertSame([SubmissionService::REPORTED, SubmissionService::REPORTED], [$state($silent), $state($faulty)]);
+        $this->assertCount(1, $silentBodies, 'the document that got no answer went out again to the byte');
+
+        $again = $this->service->reissueRejected($refused->documentId, $this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]));
+
+        $queue->dispatch();
+
+        $this->assertSame([SubmissionService::REPORTED, SubmissionService::REJECTED], [$state($again), $state($refused)]);
+        $this->assertSame($faulty->hash, $again->previousHash, 'issued again after the last document, whose hash it carries');
+        $this->assertSame(1, $this->accountingDb()->table('einvoice_submissions')->where(['document_id' => $reported->documentId, 'outcome' => ZatcaOutcome::Accepted->value])->countAllResults(), 'nothing accepted is sent twice');
+    }
+
+    #[Group('zatca-sdk')]
+    public function testIssueSale_StampsWithTheCertificateOfTheUnitDocumentsTheOfficialValidatorPasses(): void
+    {
+        $sdk = $this->zatcaSdk();
+
+        $this->onboardedUnit();
+        $this->configureEInvoicing([EInvoiceSettings::PHASE_TWO => '1']);
+
+        $issued    = ['simplified' => $this->issue($this->counterSale()), 'standard' => $this->issue($this->referenceSale($this->makeBusinessCustomer())), 'again' => $this->issue($this->counterSale())];
+        $directory = $this->temporaryDirectory();
+
+        foreach ($issued as $name => $document) {
+            file_put_contents(sprintf('%s/%02d-%s.xml', $directory, $document->icv, $name), $document->xml);
+        }
+
+        file_put_contents(sprintf('%s/%02d-simplified.pih', $directory, $issued['simplified']->icv), $issued['simplified']->previousHash);
+
+        $this->assertOfficialResults($this->officialResults($sdk, $directory, true), []);
     }
 
     public function testIssueSale_IssuesNothingInTheSecondPhaseWithoutTheProductionCertificateOfTheUnit(): void
