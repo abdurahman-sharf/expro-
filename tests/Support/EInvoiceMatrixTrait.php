@@ -68,6 +68,19 @@ trait EInvoiceMatrixTrait
             'B-10' => $this->sample(EInvoiceKind::CreditNote, EInvoiceSubtype::Standard, [$this->row(1, 'Server', '1.00', '100.0000', '0.00', '100.00', $standard, '15.00')], [], null, $buyer),
             'B-11' => $this->sample(EInvoiceKind::DebitNote, EInvoiceSubtype::Standard, [$this->row(1, 'Price increase', '1.00', '20.0000', '0.00', '20.00', $standard, '3.00')], [], null, $buyer),
             'B-12' => $this->sample(EInvoiceKind::Invoice, EInvoiceSubtype::Standard, [$this->row(1, 'قلم حبر «أزرق» & <ممحاة> "صغيرة" — طقم مدرسي كامل للصف الأول الابتدائي', '1.00', '100.0000', '0.00', '100.00', $standard, '15.00')], [], null, $buyer),
+            'B-13' => $this->amended($this->sample(EInvoiceKind::CreditNote, EInvoiceSubtype::Standard, [$this->row(1, 'Advance payment', '1.00', '100.0000', '0.00', '100.00', $standard, '15.00')], [], null, $buyer), ['billingReference' => 'ADV-1', 'reason' => 'Cancellation or suspension of the supplies after its occurrence either wholly or partially']),
+            'S-10' => $this->amended($this->sample(EInvoiceKind::Invoice, EInvoiceSubtype::Simplified, [$this->row(1, 'Desk', '1.00', '100.0000', '0.00', '100.00', $standard, '15.00')]), [
+                'taxSubtotals' => [new EInvoiceTaxSubtotal('S', '15.00', '110.00', '16.50')],
+                'taxExclusive' => '110.00',
+                'taxAmount'    => '16.50',
+                'taxInclusive' => '126.50',
+                'charges'      => [new EInvoiceCharge('10.00', 'S', '15.00')],
+            ]),
+            'S-11' => $this->amended($this->sample(EInvoiceKind::Invoice, EInvoiceSubtype::Simplified, [$this->row(1, 'Consulting', '1.00', '100.0000', '0.00', '100.00', $standard, '15.00')]), ['currency' => 'USD', 'taxAmountInSar' => '56.25']),
+            'S-12' => $this->sample(EInvoiceKind::Prepayment, EInvoiceSubtype::Simplified, [$this->row(1, 'Advance payment', '1.00', '100.0000', '0.00', '100.00', $standard, '15.00')]),
+            'S-13' => $this->amended($this->sample(EInvoiceKind::Invoice, EInvoiceSubtype::Simplified, [$this->row(1, 'Project', '1.00', '200.0000', '0.00', '200.00', $standard, '30.00')]), [
+                'prepayments' => [new EInvoicePrepayment('ADV-2', '2022-08-01', '09:00:00', 'S', '15.00', '100.00', '15.00')],
+            ]),
         ];
 
         foreach ($this->chain() as $key => $document) {
@@ -78,18 +91,50 @@ trait EInvoiceMatrixTrait
     }
 
     /**
-     * Samples broken on purpose (C-02), which the official validator must refuse: a category tax that is not its
-     * taxable amount times its rate, and a line that does not add up to its quantity times its price.
+     * Samples broken on purpose (C-02), each wrong in one way only, which the official validator must refuse, by the
+     * rule of the standard v1.2 each one breaks (the pattern its refusal must match):
+     *   - category-tax: a category tax 1.50 off its taxable amount times its rate (BR-S-09, BR-CO-17; SDK 2.0.3 lets
+     *     a category tax be up to 1.00 off);
+     *   - line-net: a line that does not add up, nor do the lines to their total (BR-CO-10);
+     *   - note-reference: a credit note that names no invoice (BR-KSA-56);
+     *   - note-reason: a credit note that gives no reason (BR-KSA-17);
+     *   - prepayment-vat: a prepayment whose tax is 5.00 off its taxable amount times its rate (BR-KSA-79, BR-CO-17);
+     *   - currency-sar: a document in dollars without its tax in riyals (BR-53);
+     *   - charge-taxable: a shipping charge left out of the taxable amount of its category (BR-S-08).
      *
      * @return array<string, EInvoiceDocument>
      */
     protected function brokenMatrix(): array
     {
-        $base = $this->matrix()['S-01'];
+        $samples = $this->matrix();
+        $base    = $samples['S-01'];
 
         return [
-            'C-02-category-tax' => $this->amended($base, ['taxSubtotals' => [new EInvoiceTaxSubtotal('S', '15.00', '6.00', '0.91')], 'taxAmount' => '0.91', 'taxInclusive' => '6.91']),
-            'C-02-line-net'     => $this->amended($base, ['lines' => [$this->row(1, 'Book', '2.00', '3.0000', '0.00', '6.50', ['S', '15.00'], '0.98')]]),
+            'C-02-category-tax'   => $this->amended($samples['S-03'], ['taxSubtotals' => [new EInvoiceTaxSubtotal('S', '15.00', '90.00', '15.00')], 'taxAmount' => '15.00', 'taxInclusive' => '105.00']),
+            'C-02-line-net'       => $this->amended($base, ['lines' => [$this->row(1, 'Book', '2.00', '3.0000', '0.00', '6.50', ['S', '15.00'], '0.98')]]),
+            'C-02-note-reference' => $this->amended($samples['S-06'], ['billingReference' => null]),
+            'C-02-note-reason'    => $this->amended($samples['S-06'], ['reason' => '']),
+            'C-02-prepayment-vat' => $this->amended($samples['B-09'], ['prepayments' => [new EInvoicePrepayment('ADV-1', '2022-08-01', '09:00:00', 'S', '15.00', '100.00', '20.00')]]),
+            'C-02-currency-sar'   => $this->amended($samples['B-06'], ['taxAmountInSar' => null]),
+            'C-02-charge-taxable' => $this->amended($samples['B-07'], ['taxSubtotals' => [new EInvoiceTaxSubtotal('S', '15.00', '100.00', '15.00')], 'taxAmount' => '15.00', 'taxInclusive' => '125.00']),
+        ];
+    }
+
+    /**
+     * The pattern of the reason the official validator must give for each sample broken on purpose.
+     *
+     * @return array<string, string>
+     */
+    protected function brokenReasons(): array
+    {
+        return [
+            'C-02-category-tax'   => '/\\b(BR-S-09|BR-CO-17)\\b/',
+            'C-02-line-net'       => '/\\bBR-CO-10\\b/',
+            'C-02-note-reference' => '/\\bBR-KSA-56\\b/',
+            'C-02-note-reason'    => '/\\bBR-KSA-17\\b/',
+            'C-02-prepayment-vat' => '/\\b(BR-KSA-79|BR-CO-17)\\b/',
+            'C-02-currency-sar'   => '/\\bBR-53\\b/',
+            'C-02-charge-taxable' => '/\\bBR-S-08\\b/',
         ];
     }
 

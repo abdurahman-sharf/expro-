@@ -9,6 +9,7 @@ use App\Libraries\Accounting\SalesDebitNotes;
 use App\Libraries\EInvoicing\EInvoiceError;
 use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\EInvoiceKind;
+use App\Libraries\EInvoicing\EInvoiceRules;
 use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\EInvoicing\EInvoiceSettings;
 use App\Libraries\EInvoicing\EInvoiceSubtype;
@@ -18,16 +19,20 @@ use App\Libraries\EInvoicing\IssuedEInvoice;
 use App\Libraries\EInvoicing\StampVerifier;
 use App\Libraries\EInvoicing\SubmissionService;
 use App\Libraries\EInvoicing\TransportResult;
+use App\Libraries\HeaderCharges;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\ShippingTaxOption;
 use App\Libraries\Accounting\CustomerAdvances;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Tax\LineVat;
 use App\Libraries\Tax\VatCategoryTotal;
 use App\Libraries\Tax\VatLineResult;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use PHPUnit\Framework\Attributes\Group;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
@@ -39,6 +44,7 @@ use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\SaudiSaleFixtureTrait;
 use Tests\Support\WorkerRequestTrait;
+use Tests\Support\ZatcaSdkTrait;
 
 /**
  * Issuing the documents: the counter and the chain of hashes, the document that is stored once and never
@@ -58,6 +64,7 @@ class EInvoiceServiceTest extends CIUnitTestCase
     use ConcurrentDbRaceTrait;
     use DatabaseFingerprintTrait;
     use WorkerRequestTrait;
+    use ZatcaSdkTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -133,6 +140,97 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $pair = $this->generateKeyPair();
 
         $this->configureEInvoicing(['einvoice_key_path' => $pair['key'], 'einvoice_certificate_path' => $pair['certificate']]);
+    }
+
+    #[Group('zatca-sdk')]
+    public function testIssueForCompletedSale_IssuesEveryKindOfDocumentAsTheOfficialValidatorPassesIt(): void
+    {
+        $sdk = $this->zatcaSdk();
+        $db  = $this->accountingDb();
+
+        $this->underTheSaudiRules();
+        $this->useKeys();
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', '15');
+
+        try {
+            $issued = $this->documentsOfEveryKind();
+        } finally {
+            $this->setConfigValue('accounting_sales_shipping', '0');
+            $db->table('accounting_currency_rates')->where('currency_code', 'USD')->delete();
+            (new Currencies())->setActive('USD', false);
+        }
+
+        $directory = $this->temporaryDirectory();
+
+        foreach ($issued as $name => $document) {
+            $this->assertTrue((new StampVerifier())->verify($document->xml)['signature'], $name);
+            file_put_contents(sprintf('%s/%02d-%s.xml', $directory, $document->icv, $name), $document->xml);
+        }
+
+        file_put_contents(sprintf('%s/%02d-%s.pih', $directory, reset($issued)->icv, array_key_first($issued)), reset($issued)->previousHash);
+
+        $this->assertOfficialResults($this->officialResults($sdk, $directory, true), []);
+    }
+
+    /**
+     * A document of each kind, issued as Expro issues it under the Saudi rules, in the order of the chain.
+     *
+     * @return array<string, IssuedEInvoice> By what it is.
+     */
+    private function documentsOfEveryKind(): array
+    {
+        $db       = $this->accountingDb();
+        $issued   = [];
+        $customer = $this->makeBusinessCustomer();
+
+        $sale                         = $this->saudiSaleOf('100.00', null, [$this->payment('Cash', '115.00')], SALE_TYPE_POS);
+        $issued['simplified-invoice'] = $this->service->documentOf(EInvoiceService::SOURCE_SALE, $sale);
+
+        $invoice                    = $this->saudiSaleOf('200.00', $customer, [$this->payment('Cash', '230.00')]);
+        $issued['standard-invoice'] = $this->service->documentOf(EInvoiceService::SOURCE_SALE, $invoice);
+
+        $itemId                                     = (int) $db->table('sales_items')->where('sale_id', $invoice)->get()->getRow()->item_id;
+        [$taxes, $total]                            = $this->saudiTaxes($itemId, '-200.00');
+        $return                                     = $this->save([$this->line($itemId, 0, '-1', '200.00')], $taxes, [$this->payment('Cash', '-230.00')], SALE_TYPE_RETURN, $customer, true, $invoice, categories: $total);
+        $issued['standard-credit-note-of-a-return'] = $this->service->documentOf(EInvoiceService::SOURCE_SALE, $return);
+
+        $advance                                    = $this->advanceOf('115.00');
+        $issued['prepayment-invoice']               = $this->service->documentOf(EInvoiceService::SOURCE_ADVANCE, $advance);
+        $itemId                                     = $this->item('0', false);
+        [$taxes, $total]                            = $this->saudiTaxes($itemId, '200.00');
+        $final                                      = $this->save([$this->line($itemId, 0, '1', '200.00')], $taxes, [$this->payment('Cash', '115.00')], SALE_TYPE_INVOICE, $customer, categories: $total);
+        $issued['invoice-deducting-the-prepayment'] = $this->service->documentOf(EInvoiceService::SOURCE_SALE, $final);
+
+        $cancelled                               = $this->advanceOf('57.50');
+        $issued['prepayment-invoice-cancelled']  = $this->service->documentOf(EInvoiceService::SOURCE_ADVANCE, $cancelled);
+        (new CustomerAdvances())->cancel($cancelled, 'Paid by mistake', $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::TREASURIES_MANAGE]));
+        $returned                                = (int) $db->table('customer_advance_vat_returns')->where('advance_id', $cancelled)->get()->getRow()->return_id;
+        $issued['credit-note-of-the-prepayment'] = $this->service->documentOf(EInvoiceService::SOURCE_RETURN, $returned);
+
+        $itemId                          = $this->item('0', false);
+        $status                          = COMPLETED;
+        $items                           = [$this->line($itemId, 0, '1', '100.00')];
+        $taxes                           = [[], [[...$this->taxRow($itemId, 0, 'VAT', '15.0000', 1, '15.000000'), 'vat' => new LineVat(null, 'S', '15.000', null, null, 'VAT'), 'vat_amounts' => new VatLineResult('100.00', '15.00', '115.00', '15.000000', 'S|15.000|')]], ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '100.00', '15.00', false)]];
+        $shipped                         = $this->sales->save_value(NEW_ENTRY, $status, $items, $customer, $this->employeeId, 'shipped', null, null, null, SALE_TYPE_INVOICE, [$this->payment('Cash', '126.50')], null, $taxes, true, headerCharges: new HeaderCharges(shipping: '10.00', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+        $this->saleIds[]                 = $shipped;
+        $issued['invoice-with-shipping'] = $this->service->documentOf(EInvoiceService::SOURCE_SALE, $shipped);
+
+        $this->enableDollars();
+        $this->sales->useCurrency('USD');
+        $dollars                      = $this->saudiSaleOf('100.00', $customer);
+        $issued['invoice-in-dollars'] = $this->service->documentOf(EInvoiceService::SOURCE_SALE, $dollars);
+
+        $this->setConfigValue('accounting_debit_note', '1');
+        $maker                         = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE, AccountingGuard::EINVOICING_MANAGE]);
+        $note                          = (new SalesDebitNotes())->create(['customer_id' => $customer, 'date' => date('Y-m-d'), 'amount' => '50', 'tax_percent' => '15', 'note' => 'Freight', 'original_document' => $issued['standard-invoice']->number, 'note_reason' => EInvoiceRules::NOTE_REASONS[2]], $maker);
+        $issued['standard-debit-note'] = $this->service->documentOf(SalesDebitNotes::SOURCE, $note);
+
+        foreach ($issued as $name => $document) {
+            $this->assertNotNull($document, $name . ' was not issued');
+        }
+
+        return $issued;
     }
 
     public function testIssueSale_StoresTheDocumentWithTheFirstCounterAndTheFirstPreviousHash(): void
