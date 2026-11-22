@@ -3,6 +3,8 @@
  * @var list<object> $accounts
  * @var string|null  $number
  * @var string       $today
+ * @var bool         $issuing
+ * @var list<string> $reasons
  */
 ?>
 
@@ -60,6 +62,27 @@
                 </div>
             </div>
 
+            <?php if ($issuing): ?>
+                <div class="field">
+                    <?= form_label(lang('Accounting_debit_notes.original_document'), 'original_document', ['class' => 'form-label text-danger required']) ?>
+                    <div class="field-control">
+                        <input type="text" name="original_document" id="original_document" class="form-control form-control-sm ltr-input" dir="ltr" autocomplete="off" maxlength="127" value="">
+                        <div class="form-text"><?= lang('Accounting_debit_notes.original_document_help') ?></div>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <?= form_label(lang('Accounting_debit_notes.note_reason'), 'note_reason', ['class' => 'form-label text-danger required']) ?>
+                    <div class="field-control">
+                        <select name="note_reason" id="note_reason" class="form-select form-select-sm" dir="ltr">
+                            <?php foreach ($reasons as $index => $reason): ?>
+                                <option value="<?= esc($reason, 'attr') ?>"<?= $index === 2 ? ' selected' : '' ?>><?= esc($reason) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <div class="field span-all">
                 <?= form_label(lang('Accounting_debit_notes.note'), 'note', ['class' => 'form-label']) ?>
                 <div class="field-control">
@@ -115,13 +138,14 @@
             rules: {
                 customer_name: 'required',
                 note_date: 'required',
-                amount: 'required'
+                amount: 'required'<?= $issuing ? ",\n                original_document: 'required'" : '' ?>
             },
 
             messages: {
                 customer_name: "<?= esc(lang('Accounting_debit_notes.customer_required'), 'js') ?>",
                 note_date: "<?= esc(lang('Accounting_debit_notes.date_required'), 'js') ?>",
-                amount: "<?= esc(lang('Accounting_debit_notes.amount_required'), 'js') ?>"
+                amount: "<?= esc(lang('Accounting_debit_notes.amount_required'), 'js') ?>",
+                original_document: "<?= esc(lang('Accounting_debit_notes.original_document_required'), 'js') ?>"
             }
         }, form_support.error));
     });

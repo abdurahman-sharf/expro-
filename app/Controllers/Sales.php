@@ -30,8 +30,10 @@ use App\Libraries\Barcode_lib;
 use App\Libraries\Documents\CustomFields;
 use App\Libraries\Documents\CustomFieldType;
 use App\Libraries\Documents\DocumentException;
+use App\Libraries\Documents\EInvoicePrint;
 use App\Libraries\Documents\RendersPdf;
 use App\Libraries\Documents\VoucherDocuments;
+use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\Email_lib;
 use App\Libraries\HeaderCharges;
 use App\Libraries\Integrations\PaymentMethods;
@@ -51,6 +53,8 @@ use App\Libraries\Stock\StockUnitPermissions;
 use App\Libraries\Stock\TrackingType;
 use App\Libraries\Stock\UnitLine;
 use App\Libraries\Stock\UnitTemplates;
+use App\Libraries\Tax\CompanyTaxProfile;
+use App\Libraries\Tax\VatSnapshot;
 use App\Libraries\Tax_lib;
 use App\Libraries\Token_lib;
 use App\Models\Customer;
@@ -1249,11 +1253,11 @@ class Sales extends Secure_Controller
         $result = $this->sale->issueDraft($saleId, $personId, $invoiceNumber, $date === '' ? null : $date, $terms === '' ? null : $terms);
 
         $message = match (true) {
-            $result === ACCOUNTING_FAILED        => $this->accountingFailureMessage(),
-            $result === INVOICE_DISCOUNT_INVALID => $this->invoiceDiscountMessage(),
-            $result === INSUFFICIENT_STOCK       => lang('Sales.item_out_of_stock'),
-            $result < 1                          => lang('Sales.draft_issue_failed'),
-            default                              => null,
+            in_array($result, [ACCOUNTING_FAILED, EINVOICE_FAILED], true) => $this->accountingFailureMessage(),
+            $result === INVOICE_DISCOUNT_INVALID                          => $this->invoiceDiscountMessage(),
+            $result === INSUFFICIENT_STOCK                                => lang('Sales.item_out_of_stock'),
+            $result < 1                                                   => lang('Sales.draft_issue_failed'),
+            default                                                       => null,
         };
 
         if ($message !== null) {
@@ -2039,13 +2043,10 @@ class Sales extends Secure_Controller
             $data['sale_status']    = COMPLETED;
             $saleType               = SALE_TYPE_INVOICE;
 
-            $invoiceType = $this->config['invoice_type'];
-            if (! Sale_lib::isValidInvoiceType($invoiceType)) {
-                $invoiceType = 'invoice';
-            }
-            $invoiceView = $invoiceType;
+            $invoiceView = Sale_lib::invoiceViewFor((string) $this->config['invoice_type'], (new CompanyTaxProfile())->current()->registration);
 
             // Save the data to the sales table
+            $this->sale->useCompletionToken($this->sale_lib->completionToken($data['cart'], $data['payments'], $customerId, $saleType));
             $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms(), quoteSourceId: $this->sale_lib->getQuoteSource(), headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId(), orderSourceId: $this->sale_lib->getOrderSource());
             $this->keepCustomFields($data['sale_id_num']);
             $data            = [...$data, ...$this->printedFieldsOf($data['sale_id_num'], $data['cart'])];
@@ -2069,7 +2070,7 @@ class Sales extends Secure_Controller
 
                 return $this->reload($data);
             }
-            if ($data['sale_id_num'] === ACCOUNTING_FAILED) {
+            if (in_array($data['sale_id_num'], [ACCOUNTING_FAILED, EINVOICE_FAILED], true)) {
                 $data['error'] = $this->accountingFailureMessage();
 
                 return $this->reload($data);
@@ -2096,6 +2097,10 @@ class Sales extends Secure_Controller
 
             $data['sale_time_raw']    = $this->sale->getSaleTime((int) $data['sale_id_num']);
             $data['invoice_date_raw'] = $timing['invoice_date'];
+            $data['total_with_vat']   = (new VatSnapshot())->totalWithVatOf((int) $data['sale_id_num']);
+            $data['einvoice_qr']      = $this->sale->documentQrOf((int) $data['sale_id_num']);
+            $data['einvoice_print']   = (new EInvoicePrint())->forSale((int) $data['sale_id_num']);
+            $data['einvoice_print']   = (new EInvoicePrint())->forSale((int) $data['sale_id_num']);
             $data['currency_code']    = $this->sale->getCurrencyCode((int) $data['sale_id_num']);
 
             $data['due_date'] = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
@@ -2128,6 +2133,7 @@ class Sales extends Secure_Controller
             $data['sale_status']       = SUSPENDED;
             $saleType                  = SALE_TYPE_WORK_ORDER;
 
+            $this->sale->useCompletionToken($this->sale_lib->completionToken($data['cart'], $data['payments'], $customerId, $saleType));
             $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, null, $invoiceDiscount, headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
             $this->keepCustomFields($data['sale_id_num']);
             $data = [...$data, ...$this->printedFieldsOf($data['sale_id_num'], $data['cart'])];
@@ -2147,7 +2153,7 @@ class Sales extends Secure_Controller
 
                 return $this->reload($data);
             }
-            if ($data['sale_id_num'] === ACCOUNTING_FAILED) {
+            if (in_array($data['sale_id_num'], [ACCOUNTING_FAILED, EINVOICE_FAILED], true)) {
                 $data['error'] = $this->accountingFailureMessage();
 
                 return $this->reload($data);
@@ -2194,6 +2200,7 @@ class Sales extends Secure_Controller
             $data['sale_status']  = SUSPENDED;
             $saleType             = SALE_TYPE_QUOTE;
 
+            $this->sale->useCompletionToken($this->sale_lib->completionToken($data['cart'], $data['payments'], $customerId, $saleType));
             $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, null, $invoiceDiscount, headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
             $this->keepCustomFields($data['sale_id_num']);
             $data = [...$data, ...$this->printedFieldsOf($data['sale_id_num'], $data['cart'])];
@@ -2213,7 +2220,7 @@ class Sales extends Secure_Controller
 
                 return $this->reload($data);
             }
-            if ($data['sale_id_num'] === ACCOUNTING_FAILED) {
+            if (in_array($data['sale_id_num'], [ACCOUNTING_FAILED, EINVOICE_FAILED], true)) {
                 $data['error'] = $this->accountingFailureMessage();
 
                 return $this->reload($data);
@@ -2250,6 +2257,7 @@ class Sales extends Secure_Controller
             $saleType = SALE_TYPE_POS;
         }
 
+        $this->sale->useCompletionToken($this->sale_lib->completionToken($data['cart'], $data['payments'], $customerId, $saleType));
         $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, $this->sale_lib->get_return_origin(), $invoiceDiscount, $this->sale_lib->getReturnDocument(), returnOverrideReason: $this->sale_lib->getReturnOverride(), headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
         $this->keepCustomFields($data['sale_id_num']);
         $data = [...$data, ...$this->printedFieldsOf($data['sale_id_num'], $data['cart'])];
@@ -2273,7 +2281,7 @@ class Sales extends Secure_Controller
 
             return $this->reload($data);
         }
-        if ($data['sale_id_num'] === ACCOUNTING_FAILED) {
+        if (in_array($data['sale_id_num'], [ACCOUNTING_FAILED, EINVOICE_FAILED], true)) {
             $data['error'] = $this->accountingFailureMessage();
 
             return $this->reload($data);
@@ -2292,6 +2300,9 @@ class Sales extends Secure_Controller
 
         $data['sale_time_raw']    = $this->sale->getSaleTime((int) $data['sale_id_num']);
         $data['invoice_date_raw'] = $timing['invoice_date'];
+        $data['total_with_vat']   = (new VatSnapshot())->totalWithVatOf((int) $data['sale_id_num']);
+        $data['einvoice_qr']      = $this->sale->documentQrOf((int) $data['sale_id_num']);
+        $data['einvoice_print']   = (new EInvoicePrint())->forSale((int) $data['sale_id_num']);
         $data['currency_code']    = $this->sale->getCurrencyCode((int) $data['sale_id_num']);
         $data['sale_type']        = $saleType;
 
@@ -2698,6 +2709,9 @@ class Sales extends Secure_Controller
         $data['transaction_date']       = to_date(strtotime($timing['invoice_date'] ?? $saleInfo['sale_time']));
         $data['sale_time_raw']          = (string) $saleInfo['sale_time'];
         $data['invoice_date_raw']       = $timing['invoice_date'] ?? null;
+        $data['total_with_vat']         = (new VatSnapshot())->totalWithVatOf((int) $saleId);
+        $data['einvoice_qr']            = $this->sale->documentQrOf((int) $saleId);
+        $data['einvoice_print']         = (new EInvoicePrint())->forSale((int) $saleId);
         $data['currency_code']          = $this->sale->getCurrencyCode((int) $saleId);
         $data['is_return']              = (int) ($saleInfo['sale_type'] ?? SALE_TYPE_POS) === SALE_TYPE_RETURN;
         $data['sale_type']              = (int) ($saleInfo['sale_type'] ?? SALE_TYPE_POS);
@@ -2774,11 +2788,7 @@ class Sales extends Secure_Controller
             $data['customer_required'] = lang('Sales.customer_optional');
         }
 
-        $invoiceType = $this->config['invoice_type'];
-        if (! Sale_lib::isValidInvoiceType($invoiceType)) {
-            $invoiceType = 'invoice';
-        }
-        $data['invoice_view'] = $invoiceType;
+        $data['invoice_view'] = Sale_lib::invoiceViewFor((string) $this->config['invoice_type'], (new CompanyTaxProfile())->current()->registration);
 
         // Validate receipt template to prevent path traversal
         $receiptTemplate = $this->config['receipt_template'] ?? '';
@@ -3066,6 +3076,10 @@ class Sales extends Secure_Controller
     private function accountingFailureMessage(): string
     {
         $failure = $this->sale->accountingFailure();
+
+        if ($failure instanceof EInvoiceException) {
+            return lang('Accounting_einvoicing.sale_not_issued', [$failure->describe()]);
+        }
 
         return $failure instanceof AccountingException || $failure instanceof PostingException || $failure instanceof BranchException
             ? AccountingMessage::of($failure)
@@ -3554,7 +3568,7 @@ class Sales extends Secure_Controller
             ]);
         }
 
-        return $this->response->setJSON(['success' => false, 'message' => lang('Sales.unsuccessfully_restored')]);
+        return $this->response->setJSON(['success' => false, 'message' => $this->sale->accountingFailure() === null ? lang('Sales.unsuccessfully_restored') : $this->accountingFailureMessage()]);
     }
 
     /**
@@ -3850,7 +3864,7 @@ class Sales extends Secure_Controller
             $data['error'] = lang('Sales.insufficient_giftcard_balance');
         } elseif ($saleIdNum === INSUFFICIENT_REWARD_POINTS) {
             $data['error'] = lang('Sales.insufficient_reward_points');
-        } elseif ($saleIdNum === ACCOUNTING_FAILED) {
+        } elseif (in_array($saleIdNum, [ACCOUNTING_FAILED, EINVOICE_FAILED], true)) {
             $data['error'] = $this->accountingFailureMessage();
         } elseif ($saleIdNum === INVOICE_DISCOUNT_INVALID) {
             $data['error'] = $this->invoiceDiscountMessage();

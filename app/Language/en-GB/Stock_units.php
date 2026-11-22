@@ -21,6 +21,8 @@ return [
     'item_profile'                    => 'Item units and tracking',
     'larger_units'                    => 'Larger units',
     'main_small_name'                 => 'Short name (up to 25 characters)',
+    'main_unit_code'                  => 'Unit code (UN/ECE)',
+    'main_unit_code_help'             => 'Written as the unit of the line on electronic invoices, such as KGM or LTR. Left empty, PCE is written.',
     'main_unit_name'                  => 'Main unit name',
     'negative_allow'                  => 'Allow it (as before)',
     'negative_refuse'                 => 'Refuse a sale or a transfer of more than the location holds',

@@ -31,6 +31,10 @@ class RefundInvoice extends Migration
 
     private function dropChecksOfReturnDocument(): void
     {
+        if ($this->db->query("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_NAME = 'CHECK_CONSTRAINTS'")->getRow() === null) {
+            return;
+        }
+
         $sales = $this->db->prefixTable('sales');
         $names = $this->db->query(
             "SELECT cc.CONSTRAINT_NAME AS name FROM information_schema.CHECK_CONSTRAINTS AS cc INNER JOIN information_schema.TABLE_CONSTRAINTS AS tc ON tc.CONSTRAINT_SCHEMA = cc.CONSTRAINT_SCHEMA AND tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME AND tc.CONSTRAINT_TYPE = 'CHECK' WHERE cc.CONSTRAINT_SCHEMA = DATABASE() AND tc.TABLE_NAME = ? AND cc.CHECK_CLAUSE LIKE ?",

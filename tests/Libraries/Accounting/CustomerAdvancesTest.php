@@ -14,15 +14,23 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\EInvoicing\EInvoiceException;
+use App\Libraries\EInvoicing\EInvoiceKind;
+use App\Libraries\EInvoicing\EInvoiceService;
+use App\Libraries\Accounting\SalesDebitNotes;
+use App\Libraries\EInvoicing\EInvoiceRules;
+use App\Libraries\Tax\AdvanceVat;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\EInvoiceSaleFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityCaseTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\SaudiSaleFixtureTrait;
 use App\Libraries\Roles\RoleService;
 use App\Libraries\Accounting\OperationsHold;
 use App\Libraries\Accounting\PostingError;
@@ -40,6 +48,8 @@ class CustomerAdvancesTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use ParityCaseTrait;
     use SaleAccountingFixtureTrait;
+    use EInvoiceSaleFixtureTrait;
+    use SaudiSaleFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -67,6 +77,8 @@ class CustomerAdvancesTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->leaveTheSaudiRules();
+
         $db = $this->accountingDb();
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
@@ -152,6 +164,188 @@ class CustomerAdvancesTest extends CIUnitTestCase
             'applied_to_open_invoices_at_once' => bcadd($this->position()->invoice($invoice)->applied, '0', 2) === '60.00',
         ], 'advance payment');
         $this->assertTies();
+    }
+
+    public function testReceive_ChargesVatOnAnAdvanceReceivedUnderTheSaudiRules(): void
+    {
+        $this->underTheSaudiRules();
+
+        $advanceId = $this->receive('115.00');
+        $vat       = (new AdvanceVat())->of($advanceId);
+
+        $this->assertSame(['115.00', '100.00', '15.00', '15.000'], [$vat->gross, $vat->taxable, $vat->vat, $vat->percent]);
+        $this->assertSame([$this->accountId('tax_advances') . '=15.00/0.00', $this->accountId('tax_output') . '=0.00/15.00'], $this->linesOf(AdvanceVat::SOURCE, $advanceId));
+        $this->assertContains($this->customerAccount() . '=0.00/115.00', $this->linesOf(CustomerAdvances::SOURCE, $advanceId), 'the customer keeps the whole advance as credit');
+
+        $prepayment = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_ADVANCE, $advanceId);
+
+        $this->assertNotNull($prepayment, 'the prepayment invoice is issued with the receipt');
+        $this->assertSame(EInvoiceKind::Prepayment, $prepayment->kind);
+        $this->assertSame(['100.00', '15.00', '115.00'], [$prepayment->taxExclusive, $prepayment->taxAmount, $prepayment->taxInclusive]);
+    }
+
+    public function testReceive_IssuesThePrepaymentInvoiceOfAnAdvanceThatDoesNotSplitExactlyWithItsRounding(): void
+    {
+        $this->underTheSaudiRules();
+
+        $advanceId  = $this->receive('100.01');
+        $vat        = (new AdvanceVat())->of($advanceId);
+        $prepayment = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_ADVANCE, $advanceId);
+
+        $this->assertSame(['100.01', '86.97', '13.05'], [$vat->gross, $vat->taxable, $vat->vat], 'the VAT is the taxable amount times the rate (BR-KSA-79)');
+        $this->assertSame('100.02', $prepayment->taxInclusive);
+        $this->assertStringContainsString('<cbc:PayableRoundingAmount currencyID="SAR">-0.01</cbc:PayableRoundingAmount>', $prepayment->xml);
+        $this->assertStringContainsString('<cbc:PayableAmount currencyID="SAR">100.01</cbc:PayableAmount>', $prepayment->xml);
+    }
+
+    public function testReceive_LetsAnInvoiceThatTakesAnAdvanceThatDoesNotSplitExactlyAskWhatIsStillOwed(): void
+    {
+        $this->underTheSaudiRules();
+        $this->receive('11.54');
+
+        $xml = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_SALE, $this->saudiSaleOf('100.00'))->xml;
+
+        $this->assertStringContainsString('<cbc:PrepaidAmount currencyID="SAR">11.53</cbc:PrepaidAmount>', $xml, 'the taxable amount and VAT of the advance (BR-KSA-80)');
+        $this->assertStringContainsString('<cbc:PayableAmount currencyID="SAR">103.46</cbc:PayableAmount>', $xml, '115.00 less the 11.54 the customer paid ahead');
+    }
+
+    public function testReceive_IssuesThePrepaymentInvoiceOfAnAdvanceTooSmallToCarryVat(): void
+    {
+        $this->underTheSaudiRules();
+
+        $prepayment = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_ADVANCE, $this->receive('0.03'));
+
+        $this->assertSame(['0.03', '0.00', '0.03'], [$prepayment->taxExclusive, $prepayment->taxAmount, $prepayment->taxInclusive]);
+    }
+
+    public function testReceive_KeepsWhatAnIssuedInvoiceTakesOfTheAdvanceWhenItsCreditWouldBeReleased(): void
+    {
+        $this->underTheSaudiRules();
+
+        $advanceId   = $this->receive('115.00');
+        $this->saudiSaleOf('200.00');
+        $application = $this->accountingDb()->table('customer_credit_applications')->where(['source_type' => CreditSource::CUSTOMER_ADVANCE, 'source_id' => $advanceId])->where('released_at IS NULL', null, false)->get()->getRow();
+
+        try {
+            (new AdvanceVat())->released((int) $application->application_id, $this->clerk);
+            $this->fail('A prepayment the issued invoice states was given back.');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::AdvanceTakenByIssuedInvoice, $refusal->error);
+        }
+
+        $this->assertSame(0, (int) $this->accountingDb()->table('customer_advance_vat_uses')->where('application_id', $application->application_id)->get()->getRow()->released);
+    }
+
+    public function testReceive_UndoesTheAdvanceWhenItsPrepaymentInvoiceCannotBeIssued(): void
+    {
+        $this->underTheSaudiRules();
+        $this->configureEInvoicing(['einvoice_seller_street' => '']);
+
+        $before = $this->accountingDb()->table('customer_advances')->countAllResults();
+
+        $this->expectException(EInvoiceException::class);
+
+        try {
+            $this->receive('115.00');
+        } finally {
+            $this->assertSame($before, $this->accountingDb()->table('customer_advances')->countAllResults(), 'no advance without its document');
+        }
+    }
+
+    public function testReceive_ChargesNoVatOnWhatAnOpenInvoiceTakesAtOnce(): void
+    {
+        $this->invoiceOf('46.00');
+        $this->underTheSaudiRules();
+
+        $vat = (new AdvanceVat())->of($this->receive('115.00'));
+
+        $this->assertSame(['69.00', '60.00', '9.00'], [$vat->gross, $vat->taxable, $vat->vat]);
+    }
+
+    public function testReceive_GivesBackTheVatOfTheAdvanceWhenAnInvoiceTakesItLater(): void
+    {
+        $this->underTheSaudiRules();
+
+        $advanceId = $this->receive('115.00');
+        $invoiceId = $this->saudiSaleOf('200.00');
+        $uses      = (new AdvanceVat())->usesOf($invoiceId);
+
+        $this->assertCount(1, $uses);
+        $this->assertSame(['115.00', '100.00', '15.00'], [$uses[0]->gross, $uses[0]->taxable, $uses[0]->vat]);
+
+        $application = $this->accountingDb()->table('customer_credit_applications')->where(['source_type' => CreditSource::CUSTOMER_ADVANCE, 'source_id' => $advanceId])->where('released_at IS NULL', null, false)->get()->getRow();
+
+        $this->assertSame([$this->accountId('tax_output') . '=15.00/0.00', $this->accountId('tax_advances') . '=0.00/15.00'], $this->linesOf(AdvanceVat::SOURCE_USE, (int) $application->application_id));
+        $this->assertStringContainsString('<cbc:PrepaidAmount currencyID="SAR">115.00</cbc:PrepaidAmount>', (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_SALE, $invoiceId)->xml, 'the invoice issued with the sale takes the advance off what is due');
+    }
+
+    public function testCancel_GivesBackTheVatOfTheAdvanceByACreditNoteOfItsPrepaymentInvoice(): void
+    {
+        $this->underTheSaudiRules();
+
+        $advanceId = $this->receive('115.00');
+
+        $this->advances->cancel($advanceId, 'Paid by mistake', $this->clerk);
+
+        $documents  = new EInvoiceService();
+        $prepayment = $documents->documentOf(EInvoiceService::SOURCE_ADVANCE, $advanceId);
+        $return     = $this->accountingDb()->table('customer_advance_vat_returns')->where('advance_id', $advanceId)->get()->getRow();
+        $note       = $documents->documentOf(EInvoiceService::SOURCE_RETURN, (int) $return->return_id);
+
+        $this->assertSame('1', (string) (new AdvanceVat())->of($advanceId)->cancelled);
+        $this->assertSame(EInvoiceKind::CreditNote, $note->kind);
+        $this->assertSame(['100.00', '15.00', '115.00'], [$note->taxExclusive, $note->taxAmount, $note->taxInclusive]);
+        $this->assertSame($prepayment->documentId, $note->originalDocumentId);
+        $this->assertStringContainsString('<cbc:ID>' . $prepayment->number . '</cbc:ID>', $note->xml);
+        $this->assertSame([$this->accountId('tax_output') . '=15.00/0.00', $this->accountId('tax_advances') . '=0.00/15.00'], $this->linesOf(AdvanceVat::SOURCE_RETURN, (int) $return->return_id));
+    }
+
+    public function testReceive_GivesBackTheVatOfWhatAnAdvancePaysOfADebitNoteByACreditNoteOfItsPrepaymentInvoice(): void
+    {
+        $this->underTheSaudiRules();
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $invoiceId = $this->saudiSaleOf('100.00', -1, [$this->payment('Cash', '115.00')]);
+        $advanceId = $this->receive('1150.00');
+        $original  = (new EInvoiceService())->documentOf(EInvoiceService::SOURCE_SALE, $invoiceId);
+        $noteId    = (new SalesDebitNotes())->create(['customer_id' => $this->customerId, 'date' => date('Y-m-d'), 'amount' => '100.00', 'tax_percent' => '15', 'note' => 'Freight', 'original_document' => $original->number, 'note_reason' => EInvoiceRules::NOTE_REASONS[1]], $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]));
+        $return    = $this->accountingDb()->table('customer_advance_vat_returns')->where('advance_id', $advanceId)->get()->getRow();
+
+        $this->assertNotNull($return, 'what the advance paid of the note went back as a return of the advance');
+        $this->assertSame(['115.00', '100.00', '15.00'], [$return->gross, $return->taxable, $return->vat]);
+        $this->assertSame(0, $this->accountingDb()->table('customer_advance_vat_uses')->where('advance_id', $advanceId)->countAllResults(), 'no VAT is given back without a document that gives it back');
+
+        $documents = new EInvoiceService();
+        $credit    = $documents->documentOf(EInvoiceService::SOURCE_RETURN, (int) $return->return_id);
+
+        $this->assertNotNull($credit, 'a credit note of the prepayment invoice states it');
+        $this->assertSame(['100.00', '15.00'], [$credit->taxExclusive, $credit->taxAmount]);
+        $this->assertSame($documents->documentOf(EInvoiceService::SOURCE_ADVANCE, $advanceId)->documentId, $credit->originalDocumentId);
+        $this->assertSame('15.00', $documents->documentOf(EInvoiceService::SOURCE_NOTE, $noteId)->taxAmount, 'the debit note charges its own VAT');
+        $this->assertSame([$this->accountId('tax_output') . '=15.00/0.00', $this->accountId('tax_advances') . '=0.00/15.00'], $this->linesOf(AdvanceVat::SOURCE_RETURN, (int) $return->return_id));
+    }
+
+    public function testCancel_RefusesAnAdvanceThatAnIssuedInvoiceTakes(): void
+    {
+        $this->underTheSaudiRules();
+
+        $advanceId = $this->receive('115.00');
+
+        $this->saudiSaleOf('40.00');
+
+        try {
+            $this->advances->cancel($advanceId, 'Paid by mistake', $this->clerk);
+            $this->fail('The advance was cancelled.');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::AdvanceTakenByIssuedInvoice, $refusal->error);
+        }
+
+        $this->assertSame('0', (string) (new AdvanceVat())->of($advanceId)->cancelled);
+    }
+
+    public function testReceive_ChargesNoVatOutsideTheSaudiRules(): void
+    {
+        $this->assertNull((new AdvanceVat())->of($this->receive('115.00')));
     }
 
     public function testReceive_DebitsTheTreasuryItWasPaidIntoAndTakesItsBranch(): void

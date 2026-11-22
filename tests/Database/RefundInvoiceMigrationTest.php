@@ -103,6 +103,10 @@ class RefundInvoiceMigrationTest extends CIUnitTestCase
 
     public function testUp_RefusesAValueThatIsNeitherEmptyNorARefundInvoice(): void
     {
+        if ($this->accountingDb()->query("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_NAME = 'CHECK_CONSTRAINTS'")->getRow() === null) {
+            $this->markTestSkipped('This database keeps no check (MySQL 5.7): the code alone holds the value.');
+        }
+
         try {
             $this->insertReturn('credit_note');
             $this->fail('A stored credit note was accepted: a credit note is the empty column.');

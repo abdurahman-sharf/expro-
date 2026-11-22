@@ -431,10 +431,10 @@ final class RecurringGenerator
 
         if ($saleId <= 0) {
             throw match (true) {
-                $saleId === ACCOUNTING_FAILED && $this->sales->accountingFailure() !== null => RunRefusal::from($this->sales->accountingFailure()),
-                $saleId === INSUFFICIENT_STOCK                                              => RunRefusal::sale('insufficient_stock'),
-                $saleId === INVOICE_DISCOUNT_INVALID                                        => RunRefusal::sale('discount_invalid'),
-                default                                                                     => RunRefusal::sale('save_failed'),
+                in_array($saleId, [ACCOUNTING_FAILED, EINVOICE_FAILED], true) && $this->sales->accountingFailure() !== null => RunRefusal::from($this->sales->accountingFailure()),
+                $saleId === INSUFFICIENT_STOCK                                                                              => RunRefusal::sale('insufficient_stock'),
+                $saleId === INVOICE_DISCOUNT_INVALID                                                                        => RunRefusal::sale('discount_invalid'),
+                default                                                                                                     => RunRefusal::sale('save_failed'),
             };
         }
 

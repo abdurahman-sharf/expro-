@@ -2,6 +2,9 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\EInvoicing\EInvoiceRules;
+use App\Libraries\EInvoicing\EInvoiceService;
+use App\Libraries\Tax\AdvanceVat;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -13,7 +16,8 @@ use Config\Database;
  * applies the credit that is free to the invoices that are open, the one dated earliest first, and
  * among invoices of one date the one created first. The invoice a credit note came from has no
  * priority: the reference system walks the open invoices by date alone. No journal is written,
- * because the account of the customer already carries the credit.
+ * because the account of the customer already carries the credit; under the Saudi rules the VAT an advance carries
+ * moves with its applications (AdvanceVat).
  *
  * The caller holds the lock of the customer (CustomerLock) and is inside a transaction, so the
  * ledger it reads is the ledger as the last change left it.
@@ -243,6 +247,18 @@ final class CreditSettlement
             'created_by'      => $employeeId,
         ]);
 
+        if ($source->type === CreditSource::CUSTOMER_ADVANCE) {
+            $returnId = (new AdvanceVat($this->db))->applied((int) $this->db->insertID(), $source->sourceId, $invoiceId > 0 ? $invoiceId : null, $take, $employeeId);
+
+            if ($returnId !== null) {
+                $documents = new EInvoiceService($this->db);
+
+                if ($documents->documentOf(EInvoiceService::SOURCE_ADVANCE, $source->sourceId) !== null) {
+                    $documents->issueForAdvanceReturn($returnId, EInvoiceRules::NOTE_REASONS[0], $employeeId);
+                }
+            }
+        }
+
         $open[$invoiceId] = bcsub($owed, $take, SaleAmounts::SCALE);
 
         if (bccomp($open[$invoiceId], '0', SaleAmounts::SCALE) <= 0) {
@@ -253,7 +269,9 @@ final class CreditSettlement
     }
 
     /**
-     * Releases an application, or the part of it that is cut and keeps the rest as a new one.
+     * Releases an application, or the part of it that is cut and keeps the rest as a new one. What an advance paid of
+     * something no document states it on went back with a credit note when it was applied, so the rest kept takes
+     * nothing more of its VAT.
      *
      * @param numeric-string $amount
      * @param numeric-string $cut
@@ -266,6 +284,9 @@ final class CreditSettlement
             'released_at' => date('Y-m-d H:i:s'),
             'released_by' => $employeeId,
         ]);
+
+        $vat = new AdvanceVat($this->db);
+        $vat->released($applicationId, $employeeId);
 
         $rest = bcsub($amount, $cut, SaleAmounts::SCALE);
 
@@ -281,6 +302,10 @@ final class CreditSettlement
                 'automatic'       => $row->automatic,
                 'created_by'      => $row->created_by,
             ]);
+
+            if ($row->source_type === CreditSource::CUSTOMER_ADVANCE && $row->invoice_sale_id !== null && $vat->statesPrepayments((int) $row->invoice_sale_id)) {
+                $vat->applied((int) $this->db->insertID(), (int) $row->source_id, (int) $row->invoice_sale_id, $rest, $employeeId);
+            }
         }
     }
 

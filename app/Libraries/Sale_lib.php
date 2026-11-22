@@ -24,6 +24,7 @@ use App\Libraries\Stock\TrackingType;
 use App\Libraries\Stock\UnitBarcodes;
 use App\Libraries\Stock\UnitCart;
 use App\Libraries\Stock\UnitTemplates;
+use App\Libraries\Tax\VatRegistration;
 use App\Models\Attribute;
 use App\Models\Customer;
 use App\Models\Dinner_table;
@@ -192,6 +193,28 @@ class Sale_lib
     public static function isValidInvoiceType(string $invoice_type): bool
     {
         return in_array($invoice_type, self::ALLOWED_INVOICE_TYPES, true);
+    }
+
+    /**
+     * The invoice a sale is printed as: the one chosen in the settings, except that a business its owner said is not
+     * registered for VAT never prints a tax invoice, which only a registered business may issue, and prints the plain
+     * invoice of the same layout instead. While nobody said whether the business is registered, the setting holds.
+     */
+    public static function invoiceViewFor(string $invoiceType, VatRegistration $registration): string
+    {
+        if (! self::isValidInvoiceType($invoiceType)) {
+            return 'invoice';
+        }
+
+        if ($registration !== VatRegistration::NotRegistered) {
+            return $invoiceType;
+        }
+
+        return match ($invoiceType) {
+            'tax_invoice'        => 'invoice',
+            'custom_tax_invoice' => 'custom_invoice',
+            default              => $invoiceType,
+        };
     }
 
     public static function isValidReceiptTemplate(string $receipt_template): bool
@@ -535,6 +558,21 @@ class Sale_lib
         }
 
         return $token;
+    }
+
+    /**
+     * The token the sale on the register is completed with: the token of the sale and what the sale holds, so that
+     * the same cart sent twice is completed once, while a cart that changed in between makes a sale of its own.
+     *
+     * @param array<int|string, array<string, mixed>> $cart
+     * @param array<int|string, array<string, mixed>> $payments
+     */
+    public function completionToken(array $cart, array $payments, int $customerId, int $saleType): string
+    {
+        $lines = array_map(static fn (array $line): array => [(int) ($line['item_id'] ?? 0), (string) ($line['quantity'] ?? ''), (string) ($line['price'] ?? ''), (string) ($line['discount'] ?? ''), (string) ($line['discount_type'] ?? ''), (string) ($line['serialnumber'] ?? '')], array_values($cart));
+        $paid  = array_map(static fn (array $payment): array => [(string) ($payment['payment_type'] ?? ''), (string) ($payment['payment_amount'] ?? '')], array_values($payments));
+
+        return hash('sha256', $this->registerToken() . '|' . json_encode([$lines, $paid, $customerId, $saleType], JSON_THROW_ON_ERROR));
     }
 
     public function isRegisterToken(?string $token): bool

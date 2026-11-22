@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\ReportPeriod;
@@ -27,12 +28,14 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\EInvoiceSaleFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\ReportFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\SaudiSaleFixtureTrait;
 use Tests\Support\StatementFixtureTrait;
 use Tests\Support\TaxReportFixtureTrait;
 
@@ -52,7 +55,10 @@ class TaxReportTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use ReportFixtureTrait;
     use SaleAccountingFixtureTrait;
-    use PurchaseAccountingFixtureTrait;
+    use PurchaseAccountingFixtureTrait, EInvoiceSaleFixtureTrait {
+        PurchaseAccountingFixtureTrait::debitNoteOf insteadof EInvoiceSaleFixtureTrait;
+    }
+    use SaudiSaleFixtureTrait;
     use StatementFixtureTrait;
     use TaxReportFixtureTrait;
 
@@ -82,6 +88,7 @@ class TaxReportTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->leaveTheSaudiRules();
         $this->stopTaxBooks();
 
         parent::tearDown();
@@ -171,6 +178,25 @@ class TaxReportTest extends CIUnitTestCase
         $this->assertSame('135.0000', $report->output());
         $this->assertSame('150.0000', $report->input(), 'The tax paid on purchases and expenses less the tax of what went back');
         $this->assertSame('-15.0000', $report->net(), 'More was paid than collected, so it is refundable');
+    }
+
+    public function testBuild_CountsTheVatOfAnAdvanceReceivedUnderTheSaudiRulesAsTaxOfTheSales(): void
+    {
+        $this->underTheSaudiRules();
+
+        $receiver = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::TREASURIES_MANAGE]);
+
+        (new CustomerAdvances())->receive($this->customerId, '115.00', date('Y-m-d'), 'Cash', null, '', '', $receiver);
+
+        $report = $this->report();
+
+        $this->assertSame(['base' => '100.0000', 'tax' => '15.0000', 'documents' => 1], $this->figures($report, TaxSection::SalesInvoices), 'the VAT is owed when the advance is received');
+        $this->assertSame('15.0000', $report->output());
+        $this->assertTrue($report->ties());
+
+        foreach ($report->accounts as $account) {
+            $this->assertSame(0, $account->otherJournals, 'no journal of the VAT of advances is left out of the parts');
+        }
     }
 
     public function testBuild_AddsUpToTheSameAsTheTrialBalanceOfTheSameBranchesAndDays(): void

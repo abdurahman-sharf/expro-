@@ -20,6 +20,8 @@ enum EInvoiceError: string
     case RateNotRepresentable     = 'rate_not_representable';
     case ExemptionNotConfigured   = 'exemption_not_configured';
     case NothingToIssue           = 'nothing_to_issue';
+    case LinesNotClassified       = 'lines_not_classified';
+    case AlreadyIssued            = 'already_issued';
 
     case SellerNameMissing           = 'seller_name_missing';
     case SellerVatInvalid            = 'seller_vat_invalid';
@@ -35,6 +37,8 @@ enum EInvoiceError: string
     case OriginalOfAnotherCustomer = 'original_of_another_customer';
     case ReasonRequired            = 'reason_required';
     case ReasonTooLong             = 'reason_too_long';
+    case ReturnWithoutOrigin       = 'return_without_origin';
+    case PrepaymentNotIssued       = 'prepayment_not_issued';
 
     case TotalsDoNotTie = 'totals_do_not_tie';
     case RuleBroken     = 'rule_broken';
@@ -44,9 +48,15 @@ enum EInvoiceError: string
     case CurveUnsupported       = 'curve_unsupported';
     case CertificateUnreadable  = 'certificate_unreadable';
     case CertificateKeyMismatch = 'certificate_key_mismatch';
+    case CertificateExpired     = 'certificate_expired';
     case SigningFailed          = 'signing_failed';
     case QrTooLong              = 'qr_too_long';
 
     case DocumentNotFound = 'document_not_found';
     case ChainBroken      = 'chain_broken';
+
+    case NetworkBlocked         = 'network_blocked';
+    case ZatcaRefused           = 'zatca_refused';
+    case SubmissionNotRetryable = 'submission_not_retryable';
+    case SubmissionNotRejected  = 'submission_not_rejected';
 }

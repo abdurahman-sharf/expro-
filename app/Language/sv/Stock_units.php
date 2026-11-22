@@ -21,6 +21,8 @@ return [
     'item_profile'                    => '',
     'larger_units'                    => '',
     'main_small_name'                 => '',
+    'main_unit_code'                  => '',
+    'main_unit_code_help'             => '',
     'main_unit_name'                  => '',
     'negative_allow'                  => '',
     'negative_refuse'                 => '',

@@ -127,12 +127,25 @@ class SalesDebitNotes extends Migration
         $this->db->query('DROP TABLE IF EXISTS `' . $this->db->prefixTable('sales_debit_notes') . '`');
     }
 
+    /**
+     * Whether the rule of the targets names the debit notes. MySQL 5.7 keeps no check, and has no catalog of them: the
+     * rule is then enforced in the code alone, and there is nothing to rewrite.
+     */
     private function targetNamesDebitNotes(): bool
     {
+        if (! $this->checksAreKept()) {
+            return true;
+        }
+
         return $this->db->query(
             'SELECT 1 FROM information_schema.CHECK_CONSTRAINTS AS cc INNER JOIN information_schema.TABLE_CONSTRAINTS AS tc ON tc.CONSTRAINT_SCHEMA = cc.CONSTRAINT_SCHEMA AND tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME AND tc.CONSTRAINT_TYPE = \'CHECK\' WHERE cc.CONSTRAINT_SCHEMA = DATABASE() AND tc.TABLE_NAME = ? AND cc.CONSTRAINT_NAME = ? AND cc.CHECK_CLAUSE LIKE ?',
             [$this->db->prefixTable('customer_credit_applications'), $this->db->prefixTable('customer_credit_applications_target'), '%debit_note_id%'],
         )->getRow() !== null;
+    }
+
+    private function checksAreKept(): bool
+    {
+        return $this->db->query("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_NAME = 'CHECK_CONSTRAINTS'")->getRow() !== null;
     }
 
     private function hasColumn(string $table, string $column): bool

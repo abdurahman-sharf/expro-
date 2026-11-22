@@ -383,6 +383,49 @@ class NotificationEvaluatorTest extends CIUnitTestCase
         $this->assertSame('received', $params['direction']);
     }
 
+    public function testRun_RaisesANotificationForEachCertificateOfZatcaThatRunsOutWithinTheDaysOfTheRule(): void
+    {
+        $db     = Database::connect();
+        $unitId = (int) $db->table('einvoice_units')->where(['company_id' => 1, 'is_default' => 1])->get()->getRow()->unit_id;
+
+        $db->table('einvoice_credentials')->insertBatch([
+            ['unit_id' => $unitId, 'environment' => 'production', 'kind' => 'production', 'status' => 'active', 'valid_to' => date('Y-m-d H:i:s', strtotime('+20 days'))],
+            ['unit_id' => $unitId, 'environment' => 'sandbox', 'kind' => 'compliance', 'status' => 'active', 'valid_to' => date('Y-m-d H:i:s', strtotime('+90 days'))],
+            ['unit_id' => $unitId, 'environment' => 'simulation', 'kind' => 'production', 'status' => 'retired', 'valid_to' => date('Y-m-d H:i:s', strtotime('+2 days'))],
+        ]);
+
+        $this->rules->create('einvoice_certificate_expiry', 'Certificates in a month', '30', null);
+        $this->evaluator->run();
+
+        $open = $this->open('einvoice_certificate:');
+
+        $this->assertCount(1, $open, 'the one in use that runs out within the month; not a retired one, nor one far off');
+        $this->assertSame(['environment' => 'production', 'kind' => 'production', 'valid_to' => date('Y-m-d', strtotime('+20 days'))], array_intersect_key(json_decode($open[0]->params, true), array_flip(['environment', 'kind', 'valid_to'])));
+
+        $db->table('einvoice_credentials')->truncate();
+        $this->evaluator->run();
+
+        $this->assertSame([], $this->open('einvoice_certificate:'), 'renewed or gone, the notification is closed');
+    }
+
+    public function testRun_RaisesANotificationForEachSimplifiedDocumentStillNotReportedHalfADayAfterItWasQueued(): void
+    {
+        $db = Database::connect();
+
+        foreach ([['simplified', 13 * 3600, 'retry', 'S-LATE'], ['simplified', 3600, 'pending', 'S-NEW'], ['standard', 13 * 3600, 'pending', 'B-LATE'], ['simplified', 13 * 3600, 'reported', 'S-DONE']] as $index => [$subtype, $age, $status, $number]) {
+            $db->table('einvoice_documents')->insert(['source_type' => 'sale', 'source_id' => 970000 + $index, 'doc_kind' => 'invoice', 'subtype' => $subtype, 'document_number' => $number, 'uuid' => sprintf('00000000-0000-4000-8000-%012d', 970000 + $index), 'icv' => 970000 + $index, 'previous_hash' => 'x', 'invoice_hash' => 'h', 'issue_date' => date('Y-m-d'), 'issue_time' => '10:00:00', 'tax_exclusive' => '1.00', 'tax_amount' => '0.15', 'tax_inclusive' => '1.15', 'xml' => '<Invoice/>']);
+            $db->table('einvoice_outbox')->insert(['document_id' => (int) $db->insertID(), 'company_id' => 1, 'environment' => 'production', 'status' => $status, 'queued_at' => date('Y-m-d H:i:s', time() - $age)]);
+        }
+
+        $this->rules->create('einvoice_reporting_late', 'Not reported', null, null);
+        $this->evaluator->run();
+
+        $this->assertSame(['S-LATE'], array_map(static fn (object $row): string => json_decode($row->params, true)['document'], $this->open('einvoice_reporting:')));
+
+        $db->table('einvoice_outbox')->truncate();
+        $db->table('einvoice_documents')->where('source_id >=', 970000)->delete();
+    }
+
     public function testRun_ClosesTheNotificationOfAChequeThatIsCollected(): void
     {
         $this->rules->create('cheque_due', 'Cheques', '0', null);

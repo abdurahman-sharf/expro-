@@ -13,6 +13,9 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\ShippingTaxOption;
+use App\Libraries\Tax\LineVat;
+use App\Libraries\Tax\VatCategoryTotal;
+use App\Libraries\Tax\VatLineResult;
 use App\Models\Appconfig;
 use App\Models\Price_list;
 use App\Models\Sale;
@@ -2552,6 +2555,52 @@ class SaleTest extends CIUnitTestCase
         $this->assertSame(0, $sale->get_suspended_sale_info($theirs, $own)->getNumRows());
         $this->assertSame(1, $sale->get_suspended_sale_info($mine, $own)->getNumRows());
         $this->assertSame(1, $sale->get_suspended_sale_info($theirs, $this->createEmployee())->getNumRows());
+    }
+
+    public function testSaveSalesItemsTaxes_KeepsTheVatClassOfTheLineUntilTheSuspendedSaleIsCleared(): void
+    {
+        $db     = Database::connect();
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $vat    = new LineVat(null, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT');
+        $taxes  = [[], [['item_id' => $itemId, 'line' => 0, 'name' => 'VAT', 'percent' => '0.000', 'tax_type' => 1, 'rounding_code' => 1, 'cascade_sequence' => 0, 'item_tax_amount' => '0.00', 'sales_tax_code_id' => null, 'tax_category_id' => null, 'jurisdiction_id' => null, 'vat' => $vat]]];
+        $status = SUSPENDED;
+        $items  = $this->buildCartLine($itemId, 1, 10.00);
+        $saleId = model(Sale::class)->save_value(NEW_ENTRY, $status, $items, NEW_ENTRY, $this->createEmployee(), 'vat class', null, null, null, SALE_TYPE_POS, [], null, $taxes, true);
+
+        try {
+            $row = $db->table('sales_items_vat')->where('sale_id', $saleId)->get()->getRow();
+
+            $this->assertSame(['Z', '0.000', 'VATEX-SA-32'], [$row->category, $row->percent, $row->exemption_code]);
+            $this->assertTrue(model(Sale::class)->clear_suspended_sale_detail($saleId));
+            $this->assertSame(0, $db->table('sales_items_vat')->where('sale_id', $saleId)->countAllResults());
+        } finally {
+            $db->table('sales_items_vat')->where('sale_id', $saleId)->delete();
+        }
+    }
+
+    public function testSaveValue_KeepsTheVatOfASaudiSaleAsItWasWorkedOnce(): void
+    {
+        $db       = Database::connect();
+        $itemId   = $this->createTestItem(HAS_NO_STOCK);
+        $vat      = new LineVat(null, 'S', '15.000', null, null, 'VAT');
+        $category = new VatCategoryTotal('S', '15.000', null, null, '0.30', '0.05', false);
+        $taxes    = [[], [['item_id' => $itemId, 'line' => 0, 'name' => 'VAT', 'percent' => '15.000', 'tax_type' => 1, 'rounding_code' => 1, 'cascade_sequence' => 0, 'item_tax_amount' => '0.045000', 'sales_tax_code_id' => null, 'tax_category_id' => null, 'jurisdiction_id' => null, 'vat' => $vat, 'vat_amounts' => new VatLineResult('0.30', '0.05', '0.35', '0.045000')]], ['S|15.000|' => $category]];
+        $status   = SUSPENDED;
+        $items    = $this->buildCartLine($itemId, 3, 0.10);
+        $saleId   = model(Sale::class)->save_value(NEW_ENTRY, $status, $items, NEW_ENTRY, $this->createEmployee(), 'worked once', null, null, null, SALE_TYPE_POS, [], null, $taxes, true);
+
+        try {
+            $line  = $db->table('sales_items_vat')->where('sale_id', $saleId)->get()->getRow();
+            $total = $db->table('sales_vat_totals')->where('sale_id', $saleId)->get()->getRow();
+
+            $this->assertSame(['0.30', '0.05', '0.35', '1'], [$line->net, $line->vat, $line->gross, (string) $line->calc_version]);
+            $this->assertSame(['S', '15.000', '', '0.30', '0.05', '1'], [$total->category, $total->percent, $total->exemption_code, $total->taxable, $total->vat, (string) $total->calc_version]);
+            $this->assertTrue(model(Sale::class)->clear_suspended_sale_detail($saleId));
+            $this->assertSame(0, $db->table('sales_vat_totals')->where('sale_id', $saleId)->countAllResults());
+        } finally {
+            $db->table('sales_items_vat')->where('sale_id', $saleId)->delete();
+            $db->table('sales_vat_totals')->where('sale_id', $saleId)->delete();
+        }
     }
 
     public function testDeleteSuspendedSale_RefusesAnotherEmployeesSuspendedSaleForTheEmployeeOfTheSession(): void

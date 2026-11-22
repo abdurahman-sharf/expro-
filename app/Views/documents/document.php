@@ -21,6 +21,7 @@ $showGiftcardBalance = false;
 $absolute            = $profile['absolute'];
 $figure              = static fn (mixed $amount): string => documentFigure($absolute, $amount);
 $qr                  = $profile['showQr'] ? documentQr($type, $sale, $config) : null;
+$einvoice            = $sale['einvoice_print'] ?? null;
 $terms               = documentTerms($type, $config);
 $extraFields         = $sale['printed_fields'] ?? [];
 $itemExtraFields     = $sale['item_printed_fields'] ?? [];
@@ -53,7 +54,7 @@ $notes = array_filter([
                 <div class="doc-company-info"><?= nl2br(esc($sale['company_info'] ?? '')) ?></div>
             </td>
             <td class="doc-titlebox <?= $alignEnd ?>">
-                <div class="doc-title"><?= esc($profile['title']) ?></div>
+                <div class="doc-title"><?= esc($einvoice === null ? $profile['title'] : einvoiceWords('Documents.einvoice_title_' . $einvoice['title'])) ?></div>
                 <table class="doc-meta">
                     <?php foreach ($profile['meta'] as [$label, $value]): ?>
                         <tr>
@@ -93,6 +94,9 @@ $notes = array_filter([
         </div>
     <?php endif; ?>
 
+    <?php if ($einvoice !== null): ?>
+        <?= view('documents/einvoice', ['einvoice' => $einvoice, 'variant' => 'a4', 'alignStart' => $alignStart, 'alignEnd' => $alignEnd]) ?>
+    <?php else: ?>
     <table class="doc-items">
         <thead>
             <tr>
@@ -141,6 +145,7 @@ $notes = array_filter([
             <?php endforeach; ?>
         </tbody>
     </table>
+    <?php endif; ?>
 
     <table class="doc-lower">
         <tr>
@@ -151,8 +156,9 @@ $notes = array_filter([
             </td>
             <td class="doc-gap"></td>
             <td class="doc-totals-cell">
-                <?php if ($profile['showPrices']): ?>
+                <?php if ($profile['showPrices'] || $einvoice !== null): ?>
                     <table class="doc-totals">
+                        <?php if ($einvoice === null): ?>
                         <?php $invoiceDiscount = (string) ($sale['invoice_discount'] ?? '0'); ?>
                         <?php if (bccomp($invoiceDiscount, '0') !== 0): ?>
                             <tr>
@@ -185,6 +191,7 @@ $notes = array_filter([
                             <td class="<?= $alignStart ?>"><?= lang('Sales.total') ?></td>
                             <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($figure($sale['total']))) ?></td>
                         </tr>
+                        <?php endif; ?>
                         <?php foreach ($payments as $payment): ?>
                             <tr>
                                 <td class="<?= $alignStart ?>"><?= esc(explode(':', $payment['payment_type'])[0]) ?></td>

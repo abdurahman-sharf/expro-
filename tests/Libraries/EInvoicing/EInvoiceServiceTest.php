@@ -6,9 +6,23 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\SalesDebitNotes;
+use App\Libraries\Tax\AdvanceVat;
+use App\Libraries\Documents\EInvoicePrint;
+use App\Libraries\Accounting\TaxDocuments;
 use App\Libraries\EInvoicing\EInvoiceError;
+use App\Libraries\Tax\VatReturnDraft;
+use App\Libraries\EInvoicing\ZatcaResponse;
+use App\Libraries\EInvoicing\FakeZatcaTransport;
+use App\Libraries\EInvoicing\ZatcaOutcome;
+use App\Libraries\EInvoicing\ZatcaIntegration;
+use App\Libraries\EInvoicing\ZatcaHttpClient;
+use App\Libraries\EInvoicing\ZatcaEnvironment;
+use App\Libraries\EInvoicing\OnboardingService;
+use App\Libraries\EInvoicing\KeyVault;
+use App\Libraries\EInvoicing\EInvoiceCredentials;
 use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\EInvoiceKind;
+use App\Libraries\EInvoicing\EInvoiceRules;
 use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\EInvoicing\EInvoiceSettings;
 use App\Libraries\EInvoicing\EInvoiceSubtype;
@@ -16,23 +30,37 @@ use App\Libraries\EInvoicing\EInvoiceTransport;
 use App\Libraries\EInvoicing\InvoiceHash;
 use App\Libraries\EInvoicing\IssuedEInvoice;
 use App\Libraries\EInvoicing\StampVerifier;
+use App\Libraries\EInvoicing\SubmissionService;
 use App\Libraries\EInvoicing\TransportResult;
+use App\Libraries\HeaderCharges;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\ShippingTaxOption;
+use App\Libraries\Accounting\CustomerAdvances;
+use App\Libraries\Accounting\Currencies;
+use App\Libraries\Tax\LineVat;
+use App\Libraries\Tax\VatCategoryTotal;
+use App\Libraries\Tax\VatLineResult;
+use App\Models\Appconfig;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use PHPUnit\Framework\Attributes\Group;
 use Config\Database;
+use Config\Zatca;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EInvoiceFixtureTrait;
+use Tests\Support\FakeZatcaAuthority;
 use Tests\Support\EInvoiceSaleFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\SaudiSaleFixtureTrait;
 use Tests\Support\WorkerRequestTrait;
+use Tests\Support\ZatcaSdkTrait;
 
 /**
  * Issuing the documents: the counter and the chain of hashes, the document that is stored once and never
@@ -48,9 +76,11 @@ class EInvoiceServiceTest extends CIUnitTestCase
     use SaleAccountingFixtureTrait;
     use EInvoiceFixtureTrait;
     use EInvoiceSaleFixtureTrait;
+    use SaudiSaleFixtureTrait;
     use ConcurrentDbRaceTrait;
     use DatabaseFingerprintTrait;
     use WorkerRequestTrait;
+    use ZatcaSdkTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -79,11 +109,23 @@ class EInvoiceServiceTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->leaveTheSaudiRules();
+        $this->accountingDb()->table('sales_items_vat')->truncate();
+        $this->accountingDb()->table('sales_vat_totals')->truncate();
+        $this->accountingDb()->table('customer_advance_vat_uses')->truncate();
+        $this->accountingDb()->table('customer_advance_vat')->truncate();
+        $this->accountingDb()->table('company_tax_profile')->update(['ksa_mode' => 0, 'ksa_mode_effective_at' => null]);
         $this->clearEInvoices();
         $this->restoreEInvoicingConfig();
         $this->accountingDb()->table('document_numbers')->truncate();
         $this->accountingDb()->table('document_sequences')->truncate();
         $this->accountingDb()->table('app_config')->where('key', 'accounting_debit_note')->delete();
+        $this->forgetOnboardedUnit();
+        model(Appconfig::class)->batch_save([EInvoiceSettings::PHASE_TWO => '0']);
+        $this->accountingDb()->table('einvoice_submissions')->truncate();
+        $this->accountingDb()->table('einvoice_cleared_documents')->truncate();
+        $this->accountingDb()->table('einvoice_outbox')->truncate();
+        $this->accountingDb()->table('accounting_audit_log')->whereIn('entity_type', ['einvoice_unit', 'einvoice_integration'])->delete();
         $this->removeTemporaryDirectories();
         $this->stopSelling();
 
@@ -120,6 +162,142 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $pair = $this->generateKeyPair();
 
         $this->configureEInvoicing(['einvoice_key_path' => $pair['key'], 'einvoice_certificate_path' => $pair['certificate']]);
+    }
+
+    #[Group('zatca-sdk')]
+    public function testIssueForCompletedSale_IssuesEveryKindOfDocumentAsTheOfficialValidatorPassesIt(): void
+    {
+        $sdk = $this->zatcaSdk();
+        $db  = $this->accountingDb();
+
+        $this->underTheSaudiRules();
+        $this->useKeys();
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', '15');
+
+        try {
+            $issued = $this->documentsOfEveryKind();
+        } finally {
+            $this->setConfigValue('accounting_sales_shipping', '0');
+            $db->table('accounting_currency_rates')->where('currency_code', 'USD')->delete();
+            (new Currencies())->setActive('USD', false);
+        }
+
+        $directory = $this->temporaryDirectory();
+
+        foreach ($issued as $name => $document) {
+            $this->assertTrue((new StampVerifier())->verify($document->xml)['signature'], $name);
+            file_put_contents(sprintf('%s/%02d-%s.xml', $directory, $document->icv, $name), $document->xml);
+        }
+
+        file_put_contents(sprintf('%s/%02d-%s.pih', $directory, reset($issued)->icv, array_key_first($issued)), reset($issued)->previousHash);
+
+        $this->assertOfficialResults($this->officialResults($sdk, $directory, true), []);
+    }
+
+    public function testIssueForCompletedSale_StatesTheSameFiguresInTheFileThePrintTheBooksAndTheTaxReportForEveryKindOfDocument(): void
+    {
+        $db = $this->accountingDb();
+
+        $this->underTheSaudiRules();
+        $this->useKeys();
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', '15');
+
+        try {
+            $issued = $this->documentsOfEveryKind();
+        } finally {
+            $this->setConfigValue('accounting_sales_shipping', '0');
+            $db->table('accounting_currency_rates')->where('currency_code', 'USD')->delete();
+            (new Currencies())->setActive('USD', false);
+        }
+
+        $documents = new TaxDocuments();
+        $advances  = new AdvanceVat();
+        $printer   = new EInvoicePrint();
+
+        foreach ($issued as $name => $document) {
+            $print  = EInvoicePrint::fromXml($document->xml);
+            $stored = $printer->forSource($document->sourceType, $document->sourceId);
+
+            $this->assertNotNull($print, $name);
+            $this->assertSame([$document->taxExclusive, $document->taxAmount, $document->taxInclusive], [$print['totals']['exclusive'], $print['totals']['vat'], $print['totals']['inclusive']], $name . ': the file states what the document row holds');
+            $this->assertSame($print['totals'], $stored['totals'], $name . ': the print reads the file as it was issued');
+            $this->assertSame($name !== 'prepayment-invoice-cancelled', $this->service->inSync($document), $name . ': the books hold what the file states, but for the prepayment invoice of the cancelled advance, which its credit note puts right');
+
+            $vatInSar = $print['totals']['vatInSar'] !== '' ? $print['totals']['vatInSar'] : $document->taxAmount;
+            $charged  = match ($document->sourceType) {
+                EInvoiceService::SOURCE_SALE    => $documents->sales([$document->sourceId])[$document->sourceId]->tax,
+                EInvoiceService::SOURCE_NOTE    => $documents->debitNotes([$document->sourceId])[$document->sourceId]->tax,
+                EInvoiceService::SOURCE_ADVANCE => (string) $advances->of($document->sourceId)->vat,
+                default                         => (string) $advances->returnOf($document->sourceId)->vat,
+            };
+
+            $this->assertSame(0, bccomp($charged, $vatInSar, 2), $name . ': the tax report counts the VAT the file states, in riyals (' . $charged . ' and ' . $vatInSar . ')');
+        }
+
+        $this->assertSame('54.00', EInvoicePrint::fromXml($issued['invoice-in-dollars']->xml)['totals']['vatInSar'], 'the 15 dollars of VAT at the rate of the day, 3.60, which the tax report counts too');
+        $this->assertSame([$issued['prepayment-invoice-cancelled']->taxAmount, $issued['prepayment-invoice-cancelled']->documentId], [$issued['credit-note-of-the-prepayment']->taxAmount, $issued['credit-note-of-the-prepayment']->originalDocumentId], 'the credit note gives back all the VAT of the prepayment invoice it names');
+    }
+
+    /**
+     * A document of each kind, issued as Expro issues it under the Saudi rules, in the order of the chain.
+     *
+     * @return array<string, IssuedEInvoice> By what it is.
+     */
+    private function documentsOfEveryKind(): array
+    {
+        $db       = $this->accountingDb();
+        $issued   = [];
+        $customer = $this->makeBusinessCustomer();
+
+        $sale                         = $this->saudiSaleOf('100.00', null, [$this->payment('Cash', '115.00')], SALE_TYPE_POS);
+        $issued['simplified-invoice'] = $this->service->documentOf(EInvoiceService::SOURCE_SALE, $sale);
+
+        $invoice                    = $this->saudiSaleOf('200.00', $customer, [$this->payment('Cash', '230.00')]);
+        $issued['standard-invoice'] = $this->service->documentOf(EInvoiceService::SOURCE_SALE, $invoice);
+
+        $itemId                                     = (int) $db->table('sales_items')->where('sale_id', $invoice)->get()->getRow()->item_id;
+        [$taxes, $total]                            = $this->saudiTaxes($itemId, '-200.00');
+        $return                                     = $this->save([$this->line($itemId, 0, '-1', '200.00')], $taxes, [$this->payment('Cash', '-230.00')], SALE_TYPE_RETURN, $customer, true, $invoice, categories: $total);
+        $issued['standard-credit-note-of-a-return'] = $this->service->documentOf(EInvoiceService::SOURCE_SALE, $return);
+
+        $advance                                    = $this->advanceOf('115.00');
+        $issued['prepayment-invoice']               = $this->service->documentOf(EInvoiceService::SOURCE_ADVANCE, $advance);
+        $itemId                                     = $this->item('0', false);
+        [$taxes, $total]                            = $this->saudiTaxes($itemId, '200.00');
+        $final                                      = $this->save([$this->line($itemId, 0, '1', '200.00')], $taxes, [$this->payment('Cash', '115.00')], SALE_TYPE_INVOICE, $customer, categories: $total);
+        $issued['invoice-deducting-the-prepayment'] = $this->service->documentOf(EInvoiceService::SOURCE_SALE, $final);
+
+        $cancelled                               = $this->advanceOf('57.50');
+        $issued['prepayment-invoice-cancelled']  = $this->service->documentOf(EInvoiceService::SOURCE_ADVANCE, $cancelled);
+        (new CustomerAdvances())->cancel($cancelled, 'Paid by mistake', $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::TREASURIES_MANAGE]));
+        $returned                                = (int) $db->table('customer_advance_vat_returns')->where('advance_id', $cancelled)->get()->getRow()->return_id;
+        $issued['credit-note-of-the-prepayment'] = $this->service->documentOf(EInvoiceService::SOURCE_RETURN, $returned);
+
+        $itemId                          = $this->item('0', false);
+        $status                          = COMPLETED;
+        $items                           = [$this->line($itemId, 0, '1', '100.00')];
+        $taxes                           = [[], [[...$this->taxRow($itemId, 0, 'VAT', '15.0000', 1, '15.000000'), 'vat' => new LineVat(null, 'S', '15.000', null, null, 'VAT'), 'vat_amounts' => new VatLineResult('100.00', '15.00', '115.00', '15.000000', 'S|15.000|')]], ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '100.00', '15.00', false)]];
+        $shipped                         = $this->sales->save_value(NEW_ENTRY, $status, $items, $customer, $this->employeeId, 'shipped', null, null, null, SALE_TYPE_INVOICE, [$this->payment('Cash', '126.50')], null, $taxes, true, headerCharges: new HeaderCharges(shipping: '10.00', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+        $this->saleIds[]                 = $shipped;
+        $issued['invoice-with-shipping'] = $this->service->documentOf(EInvoiceService::SOURCE_SALE, $shipped);
+
+        $this->enableDollars();
+        $this->sales->useCurrency('USD');
+        $dollars                      = $this->saudiSaleOf('100.00', $customer);
+        $issued['invoice-in-dollars'] = $this->service->documentOf(EInvoiceService::SOURCE_SALE, $dollars);
+
+        $this->setConfigValue('accounting_debit_note', '1');
+        $maker                         = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE, AccountingGuard::EINVOICING_MANAGE]);
+        $note                          = (new SalesDebitNotes())->create(['customer_id' => $customer, 'date' => date('Y-m-d'), 'amount' => '50', 'tax_percent' => '15', 'note' => 'Freight', 'original_document' => $issued['standard-invoice']->number, 'note_reason' => EInvoiceRules::NOTE_REASONS[2]], $maker);
+        $issued['standard-debit-note'] = $this->service->documentOf(SalesDebitNotes::SOURCE, $note);
+
+        foreach ($issued as $name => $document) {
+            $this->assertNotNull($document, $name . ' was not issued');
+        }
+
+        return $issued;
     }
 
     public function testIssueSale_StoresTheDocumentWithTheFirstCounterAndTheFirstPreviousHash(): void
@@ -346,6 +524,364 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame('journal total', $refusal->context['rule']);
         $this->assertSame(0, $this->countRows('einvoice_documents'));
         $this->assertSame(0, $this->counter()['icv']);
+    }
+
+    public function testIssueSale_StatesTheRoundingThatTheJournalOfASaudiSalePutsOnTheAccountOfTaxRounding(): void
+    {
+        $vat   = new LineVat(null, 'S', '15.000', null, null, 'VAT');
+        $items = [];
+        $taxes = [];
+
+        for ($line = 0; $line < 10; $line++) {
+            $itemId  = $this->item('0', false);
+            $items[] = $this->line($itemId, $line, '1', '0.99');
+            $taxes[] = [...$this->taxRow($itemId, $line, 'VAT', '15.0000', 0, '0.129000'), 'vat' => $vat, 'vat_amounts' => new VatLineResult('0.86', '0.13', '0.99', '0.129000', 'S|15.000|')];
+        }
+
+        $status     = COMPLETED;
+        $salesTaxes = [[], $taxes, ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '8.60', '1.29', true)]];
+        $saleId     = $this->sales->save_value(NEW_ENTRY, $status, $items, $this->customerId, $this->employeeId, 'worked once', null, null, null, SALE_TYPE_INVOICE, [], null, $salesTaxes, true);
+        $this->saleIds[] = $saleId;
+
+        $this->assertSame([$this->customerAccount() . ':9.90:0.00', $this->accountId('sales_revenue') . ':0.00:8.60', $this->accountId('tax_output') . ':0.00:1.29', $this->accountId('tax_rounding') . ':0.00:0.01'], $this->standing($saleId, 'revenue')[0]['lines']);
+
+        $issued = $this->issue($saleId);
+
+        $this->assertSame(['8.60', '1.29', '9.89'], [$issued->taxExclusive, $issued->taxAmount, $issued->taxInclusive]);
+        $this->assertStringContainsString('<cbc:PayableRoundingAmount currencyID="SAR">0.01</cbc:PayableRoundingAmount><cbc:PayableAmount currencyID="SAR">9.90</cbc:PayableAmount>', $issued->xml);
+    }
+
+    public function testIssueSale_IssuesASaleWithoutItsVatWorkedOnceWhenTheRoundingAccountIsNotRouted(): void
+    {
+        $saleId = $this->referenceSale();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'tax.rounding')->delete();
+
+        try {
+            $this->assertSame($saleId, $this->issue($saleId)->sourceId);
+        } finally {
+            $this->accountingDb()->table('accounting_routing')->insert(['routing_key' => 'tax.rounding', 'routing_type' => 'auto', 'account_id' => $this->accountId('tax_rounding')]);
+        }
+    }
+
+    private function advanceOf(string $amount): int
+    {
+        $receiver = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::TREASURIES_MANAGE]);
+
+        return (new CustomerAdvances())->receive($this->customerId, $amount, date('Y-m-d'), 'Cash', null, '', '', $receiver);
+    }
+
+    public function testIssueAdvance_IssuesThePrepaymentInvoiceOfAnAdvanceReceivedUnderTheSaudiRules(): void
+    {
+        $this->accountingDb()->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+        $advanceId = $this->advanceOf('115.00');
+        $issued    = $this->service->issueAdvance($advanceId, null, $this->clerk);
+
+        $this->assertSame(EInvoiceKind::Prepayment, $issued->kind);
+        $this->assertSame(['100.00', '15.00', '115.00'], [$issued->taxExclusive, $issued->taxAmount, $issued->taxInclusive]);
+        $this->assertStringContainsString('>386</cbc:InvoiceTypeCode>', $issued->xml);
+        $this->assertSame($issued->documentId, $this->service->issueAdvance($advanceId, null, $this->clerk)->documentId, 'issued once');
+    }
+
+    public function testIssueAdvance_RefusesAnAdvanceThatCarriesNoVat(): void
+    {
+        $advanceId = $this->advanceOf('115.00');
+
+        $this->assertSame(EInvoiceError::SourceNotIssuable, $this->refusal(fn () => $this->service->issueAdvance($advanceId, null, $this->clerk))->error);
+    }
+
+    public function testIssueSale_TakesTheAdvancesItWasPaidByOffWhatIsDue(): void
+    {
+        $this->accountingDb()->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+        $advanceId = $this->advanceOf('115.00');
+        $prepaid   = $this->service->issueAdvance($advanceId, null, $this->clerk);
+        $itemId    = $this->item('0', false);
+        $vat       = new LineVat(null, 'S', '15.000', null, null, 'VAT');
+        $status    = COMPLETED;
+        $taxes     = [[], [[...$this->taxRow($itemId, 0, 'VAT', '15.0000', 1, '30.000000'), 'vat' => $vat, 'vat_amounts' => new VatLineResult('200.00', '30.00', '230.00', '30.000000', 'S|15.000|')]], ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '200.00', '30.00', false)]];
+        $items     = [$this->line($itemId, 0, '1', '200.00')];
+        $saleId    = $this->sales->save_value(NEW_ENTRY, $status, $items, $this->customerId, $this->employeeId, 'final', null, null, null, SALE_TYPE_INVOICE, [], null, $taxes, true);
+        $this->saleIds[] = $saleId;
+
+        $issued = $this->issue($saleId);
+
+        $this->assertSame(['200.00', '30.00', '230.00'], [$issued->taxExclusive, $issued->taxAmount, $issued->taxInclusive]);
+        $this->assertStringContainsString('<cbc:PrepaidAmount currencyID="SAR">115.00</cbc:PrepaidAmount>', $issued->xml);
+        $this->assertStringContainsString('<cbc:PayableAmount currencyID="SAR">115.00</cbc:PayableAmount>', $issued->xml);
+        $this->assertStringContainsString('<cbc:ID>' . $prepaid->number . '</cbc:ID><cbc:IssueDate>' . $prepaid->issueDate . '</cbc:IssueDate>', $issued->xml);
+    }
+
+    public function testIssueForCompletedSale_IssuesTheSimplifiedInvoiceOfASaleAtTheRegisterWithoutAPermission(): void
+    {
+        $saleId = $this->saudiSaleOf('100.00', null, [$this->payment('Cash', '115.00')], SALE_TYPE_POS);
+        $issued = $this->service->issueForCompletedSale($saleId, $this->employeeWithGrants([]));
+
+        $this->assertSame(EInvoiceKind::Invoice, $issued->kind);
+        $this->assertSame(EInvoiceSubtype::Simplified, $issued->subtype);
+        $this->assertSame('POS ' . $saleId, $issued->number, 'a sale at the register is numbered as its receipt');
+        $this->assertSame(['100.00', '15.00', '115.00'], [$issued->taxExclusive, $issued->taxAmount, $issued->taxInclusive]);
+    }
+
+    public function testIssueForCompletedSale_RefusesASaleThatAlreadyHasADocument(): void
+    {
+        $saleId = $this->saudiSaleOf('100.00', null, [$this->payment('Cash', '115.00')], SALE_TYPE_POS);
+
+        $this->service->issueForCompletedSale($saleId);
+
+        $this->assertSame(EInvoiceError::AlreadyIssued, $this->refusal(fn () => $this->service->issueForCompletedSale($saleId))->error);
+        $this->assertSame(1, $this->accountingDb()->table('einvoice_documents')->where(['source_type' => EInvoiceService::SOURCE_SALE, 'source_id' => $saleId])->countAllResults());
+    }
+
+    public function testIssueForCompletedSale_RefersTheCreditNoteOfAReturnToThePrintedNumberOfASaleMadeBeforeTheSaudiRules(): void
+    {
+        $cycle    = $this->referenceInvoice();
+        $saleId   = $this->save($cycle['items'], $cycle['taxes'], [$this->payment('Cash', '816.50')], SALE_TYPE_POS, null);
+        $returnId = $this->perfumeReturn($saleId, $cycle['perfume']);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $saleId)->update(['sale_time' => '2019-06-01 10:00:00']);
+        $this->accountingDb()->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+        $issued = $this->service->issueForCompletedSale($returnId);
+        $row    = $this->accountingDb()->table('einvoice_documents')->where('document_id', $issued->documentId)->get()->getRow();
+
+        $this->assertSame(EInvoiceKind::CreditNote, $issued->kind);
+        $this->assertSame(EInvoiceSubtype::Simplified, $issued->subtype, 'the kind of the sale it takes back');
+        $this->assertNull($issued->originalDocumentId);
+        $this->assertSame(['POS ' . $saleId, (string) $saleId], [$row->original_reference, (string) $row->original_sale_id]);
+        $this->assertStringContainsString('<cbc:ID>POS ' . $saleId . '</cbc:ID>', $issued->xml);
+    }
+
+    public function testIssueForCompletedSale_RefusesAReturnOfASaleMadeUnderTheSaudiRulesThatHasNoDocument(): void
+    {
+        $cycle    = $this->referenceInvoice();
+        $saleId   = $this->save($cycle['items'], $cycle['taxes'], [$this->payment('Cash', '816.50')], SALE_TYPE_POS, null);
+        $returnId = $this->perfumeReturn($saleId, $cycle['perfume']);
+
+        $this->accountingDb()->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+        $this->assertSame(EInvoiceError::OriginalNotIssued, $this->refusal(fn () => $this->service->issueForCompletedSale($returnId))->error);
+    }
+
+    public function testIssueForCompletedSale_RefusesAReturnThatTakesBackNoSale(): void
+    {
+        $cycle    = $this->referenceInvoice();
+        $saleId   = $this->save($cycle['items'], $cycle['taxes'], [$this->payment('Cash', '816.50')], SALE_TYPE_POS, null);
+        $returnId = $this->perfumeReturn($saleId, $cycle['perfume']);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $returnId)->update(['return_of_sale_id' => null]);
+
+        $this->assertSame(EInvoiceError::ReturnWithoutOrigin, $this->refusal(fn () => $this->service->issueForCompletedSale($returnId))->error);
+    }
+
+    public function testAssertIssuable_RequiresTheBuyerOfAStandardInvoice(): void
+    {
+        $customerId = $this->makeBusinessCustomer();
+
+        $this->service->assertIssuable($customerId, SALE_TYPE_INVOICE, null);
+
+        $this->accountingDb()->table('customer_einvoice_parties')->where('person_id', $customerId)->delete();
+
+        $this->assertSame(EInvoiceError::BuyerAddressIncomplete, $this->refusal(fn () => $this->service->assertIssuable($customerId, SALE_TYPE_INVOICE, null))->error);
+        $this->service->assertIssuable(null, SALE_TYPE_POS, null);
+    }
+
+    public function testIssueSale_QueuesTheDocumentOnceTheSecondPhaseIsOnAndKeepsTheCounterOfTheUnit(): void
+    {
+        $first = $this->issue();
+        $row   = $this->accountingDb()->table('einvoice_documents')->where('document_id', $first->documentId)->get()->getRow();
+
+        $this->assertSame(0, $this->accountingDb()->table('einvoice_outbox')->where('document_id', $first->documentId)->countAllResults(), 'a document of the first phase is not sent');
+        $this->assertNotNull($row->unit_id);
+
+        $this->onboardedUnit();
+        $this->configureEInvoicing([EInvoiceSettings::PHASE_TWO => '1']);
+
+        $second = $this->issue($this->referenceSale());
+        $unitId = $this->accountingDb()->table('einvoice_documents')->where('document_id', $second->documentId)->get()->getRow()->unit_id;
+        $queued = $this->accountingDb()->table('einvoice_outbox')->where('document_id', $second->documentId)->get()->getRow();
+        $unit   = $this->accountingDb()->table('einvoice_unit_counters')->where(['unit_id' => $unitId, 'environment' => EInvoiceService::LIVE])->get()->getRow();
+
+        $this->assertSame([SubmissionService::PENDING, EInvoiceService::LIVE], [$queued->status, $queued->environment]);
+        $this->assertSame([(string) $second->icv, $second->hash], [(string) $unit->last_icv, $unit->last_hash], 'the unit holds the chain as it stands');
+        $this->assertTrue($second->signed, 'stamped with the production certificate of the unit');
+        $this->assertSame(['signed' => true, 'document' => true, 'properties' => true, 'signature' => true], (new StampVerifier())->verify($second->xml));
+    }
+
+    public function testReissueRejected_IssuesARefusedDocumentAgainWithTheNextCounterAndTheLastHashAndLeavesTheRefusedOneAsItWas(): void
+    {
+        $this->onboardedUnit();
+        $this->configureEInvoicing([EInvoiceSettings::PHASE_TWO => '1']);
+
+        $saleId  = $this->referenceSale();
+        $refused = $this->issue($saleId);
+        $manager = $this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]);
+
+        $this->assertSame(EInvoiceError::SubmissionNotRejected, $this->refusal(fn () => $this->service->reissueRejected($refused->documentId, $manager))->error, 'a document waiting for its answer is sent again as it is');
+
+        $this->accountingDb()->table('einvoice_outbox')->where('document_id', $refused->documentId)->update(['status' => SubmissionService::REJECTED, 'last_error_code' => 'BR-KSA-08']);
+
+        $again  = $this->service->reissueRejected($refused->documentId, $manager);
+        $stored = $this->accountingDb()->table('einvoice_documents')->where('document_id', $refused->documentId)->get()->getRow();
+
+        $this->assertSame([EInvoiceService::SOURCE_REISSUE, $refused->documentId], [$again->sourceType, $again->sourceId]);
+        $this->assertSame([$refused->icv + 1, $refused->hash], [$again->icv, $again->previousHash], 'the next counter, after the refused document, whose hash it carries');
+        $this->assertNotSame($refused->uuid, $again->uuid);
+        $this->assertSame([$refused->taxInclusive, $refused->number], [$again->taxInclusive, $again->number]);
+        $this->assertSame([$refused->xml, $refused->hash], [(string) $stored->xml, (string) $stored->invoice_hash], 'the refused document stays as it was');
+        $this->assertSame(SubmissionService::PENDING, $this->accountingDb()->table('einvoice_outbox')->where('document_id', $again->documentId)->get()->getRow()->status);
+        $this->assertSame($again->documentId, $this->service->documentOf(EInvoiceService::SOURCE_SALE, $saleId)->documentId, 'the sale stands by the document issued again');
+        $this->assertSame($again->documentId, $this->service->reissueRejected($refused->documentId, $manager)->documentId, 'issued again once at most');
+        $this->assertTrue($this->service->inSync($again));
+    }
+
+    public function testIssueSale_CarriesTheDocumentsOfAnOnboardedUnitThroughReportingClearanceRefusalAndRetryAgainstAZatcaInMemory(): void
+    {
+        $this->skipWithoutTheCurve();
+
+        $authority = new FakeZatcaAuthority();
+        $transport = $authority->transport();
+        $directory = $this->temporaryDirectory();
+        $now       = date('Y-m-d H:i:s');
+
+        file_put_contents($directory . '/ring.key', KeyVault::newKeyLine('v1') . "\n");
+        chmod($directory . '/ring.key', 0o600);
+        config(Zatca::class)->keyRing = $directory . '/ring.key';
+
+        $credentials = new EInvoiceCredentials(KeyVault::fromFile($directory . '/ring.key'));
+        $onboarder   = $this->employeeWithGrants([AccountingGuard::EINVOICING_ONBOARD]);
+        $unitId      = (int) $this->accountingDb()->table('einvoice_units')->where(['company_id' => 1, 'is_default' => 1])->get()->getRow()->unit_id;
+        $client      = new ZatcaHttpClient($transport, ZatcaEnvironment::Production, $credentials, new Zatca());
+        $onboarding  = new OnboardingService(new ZatcaHttpClient($transport, ZatcaEnvironment::Production, null, new Zatca()), $credentials, null, new AccountingGuard(), $client);
+        $unit        = ['common_name' => 'EGS1-399999999', 'organization' => 'Maximum Speed Tech Supply LTD', 'organization_unit' => 'Riyadh', 'serial' => '1-Expro|2-1.0|3-cycle', 'vat_number' => self::SELLER_VAT, 'invoice_types' => '1100', 'address' => 'RRRD2929', 'business' => 'Supply activities'];
+
+        $onboarding->complianceStep($unitId, 'production', $unit, FakeZatcaAuthority::OTP, $onboarder);
+        $this->assertSame(array_fill(0, 6, ZatcaOutcome::Accepted->value), array_column($onboarding->complianceChecks($unitId, 'production', $now, $onboarder), 'outcome'));
+        $onboarding->productionStep($unitId, 'production', $now, $onboarder);
+        (new ZatcaIntegration())->enablePhaseTwo('Onboarded in production', $onboarder, $now, $credentials);
+
+        $reported = $this->issue($this->counterSale());
+        $cleared  = $this->issue($this->referenceSale($this->makeBusinessCustomer()));
+        $refused  = $this->issue($this->counterSale());
+        $silent   = $this->issue($this->counterSale());
+        $faulty   = $this->issue($this->counterSale());
+        $all      = [$reported, $cleared, $refused, $silent, $faulty];
+        $state    = fn (IssuedEInvoice $document): string => (string) $this->accountingDb()->table('einvoice_outbox')->where('document_id', $document->documentId)->get()->getRow()->status;
+
+        $this->assertSame(array_fill(0, 5, SubmissionService::PENDING), array_map($state, $all), 'each document of the second phase is queued when it is issued');
+        $this->assertSame(array_fill(0, 5, true), array_map(static fn (IssuedEInvoice $document): bool => $document->signed, $all), 'and stamped with the production certificate of the unit');
+
+        $authority->next = [$refused->uuid => 'reject', $silent->uuid => 'silent', $faulty->uuid => 'fail'];
+        $queue           = new SubmissionService($client);
+
+        $queue->dispatch();
+
+        $this->assertSame([SubmissionService::REPORTED, SubmissionService::CLEARED, SubmissionService::REJECTED, SubmissionService::UNKNOWN, SubmissionService::RETRY], array_map($state, $all));
+        $this->assertSame(1, $this->accountingDb()->table('einvoice_cleared_documents')->where('document_id', $cleared->documentId)->countAllResults(), 'the file ZATCA cleared is kept');
+        $this->assertStringContainsString('BR-KSA-08', (string) $this->accountingDb()->table('einvoice_submissions')->where('document_id', $refused->documentId)->get()->getRow()->errors);
+
+        $authority->next = [];
+        $this->accountingDb()->table('einvoice_outbox')->where('next_attempt_at IS NOT NULL', null, false)->update(['next_attempt_at' => '2000-01-01 00:00:00']);
+        $queue->dispatch();
+
+        $silentBodies = array_values(array_unique(array_map(static fn ($request): string => $request->body, array_filter($authority->requests, static fn ($request): bool => str_contains($request->body, $silent->uuid)))));
+
+        $this->assertSame([SubmissionService::REPORTED, SubmissionService::REPORTED], [$state($silent), $state($faulty)]);
+        $this->assertCount(1, $silentBodies, 'the document that got no answer went out again to the byte');
+
+        $again = $this->service->reissueRejected($refused->documentId, $this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]));
+
+        $queue->dispatch();
+
+        $this->assertSame([SubmissionService::REPORTED, SubmissionService::REJECTED], [$state($again), $state($refused)]);
+        $this->assertSame($faulty->hash, $again->previousHash, 'issued again after the last document, whose hash it carries');
+        $this->assertSame(1, $this->accountingDb()->table('einvoice_submissions')->where(['document_id' => $reported->documentId, 'outcome' => ZatcaOutcome::Accepted->value])->countAllResults(), 'nothing accepted is sent twice');
+    }
+
+    #[Group('zatca-sdk')]
+    public function testIssueSale_StampsWithTheCertificateOfTheUnitDocumentsTheOfficialValidatorPasses(): void
+    {
+        $sdk = $this->zatcaSdk();
+
+        $this->onboardedUnit();
+        $this->configureEInvoicing([EInvoiceSettings::PHASE_TWO => '1']);
+
+        $issued    = ['simplified' => $this->issue($this->counterSale()), 'standard' => $this->issue($this->referenceSale($this->makeBusinessCustomer())), 'again' => $this->issue($this->counterSale())];
+        $directory = $this->temporaryDirectory();
+
+        foreach ($issued as $name => $document) {
+            file_put_contents(sprintf('%s/%02d-%s.xml', $directory, $document->icv, $name), $document->xml);
+        }
+
+        file_put_contents(sprintf('%s/%02d-simplified.pih', $directory, $issued['simplified']->icv), $issued['simplified']->previousHash);
+
+        $this->assertOfficialResults($this->officialResults($sdk, $directory, true), []);
+    }
+
+    /**
+     * Run by hand on a database of its own: EXPRO_PERFORMANCE=10000 vendor/bin/phpunit --group performance.
+     */
+    #[Group('performance')]
+    public function testIssueForCompletedSale_KeepsTheChainAndItsPaceOverManySalesAndTheirQueueAndReturn(): void
+    {
+        $count = (int) (getenv('EXPRO_PERFORMANCE') ?: 0);
+
+        if ($count < 1) {
+            $this->markTestSkipped('Set EXPRO_PERFORMANCE to the number of sales to issue.');
+        }
+
+        $db = $this->accountingDb();
+
+        $this->underTheSaudiRules();
+        $this->onboardedUnit();
+        $this->configureEInvoicing([EInvoiceSettings::PHASE_TWO => '1']);
+
+        $first = (int) ($db->table('einvoice_documents')->selectMax('icv')->get()->getRow()->icv ?? 0);
+        $clock = hrtime(true);
+
+        for ($sale = 0; $sale < $count; $sale++) {
+            $this->saudiSaleOf('100.00', null, [$this->payment('Cash', '115.00')], SALE_TYPE_POS);
+        }
+
+        $issuing = (hrtime(true) - $clock) / 1e9;
+        $rows    = $db->table('einvoice_documents')->select('icv, previous_hash, invoice_hash, signed')->where('icv >', $first)->orderBy('icv', 'ASC')->get()->getResult();
+        $broken  = 0;
+
+        foreach ($rows as $index => $row) {
+            if ($index > 0 && ((int) $row->icv !== (int) $rows[$index - 1]->icv + 1 || $row->previous_hash !== $rows[$index - 1]->invoice_hash || (int) $row->signed !== 1)) {
+                $broken++;
+            }
+        }
+
+        $clock   = hrtime(true);
+        $service = new SubmissionService(new FakeZatcaTransport([new ZatcaResponse(ZatcaOutcome::Accepted, 200)]));
+
+        while ($db->table('einvoice_outbox')->whereIn('status', SubmissionService::DUE)->countAllResults() > 0) {
+            $service->dispatch(500);
+        }
+
+        $sending = (hrtime(true) - $clock) / 1e9;
+        $clock   = hrtime(true);
+        $draft   = (new VatReturnDraft())->build(date('Y-m-d'), date('Y-m-d'));
+        $drafting = (hrtime(true) - $clock) / 1e9;
+
+        fwrite(STDERR, sprintf("\n%d sales issued, stamped and queued in %.1f s (%.1f ms each), sent in %.1f s, the VAT return of the day worked out in %.1f s; peak memory %.0f MB.\n", $count, $issuing, 1000 * $issuing / $count, $sending, $drafting, memory_get_peak_usage(true) / 1048576));
+
+        $this->assertCount($count, $rows);
+        $this->assertSame(0, $broken, 'the counters follow one another and each document carries the hash of the one before it');
+        $this->assertSame($count, $db->table('einvoice_outbox')->where('status', SubmissionService::REPORTED)->countAllResults());
+        $this->assertGreaterThanOrEqual(0, bccomp($draft['boxes']['1']['vat'], bcmul((string) $count, '15', 2), 2));
+    }
+
+    public function testIssueSale_IssuesNothingInTheSecondPhaseWithoutTheProductionCertificateOfTheUnit(): void
+    {
+        $this->configureEInvoicing([EInvoiceSettings::PHASE_TWO => '1']);
+
+        $saleId = $this->referenceSale();
+        $before = $this->accountingDb()->table('einvoice_documents')->countAllResults();
+
+        $this->assertContains($this->refusal(fn () => $this->issue($saleId))->error, [EInvoiceError::KeyPathUnsafe, EInvoiceError::KeyUnreadable, EInvoiceError::CertificateUnreadable], 'no document of the second phase goes out unstamped');
+        $this->assertSame($before, $this->accountingDb()->table('einvoice_documents')->countAllResults());
     }
 
     public function testIssueSale_RefusesATaxOfTheDocumentThatTheJournalDoesNotHold(): void
@@ -811,7 +1347,7 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $after = $this->databaseFingerprint();
 
         foreach ($before as $table => $print) {
-            if (in_array($table, ['ospos_einvoice_counters', 'ospos_einvoice_documents', 'ospos_einvoice_transport_log', 'ospos_accounting_audit_log'], true)) {
+            if (in_array($table, ['ospos_einvoice_counters', 'ospos_einvoice_unit_counters', 'ospos_einvoice_documents', 'ospos_einvoice_transport_log', 'ospos_accounting_audit_log'], true)) {
                 continue;
             }
 

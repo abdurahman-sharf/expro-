@@ -217,10 +217,10 @@ trait SaleAccountingFixtureTrait
      * @param list<array<string, mixed>>           $payments
      * @param array{type: int, value: string}|null $invoiceDiscount
      */
-    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null, ReturnDocument $returnDocument = ReturnDocument::CreditNote, ?string $invoiceDate = null, int|string|null $paymentTerms = null, ?QuoteStatus $quoteStatus = null, ?int $quoteSourceId = null, ?string $draftFingerprint = null, ?string $returnOverrideReason = null, ?HeaderCharges $headerCharges = null): int
+    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null, ReturnDocument $returnDocument = ReturnDocument::CreditNote, ?string $invoiceDate = null, int|string|null $paymentTerms = null, ?QuoteStatus $quoteStatus = null, ?int $quoteSourceId = null, ?string $draftFingerprint = null, ?string $returnOverrideReason = null, ?HeaderCharges $headerCharges = null, ?array $categories = null): int
     {
         $saleStatus = $status;
-        $salesTaxes = [[], $taxes];
+        $salesTaxes = $categories === null ? [[], $taxes] : [[], $taxes, $categories];
         $customer   = $customerId === -1 ? $this->customerId : ($customerId ?? NEW_ENTRY);
         $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges);
 

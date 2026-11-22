@@ -7,19 +7,27 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AuditLog;
+use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\LockedRead;
 use App\Libraries\Accounting\RunsInTransaction;
 use App\Libraries\Accounting\SalePostingBuilder;
 use App\Libraries\Accounting\SalesDebitNotes;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
 use App\Libraries\Roles\RecordScope;
+use App\Libraries\Tax\AdvanceVat;
+use App\Libraries\Tax\CompanyTaxProfile;
 use Closure;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
+use Config\Zatca;
+use DOMDocument;
+use DOMXPath;
 
 /**
  * Issues the documents of the layer and reads them back. Issuing is one transaction under the lock of the
@@ -36,14 +44,19 @@ final class EInvoiceService
 {
     use RunsInTransaction;
 
-    public const SOURCE_SALE = SalePostingBuilder::SOURCE_SALE;
-    public const SOURCE_NOTE = SalesDebitNotes::SOURCE;
+    public const SOURCE_SALE    = SalePostingBuilder::SOURCE_SALE;
+    public const SOURCE_NOTE    = SalesDebitNotes::SOURCE;
+    public const SOURCE_ADVANCE = CustomerAdvances::SOURCE;
+    public const SOURCE_RETURN  = 'advance_return';
+    public const SOURCE_REISSUE = 'reissue';
+    public const LIVE           = 'production';
 
     private BaseConnection $db;
     private AccountingGuard $guard;
     private BranchGuard $branches;
     private EInvoiceSettings $settings;
     private EInvoiceBuilder $builder;
+    private EInvoiceParties $parties;
     private DocumentStamper $stamper;
     private JournalTie $tie;
     private AuditLog $audit;
@@ -65,6 +78,7 @@ final class EInvoiceService
         $this->branches  = $branches ?? new BranchGuard($this->db);
         $this->settings  = new EInvoiceSettings($this->db, $this->guard);
         $this->builder   = new EInvoiceBuilder($this->db, $this->settings);
+        $this->parties   = new EInvoiceParties($this->db, $this->settings);
         $this->stamper   = new DocumentStamper();
         $this->tie       = new JournalTie($this->db);
         $this->audit     = new AuditLog($this->db);
@@ -112,6 +126,227 @@ final class EInvoiceService
     }
 
     /**
+     * Issues the prepayment invoice (386) of an advance received under the Saudi rules.
+     *
+     * @throws AccountingException|BranchException|EInvoiceException
+     */
+    public function issueAdvance(int $advanceId, ?EInvoiceSubtype $subtype = null, ?int $employeeId = null): IssuedEInvoice
+    {
+        $this->guard->require(AccountingGuard::EINVOICING_MANAGE, $employeeId);
+        $this->assertOn();
+
+        $advance = $this->db->table('customer_advances')->select('branch_id, created_by')->where(['company_id' => CompanyContext::id(), 'advance_id' => $advanceId])->get()->getRow();
+
+        if ($advance === null || ! $this->scope->allows($employeeId, $advance->created_by)) {
+            throw new EInvoiceException(EInvoiceError::SourceNotFound, 'The advance does not exist.', ['number' => (string) $advanceId]);
+        }
+
+        $this->branches->requireBranch((int) $advance->branch_id, $employeeId);
+
+        return $this->transactional(function () use ($advanceId, $subtype, $employeeId, $advance): IssuedEInvoice {
+            $counter = $this->lockCounter();
+            $known   = $this->documentOf(self::SOURCE_ADVANCE, $advanceId);
+
+            if ($known !== null) {
+                return $known;
+            }
+
+            $document = $this->builder->fromAdvance($advanceId, $subtype);
+
+            $this->tie->assertAdvanceTies($advanceId, $document->payable(), $document->taxAmount);
+
+            return $this->store($document, self::SOURCE_ADVANCE, $advanceId, (int) $advance->branch_id, null, $counter, $employeeId);
+        });
+    }
+
+    /**
+     * Issues the document of a sale completed under the Saudi rules, inside the transaction that completes it: an
+     * invoice for a sale at the register or an invoice, a credit note for a return. Whoever completes the sale has
+     * it issued, so no permission is asked. The file is built and held against the books before the counter is
+     * locked, which is the last lock taken before the sale is committed. A sale that already has a document is
+     * refused, never given that document back: it could only be reached around the rule.
+     *
+     * @throws AccountingException|EInvoiceException
+     */
+    public function issueForCompletedSale(int $saleId, ?int $employeeId = null): IssuedEInvoice
+    {
+        $this->assertOn();
+
+        $sale = $this->db->table('sales')->select('branch_id, sale_type, return_of_sale_id')->where('sale_id', $saleId)->get()->getRow();
+
+        if ($sale === null) {
+            throw new EInvoiceException(EInvoiceError::SourceNotFound, 'The sale does not exist.', ['number' => (string) $saleId]);
+        }
+
+        return $this->transactional(function () use ($saleId, $employeeId, $sale): IssuedEInvoice {
+            $original = (int) $sale->sale_type === SALE_TYPE_RETURN ? $this->originalOfReturn($sale->return_of_sale_id === null ? null : (int) $sale->return_of_sale_id) : null;
+            $document = $this->builder->fromSale($saleId, null, $original === null ? '' : EInvoiceRules::NOTE_REASONS[3], $original);
+
+            $this->tie->assertTies(self::SOURCE_SALE, $saleId, $document->taxInclusive, $document->taxAmount, $document->taxExclusive);
+
+            $counter = $this->lockCounter();
+
+            if ($this->documentOf(self::SOURCE_SALE, $saleId) !== null) {
+                throw new EInvoiceException(EInvoiceError::AlreadyIssued, 'The sale already has a document.', ['number' => (string) $saleId]);
+            }
+
+            return $this->store($document, self::SOURCE_SALE, $saleId, (int) $sale->branch_id, $original, $counter, $employeeId);
+        });
+    }
+
+    /**
+     * Issues the prepayment invoice of an advance received under the Saudi rules, inside the transaction that
+     * receives it, the way issueForCompletedSale issues the document of a sale.
+     *
+     * @throws AccountingException|EInvoiceException
+     */
+    public function issueForReceivedAdvance(int $advanceId, ?int $employeeId = null): IssuedEInvoice
+    {
+        $this->assertOn();
+
+        $advance = $this->db->table('customer_advances')->select('branch_id')->where(['company_id' => CompanyContext::id(), 'advance_id' => $advanceId])->get()->getRow();
+
+        if ($advance === null) {
+            throw new EInvoiceException(EInvoiceError::SourceNotFound, 'The advance does not exist.', ['number' => (string) $advanceId]);
+        }
+
+        return $this->transactional(function () use ($advanceId, $employeeId, $advance): IssuedEInvoice {
+            $document = $this->builder->fromAdvance($advanceId);
+
+            $this->tie->assertAdvanceTies($advanceId, $document->payable(), $document->taxAmount);
+
+            $counter = $this->lockCounter();
+
+            if ($this->documentOf(self::SOURCE_ADVANCE, $advanceId) !== null) {
+                throw new EInvoiceException(EInvoiceError::AlreadyIssued, 'The advance already has a document.', ['number' => (string) $advanceId]);
+            }
+
+            return $this->store($document, self::SOURCE_ADVANCE, $advanceId, (int) $advance->branch_id, null, $counter, $employeeId);
+        });
+    }
+
+    /**
+     * Issues the credit note of what went back of an advance under the Saudi rules, paid back or left when the advance
+     * was cancelled, inside the transaction that gives it back: it refers to the prepayment invoice of the advance.
+     *
+     * @throws AccountingException|EInvoiceException
+     */
+    public function issueForAdvanceReturn(int $returnId, string $reason, ?int $employeeId = null): IssuedEInvoice
+    {
+        $this->assertOn();
+
+        $return  = (new AdvanceVat($this->db))->returnOf($returnId);
+        $advance = $return === null ? null : $this->db->table('customer_advances')->select('branch_id')->where(['company_id' => CompanyContext::id(), 'advance_id' => (int) $return->advance_id])->get()->getRow();
+
+        if ($return === null || $advance === null) {
+            throw new EInvoiceException(EInvoiceError::SourceNotFound, 'Nothing of the advance went back.', ['number' => (string) $returnId]);
+        }
+
+        return $this->transactional(function () use ($returnId, $reason, $employeeId, $return, $advance): IssuedEInvoice {
+            $prepayment = $this->documentOf(self::SOURCE_ADVANCE, (int) $return->advance_id);
+
+            if ($prepayment === null) {
+                throw new EInvoiceException(EInvoiceError::OriginalNotIssued, 'The advance has no prepayment invoice for the credit note to refer to.');
+            }
+
+            $original = new OriginalReference($prepayment->documentId, $prepayment->number, $prepayment->subtype);
+            $document = $this->builder->fromAdvanceReturn($returnId, $reason, $original);
+
+            $this->tie->assertAdvanceReturnTies($returnId, $document->payable(), $document->taxAmount);
+
+            $counter = $this->lockCounter();
+
+            if ($this->documentOf(self::SOURCE_RETURN, $returnId) !== null) {
+                throw new EInvoiceException(EInvoiceError::AlreadyIssued, 'What went back of the advance already has a document.', ['number' => (string) $returnId]);
+            }
+
+            return $this->store($document, self::SOURCE_RETURN, $returnId, (int) $advance->branch_id, $original, $counter, $employeeId);
+        });
+    }
+
+    /**
+     * The issued document a debit note raised under the Saudi rules corrects, named by its number: an invoice or a
+     * credit note of the customer of the note, in a branch the employee works in and out of the records they may
+     * see, checked before the note is raised.
+     *
+     * @throws EInvoiceException
+     */
+    public function originalForDebitNote(int $customerId, string $number, ?int $employeeId): int
+    {
+        $this->assertOn();
+
+        $number = trim($number);
+
+        if ($number === '') {
+            throw new EInvoiceException(EInvoiceError::OriginalNotIssued, 'Under the Saudi rules a debit note names the issued document it corrects.');
+        }
+
+        $candidates = $this->db->table('einvoice_documents')->select('document_id')->where(['company_id' => CompanyContext::id(), 'document_number' => $number])->whereIn('doc_kind', [EInvoiceKind::Invoice->value, EInvoiceKind::CreditNote->value])->orderBy('document_id', 'DESC')->get()->getResult();
+        $refusal    = new EInvoiceException(EInvoiceError::OriginalNotIssued, 'The debit note must refer to an issued invoice or credit note.', ['number' => $number]);
+
+        foreach ($candidates as $candidate) {
+            try {
+                return $this->referable((int) $candidate->document_id, $customerId, $employeeId)->documentId;
+            } catch (EInvoiceException $failure) {
+                $refusal = $failure;
+            }
+        }
+
+        throw $refusal;
+    }
+
+    /**
+     * Issues the document of a debit note raised under the Saudi rules, inside the transaction that raises it.
+     * Whoever may raise the note has it issued; the document it refers to is held to the same rules as when the
+     * note is issued by hand.
+     *
+     * @throws AccountingException|EInvoiceException
+     */
+    public function issueForDebitNote(int $debitNoteId, string $reason, int $originalDocumentId, ?int $employeeId = null): IssuedEInvoice
+    {
+        $this->assertOn();
+
+        $note = $this->db->table('sales_debit_notes')->select('branch_id, customer_id')->where('debit_note_id', $debitNoteId)->get()->getRow();
+
+        if ($note === null) {
+            throw new EInvoiceException(EInvoiceError::SourceNotFound, 'The debit note does not exist.', ['number' => (string) $debitNoteId]);
+        }
+
+        return $this->transactional(function () use ($debitNoteId, $reason, $originalDocumentId, $employeeId, $note): IssuedEInvoice {
+            $referred = $this->referable($originalDocumentId, (int) $note->customer_id, $employeeId);
+            $original = new OriginalReference($referred->documentId, $referred->number, $referred->subtype);
+            $document = $this->builder->fromDebitNote($debitNoteId, $reason, $original);
+
+            $this->tie->assertTies(self::SOURCE_NOTE, $debitNoteId, $document->taxInclusive, $document->taxAmount, $document->taxExclusive);
+
+            $counter = $this->lockCounter();
+
+            if ($this->documentOf(self::SOURCE_NOTE, $debitNoteId) !== null) {
+                throw new EInvoiceException(EInvoiceError::AlreadyIssued, 'The debit note already has a document.', ['number' => (string) $debitNoteId]);
+            }
+
+            return $this->store($document, self::SOURCE_NOTE, $debitNoteId, (int) $note->branch_id, $original, $counter, $employeeId);
+        });
+    }
+
+    /**
+     * What is checked before a sale under the Saudi rules is completed, so that issuing its document inside the
+     * transaction seldom fails: the layer is on, the seller is complete, the buyer of a tax invoice is complete,
+     * and a return takes back a sale its credit note can refer to.
+     *
+     * @throws EInvoiceException
+     */
+    public function assertIssuable(?int $customerId, int $saleType, ?int $returnOfSaleId): void
+    {
+        $this->assertOn();
+        $this->parties->seller();
+
+        $subtype = $saleType === SALE_TYPE_RETURN ? $this->originalOfReturn($returnOfSaleId)->subtype : $this->parties->defaultSubtype($customerId);
+
+        $this->parties->buyer($customerId, $subtype);
+    }
+
+    /**
      * @throws AccountingException|BranchException|EInvoiceException
      */
     public function issueDebitNote(int $debitNoteId, string $reason, int $originalDocumentId, ?int $employeeId = null): IssuedEInvoice
@@ -149,11 +384,128 @@ final class EInvoiceService
     /**
      * The document that was issued for a sale or a note, or null when none was.
      */
+    /**
+     * The document of a sale, an advance, a return of an advance or a note: the one issued again in place of a
+     * document ZATCA refused, when it was, which is the document that stands.
+     */
     public function documentOf(string $sourceType, int $sourceId): ?IssuedEInvoice
     {
         $row = $this->db->table('einvoice_documents')->where(['company_id' => CompanyContext::id(), 'source_type' => $sourceType, 'source_id' => $sourceId])->get()->getRow();
 
+        for ($depth = 0; $row !== null && $depth < 20; $depth++) {
+            $again = $this->db->table('einvoice_documents')->where(['company_id' => CompanyContext::id(), 'source_type' => self::SOURCE_REISSUE, 'source_id' => (int) $row->document_id])->get()->getRow();
+
+            if ($again === null) {
+                break;
+            }
+
+            $row = $again;
+        }
+
         return $row === null ? null : $this->model($row);
+    }
+
+    /**
+     * Issues again a document ZATCA refused (D-24 a), from its sale, advance, return or note as the books hold it now,
+     * once its data were put right: a new document with a new uuid, the next counter and the hash of the last
+     * document, as ZATCA asks of a document sent again. The refused document stays in the chain as it was, and stays
+     * refused. A refused document is issued again once at most: asking again gives the document issued in its place.
+     * Only a refusal is issued again: a document waiting for an answer, or one that got none, is sent again as it is.
+     *
+     * @throws AccountingException|BranchException|EInvoiceException
+     */
+    public function reissueRejected(int $documentId, ?int $employeeId = null): IssuedEInvoice
+    {
+        $this->guard->require(AccountingGuard::EINVOICING_MANAGE, $employeeId);
+        $this->assertOn();
+
+        $refused = $this->find($documentId);
+
+        if ($refused === null || $this->outsideScope($refused->sourceType, $refused->sourceId, $employeeId)) {
+            throw new EInvoiceException(EInvoiceError::DocumentNotFound, 'The document does not exist.', ['number' => (string) $documentId]);
+        }
+
+        $this->branches->requireBranch($refused->branchId, $employeeId);
+
+        return $this->transactional(function () use ($documentId, $employeeId, $refused): IssuedEInvoice {
+            $counter = $this->lockCounter();
+            $known   = $this->db->table('einvoice_documents')->where(['company_id' => CompanyContext::id(), 'source_type' => self::SOURCE_REISSUE, 'source_id' => $documentId])->get()->getRow();
+
+            if ($known !== null) {
+                return $this->model($known);
+            }
+
+            $state = LockedRead::row($this->db, 'SELECT status FROM ' . $this->db->prefixTable('einvoice_outbox') . ' WHERE document_id = ? FOR UPDATE', [$documentId]);
+
+            if ($state === null || (string) $state->status !== SubmissionService::REJECTED) {
+                throw new EInvoiceException(EInvoiceError::SubmissionNotRejected, 'Only a document ZATCA refused is issued again.', ['number' => $refused->number]);
+            }
+
+            [$sourceType, $sourceId] = $this->rootOf($refused->sourceType, $refused->sourceId);
+
+            $original = $this->originalOfDocument($documentId);
+            $document = match ($sourceType) {
+                self::SOURCE_ADVANCE => $this->builder->fromAdvance($sourceId, $refused->subtype),
+                self::SOURCE_RETURN  => $this->builder->fromAdvanceReturn($sourceId, $refused->reason, $original ?? throw new EInvoiceException(EInvoiceError::OriginalNotIssued, 'The refused credit note names no prepayment invoice.')),
+                self::SOURCE_NOTE    => $this->builder->fromDebitNote($sourceId, $refused->reason, $original ?? throw new EInvoiceException(EInvoiceError::OriginalNotIssued, 'The refused debit note names no document.')),
+                default              => $this->builder->fromSale($sourceId, $refused->subtype, $refused->reason, $original),
+            };
+
+            match ($sourceType) {
+                self::SOURCE_ADVANCE => $this->tie->assertAdvanceTies($sourceId, $document->payable(), $document->taxAmount),
+                self::SOURCE_RETURN  => $this->tie->assertAdvanceReturnTies($sourceId, $document->payable(), $document->taxAmount),
+                default              => $this->tie->assertTies($sourceType, $sourceId, $document->taxInclusive, $document->taxAmount, $document->taxExclusive),
+            };
+
+            $issued = $this->store($document, self::SOURCE_REISSUE, $documentId, $refused->branchId, $original, $counter, $employeeId);
+
+            $this->audit->write('einvoice_document', $issued->documentId, 'reissued', $employeeId, JournalOrigin::User, ['refused' => $documentId, 'source' => $sourceType . ':' . $sourceId], $refused->branchId);
+
+            return $issued;
+        });
+    }
+
+    /**
+     * The sale, advance, return or note behind a source, through the documents issued again in place of others.
+     *
+     * @return array{0: string, 1: int}
+     *
+     * @throws EInvoiceException
+     */
+    private function rootOf(string $sourceType, int $sourceId): array
+    {
+        $row = (object) ['source_type' => $sourceType, 'source_id' => $sourceId];
+
+        for ($depth = 0; (string) $row->source_type === self::SOURCE_REISSUE && $depth < 20; $depth++) {
+            $row = $this->db->table('einvoice_documents')->select('source_type, source_id')->where('document_id', (int) $row->source_id)->get()->getRow();
+
+            if ($row === null) {
+                throw new EInvoiceException(EInvoiceError::DocumentNotFound, 'The document issued again has lost the one it replaced.');
+            }
+        }
+
+        return [(string) $row->source_type, (int) $row->source_id];
+    }
+
+    /**
+     * What a document refers to, as it was stored: an issued document, or the printed number of a sale made before
+     * the Saudi rules; nothing for an invoice.
+     */
+    private function originalOfDocument(int $documentId): ?OriginalReference
+    {
+        $row = $this->db->table('einvoice_documents')->select('original_document_id, original_reference, original_sale_id, subtype')->where('document_id', $documentId)->get()->getRow();
+
+        if ($row === null) {
+            return null;
+        }
+
+        if ($row->original_document_id !== null) {
+            $referred = $this->find((int) $row->original_document_id);
+
+            return $referred === null ? null : new OriginalReference($referred->documentId, $referred->number, $referred->subtype);
+        }
+
+        return $row->original_sale_id !== null && trim((string) $row->original_reference) !== '' ? new OriginalReference(null, (string) $row->original_reference, EInvoiceSubtype::from((string) $row->subtype), (int) $row->original_sale_id) : null;
     }
 
     public function find(int $documentId): ?IssuedEInvoice
@@ -218,12 +570,38 @@ final class EInvoiceService
     public function inSync(IssuedEInvoice $document): bool
     {
         try {
-            $this->tie->assertTies($document->sourceType, $document->sourceId, $document->taxInclusive, $document->taxAmount, $document->taxExclusive);
+            [$sourceType, $sourceId] = $this->rootOf($document->sourceType, $document->sourceId);
+
+            match ($sourceType) {
+                self::SOURCE_ADVANCE => $this->tie->assertAdvanceTies($sourceId, self::payableOf($document), $document->taxAmount),
+                self::SOURCE_RETURN  => $this->tie->assertAdvanceReturnTies($sourceId, self::payableOf($document), $document->taxAmount),
+                default              => $this->tie->assertTies($sourceType, $sourceId, $document->taxInclusive, $document->taxAmount, $document->taxExclusive),
+            };
         } catch (EInvoiceException) {
             return false;
         }
 
         return true;
+    }
+
+    /**
+     * What a document states is due (BT-115), read from its file.
+     */
+    private static function payableOf(IssuedEInvoice $document): string
+    {
+        $xml = new DOMDocument();
+
+        if ($document->xml === '' || ! @$xml->loadXML($document->xml)) {
+            return $document->taxInclusive;
+        }
+
+        $xpath = new DOMXPath($xml);
+        $xpath->registerNamespace('cac', UblInvoiceXml::NS_CAC);
+        $xpath->registerNamespace('cbc', UblInvoiceXml::NS_CBC);
+
+        $payable = trim((string) $xpath->evaluate('string(//cac:LegalMonetaryTotal/cbc:PayableAmount)'));
+
+        return $payable === '' ? $document->taxInclusive : $payable;
     }
 
     /**
@@ -274,6 +652,8 @@ final class EInvoiceService
             $builder->groupStart()
                 ->groupStart()->where('source_type', self::SOURCE_SALE)->whereIn('source_id', static fn (BaseBuilder $sales): BaseBuilder => $sales->select('sale_id')->from('sales', true)->where('employee_id', $mine))->groupEnd()
                 ->orGroupStart()->where('source_type', self::SOURCE_NOTE)->whereIn('source_id', static fn (BaseBuilder $notes): BaseBuilder => $notes->select('debit_note_id')->from('sales_debit_notes', true)->where('created_by', $mine))->groupEnd()
+                ->orGroupStart()->where('source_type', self::SOURCE_ADVANCE)->whereIn('source_id', static fn (BaseBuilder $advances): BaseBuilder => $advances->select('advance_id')->from('customer_advances', true)->where('created_by', $mine))->groupEnd()
+                ->orGroupStart()->where('source_type', self::SOURCE_RETURN)->whereIn('source_id', static fn (BaseBuilder $returns): BaseBuilder => $returns->select('r.return_id')->from('customer_advance_vat_returns AS r', true)->join('customer_advances AS a', 'a.advance_id = r.advance_id')->where('a.created_by', $mine))->groupEnd()
                 ->groupEnd();
         }
 
@@ -308,18 +688,28 @@ final class EInvoiceService
             return false;
         }
 
-        $row = $sourceType === self::SOURCE_NOTE
-            ? $this->db->table('sales_debit_notes')->select('created_by AS owner')->where('debit_note_id', $sourceId)->get()->getRow()
-            : $this->db->table('sales')->select('employee_id AS owner')->where('sale_id', $sourceId)->get()->getRow();
+        [$sourceType, $sourceId] = $this->rootOf($sourceType, $sourceId);
+
+        $row = match ($sourceType) {
+            self::SOURCE_NOTE    => $this->db->table('sales_debit_notes')->select('created_by AS owner')->where('debit_note_id', $sourceId)->get()->getRow(),
+            self::SOURCE_ADVANCE => $this->db->table('customer_advances')->select('created_by AS owner')->where('advance_id', $sourceId)->get()->getRow(),
+            self::SOURCE_RETURN  => $this->db->table('customer_advance_vat_returns AS r')->select('a.created_by AS owner')->join('customer_advances AS a', 'a.advance_id = r.advance_id')->where('r.return_id', $sourceId)->get()->getRow(),
+            default              => $this->db->table('sales')->select('employee_id AS owner')->where('sale_id', $sourceId)->get()->getRow(),
+        };
 
         return ! $this->scope->allows($employeeId, $row?->owner);
     }
 
     private function customerOf(string $sourceType, int $sourceId): ?int
     {
-        $row = $sourceType === self::SOURCE_NOTE
-            ? $this->db->table('sales_debit_notes')->select('customer_id')->where('debit_note_id', $sourceId)->get()->getRow()
-            : $this->db->table('sales')->select('customer_id')->where('sale_id', $sourceId)->get()->getRow();
+        [$sourceType, $sourceId] = $this->rootOf($sourceType, $sourceId);
+
+        $row = match ($sourceType) {
+            self::SOURCE_NOTE    => $this->db->table('sales_debit_notes')->select('customer_id')->where('debit_note_id', $sourceId)->get()->getRow(),
+            self::SOURCE_ADVANCE => $this->db->table('customer_advances')->select('customer_id')->where('advance_id', $sourceId)->get()->getRow(),
+            self::SOURCE_RETURN  => $this->db->table('customer_advance_vat_returns AS r')->select('a.customer_id')->join('customer_advances AS a', 'a.advance_id = r.advance_id')->where('r.return_id', $sourceId)->get()->getRow(),
+            default              => $this->db->table('sales')->select('customer_id')->where('sale_id', $sourceId)->get()->getRow(),
+        };
 
         return $row === null || $row->customer_id === null ? null : (int) $row->customer_id;
     }
@@ -405,11 +795,18 @@ final class EInvoiceService
             'signed'               => $stamped->signed ? 1 : 0,
             'profile'              => 'candidate',
             'created_by'           => $employeeId,
+            ...($original !== null && $original->isPrinted() ? ['original_reference' => $original->number, 'original_sale_id' => $original->saleId] : []),
+            ...$this->unitColumns(),
         ]);
 
         $documentId = (int) $this->db->insertID();
 
         $this->db->table('einvoice_counters')->where('company_id', CompanyContext::id())->update(['last_icv' => $icv, 'last_hash' => $stamped->hash]);
+        $this->mirrorUnitCounter($icv, $stamped->hash);
+
+        if ($this->settings->phaseTwo() && $this->defaultUnit() !== null) {
+            SubmissionService::enqueue($this->db, $documentId, self::LIVE);
+        }
 
         $this->audit->write('einvoice_document', $documentId, 'issued', $employeeId, JournalOrigin::User, [
             'source'  => $sourceType . ':' . $sourceId,
@@ -435,10 +832,60 @@ final class EInvoiceService
     }
 
     /**
+     * The unit a document is issued by, the default unit of the company; nothing while the units are not installed.
+     *
+     * @return array<string, mixed>
+     */
+    private function unitColumns(): array
+    {
+        $unit = $this->defaultUnit();
+
+        if ($unit === null) {
+            return [];
+        }
+
+        return ['unit_id' => $unit];
+    }
+
+    /**
+     * The counter of the default unit follows the counter of the company to the figure, in the same transaction, so
+     * that the chain goes on unbroken when the unit takes it over (§4.6).
+     */
+    private function mirrorUnitCounter(int $icv, string $hash): void
+    {
+        $unit = $this->defaultUnit();
+
+        if ($unit !== null) {
+            $this->db->table('einvoice_unit_counters')->where(['unit_id' => $unit, 'environment' => self::LIVE])->update(['last_icv' => $icv, 'last_hash' => $hash]);
+        }
+    }
+
+    private function defaultUnit(): ?int
+    {
+        if (! $this->db->tableExists($this->db->prefixTable('einvoice_units'), false)) {
+            return null;
+        }
+
+        $row = $this->db->table('einvoice_units')->select('unit_id')->where(['company_id' => CompanyContext::id(), 'is_default' => 1])->get()->getRow();
+
+        return $row === null ? null : (int) $row->unit_id;
+    }
+
+    /**
+     * Stamps a document: in the second phase with the production certificate of the unit that issues it, which the
+     * vault keeps sealed, and no document is issued unstamped; in the first phase with the key and the certificate the
+     * settings name, when they do.
+     *
      * @throws EInvoiceException
      */
     private function stamp(EInvoiceDocument $document): StampedDocument
     {
+        $unit = $this->settings->phaseTwo() ? $this->defaultUnit() : null;
+
+        if ($unit !== null) {
+            return $this->stamper->signed($document, $this->unitMaterial($unit), gmdate('Y-m-d\TH:i:s\Z', ($this->clock)()));
+        }
+
         $values  = $this->settings->all();
         $keyPath = $values['key_path'];
         $cert    = $values['certificate_path'];
@@ -453,6 +900,18 @@ final class EInvoiceService
     }
 
     /**
+     * The key and the production certificate of a unit, opened from the vault for the one document being stamped.
+     *
+     * @throws EInvoiceException When the vault cannot be read or the unit has no certificate that runs.
+     */
+    private function unitMaterial(int $unitId): StampMaterial
+    {
+        $active = (new EInvoiceCredentials(KeyVault::fromFile((string) config(Zatca::class)->keyRing), $this->db))->active($unitId, self::LIVE, EInvoiceCredentials::PRODUCTION, date('Y-m-d H:i:s', ($this->clock)()));
+
+        return StampKeys::fromPem($active['private_key'], $active['certificate']);
+    }
+
+    /**
      * @throws EInvoiceException
      */
     private function originalOfSale(mixed $originSaleId): OriginalReference
@@ -464,6 +923,50 @@ final class EInvoiceService
         }
 
         return new OriginalReference($origin->documentId, $origin->number, $origin->subtype);
+    }
+
+    /**
+     * What the credit note of a return completed under the Saudi rules refers to: the document of the sale it takes
+     * back, or, for a sale completed before the rules and never issued, the number printed for it (D-26), as the
+     * kind of tax invoice that sale was. A return of nothing has nothing to refer to (D-11), and a sale completed
+     * under the rules without a document could only have been made around them: both are refused.
+     *
+     * @throws EInvoiceException
+     */
+    private function originalOfReturn(?int $originSaleId): OriginalReference
+    {
+        if ($originSaleId === null) {
+            throw new EInvoiceException(EInvoiceError::ReturnWithoutOrigin, 'Under the Saudi rules a return takes back a sale, which its credit note refers to.');
+        }
+
+        $origin = $this->documentOf(self::SOURCE_SALE, $originSaleId);
+
+        if ($origin !== null) {
+            return new OriginalReference($origin->documentId, $origin->number, $origin->subtype);
+        }
+
+        $sale = $this->db->table('sales')->select('sale_time, invoice_number, customer_id')->where('sale_id', $originSaleId)->get()->getRow();
+
+        if ($sale === null || (new CompanyTaxProfile($this->db))->current()->inSaudiModeAt((string) $sale->sale_time)) {
+            throw new EInvoiceException(EInvoiceError::OriginalNotIssued, 'The invoice this return takes back has not been issued as a document.');
+        }
+
+        return OriginalReference::printed($originSaleId, $this->printedNumberOf($originSaleId, (string) ($sale->invoice_number ?? '')), $this->parties->defaultSubtype($sale->customer_id === null ? null : (int) $sale->customer_id));
+    }
+
+    /**
+     * The number a sale was printed with: the number its sequence gave it, else its invoice number, else the
+     * receipt number of the register.
+     */
+    private function printedNumberOf(int $saleId, string $invoiceNumber): string
+    {
+        $label = (new DocumentNumbering($this->db))->label(DocumentType::SalesInvoice, 'sales', $saleId);
+
+        if ($label !== '') {
+            return $label;
+        }
+
+        return trim($invoiceNumber) !== '' ? trim($invoiceNumber) : 'POS ' . $saleId;
     }
 
     private function uuid(): string

@@ -283,4 +283,28 @@ class DeploymentChecksTest extends CIUnitTestCase
 
         $this->assertDatabaseUnchanged($before);
     }
+
+    public function testFirstRunSettings_AcceptsAnEmptyTaxNumberForABusinessThatIsNotRegistered(): void
+    {
+        $this->settleEverything();
+        $this->setConfigValue('tax_id', '');
+        $this->accountingDb()->table('company_tax_profile')->where('company_id', 1)->update(['vat_registered' => 0]);
+
+        try {
+            $result = $this->check('first_run_settings');
+        } finally {
+            $this->accountingDb()->table('company_tax_profile')->where('company_id', 1)->update(['vat_registered' => null]);
+        }
+
+        $this->assertFalse($result->data['tax_number_empty']);
+        $this->assertSame(CheckStatus::Pass, $result->status);
+    }
+
+    public function testFirstRunSettings_StillWarnsOfAnEmptyTaxNumberWhileTheRegistrationIsUnknown(): void
+    {
+        $this->settleEverything();
+        $this->setConfigValue('tax_id', '');
+
+        $this->assertTrue($this->check('first_run_settings')->data['tax_number_empty']);
+    }
 }

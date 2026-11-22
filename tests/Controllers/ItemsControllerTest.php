@@ -12,6 +12,7 @@ use App\Libraries\Stock\UnitBarcodes;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\Roles\RoleTablesUnavailableException;
+use App\Libraries\Tax\VatClassification;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -225,6 +226,64 @@ class ItemsControllerTest extends CIUnitTestCase
 
         $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
         $this->assertSame([], $this->accountingDb()->table('items_taxes')->where('item_id', $result['id'])->get()->getResultArray());
+    }
+
+    public function testPostSave_SavesTheVatClassOfTheItem(): void
+    {
+        $employeeId = $this->createItemsEmployee();
+        $this->loginAsItemsEmployee($employeeId);
+        $db      = $this->accountingDb();
+        $classId = (int) $db->table('vat_classes')->where('code', 'Z-EXPORT-GOODS')->get()->getRow()->class_id;
+
+        $postData                 = $this->baseItemPostData();
+        $postData['tax_names']    = ['', ''];
+        $postData['tax_percents'] = ['', ''];
+        $postData['vat_class_id'] = (string) $classId;
+
+        $result = json_decode($this->post('/items/save', $postData)->getJSON(), true);
+
+        try {
+            $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+            $this->assertSame('Z-EXPORT-GOODS', (new VatClassification())->classOf((int) $result['id'])->code);
+
+            $postData['vat_class_id'] = '0';
+            $this->post('/items/save/' . $result['id'], $postData);
+
+            $this->assertNull((new VatClassification())->classOf((int) $result['id']));
+        } finally {
+            $db->table('item_vat_classes')->truncate();
+            $db->table('accounting_audit_log')->where('entity_type', 'vat_classification')->delete();
+        }
+    }
+
+    public function testPostSave_KeepsAClassThatWasTakenOutOfUse(): void
+    {
+        $employeeId = $this->createItemsEmployee();
+        $this->loginAsItemsEmployee($employeeId);
+        $db      = $this->accountingDb();
+        $itemId  = $this->createTestItem();
+        $classId = (int) $db->table('vat_classes')->where('code', 'E-FINANCIAL')->get()->getRow()->class_id;
+        $db->table('item_vat_classes')->insert(['item_id' => $itemId, 'class_id' => $classId]);
+        $db->table('vat_classes')->where('class_id', $classId)->update(['active' => 0]);
+
+        try {
+            $this->assertMatchesRegularExpression('/<option value="' . $classId . '" selected>/', $this->get('/items/view/' . $itemId)->getBody());
+
+            $postData                 = $this->baseItemPostData();
+            $postData['tax_names']    = ['', ''];
+            $postData['tax_percents'] = ['', ''];
+            $postData['vat_class_id'] = (string) $classId;
+
+            $result = json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true);
+
+            $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+            $this->assertSame('E-FINANCIAL', (new VatClassification())->classOf($itemId)->code);
+            $this->assertSame(0, $db->table('accounting_audit_log')->where(['entity_type' => 'vat_classification', 'entity_id' => $itemId])->countAllResults());
+        } finally {
+            $db->table('vat_classes')->where('class_id', $classId)->update(['active' => 1]);
+            $db->table('item_vat_classes')->truncate();
+            $db->table('accounting_audit_log')->where('entity_type', 'vat_classification')->delete();
+        }
     }
 
     public function testPostSave_RejectsATaxRateThatHasNoName(): void

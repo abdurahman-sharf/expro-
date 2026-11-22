@@ -212,7 +212,7 @@ final class SidebarMenuTest extends CIUnitTestCase
         $before = array_keys(require __DIR__ . '/../../Support/SidebarMenuBeforeNav4.php');
         $added  = array_values(array_diff(array_column($this->definedPages(), 'id'), $before));
 
-        $this->assertEqualsCanonicalizing(['customer_classifications', 'item_brands', 'warehouses', 'journal_new', 'activity_log', 'receipt_templates', 'invoice_templates', 'barcode_labels', 'notification_rules', 'payment_methods', 'api_keys', 'returned_invoices'], $added);
+        $this->assertEqualsCanonicalizing(['customer_classifications', 'item_brands', 'warehouses', 'journal_new', 'activity_log', 'receipt_templates', 'invoice_templates', 'barcode_labels', 'notification_rules', 'payment_methods', 'api_keys', 'returned_invoices', 'tax_settings'], $added);
     }
 
     public function testDefinition_PinsTheGateAndTheLabelOfEachPageThatWasListedForTheFirstTime(): void
@@ -230,6 +230,7 @@ final class SidebarMenuTest extends CIUnitTestCase
             'payment_methods'          => ['module' => 'integrations', 'path' => 'integrations/payment_methods', 'permission' => 'acc_integrations_manage', 'also' => ['config'], 'label' => 'Integrations.payment_methods'],
             'api_keys'                 => ['module' => 'integrations', 'path' => 'api_keys', 'permission' => 'api_keys_manage', 'company' => true, 'also' => ['config'], 'label' => 'Integrations.api_keys'],
             'returned_invoices'        => ['module' => 'accounting_reports', 'path' => 'accounting_reports/net_position', 'permission' => 'reports_sales', 'query' => 'status[]=returned&status[]=partial_return&show=1', 'label' => 'Module.nav_returned_invoices'],
+            'tax_settings'             => ['module' => 'taxes', 'path' => 'tax_settings', 'label' => 'Tax_settings.title'],
         ];
 
         $now = array_column($this->definedPages(), null, 'id');
@@ -269,8 +270,8 @@ final class SidebarMenuTest extends CIUnitTestCase
         $counts   = array_map(fn (array $section): int => count($this->itemIds([$section])), $sections);
 
         $this->assertSame(['home', 'sales', 'customers', 'inventory', 'purchases', 'finance', 'ledger', 'employees', 'reports', 'templates', 'settings'], $this->sectionKeys($sections));
-        $this->assertSame([2, 11, 5, 10, 11, 11, 23, 2, 2, 4, 7], $counts);
-        $this->assertSame(88, array_sum($counts));
+        $this->assertSame([2, 11, 5, 10, 11, 11, 23, 2, 2, 4, 8], $counts);
+        $this->assertSame(89, array_sum($counts));
     }
 
     public function testDefinition_NamesEveryPageAndSectionInArabic(): void
@@ -555,7 +556,7 @@ final class SidebarMenuTest extends CIUnitTestCase
         $settings = end($sections);
 
         $this->assertSame('settings', $settings['key']);
-        $this->assertSame(['config'], array_column($settings['groups'][0]['items'], 'id'));
+        $this->assertSame(['config', 'tax_settings'], array_column($settings['groups'][0]['items'], 'id'), 'the center of the tax settings opens for the settings module');
         $this->assertSame(['custom_module'], array_column(end($settings['groups'])['items'], 'id'));
     }
 
@@ -705,7 +706,7 @@ final class SidebarMenuTest extends CIUnitTestCase
     public function testSections_ShowsToEveryKindOfHolderTheSamePagesTheMenuShowedBeforeAndTheListedOnes(): void
     {
         $before     = require __DIR__ . '/../../Support/SidebarMenuBeforeNav4.php';
-        $added      = ['customer_classifications', 'item_brands', 'warehouses', 'journal_new', 'activity_log', 'receipt_templates', 'invoice_templates', 'barcode_labels', 'notification_rules', 'payment_methods', 'api_keys', 'returned_invoices'];
+        $added      = ['customer_classifications', 'item_brands', 'warehouses', 'journal_new', 'activity_log', 'receipt_templates', 'invoice_templates', 'barcode_labels', 'notification_rules', 'payment_methods', 'api_keys', 'returned_invoices', 'tax_settings'];
         $every      = SidebarMenu::modules();
         $permits    = array_values(array_unique(array_filter(array_column($this->definedPages(), 'permission'))));
         $accounting = ['accounting_chart', 'accounting_journals', 'accounting_periods', 'accounting_reports', 'accounting_treasuries', 'accounting_receivables', 'accounting_payables', 'accounting_cheques', 'accounting_assets'];

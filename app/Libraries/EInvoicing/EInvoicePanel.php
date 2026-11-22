@@ -39,7 +39,7 @@ final class EInvoicePanel
 
         $sale = $this->db->table('sales')->select('sale_status, sale_type, customer_id, return_of_sale_id')->where('sale_id', $saleId)->get()->getRow();
 
-        if ($sale === null || (int) $sale->sale_status !== COMPLETED || ! in_array((int) $sale->sale_type, [SALE_TYPE_INVOICE, SALE_TYPE_RETURN], true)) {
+        if ($sale === null || (int) $sale->sale_status !== COMPLETED || ! in_array((int) $sale->sale_type, [SALE_TYPE_POS, SALE_TYPE_INVOICE, SALE_TYPE_RETURN], true)) {
             return null;
         }
 

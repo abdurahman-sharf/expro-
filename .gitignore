@@ -87,6 +87,7 @@ auth.json
 /app/Database/database.sql
 /writable/cache/*
 /writable/accounting_attachments/
+/writable/zatca-matrix/
 /.env.bak
 
 # Brand images are committed

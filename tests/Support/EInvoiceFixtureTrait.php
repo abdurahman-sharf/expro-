@@ -3,6 +3,7 @@
 namespace Tests\Support;
 
 use App\Libraries\EInvoicing\EInvoiceAddress;
+use App\Libraries\EInvoicing\EInvoiceCredentials;
 use App\Libraries\EInvoicing\EInvoiceDocument;
 use App\Libraries\EInvoicing\EInvoiceKind;
 use App\Libraries\EInvoicing\EInvoiceLine;
@@ -10,7 +11,10 @@ use App\Libraries\EInvoicing\EInvoiceParty;
 use App\Libraries\EInvoicing\EInvoiceSubtype;
 use App\Libraries\EInvoicing\EInvoiceTaxSubtotal;
 use App\Libraries\EInvoicing\InvoiceHash;
+use App\Libraries\EInvoicing\KeyVault;
 use App\Libraries\EInvoicing\PartyIdentificationType;
+use Config\Database;
+use Config\Zatca;
 
 /**
  * What the tests of the electronic invoice share: documents written out by hand, so that the generator and
@@ -49,16 +53,18 @@ trait EInvoiceFixtureTrait
      * A key on the curve of the standard (or another) with a certificate of its own, written in a directory
      * outside the application.
      *
+     * @param array<string, string> $subject What the subject of the certificate holds instead of the defaults.
+     *
      * @return array{key: string, certificate: string, directory: string}
      */
-    protected function generateKeyPair(string $curve = 'secp256k1', ?string $directory = null): array
+    protected function generateKeyPair(string $curve = 'secp256k1', ?string $directory = null, array $subject = []): array
     {
         $directory ??= $this->temporaryDirectory();
         $key         = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => $curve]);
 
         $this->assertNotFalse($key, 'The key could not be generated.');
 
-        $request     = openssl_csr_new(['commonName' => 'Test EGS unit', 'organizationName' => 'Test taxpayer', 'countryName' => 'SA'], $key, ['digest_alg' => 'sha256']);
+        $request     = openssl_csr_new(array_merge(['commonName' => 'Test EGS unit', 'organizationName' => 'Test taxpayer', 'countryName' => 'SA'], $subject), $key, ['digest_alg' => 'sha256']);
         $certificate = openssl_csr_sign($request, null, $key, 30, ['digest_alg' => 'sha256'], random_int(1000, 999999));
 
         openssl_pkey_export($key, $keyPem);
@@ -153,6 +159,41 @@ trait EInvoiceFixtureTrait
     protected function amended(EInvoiceDocument $base, array $changes): EInvoiceDocument
     {
         return new EInvoiceDocument(...array_merge(get_object_vars($base), $changes));
+    }
+
+    /**
+     * The default unit as ZATCA would have onboarded it in an environment: a production certificate of its own key,
+     * sealed in a vault whose master key lives in a directory outside the application, and the unit active.
+     */
+    protected function onboardedUnit(string $environment = 'production'): int
+    {
+        $directory = $this->temporaryDirectory();
+        $ring      = $directory . '/ring.key';
+
+        file_put_contents($ring, KeyVault::newKeyLine('v1') . "\n");
+        chmod($ring, 0o600);
+        config(Zatca::class)->keyRing = $ring;
+
+        $pair   = $this->generateKeyPair('secp256k1', $directory);
+        $db     = Database::connect();
+        $unitId = (int) $db->table('einvoice_units')->where(['company_id' => 1, 'is_default' => 1])->get()->getRow()->unit_id;
+
+        (new EInvoiceCredentials(KeyVault::fromFile($ring)))->store($unitId, $environment, EInvoiceCredentials::PRODUCTION, (string) preg_replace('/-----[A-Z ]+-----|\s+/', '', (string) file_get_contents($pair['certificate'])), 'production-secret', 'production-token', (string) file_get_contents($pair['key']), date('Y-m-d H:i:s', time() - 86400), date('Y-m-d H:i:s', time() + 30 * 86400), 'request-1');
+        $db->table('einvoice_units')->where('unit_id', $unitId)->update(['status' => 'active']);
+
+        return $unitId;
+    }
+
+    protected function forgetOnboardedUnit(): void
+    {
+        $db = Database::connect();
+
+        if ($db->tableExists($db->prefixTable('einvoice_credentials'), false)) {
+            $db->table('einvoice_credentials')->truncate();
+            $db->table('einvoice_units')->where('is_default', 1)->update(['status' => 'draft']);
+        }
+
+        config(Zatca::class)->keyRing = '';
     }
 
     protected function skipWithoutTheCurve(): void

@@ -37,7 +37,36 @@ final readonly class EInvoiceDocument
         public string $uuid = '',
         public int $icv = 0,
         public string $previousHash = '',
+        public string $rounding = '0.00',
+        public array $charges = [],
+        public ?string $taxAmountInSar = null,
+        public array $prepayments = [],
     ) {
+    }
+
+    /**
+     * BT-113: the prepayments the document takes off what is due.
+     */
+    public function prepaid(): string
+    {
+        return array_reduce($this->prepayments, static fn (string $sum, EInvoicePrepayment $prepayment): string => bcadd($sum, $prepayment->amount(), 2), '0.00');
+    }
+
+    /**
+     * BT-108: the charges on the whole document.
+     */
+    public function chargeTotal(): string
+    {
+        return array_reduce($this->charges, static fn (string $sum, EInvoiceCharge $charge): string => bcadd($sum, $charge->amount, 2), '0.00');
+    }
+
+    /**
+     * BT-115: the total with VAT, less what was prepaid (BT-113), and the rounding (BT-114) by which the customer pays
+     * what the register charged.
+     */
+    public function payable(): string
+    {
+        return bcadd(bcsub($this->taxInclusive, $this->prepaid(), 2), $this->rounding, 2);
     }
 
     public function chained(string $uuid, int $icv, string $previousHash): self
@@ -64,6 +93,10 @@ final readonly class EInvoiceDocument
             $uuid,
             $icv,
             $previousHash,
+            $this->rounding,
+            $this->charges,
+            $this->taxAmountInSar,
+            $this->prepayments,
         );
     }
 

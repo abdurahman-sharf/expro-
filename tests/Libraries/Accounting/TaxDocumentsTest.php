@@ -8,6 +8,8 @@ use App\Libraries\Accounting\TaxDocuments;
 use App\Libraries\Accounting\TaxSection;
 use App\Libraries\HeaderCharges;
 use App\Libraries\ShippingTaxOption;
+use App\Libraries\Tax\VatCategoryTotal;
+use App\Libraries\Tax\VatSnapshot;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -60,6 +62,7 @@ class TaxDocumentsTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->accountingDb()->table('sales_vat_totals')->truncate();
         $this->stopTaxBooks();
 
         parent::tearDown();
@@ -96,6 +99,46 @@ class TaxDocumentsTest extends CIUnitTestCase
         $this->assertSame(['100.0000', '15.0000'], [$document->base, $document->tax]);
         $this->assertSame(['15' => ['base' => '100.0000', 'tax' => '15.0000']], $document->rates);
         $this->assertFalse($document->discounted);
+    }
+
+    public function testSales_ReadsASaudiSaleFromTheCategoriesItsVatWasWorkedOutIn(): void
+    {
+        $saleId = $this->sell('0.30', '0.0450');
+        (new VatSnapshot())->record($saleId, [
+            'S|15.000|'            => new VatCategoryTotal('S', '15.000', null, null, '0.30', '0.05', false),
+            'Z|0.000|VATEX-SA-32' => new VatCategoryTotal('Z', '0.000', 'VATEX-SA-32', 'Export of goods', '40.00', '0.00', false),
+        ]);
+
+        $document = $this->sale($saleId);
+
+        $this->assertSame(['0.3000', '0.0500'], [$document->base, $document->tax], 'the VAT of the category, as the journal holds it, not the 0.045 of its rows');
+        $this->assertSame(['15' => ['base' => '0.3000', 'tax' => '0.0500']], $document->rates);
+    }
+
+    public function testUntaxedSales_GivesWhatTheLinesWithoutTaxOfASaleSavedBeforeTheRulesCameTo(): void
+    {
+        $item     = $this->item('0', false);
+        $mixed    = $this->save([$this->line($item, 0, '1', '100.00'), $this->line($item, 1, '2', '20.00')], [$this->tax($item, 0, '15.0000')]);
+        $untaxed  = $this->save([$this->line($item, 0, '1', '30.00')], []);
+        $returned = $this->save([$this->line($item, 0, '-1', '30.00')], [], [], SALE_TYPE_RETURN, -1, true, $untaxed);
+        $saudi    = $this->save([$this->line($item, 0, '1', '40.00')], []);
+
+        (new VatSnapshot())->record($saudi, ['Z|0.000|VATEX-SA-32' => new VatCategoryTotal('Z', '0.000', 'VATEX-SA-32', 'Export of goods', '40.00', '0.00', false)]);
+
+        $this->assertSame([$mixed => '40.0000', $untaxed => '30.0000', $returned => '-30.0000'], $this->documents()->untaxedSales([$mixed, $untaxed, $returned, $saudi]), 'a sale saved under the rules is told by its categories, not here');
+    }
+
+    public function testSales_CountsTheShippingOfASaudiSaleOnceThroughItsCategory(): void
+    {
+        $this->turnOnShipping();
+
+        $item   = $this->item('0', false);
+        $saleId = $this->save([$this->line($item, 0, '1', '100.00')], [$this->tax($item, 0, '15.0000')], headerCharges: new HeaderCharges(shipping: '10', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+        (new VatSnapshot())->record($saleId, ['S|15.000|' => new VatCategoryTotal('S', '15.000', null, null, '110.00', '16.50', false, '10.00')]);
+
+        $document = $this->sale($saleId);
+
+        $this->assertSame(['110.0000', '16.5000'], [$document->base, $document->tax], 'the shipping is in the category, and not added again from the header');
     }
 
     public function testSales_GivesAReturnTheSectionOfReturnsAndAmountsWithoutASign(): void
@@ -336,6 +379,31 @@ class TaxDocumentsTest extends CIUnitTestCase
         $this->assertSame(['1200.0000', '160.0000'], [$document->base, $document->tax]);
         $this->assertSame(['15' => ['base' => '1000.0000', 'tax' => '150.0000'], '5' => ['base' => '200.0000', 'tax' => '10.0000']], $document->rates);
         $this->assertFalse($document->discounted);
+    }
+
+    public function testPurchases_ConvertsAPurchaseInAForeignCurrencyAtItsOwnRateAsItsJournalWas(): void
+    {
+        $item        = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15'), $this->purchaseLine($item, 1, '1', '0.33', '15')]);
+
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->update(['currency_code' => 'USD', 'currency_rate' => '3.75']);
+
+        $document = $this->purchase($receivingId);
+
+        $this->assertSame(['3751.2400', '562.6900'], [$document->base, $document->tax], 'in riyals: 1000.33 and the 150.05 of tax rounded to the cent, times 3.75');
+        $this->assertSame(['15' => ['base' => '3751.2400', 'tax' => '562.6900']], $document->rates);
+    }
+
+    public function testPurchases_ReadsAPurchaseSavedUnderTheSaudiRulesByTheTaxOfEachRate(): void
+    {
+        $item       = $this->item('0.00');
+        $receivings = [$this->buy([$this->purchaseLine($item, 0, '1', '0.10', '15'), $this->purchaseLine($item, 1, '1', '0.10', '15'), $this->purchaseLine($item, 2, '1', '0.10', '15')])];
+        $receivings[] = $this->buy([$this->purchaseLine($item, 0, '1', '0.10', '15'), $this->purchaseLine($item, 1, '1', '0.10', '15'), $this->purchaseLine($item, 2, '1', '0.10', '15')]);
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receivings[1])->update(['vat_calc_version' => 1]);
+
+        $this->assertSame(['0.3000', '0.0450'], [$this->purchase($receivings[0])->base, $this->purchase($receivings[0])->tax]);
+        $this->assertSame(['0.3000', '0.0500'], [$this->purchase($receivings[1])->base, $this->purchase($receivings[1])->tax]);
+        $this->assertSame(['15' => ['base' => '0.3000', 'tax' => '0.0500']], $this->purchase($receivings[1])->rates);
     }
 
     public function testPurchases_GivesAReturnTheSectionOfReturnsAndAmountsWithoutASign(): void

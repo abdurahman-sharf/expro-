@@ -10,6 +10,7 @@ use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\EInvoiceSettings;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Tax\CompanyTaxProfile;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -285,5 +286,35 @@ class EInvoiceSettingsTest extends CIUnitTestCase
 
         $this->assertSame('Padded', $this->settings->sellerName());
         $this->assertSame('399999999900003', $this->settings->sellerVatNumber());
+    }
+
+    public function testUpdate_RequiresTheSettingsPermissionToChangeTheSellerInSaudiMode(): void
+    {
+        Database::connect()->table('company_tax_profile')->where('company_id', 1)->update(['vat_registered' => 1, 'ksa_mode' => 1, 'ksa_mode_effective_at' => '2026-01-01 00:00:00']);
+
+        try {
+            $failure = null;
+
+            try {
+                $this->settings->update(['seller_city' => 'Jeddah', 'exempt_reason_text' => ''], $this->manager);
+            } catch (AccountingException $exception) {
+                $failure = $exception;
+            }
+
+            $this->assertSame(AccountingError::PermissionDenied, $failure?->error);
+
+            $this->settings->update(['seller_city' => 'Jeddah', 'exempt_reason_text' => ''], $this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE, CompanyTaxProfile::CONFIG_PERMISSION]));
+
+            $this->assertSame('Jeddah', $this->settings->all()['seller_city']);
+        } finally {
+            Database::connect()->table('company_tax_profile')->where('company_id', 1)->update(['vat_registered' => null, 'ksa_mode' => 0, 'ksa_mode_effective_at' => null]);
+        }
+    }
+
+    public function testUpdate_KeepsThePermissionsOfTheSellerWhileTheModeIsOff(): void
+    {
+        $this->settings->update(['seller_city' => 'Dammam', 'exempt_reason_text' => ''], $this->manager);
+
+        $this->assertSame('Dammam', $this->settings->all()['seller_city']);
     }
 }

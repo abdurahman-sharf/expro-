@@ -32,6 +32,11 @@
             <?= lang('Config.tax_list') ?>
         </a>
     </li>
+    <li class="nav-item">
+        <a class="nav-link" id="vat_classes_link" href="<?= esc(base_url('vat_classes'), 'attr') ?>" title="<?= esc(lang('Vat_classes.title'), 'attr') ?>">
+            <?= lang('Vat_classes.title') ?>
+        </a>
+    </li>
 </ul>
 
 <div class="tab-content">

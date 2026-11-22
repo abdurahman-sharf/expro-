@@ -22,6 +22,12 @@ final class UblInvoiceXml
     public const CASH_BUYER = 'Cash customer';
 
     /**
+     * The payment means of a note that no payment goes with (UNTDID 4461 code 1, instrument not defined): the
+     * element is still written, because it carries the reason of the note (KSA-10).
+     */
+    public const NO_PAYMENT = '1';
+
+    /**
      * @param string      $qr         The text of the code (KSA-14).
      * @param string|null $extensions The UBL extensions with the stamp, when the document is signed.
      */
@@ -50,9 +56,11 @@ final class UblInvoiceXml
             $this->customer($document->buyer),
             $this->el('cac:Delivery', null, [], $this->el('cbc:ActualDeliveryDate', $document->supplyDate)),
             $this->paymentMeans($document),
+            ...array_map(fn (EInvoiceCharge $charge): string => $this->charge($document, $charge), $document->charges),
             $this->taxTotals($document),
             $this->legalMonetaryTotal($document),
             ...array_map(fn (EInvoiceLine $line): string => $this->line($document, $line), $document->lines),
+            ...array_map(fn (int $index, EInvoicePrepayment $prepayment): string => $this->prepaymentLine($document, count($document->lines) + $index + 1, $prepayment), array_keys($document->prepayments), $document->prepayments),
         ];
 
         $root = $this->el('Invoice', null, [], implode('', $parts), true);
@@ -126,7 +134,7 @@ final class UblInvoiceXml
         $codes = $document->paymentMeansCodes;
 
         if ($codes === [] && $document->kind->isNote()) {
-            $codes = ['10'];
+            $codes = [self::NO_PAYMENT];
         }
 
         $means = [];
@@ -154,7 +162,11 @@ final class UblInvoiceXml
             ])),
         ])), $document->taxSubtotals);
 
-        return $this->el('cac:TaxTotal', null, [], $this->amount('cbc:TaxAmount', $document->taxAmount, $document->currency))
+        $inSar = $document->currency === 'SAR' || $document->taxAmountInSar === null
+            ? $this->amount('cbc:TaxAmount', $document->taxAmount, $document->currency)
+            : $this->amount('cbc:TaxAmount', $document->taxAmountInSar, 'SAR');
+
+        return $this->el('cac:TaxTotal', null, [], $inSar)
             . $this->el('cac:TaxTotal', null, [], $this->amount('cbc:TaxAmount', $document->taxAmount, $document->currency) . implode('', $subtotals));
     }
 
@@ -165,8 +177,63 @@ final class UblInvoiceXml
             $this->amount('cbc:TaxExclusiveAmount', $document->taxExclusive, $document->currency),
             $this->amount('cbc:TaxInclusiveAmount', $document->taxInclusive, $document->currency),
             $this->amount('cbc:AllowanceTotalAmount', '0', $document->currency),
-            $this->amount('cbc:PrepaidAmount', '0', $document->currency),
-            $this->amount('cbc:PayableAmount', $document->taxInclusive, $document->currency),
+            $document->charges === [] ? '' : $this->amount('cbc:ChargeTotalAmount', $document->chargeTotal(), $document->currency),
+            $this->amount('cbc:PrepaidAmount', $document->prepaid(), $document->currency),
+            bccomp($document->rounding, '0', 2) === 0 ? '' : $this->amount('cbc:PayableRoundingAmount', $document->rounding, $document->currency),
+            $this->amount('cbc:PayableAmount', $document->payable(), $document->currency),
+        ]));
+    }
+
+    private function charge(EInvoiceDocument $document, EInvoiceCharge $charge): string
+    {
+        return $this->el('cac:AllowanceCharge', null, [], implode('', [
+            $this->el('cbc:ChargeIndicator', 'true'),
+            $this->el('cbc:AllowanceChargeReasonCode', $charge->reasonCode),
+            $this->el('cbc:AllowanceChargeReason', $charge->reason),
+            $this->amount('cbc:Amount', $charge->amount, $document->currency),
+            $this->el('cac:TaxCategory', null, [], implode('', [
+                $this->el('cbc:ID', $charge->category),
+                $this->el('cbc:Percent', $charge->rate),
+                $this->el('cac:TaxScheme', null, [], $this->el('cbc:ID', 'VAT')),
+            ])),
+        ]));
+    }
+
+    /**
+     * The line that takes a prepayment off what is due (R-04 §9.5): no quantity, no amount and no VAT of its own,
+     * the reference of the prepayment invoice, and the taxable amount and VAT of the prepayment it takes.
+     */
+    private function prepaymentLine(EInvoiceDocument $document, int $id, EInvoicePrepayment $prepayment): string
+    {
+        return $this->el('cac:InvoiceLine', null, [], implode('', [
+            $this->el('cbc:ID', (string) $id),
+            $this->el('cbc:InvoicedQuantity', '0.00', ['unitCode' => 'PCE']),
+            $this->amount('cbc:LineExtensionAmount', '0.00', $document->currency),
+            $this->el('cac:DocumentReference', null, [], implode('', [
+                $this->el('cbc:ID', $prepayment->number),
+                $this->el('cbc:IssueDate', $prepayment->issueDate),
+                $this->el('cbc:IssueTime', $prepayment->issueTime),
+                $this->el('cbc:DocumentTypeCode', EInvoiceKind::Prepayment->typeCode()),
+            ])),
+            $this->el('cac:TaxTotal', null, [], implode('', [
+                $this->amount('cbc:TaxAmount', '0.00', $document->currency),
+                $this->amount('cbc:RoundingAmount', '0.00', $document->currency),
+                $this->el('cac:TaxSubtotal', null, [], implode('', [
+                    $this->amount('cbc:TaxableAmount', $prepayment->taxable, $document->currency),
+                    $this->amount('cbc:TaxAmount', $prepayment->vat, $document->currency),
+                    $this->el('cac:TaxCategory', null, [], implode('', [
+                        $this->el('cbc:ID', $prepayment->category),
+                        $this->el('cbc:Percent', $prepayment->rate),
+                        $this->el('cac:TaxScheme', null, [], $this->el('cbc:ID', 'VAT')),
+                    ])),
+                ])),
+            ])),
+            $this->el('cac:Item', null, [], $this->el('cbc:Name', 'Prepayment adjustment') . $this->el('cac:ClassifiedTaxCategory', null, [], implode('', [
+                $this->el('cbc:ID', $prepayment->category),
+                $this->el('cbc:Percent', $prepayment->rate),
+                $this->el('cac:TaxScheme', null, [], $this->el('cbc:ID', 'VAT')),
+            ]))),
+            $this->el('cac:Price', null, [], $this->amount('cbc:PriceAmount', '0.00', $document->currency)),
         ]));
     }
 

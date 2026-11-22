@@ -10,6 +10,7 @@ use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Tax\CompanyTaxProfile;
 use App\Models\Appconfig;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -24,8 +25,9 @@ use Config\Database;
  */
 final class EInvoiceSettings
 {
-    public const ENABLED = 'einvoice_enabled';
-    public const FIELDS  = [
+    public const ENABLED   = 'einvoice_enabled';
+    public const PHASE_TWO = 'einvoice_phase_two';
+    public const FIELDS    = [
         'seller_identification_type'   => 'einvoice_seller_identification_type',
         'seller_identification_number' => 'einvoice_seller_identification_number',
         'seller_street'                => 'einvoice_seller_street',
@@ -66,6 +68,15 @@ final class EInvoiceSettings
     public function isEnabled(): bool
     {
         return $this->config->get_value(self::ENABLED, '0') === '1' && (new AccountingSettings($this->db))->isEnabled();
+    }
+
+    /**
+     * Whether the documents are queued to be sent to ZATCA (the second phase). Off until a unit is onboarded, which
+     * needs a separate approval for each environment (D-10, D-20, D-21).
+     */
+    public function phaseTwo(): bool
+    {
+        return $this->config->get_value(self::PHASE_TWO, '0') === '1';
     }
 
     /**
@@ -148,6 +159,10 @@ final class EInvoiceSettings
 
         if ($changes === []) {
             return [];
+        }
+
+        if (array_filter(array_keys($changes), static fn (string $key): bool => str_starts_with($key, 'einvoice_seller_')) !== []) {
+            (new CompanyTaxProfile($this->db, $this->guard, $this->branches))->requireSellerChange($employeeId);
         }
 
         if (! $this->config->batch_save($changes)) {

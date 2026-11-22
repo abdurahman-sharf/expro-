@@ -2,10 +2,14 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\EInvoicing\EInvoiceException;
+use App\Libraries\EInvoicing\EInvoiceRules;
+use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
 use App\Libraries\Roles\RecordScope;
+use App\Libraries\Tax\AdvanceVat;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -106,7 +110,7 @@ final class CreditRefunds
 
             $refundId = $this->insert($partyId, $place['branch'], $amount, $date, $paymentType, $place['treasury'], $reference, $note, $requestKey, $employeeId);
 
-            $this->takeFrom($refundId, $credits, $amount);
+            $taken = $this->takeFrom($refundId, $credits, $amount);
 
             $account = $this->partyAccount($partyId);
             $lines   = $this->customers()
@@ -124,6 +128,10 @@ final class CreditRefunds
                 branchId: $place['branch'],
                 entryType: JournalEntryType::General,
             ));
+
+            if ($this->customers()) {
+                $this->returnAdvanceVat($refundId, $taken, $date, $employeeId);
+            }
 
             $this->settle($partyId, $employeeId);
             $this->audit->write($this->party . '_refund', $refundId, 'created', $employeeId, JournalOrigin::User, [$this->party . '_id' => $partyId, 'amount' => $amount], $place['branch']);
@@ -165,6 +173,10 @@ final class CreditRefunds
 
             if ($refund->status === 'cancelled') {
                 throw new AccountingException(AccountingError::RefundAlreadyCancelled, 'The refund is already cancelled.', ['refund_id' => $refundId]);
+            }
+
+            if ($this->customers()) {
+                $this->takeBackAdvanceVat($refundId, $reason, $employeeId);
             }
 
             $this->cash->reverse(self::source($this->party), $refundId, $branchId, $reason, $employeeId);
@@ -327,10 +339,13 @@ final class CreditRefunds
      *
      * @param list<array{0: CreditSource, 1: numeric-string}> $credits
      * @param numeric-string                                  $amount
+     *
+     * @return list<array{0: CreditSource, 1: numeric-string}> What it took of each.
      */
-    private function takeFrom(int $refundId, array $credits, string $amount): void
+    private function takeFrom(int $refundId, array $credits, string $amount): array
     {
-        $left = $amount;
+        $left  = $amount;
+        $taken = [];
 
         foreach ($credits as [$source, $free]) {
             if (bccomp($left, '0', SaleAmounts::SCALE) <= 0) {
@@ -341,8 +356,63 @@ final class CreditRefunds
 
             $this->db->table($this->sources())->insert(['refund_id' => $refundId, 'source_type' => $source->type, 'source_id' => $source->sourceId, 'amount' => $take]);
 
-            $left = bcsub($left, $take, SaleAmounts::SCALE);
+            $taken[] = [$source, $take];
+            $left    = bcsub($left, $take, SaleAmounts::SCALE);
         }
+
+        return $taken;
+    }
+
+    /**
+     * Gives back the VAT of what a refund pays back of advances that carry VAT under the Saudi rules, and issues the
+     * credit note of each part whose advance has a prepayment invoice.
+     *
+     * @param list<array{0: CreditSource, 1: numeric-string}> $taken
+     *
+     * @throws AccountingException|EInvoiceException|PostingException
+     */
+    private function returnAdvanceVat(int $refundId, array $taken, string $date, ?int $employeeId): void
+    {
+        $vat       = new AdvanceVat($this->db);
+        $documents = null;
+
+        foreach ($taken as [$source, $take]) {
+            if ($source->type !== CreditSource::CUSTOMER_ADVANCE) {
+                continue;
+            }
+
+            $returnId = $vat->returned($source->sourceId, $take, $refundId, $date, $employeeId);
+
+            if ($returnId === null) {
+                continue;
+            }
+
+            $documents ??= new EInvoiceService($this->db);
+
+            if ($documents->documentOf(EInvoiceService::SOURCE_ADVANCE, $source->sourceId) !== null) {
+                $documents->issueForAdvanceReturn($returnId, EInvoiceRules::NOTE_REASONS[3], $employeeId);
+            }
+        }
+    }
+
+    /**
+     * Takes back the VAT a refund gave back, when the refund is cancelled. A refund whose credit note was issued
+     * stands: the note cannot be taken back.
+     *
+     * @throws AccountingException|PostingException
+     */
+    private function takeBackAdvanceVat(int $refundId, string $reason, ?int $employeeId): void
+    {
+        $vat       = new AdvanceVat($this->db);
+        $documents = new EInvoiceService($this->db);
+
+        foreach ($vat->returnsOfRefund($refundId) as $return) {
+            if ($documents->documentOf(EInvoiceService::SOURCE_RETURN, (int) $return->return_id) !== null) {
+                throw new AccountingException(AccountingError::RefundStatedByCreditNote, 'A credit note states what the refund paid back of an advance; the refund stands.', ['refund_id' => $refundId]);
+            }
+        }
+
+        $vat->refundCancelled($refundId, $reason, $employeeId);
     }
 
     /**

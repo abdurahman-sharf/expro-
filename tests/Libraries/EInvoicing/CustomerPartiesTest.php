@@ -101,10 +101,20 @@ class CustomerPartiesTest extends CIUnitTestCase
     public function testSave_AcceptsEachOfTheElevenCodes(): void
     {
         foreach (PartyIdentificationType::codes() as $code) {
-            $this->parties->save($this->customerId, $this->input(['identification_type' => $code]), 1);
+            $this->parties->save($this->customerId, $this->input(['identification_type' => $code, 'identification_number' => $code === 'TIN' ? '3000000003' : '1010010000']), 1);
 
             $this->assertSame($code, $this->parties->find($this->customerId)['identification_type'], $code);
         }
+    }
+
+    public function testClean_RejectsATaxIdentificationNumberThatIsNotTenDigitsBeginningWithThree(): void
+    {
+        foreach (['100200300', '1010010000', '30000000031', '300000000A'] as $number) {
+            $this->assertSame(EInvoiceError::IdentificationInvalid, $this->refusal(fn () => $this->parties->clean($this->input(['identification_type' => 'TIN', 'identification_number' => $number])))->error, $number);
+        }
+
+        $this->assertSame('3000000003', $this->parties->clean($this->input(['identification_type' => 'TIN', 'identification_number' => '3000000003']))['identification_number']);
+        $this->assertSame('100200300', $this->parties->clean($this->input(['identification_type' => 'OTH', 'identification_number' => '100200300']))['identification_number'], 'another scheme keeps its own format');
     }
 
     public function testClean_RejectsACodeThatIsNotOneOfTheEleven(): void

@@ -240,6 +240,11 @@ final class RoleGrantsTest extends CIUnitTestCase
         }
     }
 
+    public function testForbidden_IncludesThePermissionThatManagesTheRegistrationWithZatca(): void
+    {
+        $this->assertContains(AccountingGuard::EINVOICING_ONBOARD, RoleGrants::forbidden());
+    }
+
     private function failingConnection(?string $table = null, bool $throws = false): FailingTableConnection
     {
         $db               = new FailingTableConnection(config('Database')->tests);

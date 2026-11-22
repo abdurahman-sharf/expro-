@@ -4628,6 +4628,20 @@ a.rollover img {
     }
 }
 
+.einvoice-thermal table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.einvoice-thermal td:last-child {
+    text-align: end;
+    white-space: nowrap;
+}
+
+.einvoice-thermal .einvoice-grand td {
+    font-weight: bold;
+}
+
 @media screen {
     #document {
         max-width: 794px;

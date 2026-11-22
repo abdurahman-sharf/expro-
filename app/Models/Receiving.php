@@ -41,6 +41,7 @@ use App\Libraries\Stock\NegativeStockGuard;
 use App\Libraries\Stock\StockTracking;
 use App\Libraries\Stock\TrackingEntry;
 use App\Libraries\Stock\UnitLines;
+use App\Libraries\Tax\PurchaseVat;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use Config\OSPOS;
@@ -1165,6 +1166,7 @@ class Receiving extends Model
             'treasury_id'            => $treasuryId,
             ...$currencyColumns,
             ...$timing,
+            ...($type === ReceivingType::Return && $returnOfReceivingId !== null ? (new PurchaseVat($this->db))->columnsForReturnOf($returnOfReceivingId) : (new PurchaseVat($this->db))->columnsForNew()),
         ];
 
         // Run these queries as a transaction, we want to make sure we do all or nothing

@@ -6,6 +6,7 @@ use App\Libraries\EInvoicing\EInvoiceError;
 use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\StampKeys;
 use CodeIgniter\Test\CIUnitTestCase;
+use SensitiveParameterValue;
 use Tests\Support\EInvoiceFixtureTrait;
 
 class StampKeysTest extends CIUnitTestCase
@@ -51,12 +52,17 @@ class StampKeysTest extends CIUnitTestCase
         $this->assertSame("\x30\x56", substr($material->publicKeyDer, 0, 2));
         $this->assertGreaterThan(60, strlen($material->certificateSignatureDer));
         $this->assertSame("\x30", $material->certificateSignatureDer[0]);
-        $this->assertStringContainsString('CN=Test EGS unit', $material->issuerName);
-        $this->assertStringContainsString('O=Test taxpayer', $material->issuerName);
-        $this->assertStringEndsWith('CN=Test EGS unit', $material->issuerName);
+        $this->assertSame('ST=Some-State, C=SA, O=Test taxpayer, CN=Test EGS unit', $material->issuerName);
         $this->assertMatchesRegularExpression('/^\d+$/', $material->serialNumber);
         $this->assertNotSame('', $material->certificateBase64);
         $this->assertStringNotContainsString("\n", $material->certificateBase64);
+    }
+
+    public function testLoad_QuotesAPartOfTheIssuerThatHoldsASpecialCharacterAsTheOfficialValidatorReadsIt(): void
+    {
+        $pair = $this->generateKeyPair(subject: ['organizationName' => 'Test, "taxpayer"']);
+
+        $this->assertSame('ST=Some-State, C=SA, O="Test, \\"taxpayer\\"", CN=Test EGS unit', StampKeys::load($pair['key'], $pair['certificate'])->issuerName);
     }
 
     public function testLoad_RejectsAKeyInsideTheApplicationDirectoryWhateverItHolds(): void
@@ -116,5 +122,39 @@ class StampKeysTest extends CIUnitTestCase
 
         $this->assertFalse(StampKeys::curveAvailable(['prime256v1']));
         $this->assertTrue(StampKeys::curveAvailable(['secp256k1']));
+    }
+
+    public function testLoad_KeepsTheKeyOutOfTheRefusal(): void
+    {
+        $pair  = $this->generateKeyPair();
+        $other = $this->generateKeyPair();
+        $body  = trim(preg_replace('/-----[A-Z ]+-----/', '', (string) file_get_contents($pair['key'])) ?? '');
+
+        try {
+            StampKeys::load($pair['key'], $other['certificate']);
+            $this->fail('A certificate of another key was accepted.');
+        } catch (EInvoiceException $failure) {
+            $this->assertStringNotContainsString(substr($body, 0, 40), $failure->getMessage() . json_encode($failure->context));
+        }
+    }
+
+    public function testLoad_HidesThePathOfTheKeyFromTheTraceOfARefusal(): void
+    {
+        $previous = ini_set('zend.exception_ignore_args', '0');
+
+        try {
+            StampKeys::load(APPPATH . 'secret-key.pem', '/tmp/certificate.pem');
+            $this->fail('A key inside the application was accepted.');
+        } catch (EInvoiceException $failure) {
+            $frames = array_values(array_filter($failure->getTrace(), static fn (array $frame): bool => in_array($frame['function'] ?? '', ['check', 'load'], true)));
+
+            $this->assertNotSame([], $frames);
+
+            foreach ($frames as $frame) {
+                $this->assertInstanceOf(SensitiveParameterValue::class, $frame['args'][0] ?? null, $frame['function']);
+            }
+        } finally {
+            ini_set('zend.exception_ignore_args', (string) $previous);
+        }
     }
 }

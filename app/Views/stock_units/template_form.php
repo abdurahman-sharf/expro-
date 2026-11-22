@@ -32,6 +32,13 @@ $id    = $template === null ? '-1' : (string) $template->templateId;
             <div class="field-control"><input type="text" name="main_small_name" id="main_small_name" class="form-control form-control-sm" maxlength="25" value="<?= esc($template->mainSmallName ?? '', 'attr') ?>"></div>
         </div>
         <div class="field">
+            <?= form_label(lang('Stock_units.main_unit_code'), 'main_unit_code', ['class' => 'form-label']) ?>
+            <div class="field-control">
+                <input type="text" name="main_unit_code" id="main_unit_code" class="form-control form-control-sm ltr-input" dir="ltr" maxlength="3" value="<?= esc($template->mainUnitCode ?? '', 'attr') ?>">
+                <p class="form-text mb-0"><?= lang('Stock_units.main_unit_code_help') ?></p>
+            </div>
+        </div>
+        <div class="field">
             <?= form_label(lang('Stock_units.active'), 'active', ['class' => 'form-label']) ?>
             <div class="field-control">
                 <input type="hidden" name="active" value="0">

@@ -108,6 +108,23 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['action' => 'unit_template_created', 'entity_id' => $templateId])->countAllResults());
     }
 
+    public function testCreate_KeepsTheUnEceCodeOfTheMainUnitInCapitals(): void
+    {
+        $this->switchOnStock('units');
+
+        $templateId = $this->templates->create($this->input(['main_unit_code' => ' kgm ']), $this->unitManagerId);
+
+        $this->assertSame('KGM', $this->templates->find($templateId)->mainUnitCode);
+        $this->assertNull($this->templates->find($this->templates->create($this->input(['name' => 'Plain']), $this->unitManagerId))->mainUnitCode);
+    }
+
+    public function testCreate_RejectsAUnitCodeThatIsNotAnUnEceCode(): void
+    {
+        $this->switchOnStock('units');
+
+        $this->refusedWith(AccountingError::UnitCodeInvalid, fn (): int => $this->templates->create($this->input(['main_unit_code' => 'KILO']), $this->unitManagerId));
+    }
+
     public function testCreate_AcceptsASmallNameOfTwentyFiveCharactersAndRejectsTwentySix(): void
     {
         $this->switchOnStock('units');

@@ -39,6 +39,7 @@ jobs:
   deploy:
     name: Deploy to staging
     runs-on: ubuntu-latest
+    if: vars.DEPLOY_ENABLED == 'true'
     
     environment:
       name: staging

@@ -33,6 +33,10 @@ use App\Libraries\Accounting\UndeliveredReturns;
 use App\Libraries\Database\DayRange;
 use App\Libraries\Database\FailedTransaction;
 use App\Libraries\Database\ReadCommittedStatement;
+use App\Libraries\EInvoicing\EInvoiceError;
+use App\Libraries\EInvoicing\EInvoiceException;
+use App\Libraries\EInvoicing\EInvoiceFailures;
+use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\HeaderCharges;
 use App\Libraries\HeaderChargesProblem;
 use App\Libraries\InvoiceDiscount;
@@ -51,6 +55,13 @@ use App\Libraries\Stock\NegativeStockGuard;
 use App\Libraries\Stock\StockTracking;
 use App\Libraries\Stock\TrackingEntry;
 use App\Libraries\Stock\UnitLines;
+use App\Libraries\Tax\CompanyTaxProfile;
+use App\Libraries\Tax\LineVat;
+use App\Libraries\Tax\VatCalculator;
+use App\Libraries\Tax\VatCategoryTotal;
+use App\Libraries\Tax\VatClassification;
+use App\Libraries\Tax\VatLineResult;
+use App\Libraries\Tax\VatSnapshot;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -94,6 +105,10 @@ class Sale extends Model
      */
     private ?array $savingCurrency = null;
 
+    private ?string $completionToken = null;
+    private ?string $savingToken     = null;
+    private ?bool $tokenColumn       = null;
+
     public function __construct()
     {
         parent::__construct();
@@ -109,6 +124,18 @@ class Sale extends Model
     public function useCurrency(?string $code, ?string $typedRate = null): void
     {
         $this->currencyChoice = $code === null || $code === '' ? null : [$code, $typedRate];
+    }
+
+    /**
+     * The token the register completes the next sale with. A second request that completes a sale with the same
+     * token gives back the sale the first made instead of making another sale and another document: a double
+     * click, or a request sent again after the first was saved. Like the currency, it is for that one save.
+     */
+    public function useCompletionToken(?string $token): void
+    {
+        $token = trim((string) $token);
+
+        $this->completionToken = $token === '' ? null : substr($token, 0, 64);
     }
 
     /**
@@ -837,6 +864,7 @@ class Sale extends Model
 
         try {
             (new QuoteLifecycle($this->db))->assertUnlocked((int) $saleId);
+            $this->assertDocumentUnchanged((int) $saleId, $updateData, $hasDate, $typedDate);
         } catch (AccountingException $refusal) {
             $this->db->transRollback();
             $this->accountingFailure = $refusal;
@@ -1229,8 +1257,10 @@ class Sale extends Model
             return NEW_ENTRY;
         }
 
-        $this->savingCurrency = $this->currencyChoice;
-        $this->currencyChoice = null;
+        $this->savingCurrency  = $this->currencyChoice;
+        $this->currencyChoice  = null;
+        $this->savingToken     = $this->completionToken;
+        $this->completionToken = null;
 
         try {
             return (new CustomerLock($this->db))->run(
@@ -1249,8 +1279,31 @@ class Sale extends Model
             return ACCOUNTING_FAILED;
         } finally {
             $this->savingCurrency = null;
+            $this->savingToken    = null;
             FailedTransaction::forget($this->db);
         }
+    }
+
+    /**
+     * The completed sale a token was completed with, or null when none was.
+     */
+    private function saleOfCompletionToken(string $token): ?int
+    {
+        if (! $this->hasTokenColumn()) {
+            return null;
+        }
+
+        $row = $this->db->table('sales')->select('sale_id')->where(['completion_token' => $token, 'sale_status' => COMPLETED])->get()->getRow();
+
+        return $row === null ? null : (int) $row->sale_id;
+    }
+
+    private function hasTokenColumn(): bool
+    {
+        return $this->tokenColumn ??= $this->db->query(
+            'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$this->db->prefixTable('sales'), 'completion_token'],
+        )->getRow() !== null;
     }
 
     private function saveValueLocked(
@@ -1296,6 +1349,13 @@ class Sale extends Model
 
         $this->accountingFailure      = null;
         $this->invoiceDiscountProblem = null;
+
+        $token   = (int) $saleStatus === COMPLETED ? $this->savingToken : null;
+        $earlier = $token === null ? null : $this->saleOfCompletionToken($token);
+
+        if ($earlier !== null) {
+            return $earlier;
+        }
 
         $taxRefusal = $this->taxOneRefusal($saleType, $saleStatus, $customerId, $items, $salesTaxes);
 
@@ -1356,6 +1416,19 @@ class Sale extends Model
             return ACCOUNTING_FAILED;
         }
 
+        $issuing = $this->issuesDocument($saleType, (string) $saleStatus);
+
+        if ($issuing) {
+            $documentRefusal = $this->documentRefusal($saleType, $customerId, $returnOfSaleId, $salesTaxes);
+
+            if ($documentRefusal !== null) {
+                $this->accountingFailure = $documentRefusal;
+                (new EInvoiceFailures($this->db))->record(EInvoiceService::SOURCE_SALE, $documentRefusal, $employeeId, $this->branchIdOfItems($items), $saleType, EInvoiceFailures::fingerprintOf($items));
+
+                return EINVOICE_FAILED;
+            }
+        }
+
         $storedDate = $saleId === NEW_ENTRY ? null : $this->storedInvoiceDate($saleId);
 
         $salesData = [
@@ -1384,6 +1457,7 @@ class Sale extends Model
             'price_list_id'        => $saleType === SALE_TYPE_RETURN ? null : $priceListId,
             ...$currencyColumns,
             ...$timing,
+            ...($token !== null && $this->hasTokenColumn() ? ['completion_token' => $token] : []),
         ];
 
         // Run these queries as a transaction, we want to make sure we do all or nothing
@@ -1610,13 +1684,18 @@ class Sale extends Model
             $this->save_sales_items_taxes($saleId, $salesTaxes[1]);
         }
 
-        $chargesRefusal = $this->storeHeaderCharges($saleId, $saleType, $headerCharges, (bool) $config['tax_included']);
+        $chargesRefusal = $this->storeHeaderCharges($saleId, $saleType, $headerCharges, (bool) $config['tax_included'], (int) $saleStatus === COMPLETED);
 
         if ($chargesRefusal !== null) {
             $this->db->transRollback();
             $this->accountingFailure = $chargesRefusal;
 
             return ACCOUNTING_FAILED;
+        }
+
+        if (($customerId == NEW_ENTRY || $customer->taxable) && ($salesTaxes[2] ?? []) !== []) {
+            $snapshot = new VatSnapshot($this->db);
+            $snapshot->record($saleId, $snapshot->hasCharges() ? $this->withShipping($salesTaxes[2], $headerCharges) : $salesTaxes[2]);
         }
 
         if ($config['dinner_table_enable']) {
@@ -1734,9 +1813,60 @@ class Sale extends Model
             $this->auditInvoiceDate($saleId, $employeeId, (int) $salesData['branch_id'], $timing['invoice_date']);
         }
 
+        if ($issuing && $saleStatus == COMPLETED) {
+            try {
+                (new EInvoiceService($this->db))->issueForCompletedSale($saleId, $employeeId);
+            } catch (Throwable $failure) {
+                $this->db->transRollback();
+                $this->accountingFailure = $failure;
+                (new EInvoiceFailures($this->db))->record(EInvoiceService::SOURCE_SALE, $failure, $employeeId, (int) $salesData['branch_id'], $saleType, EInvoiceFailures::fingerprintOf($items));
+
+                return EINVOICE_FAILED;
+            }
+        }
+
         $this->db->transComplete();
 
         return $this->db->transStatus() ? $saleId : -1;
+    }
+
+    /**
+     * Whether completing the sale issues its document: a sale at the register, an invoice or a return completed
+     * while the Saudi rules apply.
+     */
+    private function issuesDocument(int $saleType, string $saleStatus): bool
+    {
+        return (int) $saleStatus === COMPLETED
+            && in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE, SALE_TYPE_RETURN], true)
+            && (new CompanyTaxProfile($this->db))->isSaudiMode();
+    }
+
+    /**
+     * Why the document of a sale completed under the Saudi rules could not be issued, found before anything is
+     * written, or null when nothing stands in the way (P1-10): what the layer checks of the seller, the buyer and
+     * the sale a return takes back, and that the VAT of every line was worked out under the rules. A return of a
+     * sale completed before the rules is charged as that sale was, and is issued all the same.
+     */
+    private function documentRefusal(int $saleType, int $customerId, ?int $returnOfSaleId, ?array $salesTaxes): ?EInvoiceException
+    {
+        $customers = model(Customer::class);
+        $known     = $customerId !== NEW_ENTRY && $customers->exists($customerId);
+
+        try {
+            (new EInvoiceService($this->db))->assertIssuable($known ? $customerId : null, $saleType, $saleType === SALE_TYPE_RETURN ? $returnOfSaleId : null);
+        } catch (EInvoiceException $refusal) {
+            return $refusal;
+        }
+
+        $taxed      = $customerId === NEW_ENTRY || (bool) ($customers->get_info($customerId)->taxable ?? false);
+        $classified = $taxed && ($salesTaxes[2] ?? []) !== [];
+        $ofOldSale  = $saleType === SALE_TYPE_RETURN && $returnOfSaleId !== null && (new VatSnapshot($this->db))->totalsOf($returnOfSaleId) === [];
+
+        if (! $classified && ! $ofOldSale) {
+            return new EInvoiceException(EInvoiceError::LinesNotClassified, 'Under the Saudi rules the VAT of every line of a sale is worked out from the class of its item, and its customer is not exempt from tax.');
+        }
+
+        return null;
     }
 
     /**
@@ -2176,13 +2306,35 @@ class Sale extends Model
     }
 
     /**
+     * The categories of a sale whose VAT was worked out once, with its shipping in the category of its rate (R-04
+     * §9.2): the shipping without its tax, with the sign of the document.
+     *
+     * @param array<string, VatCategoryTotal> $categories
+     *
+     * @return array<string, VatCategoryTotal>
+     */
+    private function withShipping(array $categories, ?HeaderCharges $charges): array
+    {
+        if ($charges === null || ! $charges->hasShipping() || $charges->shippingTaxOption === ShippingTaxOption::None) {
+            return $categories;
+        }
+
+        $shipping = bcadd(trim($charges->shipping) === '' ? '0' : $charges->shipping, '0', HeaderCharges::SCALE);
+        $included = $charges->shippingTaxOption === ShippingTaxOption::Included;
+        $net      = $included ? bcsub($shipping, $charges->shippingTax($shipping), HeaderCharges::SCALE) : $shipping;
+        $return   = array_reduce($categories, static fn (bool $negative, VatCategoryTotal $category): bool => $negative || bccomp($category->taxable, '0', 2) < 0, false);
+
+        return (new VatCalculator())->withCharge($categories, $return ? bcsub('0', $net, HeaderCharges::SCALE) : $net, $charges->shippingTaxPercent, $included);
+    }
+
+    /**
      * Saves the adjustment and the shipping typed on the header of the sale, worked out against the lines
      * that were just saved: only on the documents that may carry them (an invoice, a quote, a credit
      * note), only where the setting for each is on, with a tax on the shipping only at the rate and in the
      * mode the company works in, and never so that the document comes to less than nothing. What is
      * stored is what counts: the adjustment is nothing when the lines came to nothing.
      */
-    private function storeHeaderCharges(int $saleId, int $saleType, ?HeaderCharges $charges, bool $taxIncluded): ?AccountingException
+    private function storeHeaderCharges(int $saleId, int $saleType, ?HeaderCharges $charges, bool $taxIncluded, bool $completed = true): ?AccountingException
     {
         if ($charges === null || $charges->isEmpty()) {
             return null;
@@ -2196,6 +2348,14 @@ class Sale extends Model
 
         if (($charges->hasAdjustment() && ! $settings->salesAdjustmentEnabled()) || ($charges->hasShipping() && ! $settings->salesShippingEnabled())) {
             return new AccountingException(AccountingError::HeaderChargesOff, 'The adjustment or the shipping is not turned on.', ['sale_id' => $saleId]);
+        }
+
+        if ($completed && $charges->hasAdjustment() && (new CompanyTaxProfile($this->db))->isSaudiMode()) {
+            return new AccountingException(AccountingError::AdjustmentInSaudiMode, 'An adjustment carries no VAT, which the Saudi rules do not allow: a discount on the invoice or a charge as an item does.', ['sale_id' => $saleId]);
+        }
+
+        if ($completed && is_numeric(trim($charges->shipping)) && bccomp(trim($charges->shipping), '0', 4) > 0 && ($charges->shippingTaxOption === ShippingTaxOption::None || ! is_numeric(trim($charges->shippingTaxPercent)) || bccomp(trim($charges->shippingTaxPercent), '0', 4) === 0) && (new CompanyTaxProfile($this->db))->isSaudiMode()) {
+            return new AccountingException(AccountingError::ShippingUntaxedInSaudiMode, 'Shipping is a taxable service under the Saudi rules: it carries the tax of the settings.', ['sale_id' => $saleId]);
         }
 
         if ($charges->shippingCompanyId !== null && $charges->hasShipping()) {
@@ -2433,7 +2593,7 @@ class Sale extends Model
     {
         $this->accountingFailure = $failure;
 
-        $refusal = $failure instanceof AccountingException && in_array($failure->error, [AccountingError::SaleLocked, AccountingError::IssuedDocumentLocked, AccountingError::TreasuryDepositDenied, AccountingError::TreasuryWithdrawDenied, AccountingError::PaymentTermsInvalid, AccountingError::CreditLimitExceeded, AccountingError::CreditPeriodExceeded], true);
+        $refusal = $failure instanceof AccountingException && in_array($failure->error, [AccountingError::SaleLocked, AccountingError::IssuedDocumentLocked, AccountingError::ElectronicDocumentLocked, AccountingError::TreasuryDepositDenied, AccountingError::TreasuryWithdrawDenied, AccountingError::PaymentTermsInvalid, AccountingError::CreditLimitExceeded, AccountingError::CreditPeriodExceeded], true);
 
         if (($failure instanceof PostingException || $failure instanceof AccountingException) && ! $refusal) {
             (new SalePosting($this->db))->recordFailure($saleId, $failure, $employeeId, $branchId);
@@ -2462,7 +2622,15 @@ class Sale extends Model
      */
     public function save_sales_items_taxes(int $saleId, array $salesItemTaxes): void
     {
-        $builder = $this->db->table('sales_items_taxes');
+        $builder        = $this->db->table('sales_items_taxes');
+        $classification = null;
+
+        foreach ($salesItemTaxes as $taxItem) {
+            if (($taxItem['vat'] ?? null) instanceof LineVat) {
+                $classification ??= new VatClassification($this->db);
+                $classification->recordLine($saleId, (int) $taxItem['item_id'], (int) $taxItem['line'], $taxItem['vat'], ($taxItem['vat_amounts'] ?? null) instanceof VatLineResult ? $taxItem['vat_amounts'] : null);
+            }
+        }
 
         foreach ($salesItemTaxes as $line => $taxItem) {
             $salesItemsTaxes = [
@@ -2548,8 +2716,18 @@ class Sale extends Model
      */
     public function restore_list(array $sale_ids, int $employee_id, bool $update_inventory = true): bool    // TODO: $update_inventory is never used in the function.
     {
+        $this->accountingFailure = null;
+
         foreach ($sale_ids as $saleId) {
             if ($this->outsideRecordScope((int) $saleId, $employee_id)) {
+                return false;
+            }
+
+            try {
+                $this->assertWithoutDocument((int) $saleId);
+            } catch (AccountingException $refusal) {
+                $this->accountingFailure = $refusal;
+
                 return false;
             }
         }
@@ -2559,6 +2737,81 @@ class Sale extends Model
         }
 
         return true;
+    }
+
+    /**
+     * Whether an electronic document was issued for the sale.
+     */
+    public function hasDocument(int $saleId): bool
+    {
+        return $this->db->tableExists($this->db->prefixTable('einvoice_documents'), false)
+            && $this->db->table('einvoice_documents')->where(['source_type' => EInvoiceService::SOURCE_SALE, 'source_id' => $saleId])->countAllResults() > 0;
+    }
+
+    /**
+     * The code printed for the sale from its issued electronic document, kept as it was issued, or null when the
+     * sale has no document.
+     */
+    public function documentQrOf(int $saleId): ?string
+    {
+        if (! $this->db->tableExists($this->db->prefixTable('einvoice_documents'), false)) {
+            return null;
+        }
+
+        $row = $this->db->table('einvoice_documents')->select('qr_text')->where(['source_type' => EInvoiceService::SOURCE_SALE, 'source_id' => $saleId])->get()->getRow();
+
+        return $row === null || trim((string) $row->qr_text) === '' ? null : (string) $row->qr_text;
+    }
+
+    /**
+     * A sale whose electronic document was issued is neither cancelled nor set aside again: what the document
+     * says is corrected by a credit note.
+     *
+     * @throws AccountingException
+     */
+    private function assertWithoutDocument(int $saleId): void
+    {
+        if ($this->hasDocument($saleId)) {
+            throw new AccountingException(AccountingError::ElectronicDocumentLocked, 'The electronic invoice of the sale has been issued: it is corrected by a credit note.', ['sale_id' => $saleId]);
+        }
+    }
+
+    private static function decimal(string $value): bool
+    {
+        return preg_match('/^-?\d+(\.\d+)?$/', $value) === 1;
+    }
+
+    /**
+     * A change to what the issued document of a sale holds is refused: its customer, its time, its date, its
+     * number and its currency. A field sent as it is stored is no change, so a screen that posts every field
+     * still saves the payments and the comment.
+     *
+     * @param array<string, mixed> $updateData
+     *
+     * @throws AccountingException
+     */
+    private function assertDocumentUnchanged(int $saleId, array $updateData, bool $hasDate, mixed $typedDate): void
+    {
+        if (! $this->hasDocument($saleId)) {
+            return;
+        }
+
+        $stored = $this->db->table('sales')->select('customer_id, sale_time, invoice_number, invoice_date, currency_code, currency_rate')->where('sale_id', $saleId)->get()->getRowArray() ?? [];
+        $typed  = array_intersect_key($updateData, array_flip(['customer_id', 'sale_time', 'invoice_number', 'currency_code', 'currency_rate']));
+
+        if ($hasDate) {
+            $typed['invoice_date'] = $typedDate;
+        }
+
+        foreach ($typed as $column => $value) {
+            $before = trim((string) ($stored[$column] ?? ''));
+            $after  = trim((string) ($value ?? ''));
+            $same   = self::decimal($before) && self::decimal($after) ? bccomp($before, $after, 6) === 0 : $before === $after;
+
+            if (! $same) {
+                throw new AccountingException(AccountingError::ElectronicDocumentLocked, 'The electronic invoice of the sale has been issued: what it holds does not change.', ['sale_id' => $saleId]);
+            }
+        }
     }
 
     /**
@@ -2624,6 +2877,7 @@ class Sale extends Model
 
         try {
             (new QuoteLifecycle($this->db))->assertUnlocked((int) $saleId);
+            $this->assertWithoutDocument((int) $saleId);
         } catch (AccountingException $refusal) {
             $this->db->transRollback();
             $this->accountingFailure = $refusal;
@@ -3428,6 +3682,14 @@ class Sale extends Model
 
         $builder = $this->db->table('sales_items_taxes');
         $builder->delete(['sale_id' => $sale_id]);
+
+        if ($this->db->tableExists($this->db->prefixTable('sales_items_vat'), false)) {
+            $this->db->table('sales_items_vat')->delete(['sale_id' => $sale_id]);
+        }
+
+        if ((new VatSnapshot($this->db))->isInstalled()) {
+            $this->db->table('sales_vat_totals')->delete(['sale_id' => $sale_id]);
+        }
 
         $builder = $this->db->table('sales_items');
         $builder->delete(['sale_id' => $sale_id]);

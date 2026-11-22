@@ -321,11 +321,10 @@ final class LegacyPurchaseDiscount
      */
     private function total(ReceivingDocument $document, int $type): string
     {
-        $net = '0';
-        $tax = '0';
+        $readings = [];
 
         foreach ($document->lines as $line) {
-            $reading = $this->isCandidate($line) ? new ReceivingLine(
+            $readings[] = $this->isCandidate($line) ? new ReceivingLine(
                 itemId: $line->itemId,
                 line: $line->line,
                 quantity: $line->quantity,
@@ -338,13 +337,11 @@ final class LegacyPurchaseDiscount
                 hasStock: $line->hasStock,
                 itemCost: $line->itemCost,
                 invoiceDiscount: $line->invoiceDiscount,
+                vatWorkedOnce: $line->vatWorkedOnce,
             ) : $line;
-
-            $net = bcadd($net, ReceivingAmounts::net($reading), ReceivingAmounts::SCALE);
-            $tax = bcadd($tax, ReceivingAmounts::tax($reading), ReceivingAmounts::SCALE);
         }
 
-        return SaleAmounts::round(bcadd($net, $tax, ReceivingAmounts::SCALE), 2);
+        return ReceivingAmounts::totals($readings)['total'];
     }
 
     private function isCandidate(ReceivingLine $line): bool

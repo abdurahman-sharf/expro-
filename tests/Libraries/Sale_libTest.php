@@ -8,6 +8,7 @@ use App\Libraries\HeaderChargesProblem;
 use App\Libraries\ShippingTaxOption;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Sale_lib;
+use App\Libraries\Tax\VatRegistration;
 use App\Libraries\Tax_lib;
 use App\Models\Attribute;
 use App\Models\Customer;
@@ -1295,5 +1296,28 @@ class Sale_libTest extends CIUnitTestCase
         $this->saleLib->set_mode('return');
 
         $this->assertSame('375.00', $this->saleLib->catalogPrice('375.00'), 'a return is in the currency of the sale it takes back and is never priced from the catalog');
+    }
+
+    public function testCompletionToken_StaysForTheSameCartAndChangesWithTheCartOrTheSale(): void
+    {
+        $cart     = [['item_id' => 1, 'quantity' => '1', 'price' => '10.00', 'discount' => '0', 'discount_type' => 0, 'serialnumber' => '']];
+        $payments = [['payment_type' => 'Cash', 'payment_amount' => '11.50']];
+        $token    = $this->saleLib->completionToken($cart, $payments, -1, SALE_TYPE_POS);
+
+        $this->assertSame(64, strlen($token));
+        $this->assertSame($token, $this->saleLib->completionToken($cart, $payments, -1, SALE_TYPE_POS), 'the same cart sent again is the same sale');
+        $this->assertNotSame($token, $this->saleLib->completionToken([[...$cart[0], 'quantity' => '2']], $payments, -1, SALE_TYPE_POS), 'a cart that changed is another sale');
+        $this->assertNotSame($token, $this->saleLib->completionToken($cart, $payments, 7, SALE_TYPE_POS));
+
+        $this->saleLib->clearRegisterToken();
+
+        $this->assertNotSame($token, $this->saleLib->completionToken($cart, $payments, -1, SALE_TYPE_POS), 'the next sale on the register has a token of its own');
+    }
+
+    public function testInvoiceViewFor_PrintsThePlainInvoiceOfTheSameLayoutForABusinessThatIsNotRegisteredForVat(): void
+    {
+        $this->assertSame(['invoice', 'custom_invoice', 'invoice', 'custom_invoice'], array_map(static fn (string $type): string => Sale_lib::invoiceViewFor($type, VatRegistration::NotRegistered), ['tax_invoice', 'custom_tax_invoice', 'invoice', 'custom_invoice']));
+        $this->assertSame(['tax_invoice', 'custom_tax_invoice'], [Sale_lib::invoiceViewFor('tax_invoice', VatRegistration::Registered), Sale_lib::invoiceViewFor('custom_tax_invoice', VatRegistration::Unknown)], 'a registered business, and one whose registration nobody gave, print what the settings say');
+        $this->assertSame('invoice', Sale_lib::invoiceViewFor('../../secret', VatRegistration::Registered));
     }
 }

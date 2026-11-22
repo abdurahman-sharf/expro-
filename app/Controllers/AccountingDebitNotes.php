@@ -5,6 +5,8 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\SalesDebitNotes;
+use App\Libraries\EInvoicing\EInvoiceRules;
+use App\Libraries\Tax\CompanyTaxProfile;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Database;
@@ -56,6 +58,8 @@ class AccountingDebitNotes extends AccountingController
             'accounts' => $this->notes->allowedAccounts(),
             'number'   => $this->notes->peekNumber(),
             'today'    => date('Y-m-d'),
+            'issuing'  => (new CompanyTaxProfile())->isSaudiMode(),
+            'reasons'  => EInvoiceRules::NOTE_REASONS,
         ]);
     }
 
@@ -85,12 +89,14 @@ class AccountingDebitNotes extends AccountingController
     {
         return $this->attempt(function (): array {
             $id = $this->notes->create([
-                'customer_id' => (int) $this->request->getPost('customer_id'),
-                'date'        => trim((string) $this->request->getPost('note_date')),
-                'amount'      => trim((string) $this->request->getPost('amount')),
-                'tax_percent' => trim((string) $this->request->getPost('tax_percent')),
-                'account_id'  => (int) $this->request->getPost('account_id'),
-                'note'        => (string) $this->request->getPost('note'),
+                'customer_id'       => (int) $this->request->getPost('customer_id'),
+                'date'              => trim((string) $this->request->getPost('note_date')),
+                'amount'            => trim((string) $this->request->getPost('amount')),
+                'tax_percent'       => trim((string) $this->request->getPost('tax_percent')),
+                'account_id'        => (int) $this->request->getPost('account_id'),
+                'note'              => (string) $this->request->getPost('note'),
+                'original_document' => (string) $this->request->getPost('original_document'),
+                'note_reason'       => (string) $this->request->getPost('note_reason'),
             ], $this->employeeId());
 
             return ['success' => true, 'message' => lang('Accounting_debit_notes.successful_adding'), 'id' => $id];

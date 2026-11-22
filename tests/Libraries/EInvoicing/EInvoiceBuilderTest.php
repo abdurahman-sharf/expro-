@@ -14,6 +14,11 @@ use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\EInvoiceKind;
 use App\Libraries\EInvoicing\EInvoiceSubtype;
 use App\Libraries\EInvoicing\OriginalReference;
+use App\Libraries\HeaderCharges;
+use App\Libraries\ShippingTaxOption;
+use App\Libraries\Tax\LineVat;
+use App\Libraries\Tax\VatCategoryTotal;
+use App\Libraries\Tax\VatSnapshot;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -63,6 +68,8 @@ class EInvoiceBuilderTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->accountingDb()->table('sales_items_vat')->truncate();
+        $this->accountingDb()->table('sales_vat_totals')->truncate();
         $this->clearEInvoices();
         $this->restoreEInvoicingConfig();
         $this->accountingDb()->table('document_numbers')->truncate();
@@ -374,7 +381,7 @@ class EInvoiceBuilderTest extends CIUnitTestCase
 
         $rules['tax'] = SaleAmounts::round($figures['tax'], 2);
 
-        $this->assertNull($tie->invoke($this->builder, $sale, $rules));
+        $this->assertSame('0.00', $tie->invoke($this->builder, $sale, $rules), 'a sale saved without its VAT worked out once has no rounding amount');
     }
 
     public function testFromSale_RefusesATotalThatTheStandardCannotWriteTheWayTheBooksHaveIt(): void
@@ -420,9 +427,9 @@ class EInvoiceBuilderTest extends CIUnitTestCase
 
     public function testFromSale_NamesThePaymentMeansOfTheCompletedPayments(): void
     {
-        $document = $this->builder->fromSale($this->referenceSale(null, [$this->payment('Cash', '500.00'), $this->payment('Debit Card', '316.50')]));
+        $document = $this->builder->fromSale($this->referenceSale(null, [$this->payment('Cash', '500.00'), $this->payment('Debit Card', '216.50'), $this->payment('Credit Card', '100.00')]));
 
-        $this->assertSame(['10', '48'], $document->paymentMeansCodes);
+        $this->assertSame(['10', '55', '54'], $document->paymentMeansCodes, 'cash, a debit card and a credit card, each by its own code');
     }
 
     public function testFromSale_UsesTheDayOfTheInvoiceAndTheTimeItWasSaved(): void
@@ -565,5 +572,268 @@ class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::TotalsDoNotTie, $refusal->error);
         $this->assertSame('230.01', $refusal->context['expected']);
         $this->assertSame('230.00', $refusal->context['actual']);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function classifiedTax(int $itemId, int $line, string $percent, string $amount, LineVat $vat): array
+    {
+        return [...$this->tax($itemId, $line, $amount), 'percent' => $percent, 'vat' => $vat];
+    }
+
+    public function testFromSale_WritesTheCategoryAndReasonOfEachLine(): void
+    {
+        $export   = $this->item('0', false);
+        $standard = $this->item('0', false);
+
+        $saleId = $this->save([$this->line($export, 0, '2', '50'), $this->line($standard, 1, '1', '100')], [
+            $this->classifiedTax($export, 0, '0.0000', '0.00', new LineVat(null, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT')),
+            $this->classifiedTax($standard, 1, '15.0000', '15.00', new LineVat(null, 'S', '15.000', null, null, 'VAT')),
+        ]);
+
+        $document = $this->builder->fromSale($saleId);
+
+        $this->assertSame(['Z', 'S'], array_map(static fn ($line): string => $line->vatCategory, $document->lines));
+        $this->assertSame('215.00', $document->taxInclusive);
+        $this->assertSame('VATEX-SA-32', $document->taxSubtotals[0]->exemptionCode);
+        $this->assertSame('Export of goods', $document->taxSubtotals[0]->exemptionText);
+    }
+
+    public function testFromSale_SplitsTheSubtotalsByReason(): void
+    {
+        $this->configureEInvoicing(['einvoice_exempt_category' => 'Z', 'einvoice_exempt_reason_code' => 'VATEX-SA-35', 'einvoice_exempt_reason_text' => 'Medicines']);
+
+        $goods    = $this->item('0', false);
+        $services = $this->item('0', false);
+
+        $saleId = $this->save([$this->line($goods, 0, '1', '60'), $this->line($services, 1, '1', '40')], [
+            $this->classifiedTax($goods, 0, '0.0000', '0.00', new LineVat(null, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT')),
+            $this->classifiedTax($services, 1, '0.0000', '0.00', new LineVat(null, 'Z', '0.000', 'VATEX-SA-33', 'Export of services', 'VAT')),
+        ]);
+
+        $document = $this->builder->fromSale($saleId);
+
+        $this->assertCount(2, $document->taxSubtotals);
+        $this->assertSame(['VATEX-SA-32', 'VATEX-SA-33'], array_map(static fn ($subtotal): string => $subtotal->exemptionCode, $document->taxSubtotals));
+        $this->assertSame(['60.00', '40.00'], array_map(static fn ($subtotal): string => $subtotal->taxable, $document->taxSubtotals));
+    }
+
+    public function testFromSale_KeepsTheGlobalExemptionForALineWithoutASnapshot(): void
+    {
+        $this->configureEInvoicing(['einvoice_exempt_category' => 'E', 'einvoice_exempt_reason_code' => 'VATEX-SA-29', 'einvoice_exempt_reason_text' => 'Financial services']);
+
+        $classified   = $this->item('0', false);
+        $unclassified = $this->item('0', false);
+
+        $saleId = $this->save([$this->line($classified, 0, '1', '60'), $this->line($unclassified, 1, '1', '40')], [
+            $this->classifiedTax($classified, 0, '0.0000', '0.00', new LineVat(null, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT')),
+        ]);
+
+        $document = $this->builder->fromSale($saleId);
+
+        $this->assertSame(['Z', 'E'], array_map(static fn ($subtotal): string => $subtotal->category, $document->taxSubtotals));
+        $this->assertSame('VATEX-SA-29', $document->taxSubtotals[1]->exemptionCode);
+    }
+
+    public function testFromSale_MergesALineWithoutASnapshotIntoTheSubtotalOfTheSameReason(): void
+    {
+        $this->configureEInvoicing(['einvoice_exempt_category' => 'Z', 'einvoice_exempt_reason_code' => 'VATEX-SA-32', 'einvoice_exempt_reason_text' => 'Export']);
+
+        $classified   = $this->item('0', false);
+        $unclassified = $this->item('0', false);
+
+        $saleId = $this->save([$this->line($classified, 0, '1', '60'), $this->line($unclassified, 1, '1', '40')], [
+            $this->classifiedTax($classified, 0, '0.0000', '0.00', new LineVat(null, 'Z', '0.000', 'VATEX-SA-32', 'Export of goods', 'VAT')),
+        ]);
+
+        $document = $this->builder->fromSale($saleId);
+
+        $this->assertCount(1, $document->taxSubtotals);
+        $this->assertSame('100.00', $document->taxSubtotals[0]->taxable);
+        $this->assertSame('Export of goods', $document->taxSubtotals[0]->exemptionText);
+    }
+
+    /**
+     * Writes what a sale's VAT came to when it was worked out once, as the register keeps it.
+     *
+     * @param array<string, array{0: string, 1: string, 2: string}> $lines By "item:line": net, VAT, amount with VAT.
+     */
+    private function keepVat(int $saleId, array $lines, VatCategoryTotal $category): void
+    {
+        $db = Database::connect();
+
+        foreach ($lines as $key => [$net, $vat, $gross]) {
+            [$itemId, $line] = explode(':', $key);
+            $db->table('sales_items_vat')->replace(['sale_id' => $saleId, 'item_id' => (int) $itemId, 'line' => (int) $line, 'category' => $category->category, 'percent' => $category->percent, 'exemption_code' => $category->exemptionCode, 'exemption_text' => $category->exemptionText, 'net' => $net, 'vat' => $vat, 'gross' => $gross, 'calc_version' => 1]);
+        }
+
+        (new VatSnapshot())->record($saleId, [$category->key() => $category]);
+    }
+
+    public function testFromSale_StatesWhatPricesHoldingTheTaxLeaveAsTheRoundingAmount(): void
+    {
+        $items = [];
+        $lines = [];
+        $taxes = [];
+        $kept  = [];
+
+        for ($line = 0; $line < 10; $line++) {
+            $items[]                   = $this->item('0', false);
+            $lines[]                   = $this->line($items[$line], $line, '1', '0.99');
+            $taxes[]                   = $this->taxRow($items[$line], $line, 'VAT', '15.0000', 0, '0.1290');
+            $kept[$items[$line] . ':' . $line] = ['0.86', '0.13', '0.99'];
+        }
+
+        $saleId = $this->save($lines, $taxes);
+        $this->keepVat($saleId, $kept, new VatCategoryTotal('S', '15.000', null, null, '8.60', '1.29', true));
+
+        $document = $this->builder->fromSale($saleId);
+
+        $this->assertSame(['8.60', '1.29', '9.89', '0.01', '9.90'], [$document->taxExclusive, $document->taxAmount, $document->taxInclusive, $document->rounding, $document->payable()]);
+        $this->assertSame(['0.86', '0.13', '0.99'], [$document->lines[0]->netAmount, $document->lines[0]->vatAmount, $document->lines[0]->amountWithVat]);
+        $this->assertSame(['8.60', '1.29'], [$document->taxSubtotals[0]->taxable, $document->taxSubtotals[0]->taxAmount]);
+    }
+
+    public function testFromSale_PricesALineHoldingTheTaxSoThatItsQuantityTimesItsPriceLessItsAllowanceIsItsNet(): void
+    {
+        $itemId = $this->item('0', false);
+        $saleId = $this->save([$this->line($itemId, 0, '200', '1.00')], [$this->taxRow($itemId, 0, 'VAT', '15.0000', 0, '26.0870')]);
+
+        $this->keepVat($saleId, [$itemId . ':0' => ['173.91', '26.09', '200.00']], new VatCategoryTotal('S', '15.000', null, null, '173.91', '26.09', true));
+
+        $line = $this->builder->fromSale($saleId)->lines[0];
+
+        $this->assertSame(['200.00', '0.8696', '0.01', '173.91'], [$line->quantity, $line->priceNet, $line->allowance, $line->netAmount], '200 times 0.8696 is 173.92: the halala above the net is the allowance (BR-KSA-EN16931-11)');
+    }
+
+    public function testFromSale_GivesALineWhoseNetWasHeldToItsSaleTheAllowanceThatBringsItThere(): void
+    {
+        $itemId = $this->item('0', false);
+        $saleId = $this->save([$this->line($itemId, 0, '1', '1.00')], [$this->tax($itemId, 0, '0.1440')]);
+        $this->keepVat($saleId, [$itemId . ':0' => ['0.96', '0.14', '1.10']], new VatCategoryTotal('S', '15.000', null, null, '0.96', '0.14', false));
+
+        $line = $this->builder->fromSale($saleId)->lines[0];
+
+        $this->assertSame(['1.0000', '0.04', '0.96'], [$line->priceNet, $line->allowance, $line->netAmount], 'quantity times price less the allowance is the net (BR-KSA-EN16931-11)');
+    }
+
+    public function testFromSale_StatesTheVatOfACategoryAsTheSaleKeptIt(): void
+    {
+        $items = [$this->item('0', false), $this->item('0', false), $this->item('0', false)];
+        $lines = [];
+        $taxes = [];
+        $kept  = [];
+
+        foreach ($items as $line => $itemId) {
+            $lines[]                  = $this->line($itemId, $line, '1', '0.10');
+            $taxes[]                  = $this->tax($itemId, $line, '0.0150');
+            $kept[$itemId . ':' . $line] = ['0.10', '0.02', '0.12'];
+        }
+
+        $saleId = $this->save($lines, $taxes);
+        $this->keepVat($saleId, $kept, new VatCategoryTotal('S', '15.000', null, null, '0.30', '0.05', false));
+
+        $document = $this->builder->fromSale($saleId);
+
+        $this->assertSame(['0.30', '0.05', '0.35', '0.00'], [$document->taxExclusive, $document->taxAmount, $document->taxInclusive, $document->rounding]);
+        $this->assertSame('0.02', $document->lines[0]->vatAmount, 'each line states its own VAT (KSA-11)');
+    }
+
+    public function testFromSale_StatesTheVatAReturnWasHeldToWithinTheHalalaTheStandardAllowsAndNoMore(): void
+    {
+        $itemId  = $this->item('0', false);
+        $invoice = $this->save([$this->line($itemId, 0, '11', '0.10')], [$this->tax($itemId, 0, '0.1650')]);
+        $return  = $this->save([$this->line($itemId, 0, '-1', '0.10')], [$this->tax($itemId, 0, '-0.0150')], [], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $this->keepVat($return, [$itemId . ':0' => ['-0.10', '-0.02', '-0.12']], new VatCategoryTotal('S', '15.000', null, null, '-0.10', '-0.01', false));
+
+        $document = $this->builder->fromSale($return, null, 'In case of goods or services refund.', new OriginalReference(7, 'INV-7', EInvoiceSubtype::Simplified));
+
+        $this->assertSame(['0.10', '0.01', '0.11'], [$document->taxExclusive, $document->taxAmount, $document->taxInclusive], 'the second of eleven returns of one unit gives back 0.01, so that together they give back the 0.17 of the sale');
+
+        $sale = $this->save([$this->line($itemId, 0, '1', '0.10')], [$this->tax($itemId, 0, '0.0150')]);
+
+        $this->keepVat($sale, [$itemId . ':0' => ['0.10', '0.02', '0.12']], new VatCategoryTotal('S', '15.000', null, null, '0.10', '0.01', false));
+
+        $this->assertSame(EInvoiceError::RuleBroken, $this->refusal(fn () => $this->builder->fromSale($sale))->error, 'an invoice states its taxable amount times its rate, to the halala');
+    }
+
+    public function testFromSale_StatesTheTaxOfAReturnOfASaleSavedBeforeTheRulesAsItWasRoundedLineByLine(): void
+    {
+        $first   = $this->item('0', false);
+        $second  = $this->item('0', false);
+        $invoice = $this->save([$this->line($first, 0, '1', '1.10'), $this->line($second, 1, '1', '1.10')], [$this->tax($first, 0, '0.1700'), $this->tax($second, 1, '0.1700')]);
+        $return  = $this->save([$this->line($first, 0, '-1', '1.10'), $this->line($second, 1, '-1', '1.10')], [$this->tax($first, 0, '-0.1700'), $this->tax($second, 1, '-0.1700')], [], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $document = $this->builder->fromSale($return, null, 'In case of goods or services refund.', new OriginalReference(null, 'INV-OLD-1', EInvoiceSubtype::Simplified, $invoice));
+
+        $this->assertSame(['2.20', '0.34', '2.54'], [$document->taxExclusive, $document->taxAmount, $document->taxInclusive], 'two lines rounded each to 0.17 part from the 0.33 of 2.20 by a halala, within the halala a line the standard allows');
+    }
+
+    public function testFromSale_WritesTheShippingOfASaleWhoseVatWasWorkedOnceAsAChargeOfItsCategory(): void
+    {
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', '15');
+
+        $itemId = $this->item('0', false);
+        $saleId = $this->save([$this->line($itemId, 0, '1', '100.00')], [$this->tax($itemId, 0, '15.0000')], headerCharges: new HeaderCharges(shipping: '10', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+        $this->keepVat($saleId, [$itemId . ':0' => ['100.00', '15.00', '115.00']], new VatCategoryTotal('S', '15.000', null, null, '110.00', '16.50', false, '10.00'));
+
+        try {
+            $document = $this->builder->fromSale($saleId);
+        } finally {
+            $this->setConfigValue('accounting_sales_shipping', '0');
+        }
+
+        $this->assertSame(['100.00', '110.00', '16.50', '126.50', '10.00'], [$document->lineExtension, $document->taxExclusive, $document->taxAmount, $document->taxInclusive, $document->chargeTotal()]);
+        $this->assertSame(['10.00', 'S', '15.00'], [$document->charges[0]->amount, $document->charges[0]->category, $document->charges[0]->rate]);
+        $this->assertSame(['110.00', '16.50'], [$document->taxSubtotals[0]->taxable, $document->taxSubtotals[0]->taxAmount]);
+    }
+
+    public function testFromSale_StillRefusesShippingOnASaleWhoseVatWasNotWorkedOnce(): void
+    {
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', '15');
+
+        $itemId = $this->item('0', false);
+        $saleId = $this->save([$this->line($itemId, 0, '1', '100.00')], [$this->tax($itemId, 0, '15.0000')], headerCharges: new HeaderCharges(shipping: '10', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+
+        try {
+            $this->assertSame(EInvoiceError::HeaderChargesUnsupported, $this->refusal(fn () => $this->builder->fromSale($saleId))->error);
+        } finally {
+            $this->setConfigValue('accounting_sales_shipping', '0');
+        }
+    }
+
+    public function testFromSale_WritesTheTaxOfASaleInAForeignCurrencyInRiyalsToo(): void
+    {
+        $this->enableDollars();
+        $saleId = $this->foreignInvoice('100');
+        $itemId = (int) $this->accountingDb()->table('sales_items')->where('sale_id', $saleId)->get()->getRow()->item_id;
+        $this->accountingDb()->table('sales_items_taxes')->insert([...$this->tax($itemId, 0, '15.0000'), 'sale_id' => $saleId]);
+        $this->keepVat($saleId, [$itemId . ':0' => ['100.00', '15.00', '115.00']], new VatCategoryTotal('S', '15.000', null, null, '100.00', '15.00', false));
+
+        $document = $this->builder->fromSale($saleId);
+
+        $this->assertSame('USD', $document->currency);
+        $this->assertSame(['15.00', '56.25'], [$document->taxAmount, $document->taxAmountInSar], 'at the rate of the sale, 3.75');
+    }
+
+    public function testFromSale_WritesTheUnitCodeOfTheTemplateOfTheItem(): void
+    {
+        $db         = $this->accountingDb();
+        $itemId     = $this->item('0', false);
+        $db->table('unit_templates')->insert(['company_id' => 1, 'name' => 'Weights ' . $itemId, 'main_unit_name' => 'Kilogram', 'main_small_name' => 'kg', 'main_unit_code' => 'KGM', 'version' => 1, 'active' => 1]);
+        $templateId = (int) $db->insertID();
+        $db->table('item_stock_profiles')->replace(['item_id' => $itemId, 'unit_template_id' => $templateId]);
+        $saleId     = $this->save([$this->line($itemId, 0, '2', '50.00')], [$this->tax($itemId, 0, '15.0000')]);
+
+        try {
+            $this->assertSame('KGM', $this->builder->fromSale($saleId)->lines[0]->unitCode);
+        } finally {
+            $db->table('item_stock_profiles')->where('item_id', $itemId)->delete();
+            $db->table('unit_templates')->where('template_id', $templateId)->delete();
+        }
     }
 }

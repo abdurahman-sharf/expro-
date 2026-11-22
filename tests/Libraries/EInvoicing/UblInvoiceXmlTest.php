@@ -2,7 +2,10 @@
 
 namespace Tests\Libraries\EInvoicing;
 
+use App\Libraries\EInvoicing\EInvoiceCharge;
+use App\Libraries\EInvoicing\EInvoiceDocument;
 use App\Libraries\EInvoicing\EInvoiceKind;
+use App\Libraries\EInvoicing\EInvoicePrepayment;
 use App\Libraries\EInvoicing\EInvoiceLine;
 use App\Libraries\EInvoicing\EInvoiceSubtype;
 use App\Libraries\EInvoicing\UblInvoiceXml;
@@ -92,6 +95,89 @@ class UblInvoiceXmlTest extends CIUnitTestCase
         $this->assertSame(1, $xpath->query('/*/cac:TaxTotal[cac:TaxSubtotal]')->length);
     }
 
+    public function testBuild_WritesTheRoundingAmountAndThePayableAmountItLeaves(): void
+    {
+        $sample   = $this->simplifiedDocument();
+        $rounded  = new EInvoiceDocument($sample->kind, $sample->subtype, $sample->number, $sample->issueDate, $sample->issueTime, $sample->supplyDate, $sample->seller, $sample->buyer, $sample->lines, $sample->taxSubtotals, $sample->lineExtension, $sample->taxExclusive, $sample->taxAmount, $sample->taxInclusive, $sample->paymentMeansCodes, uuid: $sample->uuid, icv: $sample->icv, previousHash: $sample->previousHash, rounding: '0.01');
+        $document = new DOMDocument();
+        $document->loadXML($this->xml->build($rounded, 'QR-TEXT'));
+        $xpath = new DOMXPath($document);
+
+        $xpath->registerNamespace('cac', UblInvoiceXml::NS_CAC);
+        $xpath->registerNamespace('cbc', UblInvoiceXml::NS_CBC);
+
+        $this->assertSame('24.15', $xpath->evaluate('string(//cac:LegalMonetaryTotal/cbc:TaxInclusiveAmount)'));
+        $this->assertSame('0.01', $xpath->evaluate('string(//cac:LegalMonetaryTotal/cbc:PayableRoundingAmount)'));
+        $this->assertSame('24.16', $xpath->evaluate('string(//cac:LegalMonetaryTotal/cbc:PayableAmount)'));
+        $this->assertSame('cbc:PayableAmount', $xpath->query('//cac:LegalMonetaryTotal/cbc:PayableRoundingAmount/following-sibling::*')->item(0)->nodeName);
+        $this->assertStringNotContainsString('PayableRoundingAmount', $this->xml->build($sample, 'QR-TEXT'), 'a document without rounding writes none');
+    }
+
+    public function testBuild_WritesAChargeOnTheWholeDocumentWithItsTaxCategoryAndTheTotalOfCharges(): void
+    {
+        $sample   = $this->simplifiedDocument();
+        $charged  = new EInvoiceDocument($sample->kind, $sample->subtype, $sample->number, $sample->issueDate, $sample->issueTime, $sample->supplyDate, $sample->seller, $sample->buyer, $sample->lines, $sample->taxSubtotals, $sample->lineExtension, '31.00', $sample->taxAmount, $sample->taxInclusive, $sample->paymentMeansCodes, uuid: $sample->uuid, icv: $sample->icv, previousHash: $sample->previousHash, charges: [new EInvoiceCharge('10.00', 'S', '15.00')]);
+        $document = new DOMDocument();
+        $document->loadXML($this->xml->build($charged, 'QR-TEXT'));
+        $xpath = new DOMXPath($document);
+
+        $xpath->registerNamespace('cac', UblInvoiceXml::NS_CAC);
+        $xpath->registerNamespace('cbc', UblInvoiceXml::NS_CBC);
+
+        $this->assertSame(['true', 'FC', '10.00', 'S', '15.00'], [
+            $xpath->evaluate('string(/*/cac:AllowanceCharge/cbc:ChargeIndicator)'),
+            $xpath->evaluate('string(/*/cac:AllowanceCharge/cbc:AllowanceChargeReasonCode)'),
+            $xpath->evaluate('string(/*/cac:AllowanceCharge/cbc:Amount)'),
+            $xpath->evaluate('string(/*/cac:AllowanceCharge/cac:TaxCategory/cbc:ID)'),
+            $xpath->evaluate('string(/*/cac:AllowanceCharge/cac:TaxCategory/cbc:Percent)'),
+        ]);
+        $this->assertSame('cac:TaxTotal', $xpath->query('/*/cac:AllowanceCharge/following-sibling::*')->item(0)->nodeName, 'the charge comes before the tax totals, as UBL orders them');
+        $this->assertSame(['10.00', '31.00'], [$xpath->evaluate('string(//cac:LegalMonetaryTotal/cbc:ChargeTotalAmount)'), $xpath->evaluate('string(//cac:LegalMonetaryTotal/cbc:TaxExclusiveAmount)')]);
+        $this->assertStringNotContainsString('ChargeTotalAmount', $this->xml->build($sample, 'QR-TEXT'));
+    }
+
+    public function testBuild_TakesAPrepaymentOffWhatIsDueWithALineThatRefersToItsInvoice(): void
+    {
+        $sample   = $this->simplifiedDocument();
+        $prepaid  = new EInvoiceDocument($sample->kind, $sample->subtype, $sample->number, $sample->issueDate, $sample->issueTime, $sample->supplyDate, $sample->seller, $sample->buyer, $sample->lines, $sample->taxSubtotals, $sample->lineExtension, $sample->taxExclusive, $sample->taxAmount, $sample->taxInclusive, $sample->paymentMeansCodes, uuid: $sample->uuid, icv: $sample->icv, previousHash: $sample->previousHash, prepayments: [new EInvoicePrepayment('ADV-7', '2022-08-01', '09:00:00', 'S', '15.00', '10.00', '1.50')]);
+        $document = new DOMDocument();
+        $document->loadXML($this->xml->build($prepaid, 'QR-TEXT'));
+        $xpath = new DOMXPath($document);
+
+        $xpath->registerNamespace('cac', UblInvoiceXml::NS_CAC);
+        $xpath->registerNamespace('cbc', UblInvoiceXml::NS_CBC);
+
+        $line = '/*/cac:InvoiceLine[3]';
+
+        $this->assertSame(['11.50', '12.65'], [$xpath->evaluate('string(//cac:LegalMonetaryTotal/cbc:PrepaidAmount)'), $xpath->evaluate('string(//cac:LegalMonetaryTotal/cbc:PayableAmount)')]);
+        $this->assertSame(['3', '0.00', '0.00', 'ADV-7', '2022-08-01', '09:00:00', '386'], [
+            $xpath->evaluate("string({$line}/cbc:ID)"),
+            $xpath->evaluate("string({$line}/cbc:InvoicedQuantity)"),
+            $xpath->evaluate("string({$line}/cbc:LineExtensionAmount)"),
+            $xpath->evaluate("string({$line}/cac:DocumentReference/cbc:ID)"),
+            $xpath->evaluate("string({$line}/cac:DocumentReference/cbc:IssueDate)"),
+            $xpath->evaluate("string({$line}/cac:DocumentReference/cbc:IssueTime)"),
+            $xpath->evaluate("string({$line}/cac:DocumentReference/cbc:DocumentTypeCode)"),
+        ]);
+        $this->assertSame(['0.00', '0.00', '10.00', '1.50', 'S', '15.00'], [
+            $xpath->evaluate("string({$line}/cac:TaxTotal/cbc:TaxAmount)"),
+            $xpath->evaluate("string({$line}/cac:TaxTotal/cbc:RoundingAmount)"),
+            $xpath->evaluate("string({$line}/cac:TaxTotal/cac:TaxSubtotal/cbc:TaxableAmount)"),
+            $xpath->evaluate("string({$line}/cac:TaxTotal/cac:TaxSubtotal/cbc:TaxAmount)"),
+            $xpath->evaluate("string({$line}/cac:TaxTotal/cac:TaxSubtotal/cac:TaxCategory/cbc:ID)"),
+            $xpath->evaluate("string({$line}/cac:TaxTotal/cac:TaxSubtotal/cac:TaxCategory/cbc:Percent)"),
+        ]);
+    }
+
+    public function testBuild_WritesThePrepaymentInvoiceTypeCode(): void
+    {
+        $sample   = $this->simplifiedDocument();
+        $advance  = new EInvoiceDocument(EInvoiceKind::Prepayment, $sample->subtype, $sample->number, $sample->issueDate, $sample->issueTime, $sample->supplyDate, $sample->seller, $sample->buyer, $sample->lines, $sample->taxSubtotals, $sample->lineExtension, $sample->taxExclusive, $sample->taxAmount, $sample->taxInclusive, $sample->paymentMeansCodes, uuid: $sample->uuid, icv: $sample->icv, previousHash: $sample->previousHash);
+
+        $this->assertStringContainsString('<cbc:InvoiceTypeCode name="0200000">386</cbc:InvoiceTypeCode>', $this->xml->build($advance, 'QR-TEXT'));
+        $this->assertFalse(EInvoiceKind::Prepayment->isNote());
+    }
+
     #[DataProvider('typeCodes')]
     public function testBuild_WritesTheTypeCodeAndTheSubtypeOfEachKind(EInvoiceKind $kind, EInvoiceSubtype $subtype, string $code, string $name): void
     {
@@ -144,6 +230,16 @@ class UblInvoiceXmlTest extends CIUnitTestCase
         $this->expectException(LogicException::class);
 
         $this->xml->build($bare, 'QR-TEXT');
+    }
+
+    public function testBuild_WritesCodeOneForANoteWithoutAPaymentAndTheRealCodeForOneWithAPayment(): void
+    {
+        $unpaid = $this->xml->build($this->creditNoteDocument(), 'QR-TEXT');
+        $paid   = $this->xml->build($this->amended($this->creditNoteDocument(), ['paymentMeansCodes' => ['48']]), 'QR-TEXT');
+
+        $this->assertStringContainsString('<cac:PaymentMeans><cbc:PaymentMeansCode>1</cbc:PaymentMeansCode><cbc:InstructionNote>In case of goods or services refund.</cbc:InstructionNote></cac:PaymentMeans>', $unpaid);
+        $this->assertStringContainsString('<cac:PaymentMeans><cbc:PaymentMeansCode>48</cbc:PaymentMeansCode><cbc:InstructionNote>In case of goods or services refund.</cbc:InstructionNote></cac:PaymentMeans>', $paid);
+        $this->assertStringNotContainsString('<cac:PaymentMeans>', $this->xml->build($this->amended($this->simplifiedDocument(), ['paymentMeansCodes' => []]), 'QR-TEXT'), 'an invoice that nothing paid yet names no payment means');
     }
 
     public function testBuild_GivesTheSameBytesForTheSameDocument(): void

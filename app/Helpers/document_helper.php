@@ -6,6 +6,8 @@ use App\Libraries\Documents\QrImage;
 use App\Libraries\Documents\QrResult;
 use App\Libraries\Integrations\EntityTranslations;
 use App\Libraries\Integrations\TranslationKind;
+use App\Libraries\Tax\CompanyTaxProfile;
+use App\Libraries\Tax\VatRegistration;
 use Config\OSPOS;
 
 /**
@@ -29,7 +31,21 @@ function slipTypes(): array
 }
 
 /**
- * Describes what a document shows: its title, numbering, meta rows and optional columns and blocks.
+ * Whether the business is registered for VAT, as its owner said it: what the document is given, or what the tax
+ * profile holds.
+ *
+ * @param array<string, mixed> $sale
+ */
+function documentVatRegistration(array $sale): VatRegistration
+{
+    $given = $sale['vat_registration'] ?? null;
+
+    return is_string($given) && VatRegistration::tryFrom($given) !== null ? VatRegistration::from($given) : (new CompanyTaxProfile())->current()->registration;
+}
+
+/**
+ * Describes what a document shows: its title, numbering, meta rows and optional columns and blocks. A business its
+ * owner said is not registered for VAT issues no tax invoice: asked for one, it prints the plain invoice.
  *
  * @param string $type One of documentTypes().
  * @param array  $sale Sale data as built by the Sales controller.
@@ -38,6 +54,10 @@ function slipTypes(): array
  */
 function documentProfile(string $type, array $sale): array
 {
+    if ($type === 'tax_invoice' && documentVatRegistration($sale) === VatRegistration::NotRegistered) {
+        $type = 'invoice';
+    }
+
     $showPrices = $type !== 'work_order' || ($sale['print_price_info'] ?? true);
     $isInvoice  = in_array($type, ['invoice', 'tax_invoice'], true);
 
@@ -205,7 +225,7 @@ function documentFigure(bool $absolute, mixed $amount): string
  */
 function documentQr(string $type, array $sale, array $config): QrResult
 {
-    return (new DocumentQr())->forDocument($type, $sale, $config);
+    return (new DocumentQr())->forDocument($type, $sale, [...$config, 'vat_registration' => documentVatRegistration([...$sale, ...$config])->value]);
 }
 
 /**
@@ -333,6 +353,20 @@ function headerChargeRows(array $charges): array
     }
 
     return $rows;
+}
+
+/**
+ * A label of the printout of a document issued under the Saudi rules: always in Arabic, and in the language of the
+ * reader after it when that is another.
+ *
+ * @param list<string> $arguments
+ */
+function einvoiceWords(string $key, array $arguments = []): string
+{
+    $arabic = lang($key, $arguments, 'ar-EG');
+    $reader = lang($key, $arguments);
+
+    return $reader === $arabic || $reader === '' ? $arabic : $arabic . ' / ' . $reader;
 }
 
 /**

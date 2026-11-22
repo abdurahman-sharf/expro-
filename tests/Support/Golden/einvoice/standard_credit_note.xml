@@ -83,7 +83,7 @@
         <cbc:ActualDeliveryDate>2022-08-18</cbc:ActualDeliveryDate>
     </cac:Delivery>
     <cac:PaymentMeans>
-        <cbc:PaymentMeansCode>10</cbc:PaymentMeansCode>
+        <cbc:PaymentMeansCode>1</cbc:PaymentMeansCode>
         <cbc:InstructionNote>In case of goods or services refund.</cbc:InstructionNote>
     </cac:PaymentMeans>
     <cac:TaxTotal>

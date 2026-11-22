@@ -5,6 +5,7 @@ namespace Tests\Libraries\Documents;
 use App\Libraries\Documents\DocumentError;
 use App\Libraries\Documents\DocumentQr;
 use App\Libraries\Documents\QrImage;
+use App\Libraries\Tax\VatRegistration;
 use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -116,6 +117,28 @@ class DocumentQrTest extends CIUnitTestCase
         }
     }
 
+    #[DataProvider('typeProvider')]
+    public function testForDocument_CarriesNoCodeAndSaysNothingForABusinessThatIsNotRegisteredForVat(string $type): void
+    {
+        foreach ([self::CONFIG, ['company' => 'opes']] as $config) {
+            $result = (new DocumentQr())->forDocument($type, $this->sale(), $config + ['vat_registration' => VatRegistration::NotRegistered->value]);
+
+            $this->assertSame([null, null], [$result->payload, $result->refusal]);
+        }
+
+        $this->assertNotNull((new DocumentQr())->forDocument($type, $this->sale(), self::CONFIG + ['vat_registration' => VatRegistration::Unknown->value])->payload, 'while nobody said, the code is printed as it always was');
+    }
+
+    public function testForDocument_PrintsTheCodeOfTheIssuedDocumentAsItWasIssued(): void
+    {
+        $issued = base64_encode("\x01\x04opes\x02\x0F300000000000003");
+        $result = (new DocumentQr())->forDocument('tax_invoice', $this->sale(['einvoice_qr' => $issued, 'total' => '1.00', 'currency_code' => 'USD']), ['company' => '', 'tax_id' => '']);
+
+        $this->assertSame($issued, $result->payload, 'the code is read from the document, never worked out again');
+        $this->assertNull($result->refusal);
+        $this->assertNull((new DocumentQr())->forDocument('quote', $this->sale(['einvoice_qr' => $issued]), self::CONFIG)->payload, 'a quote carries no code all the same');
+    }
+
     public function testForDocument_RefusesWhileTheNameOfTheSellerIsNotEntered(): void
     {
         $result = (new DocumentQr())->forDocument('invoice', $this->sale(), ['company' => ' ', 'tax_id' => '300000000000003']);
@@ -175,6 +198,15 @@ class DocumentQrTest extends CIUnitTestCase
 
         $this->assertSame('224.25', $fields[4]);
         $this->assertSame('29.25', $fields[5]);
+    }
+
+    public function testForDocument_CarriesTheTotalWithVatOfASaleWhoseVatWasWorkedOnce(): void
+    {
+        $sale = $this->sale(['total' => '9.90', 'total_with_vat' => '9.89', 'taxes' => [['sale_tax_amount' => '1.29']]]);
+
+        $fields = $this->fields((new DocumentQr())->forDocument('invoice', $sale, self::CONFIG)->payload);
+
+        $this->assertSame(['9.89', '1.29'], [$fields[4], $fields[5]], 'BT-112, as the signed document carries it, not what the rounding brought the customer to');
     }
 
     public function testForDocument_WritesZeroTaxForADocumentWithoutTax(): void

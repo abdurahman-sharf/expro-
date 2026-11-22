@@ -21,6 +21,8 @@ return [
     'item_profile'                    => 'وحدات الصنف وتتبعه',
     'larger_units'                    => 'الوحدات الأكبر',
     'main_small_name'                 => 'الاسم المختصر (حتى 25 حرفًا)',
+    'main_unit_code'                  => 'رمز الوحدة (UN/ECE)',
+    'main_unit_code_help'             => 'يُكتب وحدةً للسطر في الفواتير الإلكترونية، مثل KGM أو LTR. إن تُرك فارغًا يُكتب PCE.',
     'main_unit_name'                  => 'اسم الوحدة الأساسية',
     'negative_allow'                  => 'السماح به (كما كان)',
     'negative_refuse'                 => 'رفض بيع أو نقل أكثر مما يحتفظ به المخزن',

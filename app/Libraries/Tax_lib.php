@@ -3,6 +3,15 @@
 namespace app\Libraries;
 
 use App\Libraries\Sale_lib;
+use App\Libraries\Tax\CompanyTaxProfile;
+use App\Libraries\Tax\LineVat;
+use App\Libraries\Tax\LineVatSource;
+use App\Libraries\Tax\VatCalculator;
+use App\Libraries\Tax\VatCategoryTotal;
+use App\Libraries\Tax\VatClassification;
+use App\Libraries\Tax\VatClassificationException;
+use App\Libraries\Tax\VatLine;
+use App\Libraries\Tax\VatSnapshot;
 use App\Models\Customer;
 use App\Models\Enums\Rounding_mode;
 use App\Models\Item_taxes;
@@ -13,6 +22,7 @@ use App\Models\Tax_code;
 use App\Models\Tax_definition;
 use App\Models\Tax_jurisdiction;
 use Config\OSPOS;
+use InvalidArgumentException;
 
 /**
  * Tax library
@@ -34,6 +44,9 @@ class Tax_lib
     private Tax_definition $taxDefinition;
     private Tax_jurisdiction $tax_jurisdiction;
     private array $config;
+    private ?LineVatSource $vatSource = null;
+    private bool $vatSourceChosen     = false;
+    private ?VatSnapshot $vatSnapshot = null;
 
     public function __construct()
     {
@@ -102,15 +115,36 @@ class Tax_lib
             $taxInfoByLine = [];
             $definitions   = [];
 
+            $vatByLine = [];
+
             if (! $this->config['use_destination_based_tax']) {
+                $vatSource  = $this->vatSource();
+                $supplyDate = $this->sale_lib->getInvoiceDate() ?? date('Y-m-d');
+
                 foreach ($cart as $line => $item) {
-                    $taxInfoByLine[$line] = $storedSale === null
-                        ? $this->item_taxes->get_info($item['item_id'])
-                        : $this->sale->get_sales_item_taxes($storedSale, $item['item_id']);
+                    $vat = $vatSource === null ? null : $this->lineVatOf($vatSource, $storedSale, (int) $item['item_id'], (int) $line, $supplyDate);
+
+                    if ($vat !== null) {
+                        $vatByLine[$line] = $vat;
+                    }
+
+                    $taxInfoByLine[$line] = match (true) {
+                        $storedSale !== null => $this->sale->get_sales_item_taxes($storedSale, $item['item_id']),
+                        $vat !== null        => [['name' => $vat->taxName, 'percent' => $vat->percent]],
+                        default              => $this->item_taxes->get_info($item['item_id']),
+                    };
                 }
 
                 if ($storedSale === null) {
                     $definitions = $this->taxDefinition->forNames(array_column(array_merge([], ...array_values($taxInfoByLine)), 'name'));
+                }
+
+                if ($vatSource !== null && $saleId === NEW_ENTRY) {
+                    $worked = $this->workedOnce($cart, $vatByLine, $taxInfoByLine, $definitions, $storedSale);
+
+                    if ($worked !== null) {
+                        return $worked;
+                    }
                 }
             }
 
@@ -142,6 +176,7 @@ class Tax_lib
                             'jurisdiction_id'      => null,
                             'tax_category_id'      => null,
                             'liability_account_id' => $tax['account'],
+                            'vat'                  => $vatByLine[$line] ?? null,
                         ];
                     }
                 } else {
@@ -160,6 +195,12 @@ class Tax_lib
                 }
             }
             $this->round_taxes($taxes);
+
+            $savedOnce = $saleId === NEW_ENTRY || $this->config['use_destination_based_tax'] ? [] : $this->vatSnapshot()->totalsOf($saleId);
+
+            if ($savedOnce !== []) {
+                $taxes = $this->headerOf($savedOnce, $itemTaxes);
+            }
         }
 
         $taxDetails    = [];
@@ -346,6 +387,185 @@ class Tax_lib
     }
 
     /**
+     * Gives the calculation where it learns what a classified item is sold under, for a test.
+     */
+    public function useVatSource(?LineVatSource $source): void
+    {
+        $this->vatSource       = $source;
+        $this->vatSourceChosen = true;
+    }
+
+    /**
+     * What tells the classes of the items, when the Saudi rules apply now; null otherwise, so that a sale made
+     * while the mode is off is charged exactly as before and asks the database nothing more.
+     */
+    private function vatSource(): ?LineVatSource
+    {
+        if (! $this->vatSourceChosen) {
+            $this->vatSource       = ($this->config[CompanyTaxProfile::MODE_FLAG] ?? '0') === '1' ? new VatClassification() : null;
+            $this->vatSourceChosen = true;
+        }
+
+        return $this->vatSource !== null && $this->vatSource->appliesNow() ? $this->vatSource : null;
+    }
+
+    /**
+     * Gives the calculation where it reads what sales were saved with, for a test.
+     */
+    public function useVatSnapshot(VatSnapshot $snapshot): void
+    {
+        $this->vatSnapshot = $snapshot;
+    }
+
+    private function vatSnapshot(): VatSnapshot
+    {
+        return $this->vatSnapshot ??= new VatSnapshot();
+    }
+
+    /**
+     * The taxes of a sale under the Saudi rules, worked out once (VatCalculator): each line keeps the VAT of its
+     * net before rounding, whose sum per category is the taxable amount times the rate, and the header carries the
+     * VAT of each category rounded on its taxable amount, so the printout, the journal and the electronic document
+     * agree. A return of a sale saved that way gives back no more than is left of it. Null, and the taxes are
+     * worked out as they always were, when a line has no class, when a category would mix prices with and without
+     * the tax, or when a return's sale was not saved that way.
+     *
+     * @param array<int|string, array<string, mixed>>                      $cart
+     * @param array<int|string, LineVat>                                   $vatByLine
+     * @param array<int|string, list<array<string, mixed>>>                $taxInfoByLine
+     * @param array<string, array{included: bool|null, account: int|null}> $definitions
+     *
+     * @return array{0: array<string, array<string, mixed>>, 1: list<array<string, mixed>>, 2: array<string, VatCategoryTotal>}|null
+     */
+    private function workedOnce(array &$cart, array $vatByLine, array $taxInfoByLine, array $definitions, ?int $storedSale): ?array
+    {
+        if ($cart === [] || count($vatByLine) !== count($cart) || ! $this->vatSnapshot()->isInstalled()) {
+            return null;
+        }
+
+        $lines = [];
+        $rows  = [];
+
+        foreach ($cart as $line => $item) {
+            $info = $storedSale === null ? ['name' => $vatByLine[$line]->taxName] : ($taxInfoByLine[$line][0] ?? null);
+
+            if ($info === null || ($storedSale !== null && count($taxInfoByLine[$line]) !== 1)) {
+                return null;
+            }
+
+            $included    = $this->isIncluded($info, $definitions);
+            $rows[$line] = ['name' => (string) $info['name'], 'included' => $included, 'account' => $this->liabilityAccount($info, $definitions)];
+            $base        = $this->sale_lib->get_item_total((string) $item['quantity'], (string) $item['price'], (string) $item['discount'], (int) $item['discount_type'], true, $item['invoice_discount_share'] ?? '0');
+            $lines[]     = new VatLine((string) $line, $base, $vatByLine[$line], $included);
+        }
+
+        try {
+            $result = (new VatCalculator())->calculate($lines);
+        } catch (InvalidArgumentException) {
+            return null;
+        }
+
+        if ($storedSale !== null) {
+            $left = $this->vatSnapshot()->leftOf($storedSale);
+
+            if ($left === []) {
+                return null;
+            }
+
+            $returning = [];
+
+            foreach ($cart as $item) {
+                $returning[(int) $item['item_id']] = bcadd($returning[(int) $item['item_id']] ?? '0', ltrim((string) $item['quantity'], '-'), 3);
+            }
+
+            $result = (new VatCalculator())->capReturn($result, $left, $this->vatSnapshot()->exhaustedBy($storedSale, $returning));
+        }
+
+        $itemTaxes = [];
+
+        foreach ($cart as $line => $item) {
+            $amounts     = $result->lines[(string) $line];
+            $itemTaxes[] = [
+                'item_id'              => $item['item_id'],
+                'line'                 => $item['line'],
+                'name'                 => $rows[$line]['name'],
+                'percent'              => $vatByLine[$line]->percent,
+                'tax_type'             => $rows[$line]['included'] ? Tax_lib::TAX_TYPE_INCLUDED : Tax_lib::TAX_TYPE_EXCLUDED,
+                'rounding_code'        => Rounding_mode::HALF_UP,
+                'cascade_sequence'     => 0,
+                'item_tax_amount'      => $amounts->exact,
+                'sales_tax_code_id'    => null,
+                'jurisdiction_id'      => null,
+                'tax_category_id'      => null,
+                'liability_account_id' => $rows[$line]['account'],
+                'vat'                  => $vatByLine[$line],
+                'vat_amounts'          => $amounts,
+            ];
+
+            $cart[$line]['taxed_flag'] = lang(bccomp($amounts->exact, '0', 6) === 0 ? 'Sales.nontaxed_ind' : 'Sales.taxed_ind');
+        }
+
+        return [$this->headerOf($result->categories, $itemTaxes), $itemTaxes, $result->categories];
+    }
+
+    /**
+     * The tax rows of the header from the categories of a sale worked out once: one for each category that
+     * carries tax, named as its lines are.
+     *
+     * @param array<string, VatCategoryTotal> $categories
+     * @param list<array<string, mixed>>      $itemTaxes
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function headerOf(array $categories, array $itemTaxes): array
+    {
+        $names     = [];
+        $byPercent = [];
+
+        foreach ($itemTaxes as $row) {
+            $byPercent[bcadd((string) $row['percent'], '0', 3)] ??= (string) $row['name'];
+
+            if (($row['vat'] ?? null) instanceof LineVat) {
+                $names[VatCalculator::categoryKey($row['vat']->category, $row['vat']->percent, $row['vat']->exemptionCode)] ??= (string) $row['name'];
+            }
+        }
+
+        $taxes    = [];
+        $sequence = 0;
+
+        foreach ($categories as $key => $category) {
+            if (bccomp($category->vat, '0', 2) === 0) {
+                continue;
+            }
+
+            $name = $names[$key] ?? $byPercent[$category->percent] ?? 'VAT';
+            $sequence++;
+            $this->update_taxes($taxes, $category->included ? Tax_lib::TAX_TYPE_INCLUDED : Tax_lib::TAX_TYPE_EXCLUDED, $name, $category->percent, $category->taxable, $category->vat, $sequence, Rounding_mode::HALF_UP, NEW_ENTRY, $name);
+        }
+
+        return $taxes;
+    }
+
+    /**
+     * A class with no rate on the day of the supply, which only an invoice dated before the first rate of the
+     * class can meet, leaves the line charged as the item always was rather than stopping the register.
+     */
+    private function lineVatOf(LineVatSource $source, ?int $storedSale, int $itemId, int $line, string $supplyDate): ?LineVat
+    {
+        if ($storedSale !== null) {
+            return $source->soldUnder($storedSale, $itemId, $line);
+        }
+
+        try {
+            return $source->lineVat($itemId, $supplyDate);
+        } catch (VatClassificationException $exception) {
+            log_message('warning', 'Item ' . $itemId . ' charged as before: ' . $exception->getMessage());
+
+            return null;
+        }
+    }
+
+    /**
      * The sale whose saved tax rows the taxes of these lines are read from, or null when they are
      * worked out from the items: the sale itself when it is saved, or the sale a return in the register
      * takes its goods back from.
@@ -464,12 +684,8 @@ class Tax_lib
                 $roundedTaxAmount = round($taxAmount, $decimals, PHP_ROUND_HALF_EVEN);
             } elseif ($roundingCode == Rounding_mode::HALF_ODD) {
                 $roundedTaxAmount = round($taxAmount, $decimals, PHP_ROUND_HALF_UP);
-            } elseif ($roundingCode == Rounding_mode::ROUND_UP) {
-                $fig              = (int) str_pad('1', $decimals, '0');
-                $roundedTaxAmount = ceil($taxAmount * $fig) / $fig;
-            } elseif ($roundingCode == Rounding_mode::ROUND_DOWN) {
-                $fig              = (int) str_pad('1', $decimals, '0');
-                $roundedTaxAmount = floor($taxAmount * $fig) / $fig;
+            } elseif ($roundingCode == Rounding_mode::ROUND_UP || $roundingCode == Rounding_mode::ROUND_DOWN) {
+                $roundedTaxAmount = Rounding_mode::directed((float) $taxAmount, $decimals, $roundingCode == Rounding_mode::ROUND_UP);
             } elseif ($roundingCode == Rounding_mode::HALF_FIVE) {
                 $roundedTaxAmount = round($taxAmount / 5) * 5;
             }

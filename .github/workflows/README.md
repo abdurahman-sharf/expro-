@@ -39,12 +39,24 @@ To use this workflow, you need to add the following secrets to your repository:
 
 The `GITHUB_TOKEN` is automatically provided by GitHub Actions.
 
+## Publishing and deploying are off unless switched on
+
+Nothing is published or deployed until a repository variable (**Settings** → **Secrets and variables** → **Actions** → **Variables**) is set to `true`:
+
+| Variable | What it switches on |
+|---|---|
+| `PUBLISH_ENABLED` | The Docker image push, the `unstable` release and its deletion, and the draft release of a tag |
+| `DEPLOY_ENABLED` | The staging deployment (the webhook of `deploy-core.yml`), whether from an approving review (`deploy-pr.yml`) or by hand (`deploy.yml`) |
+
+Without them a push or a merge into `master` only builds and tests. These variables do not reach a deployment the hosting runs by itself from the repository: that one is switched off in the hosting panel.
+
 ## Workflow Triggers
 
-- **Push to master** - Runs build, Docker push (`master` + `<sha>` tags), and creates/updates the `unstable` release
-- **Push to other branches** - Runs build and Docker push (`<branch>-<sha>` tag)
-- **Push a semver tag** (e.g. `3.4.2`) - Runs build and Docker push (`<version>` + `latest` tags)
+- **Push to master** - Runs build; with `PUBLISH_ENABLED`, also the Docker push (`master` + `<sha>` tags) and the `unstable` release
+- **Push to other branches** - Runs build; with `PUBLISH_ENABLED`, also the Docker push (`<branch>-<sha>` tag)
+- **Push a semver tag** (e.g. `3.4.2`) - Runs build; with `PUBLISH_ENABLED`, also the Docker push (`<version>` + `latest` tags) and the draft release
 - **Pull requests** - Runs build only (PHPUnit tests run in parallel via phpunit.yml); no Docker push
+- **An approving review of a pull request** - With `DEPLOY_ENABLED`, deploys the pull request to staging
 
 ## Existing Workflows
 

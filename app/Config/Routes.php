@@ -367,6 +367,15 @@ $routes->group('revenue_categories', static function (RouteCollection $routes): 
     $routes->post('delete', 'Revenue_categories::postDelete');
 });
 
+$routes->get('tax_settings', 'TaxSettingsHub::getIndex');
+
+$routes->group('vat_classes', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Vat_classes::getIndex');
+    $routes->post('save_class', 'Vat_classes::postSaveClass');
+    $routes->post('add_rate/(:num)', 'Vat_classes::postAddRate/$1');
+    $routes->post('classify', 'Vat_classes::postClassify');
+});
+
 $routes->group('tax_definitions', static function (RouteCollection $routes): void {
     $routes->get('/', 'Tax_definitions::getIndex');
     $routes->get('search', 'Tax_definitions::getSearch');
@@ -710,6 +719,19 @@ $routes->group('accounting_einvoicing', static function (RouteCollection $routes
     $routes->post('save_settings', 'AccountingEInvoicing::postSaveSettings');
     $routes->post('issue/(:num)', 'AccountingEInvoicing::postIssue/$1');
     $routes->post('issue_debit_note/(:num)', 'AccountingEInvoicing::postIssueDebitNote/$1');
+    $routes->post('saudi_mode', 'AccountingEInvoicing::postSaudiMode');
+});
+
+$routes->group('accounting_zatca', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingZatca::getIndex');
+    $routes->post('integration', 'AccountingZatca::postIntegration');
+    $routes->post('phase_two', 'AccountingZatca::postPhaseTwo');
+    $routes->post('compliance', 'AccountingZatca::postCompliance');
+    $routes->post('compliance_checks', 'AccountingZatca::postComplianceChecks');
+    $routes->post('production', 'AccountingZatca::postProduction');
+    $routes->post('renew', 'AccountingZatca::postRenew');
+    $routes->post('retry/(:num)', 'AccountingZatca::postRetry/$1');
+    $routes->post('reissue/(:num)', 'AccountingZatca::postReissue/$1');
 });
 
 $routes->group('accounting_journals', static function (RouteCollection $routes) use ($reportFiles): void {

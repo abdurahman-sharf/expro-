@@ -15,6 +15,10 @@ use App\Libraries\EInvoicing\EInvoiceSettings;
 use App\Libraries\EInvoicing\EInvoiceSubtype;
 use App\Libraries\EInvoicing\PartyIdentificationType;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Tax\CompanyTaxProfile;
+use App\Libraries\Tax\TaxProfileException;
+use App\Libraries\Tax\VatRegistration;
+use App\Models\Appconfig;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
@@ -33,15 +37,17 @@ class AccountingEInvoicing extends AccountingController
     private EInvoiceService $service;
     private EInvoiceReadiness $readiness;
     private EInvoiceChoices $choices;
+    private CompanyTaxProfile $taxProfile;
 
     public function __construct()
     {
         parent::__construct('accounting_einvoicing');
 
-        $this->settings  = new EInvoiceSettings(null, null, $this->branchGuard());
-        $this->service   = new EInvoiceService(null, null, $this->branchGuard());
-        $this->readiness = new EInvoiceReadiness(null, $this->settings);
-        $this->choices   = new EInvoiceChoices(null, $this->branchGuard());
+        $this->settings   = new EInvoiceSettings(null, null, $this->branchGuard());
+        $this->service    = new EInvoiceService(null, null, $this->branchGuard());
+        $this->readiness  = new EInvoiceReadiness(null, $this->settings);
+        $this->choices    = new EInvoiceChoices(null, $this->branchGuard());
+        $this->taxProfile = new CompanyTaxProfile(null, null, $this->branchGuard());
     }
 
     public function getIndex(): string
@@ -71,7 +77,65 @@ class AccountingEInvoicing extends AccountingController
             'can_manage'      => $canManage,
             'can_download'    => $canDownload,
             'reasons'         => EInvoiceRules::NOTE_REASONS,
+            'tax_profile'     => $this->taxProfileCard($canManage),
         ]);
+    }
+
+    public function postSaudiMode(): ResponseInterface
+    {
+        try {
+            $message = match ($this->request->getPost('action')) {
+                'enable'  => $this->enableSaudiMode(),
+                'disable' => $this->disableSaudiMode(),
+                default   => null,
+            };
+        } catch (TaxProfileException $exception) {
+            return $this->response->setJSON(['success' => false, 'message' => $exception->describe(), 'id' => NEW_ENTRY]);
+        } catch (AccountingException|BranchException $exception) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($exception), 'id' => NEW_ENTRY]);
+        }
+
+        if ($message === null) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => lang('Tax_profile.error_action_unknown'), 'id' => NEW_ENTRY]);
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => $message, 'id' => 0]);
+    }
+
+    private function enableSaudiMode(): string
+    {
+        $this->taxProfile->enableSaudiMode((string) $this->request->getPost('effective_at'), $this->employeeId());
+
+        return lang('Tax_profile.mode_enabled');
+    }
+
+    private function disableSaudiMode(): string
+    {
+        $this->taxProfile->disableSaudiMode((string) $this->request->getPost('reason'), $this->employeeId());
+
+        return lang('Tax_profile.mode_disabled');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function taxProfileCard(bool $canManage): array
+    {
+        $profile     = $this->taxProfile->current();
+        $invoiceType = (string) model(Appconfig::class)->get_value('invoice_type');
+        $issued      = $this->taxProfile->hasIssuedDocumentsUnderTheMode();
+        $bothHeld    = $canManage && $this->can(CompanyTaxProfile::CONFIG_PERMISSION);
+
+        return [
+            'registration'      => $profile->registration,
+            'vat_number'        => $profile->vatNumber,
+            'saudi_mode'        => $profile->saudiMode,
+            'in_effect'         => $this->taxProfile->isSaudiMode(),
+            'effective_at'      => $profile->effectiveAt,
+            'can_switch'        => $issued ? $this->canManage(AccountingGuard::EINVOICING_ONBOARD) : $bothHeld,
+            'documents_issued'  => $issued,
+            'tax_invoice_title' => $profile->registration === VatRegistration::NotRegistered && in_array($invoiceType, ['tax_invoice', 'custom_tax_invoice'], true),
+        ];
     }
 
     public function postSaveSettings(): ResponseInterface

@@ -153,6 +153,7 @@ final class DefaultChart
             ['215', 'القيمة المضافة المطلوبة', AccountType::Liability, '21', true, null, false],
             ['215001', 'القيمة المضافة المحصلة', AccountType::Liability, '215', false, 'tax_output', false],
             ['215002', 'القيمة المضافة المدفوعة', AccountType::Liability, '215', false, 'tax_input', false],
+            ['215010', 'ضريبة الدفعات المقدمة من العملاء', AccountType::Liability, '215', false, 'tax_advances', false],
             ['216', 'بطاقات الهدايا غير المستخدمة', AccountType::Liability, '21', false, 'giftcard_liability', false],
             ['22', 'الخصوم طويلة الأجل', AccountType::Liability, '2', true, null, false],
 
@@ -169,6 +170,7 @@ final class DefaultChart
             ['4204', 'تسويات المبيعات', AccountType::Revenue, '42', false, 'sales_adjustment', false],
             ['4208', 'إيرادات الشحن', AccountType::Revenue, '42', false, 'sales_shipping', false],
             ['4209', 'أرباح فروق العملة', AccountType::Revenue, '42', false, 'fx_gain', false],
+            ['4213', 'فروق تقريب ضريبية', AccountType::Revenue, '42', false, 'tax_rounding', false],
 
             ['51', 'تكلفة المبيعات', AccountType::Expense, '5', true, null, false],
             ['511', 'تكلفة المبيعات', AccountType::Expense, '51', false, 'cogs', false],

@@ -2,6 +2,8 @@
 
 namespace App\Libraries\EInvoicing;
 
+use SensitiveParameter;
+
 /**
  * Reads the signing key and the certificate from the paths the settings name, at the moment a document is
  * signed and never before, and refuses a path inside the application, a key that is not on the curve the
@@ -26,7 +28,7 @@ final class StampKeys
      *
      * @throws EInvoiceException
      */
-    public static function load(string $keyPath, string $certificatePath, ?array $protected = null, ?array $curves = null): StampMaterial
+    public static function load(#[SensitiveParameter] string $keyPath, string $certificatePath, ?array $protected = null, ?array $curves = null): StampMaterial
     {
         $keyFile         = KeyPath::check($keyPath, $protected);
         $certificateFile = KeyPath::check($certificatePath, $protected);
@@ -35,8 +37,27 @@ final class StampKeys
             throw new EInvoiceException(EInvoiceError::CurveUnsupported, 'The installed OpenSSL does not offer the curve ' . self::CURVE . '.');
         }
 
-        $keyPem = is_file($keyFile) && is_readable($keyFile) ? file_get_contents($keyFile) : false;
-        $key    = $keyPem === false ? false : self::quietly(static fn (): mixed => openssl_pkey_get_private($keyPem));
+        $keyPem         = is_file($keyFile) && is_readable($keyFile) ? file_get_contents($keyFile) : false;
+        $certificatePem = is_file($certificateFile) && is_readable($certificateFile) ? file_get_contents($certificateFile) : false;
+
+        return self::fromPem($keyPem === false ? '' : $keyPem, $certificatePem === false ? '' : $certificatePem, $curves);
+    }
+
+    /**
+     * The material of a key and a certificate held as text: the key as PEM, the certificate as PEM or as the base64
+     * a certificate of ZATCA comes in, as the vault keeps those of the units.
+     *
+     * @param list<string>|null $curves The curves the OpenSSL offers, for a test.
+     *
+     * @throws EInvoiceException
+     */
+    public static function fromPem(#[SensitiveParameter] string $keyPem, string $certificate, ?array $curves = null): StampMaterial
+    {
+        if (! self::curveAvailable($curves)) {
+            throw new EInvoiceException(EInvoiceError::CurveUnsupported, 'The installed OpenSSL does not offer the curve ' . self::CURVE . '.');
+        }
+
+        $key = trim($keyPem) === '' ? false : self::quietly(static fn (): mixed => openssl_pkey_get_private($keyPem));
 
         if ($key === false) {
             throw new EInvoiceException(EInvoiceError::KeyUnreadable, 'The private key cannot be read.');
@@ -48,8 +69,8 @@ final class StampKeys
             throw new EInvoiceException(EInvoiceError::CurveUnsupported, 'The private key is not on the curve ' . self::CURVE . '.');
         }
 
-        $certificatePem = is_file($certificateFile) && is_readable($certificateFile) ? file_get_contents($certificateFile) : false;
-        $certificate    = $certificatePem === false ? false : self::quietly(static fn (): mixed => openssl_x509_read($certificatePem));
+        $certificatePem = str_contains($certificate, '-----BEGIN') ? $certificate : self::pem($certificate);
+        $certificate    = trim($certificatePem) === '' ? false : self::quietly(static fn (): mixed => openssl_x509_read($certificatePem));
 
         if ($certificate === false || ! openssl_x509_export($certificate, $normalized)) {
             throw new EInvoiceException(EInvoiceError::CertificateUnreadable, 'The certificate cannot be read.');
@@ -86,6 +107,16 @@ final class StampKeys
         }
     }
 
+    /**
+     * A certificate in base64 (DER) as PEM; nothing for nothing.
+     */
+    public static function pem(string $base64): string
+    {
+        $body = preg_replace('/\s+/', '', $base64) ?? '';
+
+        return $body === '' ? '' : "-----BEGIN CERTIFICATE-----\n" . chunk_split($body, 64, "\n") . "-----END CERTIFICATE-----\n";
+    }
+
     private static function der(string $pem): string
     {
         $body = preg_replace('/-----[A-Z ]+-----|\s+/', '', $pem) ?? '';
@@ -94,7 +125,9 @@ final class StampKeys
     }
 
     /**
-     * The issuer as RFC 2253 writes a name: the most specific part first.
+     * The issuer as the official validator reads it from the certificate, which is how Java writes a name: the most
+     * specific part first, the parts parted by a comma and a space, and a value that holds a special character in
+     * quotes.
      *
      * @param array<string, mixed> $issuer
      */
@@ -104,10 +137,19 @@ final class StampKeys
 
         foreach ($issuer as $attribute => $values) {
             foreach ((array) $values as $value) {
-                $parts[] = $attribute . '=' . preg_replace('/([,+"\\\\<>;])/', '\\\\$1', (string) $value);
+                $parts[] = $attribute . '=' . self::quoted((string) $value);
             }
         }
 
-        return implode(',', array_reverse($parts));
+        return implode(', ', array_reverse($parts));
+    }
+
+    private static function quoted(string $value): string
+    {
+        if (preg_match('/[,=\n+<>#;\\\\"]|^\s|\s$|\s\s/', $value) !== 1) {
+            return $value;
+        }
+
+        return '"' . addcslashes($value, '"\\') . '"';
     }
 }

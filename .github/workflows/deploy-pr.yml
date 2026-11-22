@@ -18,6 +18,7 @@ jobs:
     name: Prepare deployment
     runs-on: ubuntu-latest
     if: >
+      vars.DEPLOY_ENABLED == 'true' &&
       github.event.review.state == 'approved' &&
       github.event.pull_request.head.repo.full_name == github.repository
     outputs:

@@ -2,6 +2,9 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\EInvoicing\EInvoiceException;
+use App\Libraries\EInvoicing\EInvoiceRules;
+use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
@@ -9,6 +12,7 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
 use App\Libraries\Roles\RecordScope;
+use App\Libraries\Tax\CompanyTaxProfile;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -93,9 +97,12 @@ final class SalesDebitNotes
     /**
      * Raises what a customer owes by an amount and the tax on it, dated up to today.
      *
-     * @param array{customer_id: int, date: string, amount: string, tax_percent?: string, account_id?: int|null, note?: string, branch_id?: int|null} $input
+     * Under the Saudi rules the note names the issued document it corrects, by its number, and the reason it is
+     * issued for, and its own document is issued in the transaction that raises it.
      *
-     * @throws AccountingException|BranchException|PostingException
+     * @param array{customer_id: int, date: string, amount: string, tax_percent?: string, account_id?: int|null, note?: string, branch_id?: int|null, original_document?: string, note_reason?: string} $input
+     *
+     * @throws AccountingException|BranchException|EInvoiceException|PostingException
      */
     public function create(array $input, ?int $employeeId = null): int
     {
@@ -111,8 +118,11 @@ final class SalesDebitNotes
 
         $branchId = $this->branch(isset($input['branch_id']) ? (int) $input['branch_id'] : null, $employeeId);
         $account  = $this->revenueAccount(isset($input['account_id']) ? (int) $input['account_id'] : null);
+        $issuing  = (new CompanyTaxProfile($this->db))->isSaudiMode();
+        $reason   = trim((string) ($input['note_reason'] ?? '')) === '' ? EInvoiceRules::NOTE_REASONS[2] : trim((string) $input['note_reason']);
+        $original = $issuing ? (new EInvoiceService($this->db))->originalForDebitNote($customerId, (string) ($input['original_document'] ?? ''), $employeeId) : null;
 
-        return $this->lock->run($customerId, fn (): int => $this->transactional(function () use ($customerId, $figures, $date, $note, $branchId, $account, $employeeId): int {
+        return $this->lock->run($customerId, fn (): int => $this->transactional(function () use ($customerId, $figures, $date, $note, $branchId, $account, $employeeId, $original, $reason): int {
             $customerAccount = $this->resolver->accountFor(RoutingKey::Customers, $customerId);
 
             if ($customerAccount === null) {
@@ -163,6 +173,11 @@ final class SalesDebitNotes
             }
 
             $this->settlement->settle($customerId, $employeeId);
+
+            if ($original !== null) {
+                (new EInvoiceService($this->db))->issueForDebitNote($debitNoteId, $reason, $original, $employeeId);
+            }
+
             $this->audit->write(self::ENTITY, $debitNoteId, 'created', $employeeId, $this->origin($employeeId), [
                 'customer_id' => $customerId,
                 'amount'      => $figures['amount'],
@@ -197,6 +212,10 @@ final class SalesDebitNotes
         $customerId = (int) $note->customer_id;
 
         $this->lock->run($customerId, fn () => $this->transactional(function () use ($debitNoteId, $customerId, $reason, $employeeId): void {
+            if ((new EInvoiceService($this->db))->documentOf(self::SOURCE, $debitNoteId) !== null) {
+                throw new AccountingException(AccountingError::DebitNoteDocumentIssued, 'The electronic document of the debit note was issued; the note stands.', ['debit_note_id' => $debitNoteId]);
+            }
+
             $current = $this->standing($debitNoteId);
             $journal = $this->db->table('accounting_journals')
                 ->select('journal_id, journal_date')
@@ -422,7 +441,8 @@ final class SalesDebitNotes
 
     /**
      * The amount, the rate and what comes of them, the way an invoice rounds: the tax as calculated, the
-     * total to the cent, and the revenue what is left of the total after the tax.
+     * total to the cent, and the revenue what is left of the total after the tax. Under the Saudi rules the
+     * amount is taken to the halala first, as its document states it, and the tax worked out on that.
      *
      * @return array{amount: numeric-string, percent: numeric-string, tax: numeric-string, total: numeric-string, revenue: numeric-string}
      *
@@ -441,8 +461,9 @@ final class SalesDebitNotes
             throw new AccountingException(AccountingError::DebitNoteTaxInvalid, 'The tax must be a percentage from 0 to 100.');
         }
 
-        $amount = bcadd($amount, '0', SaleAmounts::SCALE);
-        $tax    = SaleAmounts::round(bcmul($amount, bcdiv($percent, '100', 8), 8), SaleAmounts::SCALE);
+        $saudi  = (new CompanyTaxProfile($this->db))->isSaudiMode();
+        $amount = bcadd($saudi ? SaleAmounts::round($amount, 2) : $amount, '0', SaleAmounts::SCALE);
+        $tax    = SaleAmounts::round(bcmul($amount, bcdiv($percent, '100', 8), 8), $saudi ? 2 : SaleAmounts::SCALE);
         $split  = InvoiceRounding::split($amount, $tax);
 
         if (bccomp($split['total'], '0', SaleAmounts::SCALE) <= 0 || bccomp($split['total'], self::TOTAL_MAX, SaleAmounts::SCALE) > 0) {

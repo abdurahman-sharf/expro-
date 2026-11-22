@@ -788,6 +788,47 @@ class ReceivingPostingTest extends CIUnitTestCase
     // The weighted average
     // ---------------------------------------------------------------------------------------
 
+    public function testSaveValue_MarksAPurchaseSavedUnderTheSaudiRulesAndPostsItsInputVatToTheHalala(): void
+    {
+        $db      = $this->accountingDb();
+        $profile = $db->table('company_tax_profile')->get()->getRowArray();
+        $itemId  = $this->item('0.00');
+        $before  = $this->buy([$this->purchaseLine($itemId, 0, '1', '0.70', '15')]);
+
+        try {
+            $db->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+            $after = $this->buy([$this->purchaseLine($itemId, 0, '1', '0.70', '15')]);
+        } finally {
+            $db->table('company_tax_profile')->update(['ksa_mode' => $profile['ksa_mode'], 'ksa_mode_effective_at' => $profile['ksa_mode_effective_at']]);
+        }
+
+        $this->assertNull($db->table('receivings')->where('receiving_id', $before)->get()->getRow()->vat_calc_version);
+        $this->assertSame('1', (string) $db->table('receivings')->where('receiving_id', $after)->get()->getRow()->vat_calc_version);
+        $this->assertContains($this->accountId('tax_input') . ':0.10:0.00', $this->standingPurchase($before)[0]['lines'], 'a purchase saved before keeps its tax of 0.105');
+        $this->assertContains($this->accountId('tax_input') . ':0.11:0.00', $this->standingPurchase($after)[0]['lines']);
+    }
+
+    public function testSaveValue_GivesAReturnTheMarkOfThePurchaseItGivesBackTo(): void
+    {
+        $db       = $this->accountingDb();
+        $profile  = $db->table('company_tax_profile')->get()->getRowArray();
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '1', '0.70', '15')]);
+
+        try {
+            $db->table('company_tax_profile')->update(['ksa_mode' => 1, 'ksa_mode_effective_at' => '2020-01-01 00:00:00']);
+
+            $return = $this->buy([$this->purchaseLine($itemId, 0, '-1', '0.70', '15')], -1, null, $purchase);
+        } finally {
+            $db->table('company_tax_profile')->update(['ksa_mode' => $profile['ksa_mode'], 'ksa_mode_effective_at' => $profile['ksa_mode_effective_at']]);
+        }
+
+        $this->assertGreaterThan(0, $return);
+        $this->assertNull($db->table('receivings')->where('receiving_id', $return)->get()->getRow()->vat_calc_version, 'the purchase was saved before the rules, and so is its return read');
+        $this->assertContains($this->accountId('tax_input') . ':0.00:0.10', $this->standingPurchase($return)[0]['lines'], 'it gives back the 0.105 its purchase posted');
+    }
+
     public function testSaveValue_BringsTheCostOfTheItemToTheWeightedAverageOfTheStockAndThePurchase(): void
     {
         $itemId = $this->item('0.00');
