@@ -427,9 +427,9 @@ class EInvoiceBuilderTest extends CIUnitTestCase
 
     public function testFromSale_NamesThePaymentMeansOfTheCompletedPayments(): void
     {
-        $document = $this->builder->fromSale($this->referenceSale(null, [$this->payment('Cash', '500.00'), $this->payment('Debit Card', '316.50')]));
+        $document = $this->builder->fromSale($this->referenceSale(null, [$this->payment('Cash', '500.00'), $this->payment('Debit Card', '216.50'), $this->payment('Credit Card', '100.00')]));
 
-        $this->assertSame(['10', '48'], $document->paymentMeansCodes);
+        $this->assertSame(['10', '55', '54'], $document->paymentMeansCodes, 'cash, a debit card and a credit card, each by its own code');
     }
 
     public function testFromSale_UsesTheDayOfTheInvoiceAndTheTimeItWasSaved(): void

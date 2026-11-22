@@ -30,14 +30,19 @@ use Config\Database;
  */
 final class EInvoiceBuilder
 {
+    /**
+     * The payment means of each type as UNTDID 4461 names it (BT-81): cash, cheque, credit transfer, a debit card
+     * (mada), a credit card, and a wallet as an online payment service. A sale on credit, a gift card and reward
+     * points name none: nothing was paid by them, and a note that nothing paid names code 1 (UblInvoiceXml).
+     */
     private const PAYMENT_MEANS = [
         'cash'          => '10',
         'check'         => '20',
         'bank_transfer' => '30',
         'upi'           => '30',
-        'wallet'        => '30',
-        'debit'         => '48',
-        'credit'        => '48',
+        'wallet'        => '68',
+        'debit'         => '55',
+        'credit'        => '54',
     ];
 
     private BaseConnection $db;
