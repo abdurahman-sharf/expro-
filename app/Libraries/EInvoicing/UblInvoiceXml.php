@@ -22,6 +22,12 @@ final class UblInvoiceXml
     public const CASH_BUYER = 'Cash customer';
 
     /**
+     * The payment means of a note that no payment goes with (UNTDID 4461 code 1, instrument not defined): the
+     * element is still written, because it carries the reason of the note (KSA-10).
+     */
+    public const NO_PAYMENT = '1';
+
+    /**
      * @param string      $qr         The text of the code (KSA-14).
      * @param string|null $extensions The UBL extensions with the stamp, when the document is signed.
      */
@@ -128,7 +134,7 @@ final class UblInvoiceXml
         $codes = $document->paymentMeansCodes;
 
         if ($codes === [] && $document->kind->isNote()) {
-            $codes = ['10'];
+            $codes = [self::NO_PAYMENT];
         }
 
         $means = [];

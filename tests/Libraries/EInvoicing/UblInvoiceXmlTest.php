@@ -232,6 +232,16 @@ class UblInvoiceXmlTest extends CIUnitTestCase
         $this->xml->build($bare, 'QR-TEXT');
     }
 
+    public function testBuild_WritesCodeOneForANoteWithoutAPaymentAndTheRealCodeForOneWithAPayment(): void
+    {
+        $unpaid = $this->xml->build($this->creditNoteDocument(), 'QR-TEXT');
+        $paid   = $this->xml->build($this->amended($this->creditNoteDocument(), ['paymentMeansCodes' => ['48']]), 'QR-TEXT');
+
+        $this->assertStringContainsString('<cac:PaymentMeans><cbc:PaymentMeansCode>1</cbc:PaymentMeansCode><cbc:InstructionNote>In case of goods or services refund.</cbc:InstructionNote></cac:PaymentMeans>', $unpaid);
+        $this->assertStringContainsString('<cac:PaymentMeans><cbc:PaymentMeansCode>48</cbc:PaymentMeansCode><cbc:InstructionNote>In case of goods or services refund.</cbc:InstructionNote></cac:PaymentMeans>', $paid);
+        $this->assertStringNotContainsString('<cac:PaymentMeans>', $this->xml->build($this->amended($this->simplifiedDocument(), ['paymentMeansCodes' => []]), 'QR-TEXT'), 'an invoice that nothing paid yet names no payment means');
+    }
+
     public function testBuild_GivesTheSameBytesForTheSameDocument(): void
     {
         $this->assertSame($this->xml->build($this->simplifiedDocument(), 'QR-TEXT'), $this->xml->build($this->simplifiedDocument(), 'QR-TEXT'));
