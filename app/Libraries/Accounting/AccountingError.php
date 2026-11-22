@@ -593,7 +593,10 @@ enum AccountingError: string
 
     case VatReturnApproved        = 'vat_return_approved';
     case VatReturnNotFound        = 'vat_return_not_found';
+    case VatReturnOverlaps        = 'vat_return_overlaps';
+    case VatReturnPeriodInvalid   = 'vat_return_period_invalid';
     case VatReturnPeriodOpen      = 'vat_return_period_open';
+    case VatReturnUnreviewed      = 'vat_return_unreviewed';
     case AssetRunReversed         = 'asset_run_reversed';
     case AssetRunHasDisposal      = 'asset_run_has_disposal';
     case AssetOperationNotFound   = 'asset_operation_not_found';

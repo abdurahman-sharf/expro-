@@ -2,6 +2,7 @@
 
 namespace Tests\Database;
 
+use App\Database\Migrations\VatReturnReview;
 use App\Database\Migrations\VatReturns;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -25,6 +26,7 @@ class VatReturnsMigrationTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         (new VatReturns())->up();
+        (new VatReturnReview())->up();
         Database::connect()->table('vat_returns')->truncate();
 
         parent::tearDown();

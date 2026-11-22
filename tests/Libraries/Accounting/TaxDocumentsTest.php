@@ -115,6 +115,19 @@ class TaxDocumentsTest extends CIUnitTestCase
         $this->assertSame(['15' => ['base' => '0.3000', 'tax' => '0.0500']], $document->rates);
     }
 
+    public function testUntaxedSales_GivesWhatTheLinesWithoutTaxOfASaleSavedBeforeTheRulesCameTo(): void
+    {
+        $item     = $this->item('0', false);
+        $mixed    = $this->save([$this->line($item, 0, '1', '100.00'), $this->line($item, 1, '2', '20.00')], [$this->tax($item, 0, '15.0000')]);
+        $untaxed  = $this->save([$this->line($item, 0, '1', '30.00')], []);
+        $returned = $this->save([$this->line($item, 0, '-1', '30.00')], [], [], SALE_TYPE_RETURN, -1, true, $untaxed);
+        $saudi    = $this->save([$this->line($item, 0, '1', '40.00')], []);
+
+        (new VatSnapshot())->record($saudi, ['Z|0.000|VATEX-SA-32' => new VatCategoryTotal('Z', '0.000', 'VATEX-SA-32', 'Export of goods', '40.00', '0.00', false)]);
+
+        $this->assertSame([$mixed => '40.0000', $untaxed => '30.0000', $returned => '-30.0000'], $this->documents()->untaxedSales([$mixed, $untaxed, $returned, $saudi]), 'a sale saved under the rules is told by its categories, not here');
+    }
+
     public function testSales_CountsTheShippingOfASaudiSaleOnceThroughItsCategory(): void
     {
         $this->turnOnShipping();
@@ -366,6 +379,19 @@ class TaxDocumentsTest extends CIUnitTestCase
         $this->assertSame(['1200.0000', '160.0000'], [$document->base, $document->tax]);
         $this->assertSame(['15' => ['base' => '1000.0000', 'tax' => '150.0000'], '5' => ['base' => '200.0000', 'tax' => '10.0000']], $document->rates);
         $this->assertFalse($document->discounted);
+    }
+
+    public function testPurchases_ConvertsAPurchaseInAForeignCurrencyAtItsOwnRateAsItsJournalWas(): void
+    {
+        $item        = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15'), $this->purchaseLine($item, 1, '1', '0.33', '15')]);
+
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->update(['currency_code' => 'USD', 'currency_rate' => '3.75']);
+
+        $document = $this->purchase($receivingId);
+
+        $this->assertSame(['3751.2400', '562.6900'], [$document->base, $document->tax], 'in riyals: 1000.33 and the 150.05 of tax rounded to the cent, times 3.75');
+        $this->assertSame(['15' => ['base' => '3751.2400', 'tax' => '562.6900']], $document->rates);
     }
 
     public function testPurchases_ReadsAPurchaseSavedUnderTheSaudiRulesByTheTaxOfEachRate(): void

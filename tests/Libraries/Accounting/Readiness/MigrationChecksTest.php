@@ -22,7 +22,7 @@ class MigrationChecksTest extends CIUnitTestCase
     protected $namespace   = null;
 
     private const FIRST_MIGRATION_OF_THE_RELEASE            = '20261021000000';
-    private const ALTERS_ONLY_TABLES_THE_RELEASE_CREATES = ['AccountingPeriods', 'AccountingAccountNameIndex', 'TreasuryScopes', 'RetroactiveBackfill', 'AiAgentLayer', 'VatSnapshot', 'VatSnapshotCharges', 'EInvoicePrepayments', 'UnitCodes', 'EInvoiceIssuance', 'AdvanceVatReturns', 'EInvoiceIntegration'];
+    private const ALTERS_ONLY_TABLES_THE_RELEASE_CREATES = ['AccountingPeriods', 'AccountingAccountNameIndex', 'TreasuryScopes', 'RetroactiveBackfill', 'AiAgentLayer', 'VatSnapshot', 'VatSnapshotCharges', 'EInvoicePrepayments', 'UnitCodes', 'EInvoiceIssuance', 'AdvanceVatReturns', 'EInvoiceIntegration', 'VatReturnReview'];
 
     private MigrationChecks $checks;
 

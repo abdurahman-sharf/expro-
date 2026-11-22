@@ -393,9 +393,10 @@ final class ReceivingPostingBuilder
 
         $balancing = 0;
         $largest   = '0';
+        $taxInput  = bccomp($totals['tax'], '0', self::SCALE) > 0 ? $this->required(RoutingKey::TaxInput) : null;
 
         foreach ($draft->lines as $index => $line) {
-            if (bccomp($line->debit, $largest, self::SCALE) > 0) {
+            if ($line->accountId !== $taxInput && bccomp($line->debit, $largest, self::SCALE) > 0) {
                 $largest   = $line->debit;
                 $balancing = $index;
             }

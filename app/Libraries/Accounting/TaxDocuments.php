@@ -14,7 +14,9 @@ use Config\Database;
  * to them: the part of a document that carries tax is the lines that have tax, after their own
  * discount and the share they took of the discount on the whole document and without the tax that
  * was inside the prices; the tax on the shipping of a sale is part of its document, at its own rate.
- * Documents are read many at a time, because a report counts thousands.
+ * Documents are read many at a time, because a report counts thousands. A document in a foreign currency is
+ * converted to the base currency at its own rate, as its journal was, so that what its lines say can be held
+ * against what its journal moved.
  */
 final class TaxDocuments
 {
@@ -47,9 +49,10 @@ final class TaxDocuments
                 continue;
             }
 
-            $taxes = $this->saleTaxes(array_keys($sections));
-            $kept  = (new VatSnapshot($this->db))->totalsOfSales(array_keys($sections));
-            $built = [];
+            $taxes      = $this->saleTaxes(array_keys($sections));
+            $currencies = $this->currencies('sales', 'sale_id', array_keys($sections));
+            $kept       = (new VatSnapshot($this->db))->totalsOfSales(array_keys($sections));
+            $built      = [];
 
             foreach ($this->db->table('sales_items')
                 ->select('sale_id, item_id, line, quantity_purchased, item_unit_price, discount, discount_type, invoice_discount_share')
@@ -87,7 +90,7 @@ final class TaxDocuments
             }
 
             foreach ($built as $saleId => $totals) {
-                $found[$saleId] = $this->document($sections[$saleId], $totals);
+                $found[$saleId] = $this->document($sections[$saleId], $totals, $currencies[$saleId] ?? null);
             }
         }
 
@@ -153,9 +156,10 @@ final class TaxDocuments
                 continue;
             }
 
-            $built  = [];
-            $marked = (new PurchaseVat($this->db))->markedAmong(array_keys($sections));
-            $once   = [];
+            $built      = [];
+            $marked     = (new PurchaseVat($this->db))->markedAmong(array_keys($sections));
+            $once       = [];
+            $currencies = $this->currencies('receivings', 'receiving_id', array_keys($sections));
 
             foreach ($this->db->table('receivings_items')
                 ->select('receiving_id, item_id, line, quantity_purchased, receiving_quantity, item_unit_price, discount, discount_type, tax_percent, invoice_discount_share')
@@ -200,7 +204,7 @@ final class TaxDocuments
             }
 
             foreach ($built as $receivingId => $totals) {
-                $found[$receivingId] = $this->document($sections[$receivingId], $totals);
+                $found[$receivingId] = $this->document($sections[$receivingId], $totals, $currencies[$receivingId] ?? null);
             }
         }
 
@@ -368,15 +372,148 @@ final class TaxDocuments
     /**
      * @param array{base: string, tax: string, rates: array<string, array{base: string, tax: string}>, discounted: bool} $totals
      */
-    private function document(TaxSection $section, array $totals): TaxDocument
+    private function document(TaxSection $section, array $totals, ?DocumentCurrency $currency = null): TaxDocument
     {
         $rates = [];
 
         foreach ($totals['rates'] as $key => $rate) {
-            $rates[$key] = ['base' => bcadd($rate['base'], '0', self::SCALE), 'tax' => bcadd($rate['tax'], '0', self::SCALE)];
+            $rates[$key] = ['base' => $this->inBase($rate['base'], $currency), 'tax' => $this->inBase($rate['tax'], $currency)];
         }
 
-        return new TaxDocument($section, bcadd($totals['base'], '0', self::SCALE), bcadd($totals['tax'], '0', self::SCALE), $rates, $totals['discounted']);
+        $base = $this->inBase($totals['base'], $currency);
+        $tax  = $this->inBase($totals['tax'], $currency);
+
+        if ($currency !== null && $rates !== []) {
+            $rates = self::carried($rates, $base, $tax);
+        }
+
+        return new TaxDocument($section, $base, $tax, $rates, $totals['discounted']);
+    }
+
+    /**
+     * An amount of a document in the base currency: as it is for a document in the base currency, and for one in a
+     * foreign currency rounded to the decimals of that currency and converted at the rate of the document, as its
+     * journal converted it.
+     */
+    private function inBase(string $amount, ?DocumentCurrency $currency): string
+    {
+        if ($currency === null) {
+            return bcadd($amount, '0', self::SCALE);
+        }
+
+        return bcadd($currency->toBase(Money::round(bcadd($amount, '0', self::WORK_SCALE), $currency->decimals), $this->decimals), '0', self::SCALE);
+    }
+
+    /**
+     * The rates of a converted document held to its converted totals: what converting each rate on its own leaves
+     * falls on the largest rate.
+     *
+     * @param array<string, array{base: string, tax: string}> $rates
+     *
+     * @return array<string, array{base: string, tax: string}>
+     */
+    private static function carried(array $rates, string $base, string $tax): array
+    {
+        $largest = array_key_first($rates);
+
+        foreach ($rates as $key => $rate) {
+            if (bccomp(SaleAmounts::absolute($rate['tax']), SaleAmounts::absolute($rates[$largest]['tax']), self::SCALE) > 0) {
+                $largest = $key;
+            }
+        }
+
+        $rates[$largest] = [
+            'base' => bcadd($rates[$largest]['base'], bcsub($base, array_reduce($rates, static fn (string $sum, array $rate): string => bcadd($sum, $rate['base'], self::SCALE), '0'), self::SCALE), self::SCALE),
+            'tax'  => bcadd($rates[$largest]['tax'], bcsub($tax, array_reduce($rates, static fn (string $sum, array $rate): string => bcadd($sum, $rate['tax'], self::SCALE), '0'), self::SCALE), self::SCALE),
+        ];
+
+        return $rates;
+    }
+
+    /**
+     * The currency of each document that is in a foreign one, at the rate it was captured at.
+     *
+     * @param list<int> $ids
+     *
+     * @return array<int, DocumentCurrency>
+     */
+    private function currencies(string $table, string $key, array $ids): array
+    {
+        $found      = [];
+        $currencies = new Currencies($this->db);
+
+        foreach ($this->db->table($table)->select("{$key}, currency_code, currency_rate")->whereIn($key, $ids)->where('currency_code IS NOT NULL', null, false)->get()->getResult() as $row) {
+            $currency = $currencies->stored($row->currency_code, $row->currency_rate === null ? null : (string) $row->currency_rate);
+
+            if ($currency !== null) {
+                $found[(int) $row->{$key}] = $currency;
+            }
+        }
+
+        return $found;
+    }
+
+    /**
+     * What the lines of sales saved without their VAT worked once (before the Saudi rules) came to where they carried
+     * no tax, with their untaxed shipping, in the base currency: the sales the tax report does not see, whose kind of
+     * supply (zero-rated, export, exempt or out of scope) nothing in the books tells. A return comes to less than
+     * nothing.
+     *
+     * @param list<int> $saleIds
+     *
+     * @return array<int, numeric-string> By sale, the sales that have such lines only.
+     */
+    public function untaxedSales(array $saleIds): array
+    {
+        $found = [];
+
+        foreach (array_chunk(array_values(array_unique($saleIds)), $this->chunk) as $chunk) {
+            $sections = $this->saleSections($chunk);
+
+            if ($sections === []) {
+                continue;
+            }
+
+            $kept       = (new VatSnapshot($this->db))->totalsOfSales(array_keys($sections));
+            $taxes      = $this->saleTaxes(array_keys($sections));
+            $currencies = $this->currencies('sales', 'sale_id', array_keys($sections));
+            $untaxed    = [];
+
+            foreach ($this->db->table('sales_items')
+                ->select('sale_id, item_id, line, quantity_purchased, item_unit_price, discount, discount_type, invoice_discount_share')
+                ->whereIn('sale_id', array_keys($sections))
+                ->get()
+                ->getResult() as $row) {
+                $saleId = (int) $row->sale_id;
+
+                if (isset($kept[$saleId])) {
+                    continue;
+                }
+
+                $line = $this->saleLine($row, $taxes[$saleId][$row->item_id . ':' . $row->line] ?? []);
+
+                if (bccomp($line['tax'], '0', self::WORK_SCALE) === 0) {
+                    $untaxed[$saleId] = bcadd($untaxed[$saleId] ?? '0', $sections[$saleId] === TaxSection::SalesReturns ? bcsub('0', $line['net'], self::WORK_SCALE) : $line['net'], self::WORK_SCALE);
+                }
+            }
+
+            foreach ($this->db->table('sales')->select('sale_id, shipping_amount')->whereIn('sale_id', array_keys($sections))->where('shipping_amount <>', 0)->where('(shipping_tax_amount IS NULL OR shipping_tax_amount = 0)', null, false)->get()->getResult() as $row) {
+                $saleId = (int) $row->sale_id;
+
+                if (! isset($kept[$saleId])) {
+                    $shipping         = SaleAmounts::absolute((string) $row->shipping_amount);
+                    $untaxed[$saleId] = bcadd($untaxed[$saleId] ?? '0', $sections[$saleId] === TaxSection::SalesReturns ? bcsub('0', $shipping, self::WORK_SCALE) : $shipping, self::WORK_SCALE);
+                }
+            }
+
+            foreach ($untaxed as $saleId => $amount) {
+                if (bccomp($amount, '0', self::WORK_SCALE) !== 0) {
+                    $found[$saleId] = $this->inBase($amount, $currencies[$saleId] ?? null);
+                }
+            }
+        }
+
+        return $found;
     }
 
     public static function rateKey(string $percent): string

@@ -33,7 +33,8 @@ class TaxVatReturnDraftTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/^\s+1\s+[-0-9.]+\s+[-0-9.]+$/m', $output);
         $this->assertMatchesRegularExpression('/^\s+16\s+0\.00\s+[-0-9.]+$/m', $output);
         $this->assertStringContainsString('(typed by hand)', $output);
-        $this->assertStringContainsString('Estimated part of box 3', $output);
+        $this->assertStringContainsString('Not classified', $output);
+        $this->assertStringContainsString('Documents whose lines do not match their journals', $output);
     }
 
     public function testRun_RefusesAPeriodItCannotRead(): void
