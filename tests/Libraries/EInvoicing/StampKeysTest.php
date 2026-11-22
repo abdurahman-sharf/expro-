@@ -52,12 +52,17 @@ class StampKeysTest extends CIUnitTestCase
         $this->assertSame("\x30\x56", substr($material->publicKeyDer, 0, 2));
         $this->assertGreaterThan(60, strlen($material->certificateSignatureDer));
         $this->assertSame("\x30", $material->certificateSignatureDer[0]);
-        $this->assertStringContainsString('CN=Test EGS unit', $material->issuerName);
-        $this->assertStringContainsString('O=Test taxpayer', $material->issuerName);
-        $this->assertStringEndsWith('CN=Test EGS unit', $material->issuerName);
+        $this->assertSame('ST=Some-State, C=SA, O=Test taxpayer, CN=Test EGS unit', $material->issuerName);
         $this->assertMatchesRegularExpression('/^\d+$/', $material->serialNumber);
         $this->assertNotSame('', $material->certificateBase64);
         $this->assertStringNotContainsString("\n", $material->certificateBase64);
+    }
+
+    public function testLoad_QuotesAPartOfTheIssuerThatHoldsASpecialCharacterAsTheOfficialValidatorReadsIt(): void
+    {
+        $pair = $this->generateKeyPair(subject: ['organizationName' => 'Test, "taxpayer"']);
+
+        $this->assertSame('ST=Some-State, C=SA, O="Test, \\"taxpayer\\"", CN=Test EGS unit', StampKeys::load($pair['key'], $pair['certificate'])->issuerName);
     }
 
     public function testLoad_RejectsAKeyInsideTheApplicationDirectoryWhateverItHolds(): void

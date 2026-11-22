@@ -62,7 +62,18 @@ class XadesStampTest extends CIUnitTestCase
 
         $this->assertSame($first, $second);
         $this->assertNotSame($first, $later);
-        $this->assertSame(44, strlen($first));
+        $this->assertSame(88, strlen($first));
+    }
+
+    public function testPropertiesDigest_MatchesTheDigestTheOfficialValidatorWorksOut(): void
+    {
+        $xml   = new UblInvoiceXml();
+        $stamp = new XadesStamp();
+        $plain = $stamp->extensions('DOCUMENT-HASH', 'SIGNATURE-VALUE', 'CERTIFICATE-BASE64', '2022-08-17T14:41:08Z', 'CERTIFICATE-DIGEST', 'CN=Issuer, O=Org', '123456789', 'PROPERTIES-DIGEST');
+        $named = $stamp->extensions('DOCUMENT-HASH', 'SIGNATURE-VALUE', 'CERTIFICATE-BASE64', '2022-08-17T14:41:08Z', 'CERTIFICATE-DIGEST', 'CN=A & B <x>, O="Org"', '123456789', 'PROPERTIES-DIGEST');
+
+        $this->assertSame('NzJjYzhmOTJjMzJlNGZlMWU2NWNjMjk5ZDc5YTEyNGY5NmQ4MWY2OTE3OGVhMjVhOTcwZmQ5OGE2ZDI4NTBiOA==', $stamp->propertiesDigest($xml->build($this->simplifiedDocument(), 'QR-TEXT', $plain)));
+        $this->assertSame('MTNiZmMyZmJlNjEyYmQ2MTc3NmMyNzQ5NmFlOTExZjlmNDMyZjQwZTM0OWNkMzViYmJlYjJhNmNlMzBhYmY5OQ==', $stamp->propertiesDigest($xml->build($this->simplifiedDocument(), 'QR-TEXT', $named)));
     }
 
     public function testPropertiesDigest_RejectsAFileThatHoldsNoSignedProperties(): void

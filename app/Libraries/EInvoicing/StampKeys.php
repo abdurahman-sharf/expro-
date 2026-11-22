@@ -96,7 +96,9 @@ final class StampKeys
     }
 
     /**
-     * The issuer as RFC 2253 writes a name: the most specific part first.
+     * The issuer as the official validator reads it from the certificate, which is how Java writes a name: the most
+     * specific part first, the parts parted by a comma and a space, and a value that holds a special character in
+     * quotes.
      *
      * @param array<string, mixed> $issuer
      */
@@ -106,10 +108,19 @@ final class StampKeys
 
         foreach ($issuer as $attribute => $values) {
             foreach ((array) $values as $value) {
-                $parts[] = $attribute . '=' . preg_replace('/([,+"\\\\<>;])/', '\\\\$1', (string) $value);
+                $parts[] = $attribute . '=' . self::quoted((string) $value);
             }
         }
 
-        return implode(',', array_reverse($parts));
+        return implode(', ', array_reverse($parts));
+    }
+
+    private static function quoted(string $value): string
+    {
+        if (preg_match('/[,=\n+<>#;\\\\"]|^\s|\s$|\s\s/', $value) !== 1) {
+            return $value;
+        }
+
+        return '"' . addcslashes($value, '"\\') . '"';
     }
 }

@@ -49,16 +49,18 @@ trait EInvoiceFixtureTrait
      * A key on the curve of the standard (or another) with a certificate of its own, written in a directory
      * outside the application.
      *
+     * @param array<string, string> $subject What the subject of the certificate holds instead of the defaults.
+     *
      * @return array{key: string, certificate: string, directory: string}
      */
-    protected function generateKeyPair(string $curve = 'secp256k1', ?string $directory = null): array
+    protected function generateKeyPair(string $curve = 'secp256k1', ?string $directory = null, array $subject = []): array
     {
         $directory ??= $this->temporaryDirectory();
         $key         = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => $curve]);
 
         $this->assertNotFalse($key, 'The key could not be generated.');
 
-        $request     = openssl_csr_new(['commonName' => 'Test EGS unit', 'organizationName' => 'Test taxpayer', 'countryName' => 'SA'], $key, ['digest_alg' => 'sha256']);
+        $request     = openssl_csr_new(array_merge(['commonName' => 'Test EGS unit', 'organizationName' => 'Test taxpayer', 'countryName' => 'SA'], $subject), $key, ['digest_alg' => 'sha256']);
         $certificate = openssl_csr_sign($request, null, $key, 30, ['digest_alg' => 'sha256'], random_int(1000, 999999));
 
         openssl_pkey_export($key, $keyPem);

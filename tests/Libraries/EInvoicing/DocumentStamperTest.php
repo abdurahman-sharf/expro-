@@ -4,11 +4,15 @@ namespace Tests\Libraries\EInvoicing;
 
 use App\Libraries\Documents\SimplifiedInvoiceQr;
 use App\Libraries\EInvoicing\DocumentStamper;
+use App\Libraries\EInvoicing\EInvoiceAddress;
+use App\Libraries\EInvoicing\EInvoiceDocument;
 use App\Libraries\EInvoicing\EcdsaSigner;
 use App\Libraries\EInvoicing\EInvoiceError;
 use App\Libraries\EInvoicing\EInvoiceException;
+use App\Libraries\EInvoicing\EInvoiceParty;
 use App\Libraries\EInvoicing\EInvoiceSubtype;
 use App\Libraries\EInvoicing\InvoiceHash;
+use App\Libraries\EInvoicing\StampedDocument;
 use App\Libraries\EInvoicing\StampKeys;
 use App\Libraries\EInvoicing\StampMaterial;
 use App\Libraries\EInvoicing\StampVerifier;
@@ -21,6 +25,24 @@ use Tests\Support\EInvoiceMatrixTrait;
 class DocumentStamperTest extends CIUnitTestCase
 {
     use EInvoiceMatrixTrait;
+
+    /**
+     * The rules of 2021 in the public SDK (2.0.3), and what they refuse each sample for: rules the standard v1.2
+     * dropped (BR-KSA-05, BR-KSA-50, BR-KSA-62, BR-KSA-F-02, BR-O-02, BR-O-05), and BR-S-10 and BR-KSA-51, which
+     * that SDK works out over the whole file and in floating point (TAX2 T5 report).
+     */
+    private const LEGACY_RULES    = '20210819';
+    private const LEGACY_REFUSALS = [
+        'B-03' => ['BR-KSA-62'],
+        'B-05' => ['BR-O-02', 'BR-O-05'],
+        'B-07' => ['BR-KSA-F-02'],
+        'B-08' => ['BR-KSA-05'],
+        'S-01' => ['BR-KSA-50'],
+        'S-02' => ['BR-S-10'],
+        'S-04' => ['BR-KSA-50', 'BR-KSA-51'],
+        'S-06' => ['BR-KSA-50'],
+        'S-08' => ['BR-KSA-50'],
+    ];
 
     private DocumentStamper $stamper;
 
@@ -183,16 +205,13 @@ class DocumentStamperTest extends CIUnitTestCase
 
     /**
      * Signs every sample of the matrix (TAX2 §5.3), the chain in its order, and writes each file where the official
-     * validator can read it.
-     *
-     * @return array{0: string, 1: list<string>} The directory and the broken samples in it.
+     * validator can read it, the directory it returns.
      */
-    private function writeMatrix(): array
+    private function writeMatrix(): string
     {
         $directory = WRITEPATH . 'zatca-matrix';
         $material  = $this->material();
         $previous  = InvoiceHash::FIRST;
-        $broken    = [];
 
         if (! is_dir($directory)) {
             mkdir($directory, 0700, true);
@@ -215,15 +234,14 @@ class DocumentStamperTest extends CIUnitTestCase
 
         foreach ($this->brokenMatrix() as $id => $document) {
             file_put_contents($directory . '/' . $id . '.xml', $this->stamper->signed($document, $material, '2022-08-17T14:41:08Z')->xml);
-            $broken[] = $id;
         }
 
-        return [$directory, $broken];
+        return $directory;
     }
 
     public function testSigned_StampsEverySampleOfTheMatrixSoThatItVerifies(): void
     {
-        [$directory] = $this->writeMatrix();
+        $directory = $this->writeMatrix();
 
         $this->assertCount(count($this->matrix()) + count($this->brokenMatrix()), glob($directory . '/*.xml'));
     }
@@ -231,20 +249,105 @@ class DocumentStamperTest extends CIUnitTestCase
     #[Group('zatca-sdk')]
     public function testSigned_PassesTheOfficialValidatorForEverySampleOfTheMatrix(): void
     {
-        $sdk = (string) getenv('ZATCA_SDK_HOME');
+        $sdk    = (string) getenv('ZATCA_SDK_HOME');
+        $config = is_file($sdk . '/Configuration/config.json') ? json_decode((string) file_get_contents($sdk . '/Configuration/config.json'), true) : null;
 
         if ($sdk === '' || ! is_file($sdk . '/Apps/fatoora')) {
             $this->markTestSkipped('The official SDK is not installed (D-09): set ZATCA_SDK_HOME to the folder it was unpacked in.');
         }
 
-        [$directory, $broken] = $this->writeMatrix();
-
-        foreach (glob($directory . '/*.xml') as $file) {
-            $id     = basename($file, '.xml');
-            $output = (string) shell_exec(escapeshellarg($sdk . '/Apps/fatoora') . ' -validate -invoice ' . escapeshellarg($file) . ' 2>&1');
-            $passed = str_contains($output, 'GLOBAL VALIDATION RESULT = PASSED');
-
-            $this->assertSame(! in_array($id, $broken, true), $passed, $id . ': ' . $output);
+        if (! is_array($config) || ($config['xsdPath'] ?? '') === '') {
+            $this->markTestSkipped('Run install.sh of the SDK once: it writes Configuration/config.json.');
         }
+
+        $legacy    = str_contains((string) ($config['zatcaSchematron'] ?? ''), self::LEGACY_RULES);
+        $directory = $this->temporaryDirectory();
+        $pair      = $this->generateKeyPair();
+        $material  = StampKeys::load($pair['key'], $pair['certificate']);
+        $broken    = $this->brokenMatrix();
+        $previous  = InvoiceHash::FIRST;
+        $java      = trim(getenv('_JAVA_OPTIONS') . ($legacy ? ' -Djava.security.properties=' . $directory . '/java.security' : ''));
+
+        file_put_contents($directory . '/java.security', 'security.provider.3=org.bouncycastle.jce.provider.BouncyCastleProvider' . "\n");
+        file_put_contents($directory . '/certificate.txt', $material->certificateBase64);
+
+        foreach (array_merge($this->matrix(), $broken) as $id => $document) {
+            if ($legacy) {
+                $document = $this->withThe2021Fields($document);
+            }
+
+            if (str_starts_with($id, 'C-01-')) {
+                $document = $this->amended($document, ['previousHash' => $previous]);
+            }
+
+            $stamped = $this->stamper->signed($document, $material, '2022-08-17T14:41:08Z');
+            $file    = $directory . '/' . $id . '.xml';
+
+            file_put_contents($file, $legacy && $document->subtype === EInvoiceSubtype::Simplified ? $this->withThe2021Code($stamped) : $stamped->xml);
+            file_put_contents($directory . '/' . $id . '.pih', $document->previousHash === '' ? InvoiceHash::FIRST : $document->previousHash);
+            file_put_contents($directory . '/' . $id . '.json', json_encode(['certPath' => $directory . '/certificate.txt', 'pihPath' => $directory . '/' . $id . '.pih'] + $config, JSON_THROW_ON_ERROR));
+
+            if (str_starts_with($id, 'C-01-')) {
+                $previous = $stamped->hash;
+            }
+
+            $output = (string) shell_exec(
+                'FATOORA_HOME=' . escapeshellarg($sdk . '/Apps') . ' SDK_CONFIG=' . escapeshellarg($directory . '/' . $id . '.json') . ' _JAVA_OPTIONS=' . escapeshellarg($java)
+                . ' ' . escapeshellarg($sdk . '/Apps/fatoora') . ' -validate -invoice ' . escapeshellarg($file) . ' 2>&1',
+            );
+            preg_match_all('/CODE : ([^,]+), MESSAGE/', $output, $codes);
+            $refusals = array_values(array_unique($codes[1]));
+            sort($refusals);
+
+            if (isset($broken[$id])) {
+                $this->assertStringNotContainsString('GLOBAL VALIDATION RESULT = PASSED', $output, $id);
+            } elseif ($legacy && isset(self::LEGACY_REFUSALS[$id])) {
+                $this->assertSame(self::LEGACY_REFUSALS[$id], $refusals, $id . ': ' . $output);
+            } else {
+                $this->assertStringContainsString('GLOBAL VALIDATION RESULT = PASSED', $output, $id . ': ' . $output);
+            }
+        }
+    }
+
+    /**
+     * The fields the rules of 2021 ask for and the standard v1.2 leaves optional: the additional number and the
+     * province of each address, and a seller name short enough for the code to stay under the 500 characters those
+     * rules allow (v1.2 allows 700).
+     */
+    private function withThe2021Fields(EInvoiceDocument $document): EInvoiceDocument
+    {
+        $party = static function (EInvoiceParty $party, string $name): EInvoiceParty {
+            $address = $party->address === null ? null : new EInvoiceAddress(
+                $party->address->street,
+                $party->address->buildingNumber,
+                $party->address->district,
+                $party->address->city,
+                $party->address->postalCode,
+                $party->address->countryCode,
+                $party->address->additionalStreet,
+                '1234',
+                'Riyadh Region',
+            );
+
+            return new EInvoiceParty($name, $party->vatNumber, $party->identificationType, $party->identificationNumber, $address);
+        };
+
+        return $this->amended($document, ['seller' => $party($document->seller, 'Expro Co'), 'buyer' => $party($document->buyer, $document->buyer->name)]);
+    }
+
+    /**
+     * The code of a simplified document laid out as the validator of 2021 reads it: the public key in tag 7 and the
+     * two halves of the signature in tags 8 and 9, where v1.2 puts the signature, the public key and the signature
+     * of the certificate. The code is outside what is hashed and signed, so the stamp still holds.
+     */
+    private function withThe2021Code(StampedDocument $stamped): string
+    {
+        $tags      = array_column($this->tags($stamped->qr), 1, 0);
+        $signature = (string) base64_decode($stamped->signature, true);
+        $first     = ord($signature[3]);
+        $fields    = [1 => $tags[1], 2 => $tags[2], 3 => $tags[3], 4 => $tags[4], 5 => $tags[5], 6 => $tags[6], 7 => $tags[8], 8 => substr($signature, 4, $first), 9 => substr($signature, 6 + $first, ord($signature[5 + $first]))];
+        $code      = base64_encode(implode('', array_map(static fn (int $tag, string $value): string => chr($tag) . chr(strlen($value)) . $value, array_keys($fields), $fields)));
+
+        return str_replace('>' . $stamped->qr . '<', '>' . $code . '<', $stamped->xml);
     }
 }

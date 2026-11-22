@@ -2,12 +2,17 @@
 
 namespace App\Libraries\EInvoicing;
 
+use DOMElement;
+use DOMText;
+
 /**
  * The cryptographic stamp (KSA-15) as the UBL extension the security standard describes: an enveloped XAdES
  * signature of the baseline level with the two references, the transforms that take the extensions, the
  * signature and the code out of what is hashed, the certificate, and the signed properties that name the
- * certificate and the moment. A candidate: the policy identifier the standard's table mentions has no value
- * published in the documents read, and is not written. To be verified against the toolbox of the authority.
+ * certificate and the moment. The policy identifier the standard's table mentions has no value published in the
+ * documents read, and is not written. The two digests that name the certificate and the signed properties are
+ * worked out as the official validator works them out (SDK 2.0.3), which is not the canonical form XML signatures
+ * use: the hexadecimal text of the hash is put in base 64.
  */
 class XadesStamp
 {
@@ -82,8 +87,9 @@ class XadesStamp
     }
 
     /**
-     * The digest of the signed properties as the document holds them: the canonical form of the element in
-     * its place in the file.
+     * The digest of the signed properties as the official validator works it out: the element written on its own,
+     * each namespace declared on the first element that uses it as it is reached, and the hexadecimal text of the
+     * hash put in base 64.
      *
      * @throws EInvoiceException
      */
@@ -91,11 +97,48 @@ class XadesStamp
     {
         $element = InvoiceHash::load($xml)->getElementsByTagNameNS(self::NS_XADES, 'SignedProperties')->item(0);
 
-        if ($element === null) {
+        if (! $element instanceof DOMElement) {
             throw new EInvoiceException(EInvoiceError::SigningFailed, 'The document holds no signed properties.');
         }
 
-        return base64_encode(hash('sha256', (string) $element->C14N(false, false), true));
+        return base64_encode(hash('sha256', $this->written($element, [])));
+    }
+
+    /**
+     * @param array<string, string> $declared The namespaces declared by the elements around, by prefix.
+     */
+    private function written(DOMElement $element, array $declared): string
+    {
+        $prefix = (string) $element->prefix;
+        $text   = '<' . $element->nodeName;
+
+        if ($element->namespaceURI !== null && ($declared[$prefix] ?? null) !== $element->namespaceURI) {
+            $declared[$prefix] = $element->namespaceURI;
+            $text .= ' xmlns' . ($prefix === '' ? '' : ':' . $prefix) . '="' . $this->escaped($element->namespaceURI, true) . '"';
+        }
+
+        foreach ($element->attributes as $attribute) {
+            $text .= ' ' . $attribute->nodeName . '="' . $this->escaped($attribute->value, true) . '"';
+        }
+
+        $inner = '';
+
+        foreach ($element->childNodes as $child) {
+            $inner .= match (true) {
+                $child instanceof DOMElement => $this->written($child, $declared),
+                $child instanceof DOMText    => $this->escaped($child->data, false),
+                default                      => '',
+            };
+        }
+
+        return $inner === '' ? $text . '/>' : $text . '>' . $inner . '</' . $element->nodeName . '>';
+    }
+
+    private function escaped(string $value, bool $attribute): string
+    {
+        $value = str_replace(['&', '<', '>'], ['&amp;', '&lt;', '&gt;'], $value);
+
+        return $attribute ? str_replace('"', '&quot;', $value) : $value;
     }
 
     private function xpathTransform(string $expression): string
