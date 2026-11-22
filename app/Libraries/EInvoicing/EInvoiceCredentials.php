@@ -2,6 +2,7 @@
 
 namespace App\Libraries\EInvoicing;
 
+use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use SensitiveParameter;
@@ -12,7 +13,7 @@ use SensitiveParameter;
  * environment and kind takes over in one step and the one before it is retired, so issuing never sees two or none.
  * The ones that run out soon are found for the warnings (30 and 7 days, T12), and none that ran out is given.
  */
-final class EInvoiceCredentials
+final class EInvoiceCredentials implements ZatcaAuthSource
 {
     public const COMPLIANCE = 'compliance';
     public const PRODUCTION = 'production';
@@ -78,6 +79,26 @@ final class EInvoiceCredentials
             'private_key'   => $this->vault->open((string) $row->private_key_sealed),
             'valid_to'      => (string) $row->valid_to,
         ];
+    }
+
+    public function auth(?int $unitId, string $environment, string $kind, string $now): ZatcaAuth
+    {
+        $unitId ??= $this->defaultUnit();
+
+        if ($unitId === null) {
+            throw new EInvoiceException(EInvoiceError::CertificateUnreadable, 'The company has no unit.');
+        }
+
+        $active = $this->active($unitId, $environment, $kind, $now);
+
+        return new ZatcaAuth($active['token'], $active['secret']);
+    }
+
+    private function defaultUnit(): ?int
+    {
+        $row = $this->db->table('einvoice_units')->select('unit_id')->where(['company_id' => CompanyContext::id(), 'is_default' => 1])->get()->getRow();
+
+        return $row === null ? null : (int) $row->unit_id;
     }
 
     /**

@@ -13,13 +13,25 @@ final readonly class ZatcaRequest
     public const CLEARANCE  = 'clearance';
     public const COMPLIANCE = 'compliance';
 
+    /**
+     * @param int|null $unitId The unit that issued the document, whose certificate it is sent with.
+     */
     public function __construct(
         public string $kind,
         public string $environment,
         public string $uuid,
         public string $invoiceHash,
         public string $invoice,
+        public ?int $unitId = null,
     ) {
+    }
+
+    /**
+     * The same document sent another way: a tax invoice is reported when clearance is switched off.
+     */
+    public function as(string $kind): self
+    {
+        return new self($kind, $this->environment, $this->uuid, $this->invoiceHash, $this->invoice, $this->unitId);
     }
 
     /**

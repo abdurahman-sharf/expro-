@@ -25,6 +25,7 @@ use Closure;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
+use Config\Zatca;
 
 /**
  * Issues the documents of the layer and reads them back. Issuing is one transaction under the lock of the
@@ -721,10 +722,20 @@ final class EInvoiceService
     }
 
     /**
+     * Stamps a document: in the second phase with the production certificate of the unit that issues it, which the
+     * vault keeps sealed, and no document is issued unstamped; in the first phase with the key and the certificate the
+     * settings name, when they do.
+     *
      * @throws EInvoiceException
      */
     private function stamp(EInvoiceDocument $document): StampedDocument
     {
+        $unit = $this->settings->phaseTwo() ? $this->defaultUnit() : null;
+
+        if ($unit !== null) {
+            return $this->stamper->signed($document, $this->unitMaterial($unit), gmdate('Y-m-d\TH:i:s\Z', ($this->clock)()));
+        }
+
         $values  = $this->settings->all();
         $keyPath = $values['key_path'];
         $cert    = $values['certificate_path'];
@@ -736,6 +747,18 @@ final class EInvoiceService
         $material = StampKeys::load($keyPath, $cert);
 
         return $this->stamper->signed($document, $material, gmdate('Y-m-d\TH:i:s\Z', ($this->clock)()));
+    }
+
+    /**
+     * The key and the production certificate of a unit, opened from the vault for the one document being stamped.
+     *
+     * @throws EInvoiceException When the vault cannot be read or the unit has no certificate that runs.
+     */
+    private function unitMaterial(int $unitId): StampMaterial
+    {
+        $active = (new EInvoiceCredentials(KeyVault::fromFile((string) config(Zatca::class)->keyRing), $this->db))->active($unitId, self::LIVE, EInvoiceCredentials::PRODUCTION, date('Y-m-d H:i:s', ($this->clock)()));
+
+        return StampKeys::fromPem($active['private_key'], $active['certificate']);
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace Tests\Database;
 
 use App\Database\Migrations\EInvoiceIntegration;
+use App\Database\Migrations\EInvoiceUnitInvoiceTypes;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -32,6 +33,7 @@ class EInvoiceIntegrationMigrationTest extends CIUnitTestCase
 
         $db->table('einvoice_counters')->update(['last_icv' => 0, 'last_hash' => '']);
         (new EInvoiceIntegration())->up();
+        (new EInvoiceUnitInvoiceTypes())->up();
 
         parent::tearDown();
     }

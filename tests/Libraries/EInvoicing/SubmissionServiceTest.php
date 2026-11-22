@@ -2,6 +2,8 @@
 
 namespace Tests\Libraries\EInvoicing;
 
+use App\Libraries\EInvoicing\EInvoiceError;
+use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\FakeZatcaTransport;
 use App\Libraries\EInvoicing\SubmissionService;
 use App\Libraries\EInvoicing\ZatcaOutcome;
@@ -77,6 +79,11 @@ class SubmissionServiceTest extends CIUnitTestCase
     private function row(int $documentId): object
     {
         return Database::connect()->table('einvoice_outbox')->where('document_id', $documentId)->get()->getRow();
+    }
+
+    private function uuidOf(int $documentId): string
+    {
+        return (string) Database::connect()->table('einvoice_documents')->where('document_id', $documentId)->get()->getRow()->uuid;
     }
 
     private function makeDue(): void
@@ -190,5 +197,76 @@ class SubmissionServiceTest extends CIUnitTestCase
         $this->assertSame(count($documents), Database::connect()->table('einvoice_outbox')->whereIn('document_id', $documents)->where('status', SubmissionService::REPORTED)->countAllResults());
         $this->assertCount(count($documents), $successes);
         $this->assertSame([1], array_values(array_unique(array_map(static fn (object $row): int => (int) $row->n, $successes))), 'no document was sent with success twice');
+    }
+
+    public function testDispatch_ChangesNothingForARequestThatNeverLeftTheServer(): void
+    {
+        $document = $this->queued();
+        $service  = new SubmissionService(new FakeZatcaTransport([new ZatcaResponse(ZatcaOutcome::NotSent, null, [], ['Nothing was sent to ZATCA: network_off.'])]));
+
+        $this->assertSame([ZatcaOutcome::NotSent->value => 1], $service->dispatch());
+        $this->assertSame([SubmissionService::PENDING, '0', null, null], [$this->row($document)->status, (string) $this->row($document)->attempts, $this->row($document)->next_attempt_at, $this->row($document)->claim_token], 'still due, no attempt counted, the claim let go');
+        $this->assertSame(ZatcaOutcome::NotSent->value, Database::connect()->table('einvoice_submissions')->where('document_id', $document)->get()->getRow()->outcome, 'kept in the log all the same');
+    }
+
+    public function testDispatch_TriesAgainLaterWhatZatcaDidNotAcceptTheCredentialsOf(): void
+    {
+        $document = $this->queued();
+
+        (new SubmissionService(new FakeZatcaTransport([new ZatcaResponse(ZatcaOutcome::Unauthorized, 401, [], ['HTTP 401'])])))->dispatch();
+
+        $this->assertSame([SubmissionService::RETRY, ZatcaOutcome::Unauthorized->value], [$this->row($document)->status, $this->row($document)->last_error_code]);
+        $this->assertNotNull($this->row($document)->next_attempt_at);
+    }
+
+    public function testDispatch_CountsATaxInvoiceReportedWhileClearanceIsOffAsReported(): void
+    {
+        $document = $this->queued('standard');
+
+        (new SubmissionService(new FakeZatcaTransport([new ZatcaResponse(ZatcaOutcome::Accepted, 200, [], [], null, ZatcaRequest::REPORTING)])))->dispatch();
+
+        $this->assertSame(SubmissionService::REPORTED, $this->row($document)->status);
+        $this->assertSame(ZatcaRequest::REPORTING, Database::connect()->table('einvoice_submissions')->where('document_id', $document)->get()->getRow()->kind);
+        $this->assertSame(0, Database::connect()->table('einvoice_cleared_documents')->where('document_id', $document)->countAllResults());
+    }
+
+    public function testRetryNow_MakesADocumentThatWaitsDueAtOnceAndRefusesOneThatDoesNot(): void
+    {
+        $waiting  = $this->queued();
+        $refused  = $this->queued();
+        $uuid     = $this->uuidOf($refused);
+        $service  = new SubmissionService(new FakeZatcaTransport(static fn (ZatcaRequest $request): ZatcaResponse => $request->uuid === $uuid ? new ZatcaResponse(ZatcaOutcome::Rejected, 400, [], ['BR-KSA-08']) : new ZatcaResponse(ZatcaOutcome::ServerError, 503)));
+
+        $service->dispatch();
+        $service->retryNow($waiting, 1);
+
+        $this->assertNull($this->row($waiting)->next_attempt_at);
+
+        try {
+            $service->retryNow($refused, 1);
+            $this->fail('A refused document was sent again.');
+        } catch (EInvoiceException $refusal) {
+            $this->assertSame(EInvoiceError::SubmissionNotRetryable, $refusal->error);
+        }
+
+        Database::connect()->table('accounting_audit_log')->where('action', 'submission_retry_asked')->delete();
+    }
+
+    public function testSummary_CountsEachStateAndTheSimplifiedDocumentsWaitingMoreThanADay(): void
+    {
+        $late     = $this->queued();
+        $reported = $this->queued();
+        $uuid     = $this->uuidOf($reported);
+        $service  = new SubmissionService(new FakeZatcaTransport(static fn (ZatcaRequest $request): ZatcaResponse => $request->uuid === $uuid ? new ZatcaResponse(ZatcaOutcome::Accepted, 200) : new ZatcaResponse(ZatcaOutcome::ServerError, 503)));
+
+        $service->dispatch();
+        Database::connect()->table('einvoice_outbox')->where('document_id', $late)->update(['queued_at' => date('Y-m-d H:i:s', time() - 90000)]);
+
+        $summary = $service->summary();
+        $tracked = $service->tracked(SubmissionService::RETRY);
+
+        $this->assertSame([1, 1, 1], [$summary[SubmissionService::RETRY], $summary[SubmissionService::REPORTED], $summary['late']]);
+        $this->assertSame([$late], array_map(static fn (object $row): int => (int) $row->document_id, $tracked));
+        $this->assertSame([ZatcaOutcome::ServerError->value, '503'], [$tracked[0]->outcome, (string) $tracked[0]->http_status], 'with the last answer it got');
     }
 }

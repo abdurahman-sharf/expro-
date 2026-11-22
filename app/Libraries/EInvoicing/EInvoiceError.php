@@ -54,4 +54,9 @@ enum EInvoiceError: string
 
     case DocumentNotFound = 'document_not_found';
     case ChainBroken      = 'chain_broken';
+
+    case NetworkBlocked         = 'network_blocked';
+    case ZatcaRefused           = 'zatca_refused';
+    case SubmissionNotRetryable = 'submission_not_retryable';
+    case SubmissionNotRejected  = 'submission_not_rejected';
 }

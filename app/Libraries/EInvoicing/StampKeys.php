@@ -37,8 +37,27 @@ final class StampKeys
             throw new EInvoiceException(EInvoiceError::CurveUnsupported, 'The installed OpenSSL does not offer the curve ' . self::CURVE . '.');
         }
 
-        $keyPem = is_file($keyFile) && is_readable($keyFile) ? file_get_contents($keyFile) : false;
-        $key    = $keyPem === false ? false : self::quietly(static fn (): mixed => openssl_pkey_get_private($keyPem));
+        $keyPem         = is_file($keyFile) && is_readable($keyFile) ? file_get_contents($keyFile) : false;
+        $certificatePem = is_file($certificateFile) && is_readable($certificateFile) ? file_get_contents($certificateFile) : false;
+
+        return self::fromPem($keyPem === false ? '' : $keyPem, $certificatePem === false ? '' : $certificatePem, $curves);
+    }
+
+    /**
+     * The material of a key and a certificate held as text: the key as PEM, the certificate as PEM or as the base64
+     * a certificate of ZATCA comes in, as the vault keeps those of the units.
+     *
+     * @param list<string>|null $curves The curves the OpenSSL offers, for a test.
+     *
+     * @throws EInvoiceException
+     */
+    public static function fromPem(#[SensitiveParameter] string $keyPem, string $certificate, ?array $curves = null): StampMaterial
+    {
+        if (! self::curveAvailable($curves)) {
+            throw new EInvoiceException(EInvoiceError::CurveUnsupported, 'The installed OpenSSL does not offer the curve ' . self::CURVE . '.');
+        }
+
+        $key = trim($keyPem) === '' ? false : self::quietly(static fn (): mixed => openssl_pkey_get_private($keyPem));
 
         if ($key === false) {
             throw new EInvoiceException(EInvoiceError::KeyUnreadable, 'The private key cannot be read.');
@@ -50,8 +69,8 @@ final class StampKeys
             throw new EInvoiceException(EInvoiceError::CurveUnsupported, 'The private key is not on the curve ' . self::CURVE . '.');
         }
 
-        $certificatePem = is_file($certificateFile) && is_readable($certificateFile) ? file_get_contents($certificateFile) : false;
-        $certificate    = $certificatePem === false ? false : self::quietly(static fn (): mixed => openssl_x509_read($certificatePem));
+        $certificatePem = str_contains($certificate, '-----BEGIN') ? $certificate : self::pem($certificate);
+        $certificate    = trim($certificatePem) === '' ? false : self::quietly(static fn (): mixed => openssl_x509_read($certificatePem));
 
         if ($certificate === false || ! openssl_x509_export($certificate, $normalized)) {
             throw new EInvoiceException(EInvoiceError::CertificateUnreadable, 'The certificate cannot be read.');
@@ -86,6 +105,16 @@ final class StampKeys
         } finally {
             restore_error_handler();
         }
+    }
+
+    /**
+     * A certificate in base64 (DER) as PEM; nothing for nothing.
+     */
+    public static function pem(string $base64): string
+    {
+        $body = preg_replace('/\s+/', '', $base64) ?? '';
+
+        return $body === '' ? '' : "-----BEGIN CERTIFICATE-----\n" . chunk_split($body, 64, "\n") . "-----END CERTIFICATE-----\n";
     }
 
     private static function der(string $pem): string

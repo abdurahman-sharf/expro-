@@ -104,6 +104,7 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $this->accountingDb()->table('document_numbers')->truncate();
         $this->accountingDb()->table('document_sequences')->truncate();
         $this->accountingDb()->table('app_config')->where('key', 'accounting_debit_note')->delete();
+        $this->forgetOnboardedUnit();
         $this->removeTemporaryDirectories();
         $this->stopSelling();
 
@@ -627,6 +628,7 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('einvoice_outbox')->where('document_id', $first->documentId)->countAllResults(), 'a document of the first phase is not sent');
         $this->assertNotNull($row->unit_id);
 
+        $this->onboardedUnit();
         $this->configureEInvoicing([EInvoiceSettings::PHASE_TWO => '1']);
 
         $second = $this->issue($this->referenceSale());
@@ -636,6 +638,19 @@ class EInvoiceServiceTest extends CIUnitTestCase
 
         $this->assertSame([SubmissionService::PENDING, EInvoiceService::LIVE], [$queued->status, $queued->environment]);
         $this->assertSame([(string) $second->icv, $second->hash], [(string) $unit->last_icv, $unit->last_hash], 'the unit holds the chain as it stands');
+        $this->assertTrue($second->signed, 'stamped with the production certificate of the unit');
+        $this->assertSame(['signed' => true, 'document' => true, 'properties' => true, 'signature' => true], (new StampVerifier())->verify($second->xml));
+    }
+
+    public function testIssueSale_IssuesNothingInTheSecondPhaseWithoutTheProductionCertificateOfTheUnit(): void
+    {
+        $this->configureEInvoicing([EInvoiceSettings::PHASE_TWO => '1']);
+
+        $saleId = $this->referenceSale();
+        $before = $this->accountingDb()->table('einvoice_documents')->countAllResults();
+
+        $this->assertContains($this->refusal(fn () => $this->issue($saleId))->error, [EInvoiceError::KeyPathUnsafe, EInvoiceError::KeyUnreadable, EInvoiceError::CertificateUnreadable], 'no document of the second phase goes out unstamped');
+        $this->assertSame($before, $this->accountingDb()->table('einvoice_documents')->countAllResults());
     }
 
     public function testIssueSale_RefusesATaxOfTheDocumentThatTheJournalDoesNotHold(): void
