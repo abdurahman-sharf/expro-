@@ -28,6 +28,7 @@ use App\Libraries\MasterData\NamedLookup;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pricing\SalesControlSettings;
+use App\Libraries\Roles\RoleTablesUnavailableException;
 use App\Libraries\Stock\UnitBarcodes;
 use App\Libraries\Tax\VatClassification;
 use App\Libraries\Tax\VatClassificationException;
@@ -1774,6 +1775,8 @@ class Items extends Secure_Controller
             }
 
             return $this->response->setJSON(['success' => false, 'message' => lang('Items.csv_import_nodata_wrongformat')]);
+        } catch (RoleTablesUnavailableException $exception) {
+            throw $exception;
         } catch (Exception $e) {
             return $this->response->setJSON(['success' => false, 'message' => $e->getMessage()]);
         }

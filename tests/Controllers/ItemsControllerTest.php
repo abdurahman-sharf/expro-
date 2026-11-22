@@ -11,6 +11,7 @@ use App\Libraries\Stock\TrackingType;
 use App\Libraries\Stock\UnitBarcodes;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pricing\SalesControlSettings;
+use App\Libraries\Roles\RoleTablesUnavailableException;
 use App\Libraries\Tax\VatClassification;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -31,6 +32,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\StockUnitsFixtureTrait;
 
@@ -40,6 +42,7 @@ class ItemsControllerTest extends CIUnitTestCase
     use FeatureTestTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
+    use RoleFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
@@ -3944,5 +3947,35 @@ class ItemsControllerTest extends CIUnitTestCase
 
         $this->assertTrue(json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true)['success']);
         $this->assertSame([], $fields->valuesOf('item', $itemId));
+    }
+
+    public function testPostImportCsvFile_LetsTheFailureToReadTheRolesReachTheHandlerInsteadOfAnswering200WithItsText(): void
+    {
+        $personId = $this->createItemsEmployee();
+
+        session()->set(['person_id' => $personId, 'menu_group' => 'home']);
+
+        $controller = new Items();
+        $controller->initController(service('request'), service('response'), service('logger'));
+
+        $file = tempnam(sys_get_temp_dir(), 'items');
+        file_put_contents($file, "Id,Item Name\n");
+
+        $_FILES['file_path'] = ['name' => 'items.csv', 'type' => 'text/csv', 'tmp_name' => $file, 'error' => UPLOAD_ERR_OK, 'size' => 13];
+
+        try {
+            $this->withUnreadableTable('role_permissions', function () use ($controller): void {
+                try {
+                    $controller->postImportCsvFile();
+                    $this->fail('The failure to read the roles was answered as a failed import, with its text.');
+                } catch (RoleTablesUnavailableException) {
+                    $this->addToAssertionCount(1);
+                }
+            });
+        } finally {
+            unset($_FILES['file_path']);
+            unlink($file);
+            session()->remove('person_id');
+        }
     }
 }

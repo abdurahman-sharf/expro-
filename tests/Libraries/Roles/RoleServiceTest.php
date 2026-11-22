@@ -9,6 +9,7 @@ use App\Libraries\Roles\RoleError;
 use App\Libraries\Roles\RoleException;
 use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Roles\RoleTablesUnavailableException;
 use App\Models\Employee;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -48,7 +49,7 @@ final class RoleServiceTest extends CIUnitTestCase
         $this->roles = new RoleService();
     }
 
-    private function rolesOverAFailingTable(string $table, bool $throws): RoleService
+    private function rolesOverAFailingTable(?string $table, bool $throws): RoleService
     {
         $db               = new FailingTableConnection(config('Database')->tests);
         $db->failingTable = $table;
@@ -66,6 +67,17 @@ final class RoleServiceTest extends CIUnitTestCase
         }
 
         $this->fail('The change was not refused.');
+    }
+
+    private function unavailable(callable $action, string $case = ''): RoleTablesUnavailableException
+    {
+        try {
+            $action();
+        } catch (RoleTablesUnavailableException $exception) {
+            return $exception;
+        }
+
+        $this->fail('A read that failed was not refused with the named exception: ' . $case);
     }
 
     /**
@@ -748,5 +760,158 @@ final class RoleServiceTest extends CIUnitTestCase
 
         $this->assertContains('sales_carry' . $locationId, $this->roles->permissionsOf($holder));
         $this->assertNotContains('sales_carry' . $locationId, $this->roles->permissionsOf($other));
+    }
+
+    public function testReaders_RefuseWhenATableTheyReadCannotBeRead(): void
+    {
+        $role     = $this->createRole(['sales']);
+        $employee = $this->employeeWithRoles([$role]);
+        $readers  = [
+            'all'               => [['roles'], 'The roles', static fn (RoleService $roles) => $roles->all()],
+            'find'              => [['roles'], "The role {$role}", static fn (RoleService $roles) => $roles->find($role)],
+            'permissionsOf'     => [['role_permissions'], "The permissions of the role {$role}", static fn (RoleService $roles) => $roles->permissionsOf($role)],
+            'recordScopeOf'     => [['employee_record_scopes'], "The record scope of the employee {$employee}", static fn (RoleService $roles) => $roles->recordScopeOf($employee)],
+            'roleIdsOf'         => [['employee_roles'], "The roles of the employee {$employee}", static fn (RoleService $roles) => $roles->roleIdsOf($employee)],
+            'rolesOf'           => [['employee_roles', 'roles'], "The roles of the employee {$employee}", static fn (RoleService $roles) => $roles->rolesOf($employee)],
+            'rolePermissionsOf' => [['employee_roles', 'roles', 'role_permissions'], "The permissions that the roles of the employee {$employee} give", static fn (RoleService $roles) => $roles->rolePermissionsOf($employee)],
+        ];
+
+        foreach ([false, true] as $throws) {
+            foreach ($readers as $name => [$tables, $what, $read]) {
+                foreach ($tables as $table) {
+                    $exception = $this->unavailable(fn () => $read($this->rolesOverAFailingTable($table, $throws)), "{$name} over {$table}, throws " . var_export($throws, true));
+
+                    $this->assertStringStartsWith("{$what} could not be read: ", $exception->getMessage(), "{$name} over {$table}");
+                    $this->assertSame($throws, $exception->getPrevious() instanceof DatabaseException, "{$name} over {$table}");
+                }
+            }
+        }
+    }
+
+    public function testReaders_AnswerThroughAConnectionThatDoesNotFail(): void
+    {
+        $role     = $this->createRole(['sales']);
+        $employee = $this->employeeWithRoles([$role]);
+        $roles    = $this->rolesOverAFailingTable(null, false);
+
+        $this->assertSame($role, (int) $roles->find($role)->role_id);
+        $this->assertSame(['sales'], $roles->permissionsOf($role));
+        $this->assertSame([$role], $roles->roleIdsOf($employee));
+        $this->assertSame('all', $roles->recordScopeOf($employee));
+        $this->assertSame([$role], array_map(static fn (object $held): int => (int) $held->role_id, $roles->rolesOf($employee)));
+        $this->assertSame(['sales' => [$roles->find($role)->name]], $roles->rolePermissionsOf($employee));
+        $this->assertContains($role, array_map(static fn (object $listed): int => (int) $listed->role_id, $roles->all()));
+    }
+
+    public function testAll_RefusesOnAProductionConnectionWhoseSubselectedTableCannotBeRead(): void
+    {
+        foreach (['role_permissions', 'employee_roles'] as $table) {
+            $this->withUnreadableTable($table, function () use ($table): void {
+                $exception = $this->unavailable(fn () => (new RoleService())->all());
+
+                $this->assertNull($exception->getPrevious(), $table);
+                $this->assertStringStartsWith('The roles could not be read: ', $exception->getMessage(), $table);
+            });
+        }
+    }
+
+    public function testAssign_RefusesWithTheNamedExceptionWhenWhatItCountsCannotBeReadAndChangesNothing(): void
+    {
+        $role     = $this->createRole(['sales']);
+        $employee = $this->createEmployee();
+
+        foreach ([false, true] as $throws) {
+            foreach (['employees' => "The employee {$employee}", 'roles' => 'The roles asked for'] as $table => $what) {
+                $exception = $this->unavailable(fn () => $this->rolesOverAFailingTable($table, $throws)->assign($employee, [$role], null), "{$table}, throws " . var_export($throws, true));
+
+                $this->assertStringStartsWith("{$what} could not be read: ", $exception->getMessage(), $table);
+            }
+        }
+
+        $this->assertSame([], $this->roles->roleIdsOf($employee));
+        $this->assertSame([], $this->auditOf('employee', $employee, 'employee_roles_changed'));
+    }
+
+    public function testSetRecordScope_RefusesWithTheNamedExceptionWhenWhatItReadsCannotBeReadAndChangesNothing(): void
+    {
+        $employee = $this->createEmployee();
+
+        foreach ([false, true] as $throws) {
+            foreach (['employees' => "The employee {$employee}", 'employee_record_scopes' => "The record scope of the employee {$employee}"] as $table => $what) {
+                $exception = $this->unavailable(fn () => $this->rolesOverAFailingTable($table, $throws)->setRecordScope($employee, 'own', null), "{$table}, throws " . var_export($throws, true));
+
+                $this->assertStringStartsWith("{$what} could not be read: ", $exception->getMessage(), $table);
+            }
+        }
+
+        $this->assertSame('all', $this->roles->recordScopeOf($employee));
+        $this->assertSame([], $this->auditOf('employee', $employee, 'employee_record_scope_changed'));
+    }
+
+    public function testCreate_RefusesWithTheNamedExceptionWhenTheNameOrThePermissionsCannotBeCheckedAndStoresNothing(): void
+    {
+        foreach ([false, true] as $throws) {
+            foreach (['roles' => 'The roles that bear the name asked for', 'permissions' => 'The permissions asked for'] as $table => $what) {
+                $name      = 'Unchecked ' . uniqid();
+                $exception = $this->unavailable(fn () => $this->rolesOverAFailingTable($table, $throws)->create(['name' => $name, 'permissions' => ['sales']], null));
+
+                $this->assertStringStartsWith("{$what} could not be read: ", $exception->getMessage(), $table);
+                $this->assertSame(0, $this->roleDb()->table('roles')->where('name', $name)->countAllResults(), $table);
+            }
+        }
+    }
+
+    public function testUpdate_KeepsTheRoleAsItWasWhenItsPermissionsCannotBeRead(): void
+    {
+        $role = $this->createRole(['sales']);
+        $name = $this->roles->find($role)->name;
+
+        foreach ([false, true] as $throws) {
+            $this->unavailable(fn () => $this->rolesOverAFailingTable('role_permissions', $throws)->update($role, ['name' => $name . ' changed', 'permissions' => ['sales', 'items']], null));
+        }
+
+        $this->assertSame($name, $this->roles->find($role)->name);
+        $this->assertSame(['sales'], $this->roles->permissionsOf($role));
+        $this->assertSame([], $this->auditOf('role', $role, 'role_updated'));
+    }
+
+    public function testCheckAssignment_RefusesWithTheNamedExceptionWhateverItReadsThatCannotBeRead(): void
+    {
+        $role     = $this->createRole(['sales']);
+        $employee = $this->createEmployee();
+
+        foreach ([false, true] as $throws) {
+            foreach (['roles' => 'The roles asked for', 'employee_roles' => "The roles of the employee {$employee}", 'role_permissions' => 'The permissions of the roles asked for'] as $table => $what) {
+                $exception = $this->unavailable(fn () => $this->rolesOverAFailingTable($table, $throws)->checkAssignment($employee, [$role], 'all', null), "{$table}, throws " . var_export($throws, true));
+
+                $this->assertStringStartsWith("{$what} could not be read: ", $exception->getMessage(), $table);
+            }
+        }
+    }
+
+    public function testDelete_KeepsTheRoleAndItsPermissionsWhenTheyCannotBeRead(): void
+    {
+        $role = $this->createRole(['sales']);
+
+        foreach ([false, true] as $throws) {
+            $this->unavailable(fn () => $this->rolesOverAFailingTable('role_permissions', $throws)->delete($role, null));
+        }
+
+        $this->assertNotNull($this->roles->find($role));
+        $this->assertSame(['sales'], $this->roles->permissionsOf($role));
+        $this->assertSame([], $this->auditOf('role', $role, 'role_deleted'));
+    }
+
+    public function testReleaseEmployees_KeepsTheRolesAndTheScopeOfAnEmployeeWhenTheirRolesCannotBeRead(): void
+    {
+        $role     = $this->createRole([], 'own');
+        $employee = $this->employeeWithRoles([$role]);
+
+        foreach ([false, true] as $throws) {
+            $this->unavailable(fn () => $this->rolesOverAFailingTable('employee_roles', $throws)->releaseEmployees([$employee], null));
+        }
+
+        $this->assertSame([$role], $this->roles->roleIdsOf($employee));
+        $this->assertTrue((new RecordScope())->ownOnly($employee));
     }
 }

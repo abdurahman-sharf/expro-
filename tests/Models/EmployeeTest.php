@@ -7,6 +7,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Roles\RoleTablesUnavailableException;
 use App\Libraries\Security\PasswordPolicy;
 use App\Models\Employee;
 use App\Models\Module;
@@ -1070,5 +1071,47 @@ class EmployeeTest extends CIUnitTestCase
 
         $this->assertFalse($model->setupPending());
         $this->assertNull(session()->get(Employee::SETUP_PENDING_KEY));
+    }
+
+    public function testHasGrant_RefusesWhenTheRolesCannotBeReadInsteadOfDenying(): void
+    {
+        $employee = $this->employeeWithRoles([$this->createRole(['sales_delete'])]);
+
+        $this->withUnreadableTable('role_permissions', function () use ($employee): void {
+            try {
+                model(Employee::class)->has_grant('sales_delete', $employee);
+                $this->fail('Roles that could not be read were taken for roles that give nothing.');
+            } catch (RoleTablesUnavailableException) {
+                $this->addToAssertionCount(1);
+            }
+        });
+    }
+
+    public function testHasModuleGrant_RefusesWhenTheRolesCannotBeReadInsteadOfAnswering(): void
+    {
+        $employee = $this->createEmployee(grants: [['permission_id' => 'customers', 'menu_group' => 'home']]);
+
+        $this->withUnreadableTable('role_permissions', function () use ($employee): void {
+            try {
+                model(Employee::class)->has_module_grant('customers', $employee);
+                $this->fail('Roles that could not be read were taken for roles that give nothing.');
+            } catch (RoleTablesUnavailableException) {
+                $this->addToAssertionCount(1);
+            }
+        });
+    }
+
+    public function testGetEmployeeGrants_RefusesWhenTheRolesCannotBeReadInsteadOfListingTheOwnGrantsOnly(): void
+    {
+        $employee = $this->employeeWithRoles([$this->createRole(['sales'])], ['customers']);
+
+        $this->withUnreadableTable('role_permissions', function () use ($employee): void {
+            try {
+                model(Employee::class)->get_employee_grants($employee);
+                $this->fail('Roles that could not be read were taken for roles that give nothing.');
+            } catch (RoleTablesUnavailableException) {
+                $this->addToAssertionCount(1);
+            }
+        });
     }
 }

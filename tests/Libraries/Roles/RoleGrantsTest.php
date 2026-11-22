@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Roles\RoleTablesUnavailableException;
 use App\Models\Employee;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -13,6 +14,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\FailingTableConnection;
 use Tests\Support\RoleFixtureTrait;
 
 /**
@@ -218,7 +220,7 @@ final class RoleGrantsTest extends CIUnitTestCase
         $this->assertSame(['sales'], (new RoleGrants())->idsFor($employee));
     }
 
-    public function testIdsFor_FailsWhenTheMigrationIsRecordedButATableOfRolesIsGone(): void
+    public function testIdsFor_RefusesWhenTheMigrationIsRecordedButATableOfRolesIsGone(): void
     {
         $db       = $this->roleDb();
         $employee = $this->employeeWithRoles([$this->createRole(['sales'])]);
@@ -228,9 +230,10 @@ final class RoleGrantsTest extends CIUnitTestCase
         $db->query("RENAME TABLE `{$table}` TO `{$table}_away`");
 
         try {
-            $this->expectException(DatabaseException::class);
-
             (new RoleGrants())->idsFor($employee);
+            $this->fail('Roles that could not be read were taken for roles that give nothing.');
+        } catch (RoleTablesUnavailableException $exception) {
+            $this->assertInstanceOf(DatabaseException::class, $exception->getPrevious());
         } finally {
             $db->query("RENAME TABLE `{$table}_away` TO `{$table}`");
             RoleGrants::flush();
@@ -240,5 +243,86 @@ final class RoleGrantsTest extends CIUnitTestCase
     public function testForbidden_IncludesThePermissionThatManagesTheRegistrationWithZatca(): void
     {
         $this->assertContains(AccountingGuard::EINVOICING_ONBOARD, RoleGrants::forbidden());
+    }
+
+    private function failingConnection(?string $table = null, bool $throws = false): FailingTableConnection
+    {
+        $db               = new FailingTableConnection(config('Database')->tests);
+        $db->failingTable = $table;
+        $db->throws       = $throws;
+
+        return $db;
+    }
+
+    public function testIdsFor_RefusesWhenTheRolesOfTheEmployeeCannotBeRead(): void
+    {
+        $employee = $this->employeeWithRoles([$this->createRole(['sales'])]);
+
+        foreach ([false, true] as $throws) {
+            foreach (['employee_roles', 'roles', 'role_permissions', 'employees'] as $table) {
+                try {
+                    (new RoleGrants($this->failingConnection($table, $throws)))->idsFor($employee);
+                    $this->fail("Roles that could not be read ({$table}) were taken for roles that give nothing.");
+                } catch (RoleTablesUnavailableException $exception) {
+                    $this->assertStringContainsString("The permissions that the roles of the employee {$employee} give could not be read: ", $exception->getMessage());
+                    $this->assertSame($throws, $exception->getPrevious() instanceof DatabaseException);
+                }
+            }
+        }
+    }
+
+    public function testHas_RefusesWhenThePermissionsCannotBeReadInsteadOfAnswering(): void
+    {
+        $employee = $this->employeeWithRoles([$this->createRole(['sales'])]);
+
+        foreach ([false, true] as $throws) {
+            try {
+                (new RoleGrants($this->failingConnection('role_permissions', $throws)))->has($employee, 'sales');
+                $this->fail('Permissions that could not be read were taken for permissions that are not given.');
+            } catch (RoleTablesUnavailableException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function testIdsFor_DoesNotRememberAFailureAndReadsOnceItWorks(): void
+    {
+        $employee = $this->employeeWithRoles([$this->createRole(['sales'])]);
+
+        foreach ([false, true] as $throws) {
+            $connection = $this->failingConnection('role_permissions', $throws);
+            $grants     = new RoleGrants($connection);
+
+            try {
+                $grants->idsFor($employee);
+                $this->fail('Roles that could not be read were taken for roles that give nothing.');
+            } catch (RoleTablesUnavailableException) {
+                $connection->failingTable = null;
+            }
+
+            $this->assertSame(['sales'], $grants->idsFor($employee));
+        }
+    }
+
+    public function testIdsFor_ReadsThroughAConnectionThatDoesNotFail(): void
+    {
+        $employee = $this->employeeWithRoles([$this->createRole(['sales', 'items'])]);
+
+        $this->assertSame(['items', 'sales'], (new RoleGrants($this->failingConnection()))->idsFor($employee));
+    }
+
+    public function testIdsFor_RefusesOnAProductionConnectionWhoseTableOfPermissionsCannotBeRead(): void
+    {
+        $employee = $this->employeeWithRoles([$this->createRole(['sales'])]);
+
+        $this->withUnreadableTable('role_permissions', function () use ($employee): void {
+            try {
+                (new RoleGrants())->idsFor($employee);
+                $this->fail('Roles that could not be read were taken for roles that give nothing.');
+            } catch (RoleTablesUnavailableException $exception) {
+                $this->assertNull($exception->getPrevious());
+                $this->assertStringContainsString($this->roleDb()->prefixTable('role_permissions'), $exception->getMessage(), 'The message carries what the driver said');
+            }
+        });
     }
 }

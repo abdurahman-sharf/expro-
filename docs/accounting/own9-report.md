@@ -43,7 +43,7 @@
 
 ## ما لم يُعالج
 
-1. **`RoleGrants::read` يقع بـ`Error` خام** (`getResultArray()` على `false`) حين يتعذّر قراءة `employee_roles` أو `roles` أو `role_permissions` في الإنتاج، فيبقى 500 عامًّا ولا يبلغ هذا المعالج (قائم قبل هذا الفرع؛ العلاج استثناء مسمّى `RoleTablesUnavailableException` كما في `RoleTables::migrated`).
+1. **`RoleGrants::read` يقع بـ`Error` خام** (`getResultArray()` على `false`) حين يتعذّر قراءة `employee_roles` أو `roles` أو `role_permissions` في الإنتاج، فيبقى 500 عامًّا ولا يبلغ هذا المعالج (قائم قبل هذا الفرع؛ العلاج استثناء مسمّى `RoleTablesUnavailableException` كما في `RoleTables::migrated`). **عولج في OWN10** (`docs/accounting/own10-report.md`)، ومعه `DefaultLocations::of`.
 2. **`Dashboard_lib::guarded`** يلتقط `Throwable` فتعود الصفحة الرئيسية 200 بأقسام ناقصة بلا إشعار (تدهور متعمَّد منذ OWN5؛ رفضه المفنِّد بوصفه ليس عيبًا في هذا الفرع).
 3. **`Items::postImportCsvFile`** يرجع نص الاستثناء الخام (بالإنجليزية) في JSON بحالة 200 إن حدث فشل القراءة وسط استيراد؛ و`Sale::asAccountingFailure` و`Receiving::asAccountingFailure` تحوّلانه إلى رفض ترحيل عادي فلا يبلغ المعالج.
 4. **`Load_config`** يهدم الجلسة إن تعذّرت قراءة سجل الترحيل عند أي طلب لمسار ليس `Secure_Controller` (الجذر أو الدخول)، فقد يخرج الموظف من الحساب إن أعاد المحاولة هناك.

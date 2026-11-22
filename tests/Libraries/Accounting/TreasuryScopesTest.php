@@ -12,12 +12,14 @@ use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Roles\RoleTablesUnavailableException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\FailingTableConnection;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
@@ -823,5 +825,50 @@ class TreasuryScopesTest extends CIUnitTestCase
         $refusal = $this->refusal(fn () => $this->treasuries->create(['name' => 'Drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$employee]], $employee));
 
         $this->assertSame(AccountingError::PermissionDenied, $refusal->error);
+    }
+
+    private function scopesOverAFailingTable(string $table, bool $throws): TreasuryScopes
+    {
+        $db               = new FailingTableConnection(config('Database')->tests);
+        $db->failingTable = $table;
+        $db->throws       = $throws;
+
+        return new TreasuryScopes($db);
+    }
+
+    public function testAllows_RefusesWithTheNamedExceptionWhenTheRolesOfTheEmployeeCannotBeReadInsteadOfDenyingThem(): void
+    {
+        $role     = $this->createRole(['accounting_treasuries']);
+        $employee = $this->employeeWithRoles([$role]);
+        $id       = $this->drawer(['deposit_scope' => 'roles', 'deposit_members' => [$role]]);
+
+        foreach ([false, true] as $throws) {
+            foreach (['employee_roles', 'roles', 'employees'] as $table) {
+                try {
+                    $this->scopesOverAFailingTable($table, $throws)->allows($id, TreasuryScopes::DEPOSIT, $employee);
+                    $this->fail("Roles that could not be read ({$table}) were taken for roles the employee does not hold.");
+                } catch (RoleTablesUnavailableException $exception) {
+                    $this->assertStringStartsWith("The roles of the employee {$employee} that a treasury names could not be read: ", $exception->getMessage(), $table);
+                }
+            }
+        }
+
+        $this->assertTrue($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee));
+    }
+
+    public function testValidated_RefusesWithTheNamedExceptionWhenTheRolesCannotBeCountedInsteadOfNamingThemMissing(): void
+    {
+        $role = $this->createRole(['accounting_treasuries']);
+
+        foreach ([false, true] as $throws) {
+            try {
+                $this->scopesOverAFailingTable('roles', $throws)->validated(['deposit_scope' => 'roles', 'deposit_members' => [$role]]);
+                $this->fail('Roles that could not be counted were taken for roles that do not exist.');
+            } catch (RoleTablesUnavailableException $exception) {
+                $this->assertStringStartsWith('The roles a treasury scope names could not be read: ', $exception->getMessage());
+            }
+        }
+
+        $this->assertSame(['deposit' => ['mode' => 'roles', 'members' => [$role]]], $this->scopes->validated(['deposit_scope' => 'roles', 'deposit_members' => [$role]]));
     }
 }

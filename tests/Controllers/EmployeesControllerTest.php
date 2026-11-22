@@ -14,6 +14,7 @@ use App\Libraries\Organization\EmployeeBranchService;
 use App\Models\Module;
 use App\Libraries\Roles\DefaultLocations;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Roles\RoleTablesUnavailableException;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
 
@@ -1821,5 +1822,21 @@ class EmployeesControllerTest extends CIUnitTestCase
         $this->post('/employees/delete', ['ids' => [(string) $accountant]]);
 
         $this->assertSame([], $this->auditEntriesOf($accountant, 'employee_deleted'));
+    }
+
+    public function testGetView_RefusesWithTheNamedExceptionWhenTheRecordScopeOfTheEmployeeCannotBeRead(): void
+    {
+        $this->loginAsAdmin();
+
+        $this->withUnreadableTable('employee_record_scopes', function (): void {
+            try {
+                $this->get('/employees/view/1');
+                $this->fail('A record scope that could not be read was taken for the scope all.');
+            } catch (RoleTablesUnavailableException $exception) {
+                $this->assertStringStartsWith('The record scope of the employee 1 could not be read: ', $exception->getMessage());
+            }
+        });
+
+        $this->get('/employees/view/1')->assertStatus(200);
     }
 }

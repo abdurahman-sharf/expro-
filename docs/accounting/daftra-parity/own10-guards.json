@@ -1,0 +1,167 @@
+[
+  {
+    "name": "G01 the exception of the driver is let through as it is",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "throw new RoleTablesUnavailableException(\"{$what} could not be read: {$exception->getMessage()}\", $exception);",
+    "replace": "throw $exception;",
+    "tests": [
+      "--filter",
+      "testRead_",
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G02 the exception of the driver is taken for a table that holds nothing",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "throw new RoleTablesUnavailableException(\"{$what} could not be read: {$exception->getMessage()}\", $exception);",
+    "replace": "return $builder->db()->query('SELECT 1 FROM (SELECT 1) t WHERE 1 = 0');",
+    "tests": [
+      "--filter",
+      "testRead_",
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G03 an answer that is no result is taken for a table that holds nothing",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "        if (! $result instanceof ResultInterface) {\n            throw new RoleTablesUnavailableException(\"{$what} could not be read: \" . self::driverError($builder));\n        }\n",
+    "replace": "        if (! $result instanceof ResultInterface) {\n            return $builder->db()->query('SELECT 1 FROM (SELECT 1) t WHERE 1 = 0');\n        }\n",
+    "tests": [
+      "--filter",
+      "testRead_",
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G04 the error of the driver is left out of the message of a query that answered false",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "\"{$what} could not be read: \" . self::driverError($builder)",
+    "replace": "\"{$what} could not be read.\"",
+    "tests": [
+      "--filter",
+      "NamesTheErrorOfTheDriver",
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G05 the message does not say what could not be read",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "\"{$what} could not be read: {$exception->getMessage()}\"",
+    "replace": "\"The roles could not be read: {$exception->getMessage()}\"",
+    "tests": [
+      "--filter",
+      "testRead_RefusesWhenTheDriverThrows",
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G06 the error of the driver is never taken from the connection",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "if (! empty($error['message'])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "NamesTheErrorOfTheDriver",
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  },
+  {
+    "name": "G07 the permissions of the roles are read without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/RoleGrants.php",
+    "find": "$rows = RoleTables::read($builder, \"The permissions that the roles of the employee {$personId} give\")->getResultArray();",
+    "replace": "$rows = $builder->get()->getResultArray();",
+    "tests": [
+      "--filter",
+      "Refuses",
+      "tests/Libraries/Roles/RoleGrantsTest.php"
+    ]
+  },
+  {
+    "name": "G08 a failed read of the roles is taken for roles that give nothing",
+    "file": "app/Libraries/Roles/RoleGrants.php",
+    "find": "$rows = RoleTables::read($builder, \"The permissions that the roles of the employee {$personId} give\")->getResultArray();",
+    "replace": "$result = $builder->db()->table('roles')->where('1 = 0', null, false)->get();\n        $rows   = [];\n        try {\n            $rows = RoleTables::read($builder, 'x')->getResultArray();\n        } catch (RoleTablesUnavailableException) {\n        }",
+    "tests": [
+      "--filter",
+      "Refuses",
+      "tests/Libraries/Roles/RoleGrantsTest.php"
+    ]
+  },
+  {
+    "name": "G09 the message does not name the employee whose roles could not be read",
+    "file": "app/Libraries/Roles/RoleGrants.php",
+    "find": "\"The permissions that the roles of the employee {$personId} give\"",
+    "replace": "\"The permissions that the roles of an employee give\"",
+    "tests": [
+      "--filter",
+      "testIdsFor_RefusesWhenTheRolesOfTheEmployeeCannotBeRead",
+      "tests/Libraries/Roles/RoleGrantsTest.php"
+    ]
+  },
+  {
+    "name": "G10 a failed read of the roles is remembered as roles that give nothing",
+    "file": "app/Libraries/Roles/RoleGrants.php",
+    "find": "return $this->memo[$personId] ??= $this->read($personId);",
+    "replace": "try {\n            return $this->memo[$personId] ??= $this->read($personId);\n        } catch (RoleTablesUnavailableException) {\n            return $this->memo[$personId] = [];\n        }",
+    "tests": [
+      "--filter",
+      "Refuses|DoesNotRemember",
+      "tests/Libraries/Roles/RoleGrantsTest.php"
+    ]
+  },
+  {
+    "name": "G11 the default location is read without the helper that refuses a failed read",
+    "file": "app/Libraries/Roles/DefaultLocations.php",
+    "find": "$row = RoleTables::read($builder, \"The default location of the employee {$personId}\")->getRow();",
+    "replace": "$row = $builder->get()->getRow();",
+    "tests": [
+      "--filter",
+      "testOf_Refuses",
+      "tests/Libraries/Roles/DefaultLocationsTest.php"
+    ]
+  },
+  {
+    "name": "G12 a default location that could not be read is taken for none",
+    "file": "app/Libraries/Roles/DefaultLocations.php",
+    "find": "$row = RoleTables::read($builder, \"The default location of the employee {$personId}\")->getRow();",
+    "replace": "try {\n            $row = RoleTables::read($builder, \"x\")->getRow();\n        } catch (RoleTablesUnavailableException) {\n            return null;\n        }",
+    "tests": [
+      "--filter",
+      "Refuses|DoesNotSeemToClear",
+      "tests/Libraries/Roles/DefaultLocationsTest.php"
+    ]
+  },
+  {
+    "name": "G13 the message does not name the employee whose default location could not be read",
+    "file": "app/Libraries/Roles/DefaultLocations.php",
+    "find": "\"The default location of the employee {$personId}\"",
+    "replace": "\"The default location of an employee\"",
+    "tests": [
+      "--filter",
+      "testOf_RefusesWhenTheDefaultLocationCannotBeRead",
+      "tests/Libraries/Roles/DefaultLocationsTest.php"
+    ]
+  },
+  {
+    "name": "G14 the import of items answers the failure to read the roles with its text and a status of 200",
+    "file": "app/Controllers/Items.php",
+    "find": "        } catch (RoleTablesUnavailableException $exception) {\n            throw $exception;\n        } catch (Exception $e) {",
+    "replace": "        } catch (Exception $e) {",
+    "tests": [
+      "--filter",
+      "testPostImportCsvFile_LetsTheFailureToReadTheRoles",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G15 the message of a read that failed without a word of the driver says nothing instead of unknown error",
+    "file": "app/Libraries/Roles/RoleTables.php",
+    "find": "return 'unknown error';",
+    "replace": "return '';",
+    "tests": [
+      "--filter",
+      "testRead_RefusesWhenTheConnectionAnswersFalse",
+      "tests/Libraries/Roles/RoleTablesTest.php"
+    ]
+  }
+]

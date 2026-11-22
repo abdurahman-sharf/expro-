@@ -5,10 +5,13 @@ namespace Tests\Libraries\Roles;
 use App\Libraries\Roles\DefaultLocations;
 use App\Libraries\Roles\RoleError;
 use App\Libraries\Roles\RoleException;
+use App\Libraries\Roles\RoleTablesUnavailableException;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\FailingTableConnection;
 use Tests\Support\RoleFixtureTrait;
 
 /**
@@ -182,5 +185,116 @@ final class DefaultLocationsTest extends CIUnitTestCase
         $this->roleDb()->table('stock_locations')->where('location_id', $location)->update(['deleted' => 1]);
 
         $this->assertNull($this->defaults->of($employee), 'An employee whose location was deleted starts where they always did');
+    }
+
+    private function failingConnection(?string $table = null, bool $throws = false): FailingTableConnection
+    {
+        $db               = new FailingTableConnection(config('Database')->tests);
+        $db->failingTable = $table;
+        $db->throws       = $throws;
+
+        return $db;
+    }
+
+    private function auditedChanges(int $employee): int
+    {
+        return $this->roleDb()->table('accounting_audit_log')->where(['entity_type' => 'employee', 'entity_id' => $employee, 'action' => 'default_location_set'])->countAllResults();
+    }
+
+    public function testOf_RefusesWhenTheDefaultLocationCannotBeRead(): void
+    {
+        $employee = $this->createEmployee();
+
+        $this->defaults->set($employee, $this->location(), null);
+
+        foreach ([false, true] as $throws) {
+            foreach (['employee_default_locations', 'stock_locations'] as $table) {
+                try {
+                    (new DefaultLocations($this->failingConnection($table, $throws)))->of($employee);
+                    $this->fail("A default location that could not be read ({$table}) was taken for none.");
+                } catch (RoleTablesUnavailableException $exception) {
+                    $this->assertStringContainsString("The default location of the employee {$employee} could not be read: ", $exception->getMessage());
+                    $this->assertSame($throws, $exception->getPrevious() instanceof DatabaseException);
+                }
+            }
+        }
+    }
+
+    public function testOf_ReadsThroughAConnectionThatDoesNotFail(): void
+    {
+        $employee = $this->createEmployee();
+        $location = $this->location();
+
+        $this->defaults->set($employee, $location, null);
+
+        $this->assertSame($location, (new DefaultLocations($this->failingConnection()))->of($employee));
+    }
+
+    public function testOf_RefusesOnAProductionConnectionWhoseTableCannotBeRead(): void
+    {
+        $employee = $this->createEmployee();
+
+        $this->defaults->set($employee, $this->location(), null);
+
+        $this->withUnreadableTable('employee_default_locations', function () use ($employee): void {
+            try {
+                (new DefaultLocations())->of($employee);
+                $this->fail('A default location that could not be read was taken for none.');
+            } catch (RoleTablesUnavailableException $exception) {
+                $this->assertNull($exception->getPrevious());
+            }
+        });
+    }
+
+    public function testSet_DoesNotSeemToClearALocationThatCouldNotBeRead(): void
+    {
+        $employee = $this->createEmployee();
+        $location = $this->location();
+
+        $this->defaults->set($employee, $location, null);
+
+        foreach ([false, true] as $throws) {
+            try {
+                (new DefaultLocations($this->failingConnection('employee_default_locations', $throws)))->set($employee, null, null);
+                $this->fail('Clearing a location that could not be read seemed to succeed.');
+            } catch (RoleTablesUnavailableException) {
+                $this->assertSame($location, $this->defaults->of($employee));
+            }
+        }
+
+        $this->assertSame(1, $this->auditedChanges($employee));
+    }
+
+    public function testCheck_RefusesWithTheNamedExceptionWhenTheLocationCannotBeCountedInsteadOfSayingItIsMissing(): void
+    {
+        $location = $this->location();
+
+        foreach ([false, true] as $throws) {
+            try {
+                (new DefaultLocations($this->failingConnection('stock_locations', $throws)))->check($location);
+                $this->fail('A location that could not be counted was taken for one that does not exist.');
+            } catch (RoleTablesUnavailableException $exception) {
+                $this->assertStringStartsWith("The stock location {$location} could not be read: ", $exception->getMessage());
+                $this->assertSame($throws, $exception->getPrevious() instanceof DatabaseException);
+            }
+        }
+    }
+
+    public function testSet_RefusesWithTheNamedExceptionWhenTheEmployeeCannotBeCountedAndStoresNothing(): void
+    {
+        $employee = $this->createEmployee();
+        $location = $this->location();
+
+        foreach ([false, true] as $throws) {
+            try {
+                (new DefaultLocations($this->failingConnection('employees', $throws)))->set($employee, $location, null);
+                $this->fail('An employee that could not be counted was taken for one that does not exist.');
+            } catch (RoleTablesUnavailableException $exception) {
+                $this->assertStringStartsWith("The employee {$employee} could not be read: ", $exception->getMessage());
+            }
+        }
+
+        $this->assertNull($this->defaults->of($employee));
+        $this->assertSame(0, $this->auditedChanges($employee));
     }
 }
