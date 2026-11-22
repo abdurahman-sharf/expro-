@@ -10,6 +10,9 @@ use App\Libraries\Tax\AdvanceVat;
 use App\Libraries\Documents\EInvoicePrint;
 use App\Libraries\Accounting\TaxDocuments;
 use App\Libraries\EInvoicing\EInvoiceError;
+use App\Libraries\Tax\VatReturnDraft;
+use App\Libraries\EInvoicing\ZatcaResponse;
+use App\Libraries\EInvoicing\FakeZatcaTransport;
 use App\Libraries\EInvoicing\ZatcaOutcome;
 use App\Libraries\EInvoicing\ZatcaIntegration;
 use App\Libraries\EInvoicing\ZatcaHttpClient;
@@ -813,6 +816,61 @@ class EInvoiceServiceTest extends CIUnitTestCase
         file_put_contents(sprintf('%s/%02d-simplified.pih', $directory, $issued['simplified']->icv), $issued['simplified']->previousHash);
 
         $this->assertOfficialResults($this->officialResults($sdk, $directory, true), []);
+    }
+
+    /**
+     * Run by hand on a database of its own: EXPRO_PERFORMANCE=10000 vendor/bin/phpunit --group performance.
+     */
+    #[Group('performance')]
+    public function testIssueForCompletedSale_KeepsTheChainAndItsPaceOverManySalesAndTheirQueueAndReturn(): void
+    {
+        $count = (int) (getenv('EXPRO_PERFORMANCE') ?: 0);
+
+        if ($count < 1) {
+            $this->markTestSkipped('Set EXPRO_PERFORMANCE to the number of sales to issue.');
+        }
+
+        $db = $this->accountingDb();
+
+        $this->underTheSaudiRules();
+        $this->onboardedUnit();
+        $this->configureEInvoicing([EInvoiceSettings::PHASE_TWO => '1']);
+
+        $first = (int) ($db->table('einvoice_documents')->selectMax('icv')->get()->getRow()->icv ?? 0);
+        $clock = hrtime(true);
+
+        for ($sale = 0; $sale < $count; $sale++) {
+            $this->saudiSaleOf('100.00', null, [$this->payment('Cash', '115.00')], SALE_TYPE_POS);
+        }
+
+        $issuing = (hrtime(true) - $clock) / 1e9;
+        $rows    = $db->table('einvoice_documents')->select('icv, previous_hash, invoice_hash, signed')->where('icv >', $first)->orderBy('icv', 'ASC')->get()->getResult();
+        $broken  = 0;
+
+        foreach ($rows as $index => $row) {
+            if ($index > 0 && ((int) $row->icv !== (int) $rows[$index - 1]->icv + 1 || $row->previous_hash !== $rows[$index - 1]->invoice_hash || (int) $row->signed !== 1)) {
+                $broken++;
+            }
+        }
+
+        $clock   = hrtime(true);
+        $service = new SubmissionService(new FakeZatcaTransport([new ZatcaResponse(ZatcaOutcome::Accepted, 200)]));
+
+        while ($db->table('einvoice_outbox')->whereIn('status', SubmissionService::DUE)->countAllResults() > 0) {
+            $service->dispatch(500);
+        }
+
+        $sending = (hrtime(true) - $clock) / 1e9;
+        $clock   = hrtime(true);
+        $draft   = (new VatReturnDraft())->build(date('Y-m-d'), date('Y-m-d'));
+        $drafting = (hrtime(true) - $clock) / 1e9;
+
+        fwrite(STDERR, sprintf("\n%d sales issued, stamped and queued in %.1f s (%.1f ms each), sent in %.1f s, the VAT return of the day worked out in %.1f s; peak memory %.0f MB.\n", $count, $issuing, 1000 * $issuing / $count, $sending, $drafting, memory_get_peak_usage(true) / 1048576));
+
+        $this->assertCount($count, $rows);
+        $this->assertSame(0, $broken, 'the counters follow one another and each document carries the hash of the one before it');
+        $this->assertSame($count, $db->table('einvoice_outbox')->where('status', SubmissionService::REPORTED)->countAllResults());
+        $this->assertGreaterThanOrEqual(0, bccomp($draft['boxes']['1']['vat'], bcmul((string) $count, '15', 2), 2));
     }
 
     public function testIssueSale_IssuesNothingInTheSecondPhaseWithoutTheProductionCertificateOfTheUnit(): void

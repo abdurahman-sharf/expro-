@@ -32,6 +32,10 @@ use App\Libraries\Accounting\SalePostingBuilder;
 use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\YearEndClosing;
 use App\Libraries\EInvoicing\EInvoiceService;
+use App\Libraries\EInvoicing\FakeZatcaTransport;
+use App\Libraries\EInvoicing\SubmissionService;
+use App\Libraries\EInvoicing\ZatcaOutcome;
+use App\Libraries\EInvoicing\ZatcaResponse;
 use App\Libraries\Stock\StockPermit;
 use App\Libraries\Stock\StockRequest;
 use App\Libraries\Stock\Stocktake;
@@ -319,6 +323,15 @@ $result = match ($method) {
         } catch (Throwable) {
             return false;
         }
+    })($args),
+    'dispatchQueue' => (static function (array $args): bool {
+        $zatca = new FakeZatcaTransport(static function (): ZatcaResponse {
+            usleep(20000);
+
+            return new ZatcaResponse(ZatcaOutcome::Accepted, 200);
+        });
+
+        return array_sum((new SubmissionService($zatca))->dispatch((int) $args[0])) > 0;
     })($args),
     'recurringRun' => (static fn (array $args): bool => (new RecurringGenerator())->run((string) $args[0], (int) $args[1])->generated() > 0)($args),
     'orderInvoice' => (static function (array $args): bool {

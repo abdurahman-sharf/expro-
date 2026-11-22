@@ -12,6 +12,7 @@ use App\Libraries\EInvoicing\ZatcaResponse;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Tests\Support\ConcurrentDbRaceTrait;
 
 /**
  * The queue of the second phase against a ZATCA that lives in memory: what is reported and what is cleared, the
@@ -21,6 +22,7 @@ use Config\Database;
 class SubmissionServiceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use ConcurrentDbRaceTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -268,5 +270,19 @@ class SubmissionServiceTest extends CIUnitTestCase
         $this->assertSame([1, 1, 1], [$summary[SubmissionService::RETRY], $summary[SubmissionService::REPORTED], $summary['late']]);
         $this->assertSame([$late], array_map(static fn (object $row): int => (int) $row->document_id, $tracked));
         $this->assertSame([ZatcaOutcome::ServerError->value, '503'], [$tracked[0]->outcome, (string) $tracked[0]->http_status], 'with the last answer it got');
+    }
+
+    public function testDispatch_SendsEachDocumentOnceWhenTwoWorkersInTwoProcessesSendTheQueueAtOnce(): void
+    {
+        $documents = array_map(fn (): int => $this->queued(), range(1, 40));
+
+        $this->raceTwoProcesses('dispatchQueue', [20], [20]);
+
+        $sent = Database::connect()->table('einvoice_submissions')->select('document_id, COUNT(*) AS n', false)->whereIn('document_id', $documents)->groupBy('document_id')->get()->getResult();
+
+        $this->assertCount(40, $sent, 'every document was sent');
+        $this->assertSame([1], array_values(array_unique(array_map(static fn (object $row): int => (int) $row->n, $sent))), 'and none twice: each worker sent only what it claimed');
+        $this->assertSame(40, Database::connect()->table('einvoice_outbox')->whereIn('document_id', $documents)->where('status', SubmissionService::REPORTED)->countAllResults());
+        $this->assertSame(2, Database::connect()->table('einvoice_submissions')->whereIn('document_id', $documents)->countAllResults() > 0 ? count(array_unique(array_column(Database::connect()->table('einvoice_submissions')->select('claim_token')->whereIn('document_id', $documents)->get()->getResultArray(), 'claim_token'))) : 0, 'both workers sent their share at the same time');
     }
 }
