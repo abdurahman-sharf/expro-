@@ -32,7 +32,7 @@ trait ZatcaSdkTrait
             'ZATCA_SDK_HOME=' . escapeshellarg($sdk) . ' ' . escapeshellarg(ROOTPATH . 'tools/zatca/validate.sh') . ($chain ? ' --chain ' : ' ') . escapeshellarg($directory) . ' 2>&1',
         );
 
-        preg_match_all('/^(PASSED|FAILED|NOT FULLY VALIDATED)\s+(\S+)\s*(.*)$/m', $output, $rows, PREG_SET_ORDER);
+        preg_match_all('/^(PASSED|FAILED|NOT FULLY VALIDATED)[ \t]+(\S+)[ \t]*(.*)$/m', $output, $rows, PREG_SET_ORDER);
 
         $results = [];
 

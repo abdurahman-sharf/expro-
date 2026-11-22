@@ -18,6 +18,13 @@ use Config\Database;
 final class CustomerParties
 {
     public const LIMITS = ['identification_number' => 60, 'street' => 255, 'additional_street' => EInvoiceRules::TEXT_MAX, 'building_number' => 10, 'additional_number' => 10, 'district' => EInvoiceRules::TEXT_MAX, 'city' => EInvoiceRules::TEXT_MAX, 'province' => EInvoiceRules::TEXT_MAX, 'postal_code' => 10];
+
+    /**
+     * The tax identification number ZATCA gives (TIN): ten digits beginning with 3, as the official validator checks
+     * it (BR-KSA-F-07). A buyer abroad is identified under another scheme (OTH).
+     */
+    public const TAX_IDENTIFICATION = '/^3\d{9}$/';
+
     public const FIELDS = ['identification_type', 'identification_number', 'street', 'additional_street', 'building_number', 'additional_number', 'district', 'city', 'province', 'postal_code', 'country_code'];
 
     private BaseConnection $db;
@@ -74,6 +81,10 @@ final class CustomerParties
 
         if ($clean['identification_type'] === '' && $clean['identification_number'] !== '') {
             throw new EInvoiceException(EInvoiceError::IdentificationInvalid, 'A number needs its scheme.', ['field' => $clean['identification_number']]);
+        }
+
+        if ($clean['identification_type'] === PartyIdentificationType::TaxIdentification->value && preg_match(self::TAX_IDENTIFICATION, $clean['identification_number']) !== 1) {
+            throw new EInvoiceException(EInvoiceError::IdentificationInvalid, 'A tax identification number is ten digits beginning with 3.', ['field' => $clean['identification_number']]);
         }
 
         if (! EInvoiceRules::countryCode($clean['country_code'])) {

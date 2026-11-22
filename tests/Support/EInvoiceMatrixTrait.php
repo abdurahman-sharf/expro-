@@ -29,7 +29,7 @@ trait EInvoiceMatrixTrait
     {
         $buyer    = $this->sampleBuyer();
         $crn      = new EInvoiceParty('Buyer Trading', '', PartyIdentificationType::CommercialRegistration, '1010101010', new EInvoiceAddress('King Fahd Rd', '4321', 'Olaya', 'Riyadh', '11564', 'SA'));
-        $abroad   = new EInvoiceParty('Gulf Importers', '', PartyIdentificationType::TaxIdentification, '100200300', new EInvoiceAddress('Sheikh Zayed Rd', '10', 'Trade Centre', 'Dubai', '00000', 'AE'));
+        $abroad   = new EInvoiceParty('Gulf Importers', '', PartyIdentificationType::Other, 'AE100200300', new EInvoiceAddress('Sheikh Zayed Rd', '10', 'Trade Centre', 'Dubai', '00000', 'AE'));
         $standard = ['S', '15.00'];
         $samples  = [
             'S-01' => $this->sample(EInvoiceKind::Invoice, EInvoiceSubtype::Simplified, [$this->row(1, 'Book', '2.00', '3.0000', '0.00', '6.00', $standard, '0.90')]),

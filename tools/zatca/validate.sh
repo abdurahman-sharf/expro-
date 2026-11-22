@@ -3,15 +3,20 @@
 # Runs the official ZATCA e-invoicing SDK, offline, on the XML files of a folder, in the order of their names, keeps
 # its full output next to each file as <name>.sdk.txt, and gives each file one of three results:
 #
-#   PASSED               the SDK passed the file and ran every check the file calls for: XSD, EN, KSA and PIH, and
-#                        QR and SIGNATURE for a simplified document;
-#   FAILED               the SDK refused the file for a rule of the standard v1.2 (or gave no rule for its refusal);
+#   PASSED               the SDK passed the file, ran every check the file calls for (XSD, EN, KSA and PIH, and QR
+#                        and SIGNATURE for a simplified document) and warned of nothing but the time since issue
+#                        (BR-KSA-98: a simplified invoice is reported within 24 hours, which depends on when it runs);
+#   FAILED               the SDK refused the file for a rule of the standard v1.2 (or gave no rule for its refusal),
+#                        or passed it with a warning that names a rule: the SDK lets it through for now, but the file
+#                        breaks that rule;
 #   NOT FULLY VALIDATED  the SDK did not run every check: it stopped at a rule of 2021 that v1.2 dropped or that the
 #                        SDK of 2021 works out wrongly, or it skipped a check, or it gave no result. This is never an
 #                        acceptance: the checks after the one it stopped at were not made.
 #
-# Nothing here connects to ZATCA. Download the SDK from the official ZATCA page (docs/tax/references.md gives the
-# versions and SHA-256 checked), unpack it, run its install.sh once, and point ZATCA_SDK_HOME at that folder:
+# Nothing here connects to ZATCA. Get the SDK from ZATCA (docs/tax/references.md gives the versions and SHA-256
+# checked), unpack it, write its Configuration/config.json and point ZATCA_SDK_HOME at that folder. Its install.sh
+# writes that file, but it also changes ~/.zshrc and ~/.bash-profile, and on Linux the paths it writes name
+# Data/Rules/schematrons where SDK 3.4.8 ships Data/Rules/Schematrons: check them. Then:
 #
 #   ZATCA_SDK_HOME=/path/to/sdk tools/zatca/validate.sh [--chain] folder
 #
@@ -43,6 +48,7 @@ config="${SDK_CONFIG:-$sdk/Configuration/config.json}"
 # The rules of 2021 (SDK 2.0.3) that v1.2 dropped or changed (BR-KSA-16 asks a standard invoice for its payment means,
 # which v1.2 checks only when they are given), the two it works out wrongly (BR-S-10 over the whole file, BR-KSA-51
 # in floating point), and the codes of its QR check, which reads the tags as laid out in 2021.
+time_codes=" BR-KSA-98 "
 legacy_codes=" BR-KSA-05 BR-KSA-09 BR-KSA-10 BR-KSA-16 BR-KSA-50 BR-KSA-51 BR-KSA-62 BR-KSA-63 BR-KSA-64 BR-KSA-65 BR-KSA-F-02 BR-CL-KSA-14 BR-S-10 BR-O-02 BR-O-05 R S vatTotal "
 
 if [ -z "$sdk" ] || [ ! -x "$fatoora" ]; then
@@ -51,7 +57,7 @@ if [ -z "$sdk" ] || [ ! -x "$fatoora" ]; then
 fi
 
 if [ ! -f "$config" ] || ! grep -q '"xsdPath": *"[^"]' "$config"; then
-    echo "Run install.sh of the SDK once: it writes Configuration/config.json." >&2
+    echo "Write Configuration/config.json of the SDK (its install.sh does, see the top of this script)." >&2
     exit 2
 fi
 
@@ -66,14 +72,20 @@ trap 'rm -rf "$work"' EXIT
 export FATOORA_HOME="$sdk/Apps"
 legacy=0
 
-if grep -q '20210819' "$config"; then
+# The rules file keeps its name of 2021 in every release (20210819_...), so the rules of 2021 are told by what they
+# say: they do not know the prepayment invoice (386) in BR-KSA-05.
+rules="$(sed -n 's/.*"zatcaSchematron": *"\([^"]*\)".*/\1/p' "$config")"
+
+if [ -f "$rules" ] && ! grep -q ' 388 383 381 386' "$rules"; then
     legacy=1
 fi
 
 java_major="$(java -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1)"
-jar="$(ls "$sdk"/Lib/Java/*.jar 2>/dev/null | head -1 || true)"
+jar="$(ls "$sdk"/Apps/*.jar "$sdk"/Lib/Java/*.jar 2>/dev/null | head -1 || true)"
 
-if [ "${java_major:-0}" -ge 15 ] && [ -n "$jar" ] && unzip -l "$jar" 2>/dev/null | grep -q 'org/bouncycastle/jce/provider/BouncyCastleProvider.class'; then
+listing="$( [ -n "$jar" ] && unzip -l "$jar" 2>/dev/null || true)"
+
+if [ "${java_major:-0}" -ge 15 ] && [[ "$listing" == *org/bouncycastle/jce/provider/BouncyCastleProvider.class* ]]; then
     echo "security.provider.3=org.bouncycastle.jce.provider.BouncyCastleProvider" > "$work/java.security"
     export _JAVA_OPTIONS="${_JAVA_OPTIONS:-} -Djava.security.properties=$work/java.security"
 fi
@@ -118,9 +130,9 @@ for file in "$directory"/*.xml; do
     previous="$file"
 
     stages=" $(sed -n 's/.*\[\([A-Z]*\)\] validation result : \([A-Z]*\).*/\1=\2/p' "$report" | tr '\n' ' ')"
-    codes="$(sed -n 's/.*CODE : \([^,]*\), MESSAGE.*/\1/p' "$report" | sort -u | tr '\n' ' ' | sed 's/ $//')"
+    codes="$( (grep -v '\[WARN\]' "$report" || true) | sed -n 's/.*CODE : \([^,]*\), MESSAGE.*/\1/p' | sort -u | tr '\n' ' ' | sed 's/ $//')"
     refused="$(printf '%s' "$stages" | tr ' ' '\n' | sed -n 's/=FAILED$//p' | tr '\n' ' ' | sed 's/ $//')"
-    warnings="$( (grep -i 'warn' "$report" || true) | sed -n 's/.*CODE : \([^,]*\), MESSAGE.*/\1/p' | sort -u | tr '\n' ' ')"
+    warnings="$( (grep '\[WARN\]' "$report" || true) | sed -n 's/.*CODE : \([^,]*\), MESSAGE.*/\1/p' | sort -u | tr '\n' ' ' | sed 's/ $//')"
     required="XSD EN KSA PIH"
 
     if grep -q '<cbc:InvoiceTypeCode name="02' "$file"; then
@@ -162,6 +174,19 @@ for file in "$directory"/*.xml; do
     else
         result="NOT FULLY VALIDATED"
         detail="the SDK gave no result"
+    fi
+
+    breaches=""
+
+    for code in $warnings; do
+        if [[ "$time_codes" != *" $code "* ]]; then
+            breaches="$breaches $code"
+        fi
+    done
+
+    if [ "$result" = "PASSED" ] && [ -n "$breaches" ]; then
+        result="FAILED"
+        detail="passed with warnings that name rules:$breaches"
     fi
 
     if [ -n "$warnings" ]; then

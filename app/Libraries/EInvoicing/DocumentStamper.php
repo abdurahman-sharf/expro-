@@ -11,7 +11,8 @@ use SensitiveParameter;
  * hash, and the code, either of the first phase when no key is in place, or stamped with the signature, the
  * public key and, for a simplified invoice, the signature of the certificate. The hash of a stamped file is
  * the one of the file before it was stamped, which is checked, because the hash of one invoice is the
- * previous hash of the next.
+ * previous hash of the next. The total in the code (tag 4) is the amount due (BT-115), as the official validator
+ * (SDK 3.4.8) asks; it is the total with VAT unless a prepayment is taken off it or a rounding added to it.
  */
 final class DocumentStamper
 {
@@ -55,7 +56,7 @@ final class DocumentStamper
                 $document->seller->name,
                 $document->seller->vatNumber,
                 $document->timestamp(),
-                $document->taxInclusive,
+                $document->payable(),
                 $document->taxAmount,
                 $hash,
                 $signature,
@@ -81,7 +82,7 @@ final class DocumentStamper
     private function phaseOne(EInvoiceDocument $document): string
     {
         try {
-            return $this->qr->encode($document->seller->name, $document->seller->vatNumber, $document->timestamp(), $document->taxInclusive, $document->taxAmount);
+            return $this->qr->encode($document->seller->name, $document->seller->vatNumber, $document->timestamp(), $document->payable(), $document->taxAmount);
         } catch (DocumentException $failure) {
             throw new EInvoiceException(EInvoiceError::SettingInvalid, 'The code of the document cannot be written: ' . $failure->error->value, ['field' => $failure->error->value], $failure);
         }

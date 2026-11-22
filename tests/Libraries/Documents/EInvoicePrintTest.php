@@ -57,7 +57,7 @@ class EInvoicePrintTest extends CIUnitTestCase
 
     public function testFromXml_ReadsThePrepaymentsAnInvoiceTakesOff(): void
     {
-        $base       = $this->matrix()['S-01'];
+        $base       = $this->matrix()['S-03'];
         $prepayment = new EInvoicePrepayment('ADV-7', '2026-11-01', '10:00:00', 'S', '15.00', '10.00', '1.50');
         $document   = new EInvoiceDocument(...[...get_object_vars($base), 'prepayments' => [$prepayment]]);
         $print      = $this->printOf($document);
