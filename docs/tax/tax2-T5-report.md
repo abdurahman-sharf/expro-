@@ -126,6 +126,16 @@ ZATCA_SDK_HOME=/path/to/zatca-einvoicing-sdk-Java-238-R3.4.8 vendor/bin/phpunit 
 ZATCA_SDK_HOME=/path/to/zatca-einvoicing-sdk-Java-238-R3.4.8 tools/zatca/validate.sh [--chain] /path/to/folder
 ```
 
+### 7.1 التشغيل بعد آخر تعديل برمجي (`5a26487c1`)
+
+| التشغيل | النتيجة |
+|---|---|
+| المجموعة `zatca-sdk` بالـ SDK 3.4.8 | **OK** (2 اختباران، 94 تأكيدًا) |
+| اختبارات الفوترة الإلكترونية والمستندات و`AccountingEInvoicingControllerTest` و`CustomersControllerTest` | **OK** (798 اختبارًا، 2 متخطيان: اختبارا `zatca-sdk` بلا `ZATCA_SDK_HOME`) |
+| الحزمة الكاملة، شجرة عمل منفصلة بقاعدة مستقلة | **23,308 اختبارات، 336,727 تأكيدًا، ولا فشل ولا خطأ** (13 متخطاة، [تقرير T6–T15](tax2-T6-T15-report.md) §5) |
+
+**SHA آخر تعديل برمجي:** `5a26487c1`. ما بعده توثيق فقط.
+
 ## 8. الجولات السابقة
 
 - **الجولة الأولى (2.0.3، بإضافات توافقية):** كشفت عيبي التوقيع. نتائجها لا تُحتسب.
