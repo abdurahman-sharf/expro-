@@ -26,6 +26,8 @@ use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use Config\Zatca;
+use DOMDocument;
+use DOMXPath;
 
 /**
  * Issues the documents of the layer and reads them back. Issuing is one transaction under the lock of the
@@ -570,12 +572,36 @@ final class EInvoiceService
         try {
             [$sourceType, $sourceId] = $this->rootOf($document->sourceType, $document->sourceId);
 
-            $this->tie->assertTies($sourceType, $sourceId, $document->taxInclusive, $document->taxAmount, $document->taxExclusive);
+            match ($sourceType) {
+                self::SOURCE_ADVANCE => $this->tie->assertAdvanceTies($sourceId, self::payableOf($document), $document->taxAmount),
+                self::SOURCE_RETURN  => $this->tie->assertAdvanceReturnTies($sourceId, self::payableOf($document), $document->taxAmount),
+                default              => $this->tie->assertTies($sourceType, $sourceId, $document->taxInclusive, $document->taxAmount, $document->taxExclusive),
+            };
         } catch (EInvoiceException) {
             return false;
         }
 
         return true;
+    }
+
+    /**
+     * What a document states is due (BT-115), read from its file.
+     */
+    private static function payableOf(IssuedEInvoice $document): string
+    {
+        $xml = new DOMDocument();
+
+        if ($document->xml === '' || ! @$xml->loadXML($document->xml)) {
+            return $document->taxInclusive;
+        }
+
+        $xpath = new DOMXPath($xml);
+        $xpath->registerNamespace('cac', UblInvoiceXml::NS_CAC);
+        $xpath->registerNamespace('cbc', UblInvoiceXml::NS_CBC);
+
+        $payable = trim((string) $xpath->evaluate('string(//cac:LegalMonetaryTotal/cbc:PayableAmount)'));
+
+        return $payable === '' ? $document->taxInclusive : $payable;
     }
 
     /**

@@ -6,6 +6,9 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\SalesDebitNotes;
+use App\Libraries\Tax\AdvanceVat;
+use App\Libraries\Documents\EInvoicePrint;
+use App\Libraries\Accounting\TaxDocuments;
 use App\Libraries\EInvoicing\EInvoiceError;
 use App\Libraries\EInvoicing\ZatcaOutcome;
 use App\Libraries\EInvoicing\ZatcaIntegration;
@@ -187,6 +190,51 @@ class EInvoiceServiceTest extends CIUnitTestCase
         file_put_contents(sprintf('%s/%02d-%s.pih', $directory, reset($issued)->icv, array_key_first($issued)), reset($issued)->previousHash);
 
         $this->assertOfficialResults($this->officialResults($sdk, $directory, true), []);
+    }
+
+    public function testIssueForCompletedSale_StatesTheSameFiguresInTheFileThePrintTheBooksAndTheTaxReportForEveryKindOfDocument(): void
+    {
+        $db = $this->accountingDb();
+
+        $this->underTheSaudiRules();
+        $this->useKeys();
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', '15');
+
+        try {
+            $issued = $this->documentsOfEveryKind();
+        } finally {
+            $this->setConfigValue('accounting_sales_shipping', '0');
+            $db->table('accounting_currency_rates')->where('currency_code', 'USD')->delete();
+            (new Currencies())->setActive('USD', false);
+        }
+
+        $documents = new TaxDocuments();
+        $advances  = new AdvanceVat();
+        $printer   = new EInvoicePrint();
+
+        foreach ($issued as $name => $document) {
+            $print  = EInvoicePrint::fromXml($document->xml);
+            $stored = $printer->forSource($document->sourceType, $document->sourceId);
+
+            $this->assertNotNull($print, $name);
+            $this->assertSame([$document->taxExclusive, $document->taxAmount, $document->taxInclusive], [$print['totals']['exclusive'], $print['totals']['vat'], $print['totals']['inclusive']], $name . ': the file states what the document row holds');
+            $this->assertSame($print['totals'], $stored['totals'], $name . ': the print reads the file as it was issued');
+            $this->assertSame($name !== 'prepayment-invoice-cancelled', $this->service->inSync($document), $name . ': the books hold what the file states, but for the prepayment invoice of the cancelled advance, which its credit note puts right');
+
+            $vatInSar = $print['totals']['vatInSar'] !== '' ? $print['totals']['vatInSar'] : $document->taxAmount;
+            $charged  = match ($document->sourceType) {
+                EInvoiceService::SOURCE_SALE    => $documents->sales([$document->sourceId])[$document->sourceId]->tax,
+                EInvoiceService::SOURCE_NOTE    => $documents->debitNotes([$document->sourceId])[$document->sourceId]->tax,
+                EInvoiceService::SOURCE_ADVANCE => (string) $advances->of($document->sourceId)->vat,
+                default                         => (string) $advances->returnOf($document->sourceId)->vat,
+            };
+
+            $this->assertSame(0, bccomp($charged, $vatInSar, 2), $name . ': the tax report counts the VAT the file states, in riyals (' . $charged . ' and ' . $vatInSar . ')');
+        }
+
+        $this->assertSame('54.00', EInvoicePrint::fromXml($issued['invoice-in-dollars']->xml)['totals']['vatInSar'], 'the 15 dollars of VAT at the rate of the day, 3.60, which the tax report counts too');
+        $this->assertSame([$issued['prepayment-invoice-cancelled']->taxAmount, $issued['prepayment-invoice-cancelled']->documentId], [$issued['credit-note-of-the-prepayment']->taxAmount, $issued['credit-note-of-the-prepayment']->originalDocumentId], 'the credit note gives back all the VAT of the prepayment invoice it names');
     }
 
     /**
