@@ -2,6 +2,7 @@
 
 namespace Tests\Database;
 
+use App\Database\Migrations\EInvoiceNotificationKinds;
 use App\Database\Migrations\IntegrationSettingsTables;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Integrations\IntegrationAccess;
@@ -41,6 +42,7 @@ class IntegrationSettingsTablesMigrationTest extends CIUnitTestCase
     {
         $this->wipeIntegration();
         (new IntegrationSettingsTables())->up();
+        (new EInvoiceNotificationKinds())->up();
 
         parent::tearDown();
     }

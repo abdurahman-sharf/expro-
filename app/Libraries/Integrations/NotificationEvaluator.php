@@ -22,7 +22,8 @@ use Config\Database;
  */
 final class NotificationEvaluator
 {
-    private const PAGE = 200;
+    private const PAGE            = 200;
+    private const REPORTING_ALERT = 43200;
 
     private BaseConnection $db;
     private IntegrationOptions $options;
@@ -100,10 +101,69 @@ final class NotificationEvaluator
     private function subjects(NotificationRule $rule, string $today): array
     {
         return match ($rule->kind) {
-            NotificationRuleKind::InvoiceOverdue => $this->accounting->isEnabled() ? $this->overdueInvoices($rule->threshold ?? 1, $today) : [],
-            NotificationRuleKind::LowStock       => $this->lowStock(),
-            NotificationRuleKind::ChequeDue      => $this->chequesDue($rule->threshold ?? 0, $today),
+            NotificationRuleKind::InvoiceOverdue            => $this->accounting->isEnabled() ? $this->overdueInvoices($rule->threshold ?? 1, $today) : [],
+            NotificationRuleKind::LowStock                  => $this->lowStock(),
+            NotificationRuleKind::ChequeDue                 => $this->chequesDue($rule->threshold ?? 0, $today),
+            NotificationRuleKind::EInvoiceCertificateExpiry => $this->expiringCertificates($rule->threshold ?? 30, $today),
+            NotificationRuleKind::EInvoiceReportingLate     => $this->lateReporting(),
         };
+    }
+
+    /**
+     * The certificates of the units with ZATCA that are in use and run out within the days asked, or ran out, read
+     * without their secrets.
+     *
+     * @return list<array{key: string, branch: int|null, params: array<string, string>}>
+     */
+    private function expiringCertificates(int $days, string $today): array
+    {
+        if (! $this->db->tableExists($this->db->prefixTable('einvoice_credentials'), false)) {
+            return [];
+        }
+
+        $rows = $this->db->table('einvoice_credentials c')
+            ->select('c.credential_id, c.environment, c.kind, c.valid_to, u.name, u.branch_id')
+            ->join('einvoice_units u', 'u.unit_id = c.unit_id')
+            ->where(['u.company_id' => CompanyContext::id(), 'c.status' => 'active'])
+            ->where('c.valid_to <=', date('Y-m-d 23:59:59', (int) strtotime($today . " +{$days} days")))
+            ->orderBy('c.valid_to', 'ASC')
+            ->get()
+            ->getResult();
+
+        return array_map(static fn (object $row): array => [
+            'key'    => 'einvoice_certificate:' . (int) $row->credential_id,
+            'branch' => $row->branch_id === null ? null : (int) $row->branch_id,
+            'params' => ['unit' => (string) $row->name, 'environment' => (string) $row->environment, 'kind' => (string) $row->kind, 'valid_to' => substr((string) $row->valid_to, 0, 10)],
+        ], $rows);
+    }
+
+    /**
+     * The simplified documents still waiting to be reported half a day after they were issued, well before the day
+     * they are to be reported within runs out.
+     *
+     * @return list<array{key: string, branch: int|null, params: array<string, string>}>
+     */
+    private function lateReporting(): array
+    {
+        if (! $this->db->tableExists($this->db->prefixTable('einvoice_outbox'), false)) {
+            return [];
+        }
+
+        $rows = $this->db->table('einvoice_outbox o')
+            ->select('o.document_id, o.queued_at, o.status, d.document_number, d.branch_id')
+            ->join('einvoice_documents d', 'd.document_id = o.document_id')
+            ->where(['o.company_id' => CompanyContext::id(), 'd.subtype' => 'simplified'])
+            ->whereIn('o.status', ['pending', 'retry', 'unknown'])
+            ->where('o.queued_at <', date('Y-m-d H:i:s', time() - self::REPORTING_ALERT))
+            ->orderBy('o.document_id', 'ASC')
+            ->get()
+            ->getResult();
+
+        return array_map(static fn (object $row): array => [
+            'key'    => 'einvoice_reporting:' . (int) $row->document_id,
+            'branch' => $row->branch_id === null ? null : (int) $row->branch_id,
+            'params' => ['document' => (string) $row->document_number, 'queued' => (string) $row->queued_at, 'status' => (string) $row->status],
+        ], $rows);
     }
 
     /**

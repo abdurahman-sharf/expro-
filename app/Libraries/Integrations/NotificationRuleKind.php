@@ -4,9 +4,11 @@ namespace App\Libraries\Integrations;
 
 enum NotificationRuleKind: string
 {
-    case InvoiceOverdue = 'invoice_overdue';
-    case LowStock       = 'low_stock';
-    case ChequeDue      = 'cheque_due';
+    case InvoiceOverdue            = 'invoice_overdue';
+    case LowStock                  = 'low_stock';
+    case ChequeDue                 = 'cheque_due';
+    case EInvoiceCertificateExpiry = 'einvoice_certificate_expiry';
+    case EInvoiceReportingLate     = 'einvoice_reporting_late';
 
     public function languageKey(): string
     {
@@ -20,12 +22,12 @@ enum NotificationRuleKind: string
 
     public function takesThreshold(): bool
     {
-        return $this !== self::LowStock;
+        return $this !== self::LowStock && $this !== self::EInvoiceReportingLate;
     }
 
     public function lowest(): int
     {
-        return $this === self::InvoiceOverdue ? 1 : 0;
+        return $this === self::InvoiceOverdue || $this === self::EInvoiceCertificateExpiry ? 1 : 0;
     }
 
     public function highest(): int
