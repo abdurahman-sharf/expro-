@@ -31,7 +31,10 @@ final class SubmissionService
 
     private BaseConnection $db;
 
-    public function __construct(private readonly ZatcaClient $client, ?BaseConnection $db = null, private readonly string $environment = 'production')
+    /**
+     * @param ZatcaClient|null $client What sends the documents; none for a reader of the queue, who sends nothing.
+     */
+    public function __construct(private readonly ?ZatcaClient $client, ?BaseConnection $db = null, private readonly string $environment = 'production')
     {
         $this->db = $db ?? Database::connect();
     }
@@ -108,7 +111,7 @@ final class SubmissionService
         $started = date('Y-m-d H:i:s');
 
         try {
-            $response = $this->client->submit($request);
+            $response = $this->client?->submit($request) ?? new ZatcaResponse(ZatcaOutcome::NotSent, null, [], ['No client is given to send the queue.']);
         } catch (Throwable) {
             $response = new ZatcaResponse(ZatcaOutcome::Timeout);
         }

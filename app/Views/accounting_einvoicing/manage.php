@@ -103,7 +103,10 @@ $detailOf  = static function (ReadinessCheck $check): string {
 </script>
 
 <div class="container-fluid py-3" id="einvoicing_screen">
-    <h1 class="h4"><?= lang('Accounting_einvoicing.title') ?></h1>
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <h1 class="h4"><?= lang('Accounting_einvoicing.title') ?></h1>
+        <a class="btn btn-outline-secondary btn-sm" id="einvoice_zatca_link" href="<?= esc(site_url('accounting_zatca'), 'attr') ?>"><span class="bi bi-plug" aria-hidden="true"></span> <?= lang('Accounting_zatca.title') ?></a>
+    </div>
 
     <div class="alert alert-warning" role="alert" id="einvoice_candidate_banner">
         <strong><?= lang('Accounting_einvoicing.candidate_title') ?></strong>

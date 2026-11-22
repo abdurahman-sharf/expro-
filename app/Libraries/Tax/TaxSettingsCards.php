@@ -20,6 +20,7 @@ final class TaxSettingsCards
         ['id' => 'accounts', 'module' => 'accounting_routing', 'path' => 'accounting_routing'],
         ['id' => 'invoices', 'module' => 'config', 'path' => 'config'],
         ['id' => 'einvoicing', 'module' => 'accounting_einvoicing', 'path' => 'accounting_einvoicing'],
+        ['id' => 'zatca', 'module' => 'accounting_einvoicing', 'path' => 'accounting_zatca'],
         ['id' => 'reports', 'module' => 'accounting_reports', 'path' => 'accounting_reports/tax'],
     ];
 

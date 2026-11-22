@@ -722,6 +722,18 @@ $routes->group('accounting_einvoicing', static function (RouteCollection $routes
     $routes->post('saudi_mode', 'AccountingEInvoicing::postSaudiMode');
 });
 
+$routes->group('accounting_zatca', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingZatca::getIndex');
+    $routes->post('integration', 'AccountingZatca::postIntegration');
+    $routes->post('phase_two', 'AccountingZatca::postPhaseTwo');
+    $routes->post('compliance', 'AccountingZatca::postCompliance');
+    $routes->post('compliance_checks', 'AccountingZatca::postComplianceChecks');
+    $routes->post('production', 'AccountingZatca::postProduction');
+    $routes->post('renew', 'AccountingZatca::postRenew');
+    $routes->post('retry/(:num)', 'AccountingZatca::postRetry/$1');
+    $routes->post('reissue/(:num)', 'AccountingZatca::postReissue/$1');
+});
+
 $routes->group('accounting_journals', static function (RouteCollection $routes) use ($reportFiles): void {
     $routes->get('/', 'AccountingJournals::getIndex');
     $routes->get('search', 'AccountingJournals::getSearch');

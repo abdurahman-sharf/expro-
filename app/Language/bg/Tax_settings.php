@@ -19,6 +19,8 @@ return [
     'card_reports_help'     => '',
     'card_vat_mode'         => '',
     'card_vat_mode_help'    => '',
+    'card_zatca'            => '',
+    'card_zatca_help'       => '',
     'missing_none'          => '',
     'missing_title'         => '',
     'mode_off'              => '',
