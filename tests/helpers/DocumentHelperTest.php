@@ -75,7 +75,7 @@ class DocumentHelperTest extends CIUnitTestCase
 
     public function testDocumentProfile_RequiresSignatureOnTaxInvoiceAndWorkOrder(): void
     {
-        $this->assertTrue(documentProfile('tax_invoice', [])['showSignature']);
+        $this->assertTrue(documentProfile('tax_invoice', ['vat_registration' => '1'])['showSignature']);
         $this->assertTrue(documentProfile('work_order', [])['showSignature']);
     }
 
@@ -283,5 +283,14 @@ class DocumentHelperTest extends CIUnitTestCase
         $this->assertNull(documentQr('invoice', $sale, ['company' => 'opes', 'tax_id' => ''])->payload);
         $this->assertNotNull(documentQr('invoice', $sale, ['company' => 'opes', 'tax_id' => '300000000000003'])->payload);
         $this->assertNull(documentQr('quote', $sale, ['company' => 'opes', 'tax_id' => '300000000000003'])->payload);
+    }
+
+    public function testDocumentProfile_PrintsThePlainInvoiceWhenABusinessThatIsNotRegisteredForVatAsksForATaxInvoice(): void
+    {
+        $unregistered = documentProfile('tax_invoice', ['invoice_number' => 'INV-7', 'vat_registration' => '0']);
+        $unknown      = documentProfile('tax_invoice', ['invoice_number' => 'INV-7', 'vat_registration' => '']);
+
+        $this->assertSame(['invoice', lang('Sales.invoice'), false], [$unregistered['type'], $unregistered['title'], $unregistered['showSignature']]);
+        $this->assertSame(['tax_invoice', lang('Sales.tax_invoice')], [$unknown['type'], $unknown['title']], 'while nobody said whether the business is registered, it prints what it is asked for');
     }
 }

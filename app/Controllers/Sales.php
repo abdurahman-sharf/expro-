@@ -53,6 +53,7 @@ use App\Libraries\Stock\StockUnitPermissions;
 use App\Libraries\Stock\TrackingType;
 use App\Libraries\Stock\UnitLine;
 use App\Libraries\Stock\UnitTemplates;
+use App\Libraries\Tax\CompanyTaxProfile;
 use App\Libraries\Tax\VatSnapshot;
 use App\Libraries\Tax_lib;
 use App\Libraries\Token_lib;
@@ -2042,11 +2043,7 @@ class Sales extends Secure_Controller
             $data['sale_status']    = COMPLETED;
             $saleType               = SALE_TYPE_INVOICE;
 
-            $invoiceType = $this->config['invoice_type'];
-            if (! Sale_lib::isValidInvoiceType($invoiceType)) {
-                $invoiceType = 'invoice';
-            }
-            $invoiceView = $invoiceType;
+            $invoiceView = Sale_lib::invoiceViewFor((string) $this->config['invoice_type'], (new CompanyTaxProfile())->current()->registration);
 
             // Save the data to the sales table
             $this->sale->useCompletionToken($this->sale_lib->completionToken($data['cart'], $data['payments'], $customerId, $saleType));
@@ -2791,11 +2788,7 @@ class Sales extends Secure_Controller
             $data['customer_required'] = lang('Sales.customer_optional');
         }
 
-        $invoiceType = $this->config['invoice_type'];
-        if (! Sale_lib::isValidInvoiceType($invoiceType)) {
-            $invoiceType = 'invoice';
-        }
-        $data['invoice_view'] = $invoiceType;
+        $data['invoice_view'] = Sale_lib::invoiceViewFor((string) $this->config['invoice_type'], (new CompanyTaxProfile())->current()->registration);
 
         // Validate receipt template to prevent path traversal
         $receiptTemplate = $this->config['receipt_template'] ?? '';

@@ -4,6 +4,7 @@ namespace App\Libraries\Documents;
 
 use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\SaleAmounts;
+use App\Libraries\Tax\VatRegistration;
 use DateTimeImmutable;
 use DateTimeZone;
 use ValueError;
@@ -15,7 +16,8 @@ use ValueError;
  * and none carries one while the tax number of the seller is not entered: a document without it is
  * printed without a code and the screen says why, where the reference system prints a code with an
  * empty tax number. A document in a foreign currency carries none either, since the code holds the
- * amounts in the currency of the shop. The figures are the ones the document shows: they are read,
+ * amounts in the currency of the shop, and no document of a business its owner said is not registered for
+ * VAT, which issues no tax invoice and has no tax number to state. The figures are the ones the document shows: they are read,
  * never worked out again, and a credit note shows them as the amounts it takes back.
  */
 final class DocumentQr
@@ -34,11 +36,11 @@ final class DocumentQr
 
     /**
      * @param array<string, mixed> $sale   The sale as the documents are given it: total, taxes, header_charges, sale_time_raw, invoice_date_raw, sale_status, sale_type and currency_code, and, for a sale whose VAT was worked out once, total_with_vat (BT-112), which the code holds instead of what the register charged. A sale whose electronic document was issued gives its code as einvoice_qr, which is printed as it was issued.
-     * @param array<string, mixed> $config The settings of the shop: company and tax_id.
+     * @param array<string, mixed> $config The settings of the shop: company and tax_id, and vat_registration, the stored value of its VatRegistration.
      */
     public function forDocument(string $type, array $sale, array $config): QrResult
     {
-        if (! self::applies($type) || ! self::issued($sale)) {
+        if (! self::applies($type) || ! self::issued($sale) || ($config['vat_registration'] ?? null) === VatRegistration::NotRegistered->value) {
             return QrResult::none();
         }
 

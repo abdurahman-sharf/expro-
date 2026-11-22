@@ -5,6 +5,7 @@ namespace Tests\Libraries\Documents;
 use App\Libraries\Documents\DocumentError;
 use App\Libraries\Documents\DocumentQr;
 use App\Libraries\Documents\QrImage;
+use App\Libraries\Tax\VatRegistration;
 use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -114,6 +115,18 @@ class DocumentQrTest extends CIUnitTestCase
             $this->assertNull($result->payload);
             $this->assertSame(DocumentError::QrVatNumberMissing, $result->refusal);
         }
+    }
+
+    #[DataProvider('typeProvider')]
+    public function testForDocument_CarriesNoCodeAndSaysNothingForABusinessThatIsNotRegisteredForVat(string $type): void
+    {
+        foreach ([self::CONFIG, ['company' => 'opes']] as $config) {
+            $result = (new DocumentQr())->forDocument($type, $this->sale(), $config + ['vat_registration' => VatRegistration::NotRegistered->value]);
+
+            $this->assertSame([null, null], [$result->payload, $result->refusal]);
+        }
+
+        $this->assertNotNull((new DocumentQr())->forDocument($type, $this->sale(), self::CONFIG + ['vat_registration' => VatRegistration::Unknown->value])->payload, 'while nobody said, the code is printed as it always was');
     }
 
     public function testForDocument_PrintsTheCodeOfTheIssuedDocumentAsItWasIssued(): void
