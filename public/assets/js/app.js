@@ -17,21 +17,34 @@
 ;
 (function(toast_support, $) {
 
-    const DISPLAY_MS = 4000;
+    const DISPLAY_MS = 5000;
     const EXIT_MS = 220;
+
+    const ICONS = {
+        success: 'bi-check-lg',
+        danger: 'bi-exclamation-octagon',
+        warning: 'bi-exclamation-triangle',
+        info: 'bi-info-lg'
+    };
 
     const container = function() {
         let $container = $('#app-toasts');
 
         if ($container.length === 0) {
-            $container = $('<div id="app-toasts" class="position-fixed top-0 end-0 p-3 d-flex flex-column gap-2" aria-live="polite"></div>').appendTo(document.body);
+            $container = $('<div id="app-toasts" aria-live="polite"></div>').appendTo(document.body);
         }
 
         return $container;
     };
 
-    const show = function(message, type) {
-        const $toast = $('<div class="app-toast app-toast-in alert d-flex align-items-start gap-2 shadow" role="alert"></div>').addClass('alert-' + (type || 'info'));
+    // options.title shows the message under a heading, options.sticky keeps the toast until it is closed.
+    const show = function(message, type, options) {
+        const kind = ICONS[type] ? type : 'info';
+        const settings = $.extend({title: '', sticky: false}, options);
+        const $toast = $('<div class="app-toast app-toast-in"></div>')
+            .addClass('app-toast-' + kind)
+            .attr('role', kind === 'danger' ? 'alert' : 'status');
+        const $body = $('<div class="app-toast-body"></div>');
 
         const dismiss = function() {
             $toast.addClass('app-toast-out');
@@ -40,11 +53,24 @@
             }, EXIT_MS);
         };
 
-        $('<span class="flex-grow-1"></span>').text(message).appendTo($toast);
+        $('<span class="app-toast-icon" aria-hidden="true"></span>').append($('<i class="bi"></i>').addClass(ICONS[kind])).appendTo($toast);
+
+        if (settings.title) {
+            $('<p class="app-toast-title"></p>').text(settings.title).appendTo($body);
+        }
+
+        if (message) {
+            $('<p class="app-toast-text"></p>').text(message).appendTo($body);
+        }
+
+        $toast.append($body);
         $('<button type="button" class="btn-close"></button>').attr('aria-label', lang.line('common_close')).on('click', dismiss).appendTo($toast);
 
         container().append($toast);
-        setTimeout(dismiss, DISPLAY_MS);
+
+        if (!settings.sticky) {
+            setTimeout(dismiss, DISPLAY_MS);
+        }
     };
 
     $.extend(toast_support, {show: show});
@@ -2839,6 +2865,147 @@ function number_sorter(a, b) {
             apply(defaults);
             close();
         });
+    });
+
+})(jQuery);
+;
+(function($) {
+
+    $(function() {
+        const $page = $('#notifications');
+
+        if (!$page.length) {
+            return;
+        }
+
+        const unreadOnly = $page.data('unread-only') === 1;
+        const $count = $('#unread_count');
+
+        const setCount = function(count) {
+            $count.toggleClass('has-unread', count > 0)
+                .attr('aria-label', String($page.data('unread-count')).replace('{0}', count))
+                .find('bdi').text(count);
+
+            if (count === 0) {
+                $('#read_all').remove();
+            }
+        };
+
+        const unreadCount = function() {
+            return parseInt($count.find('bdi').text(), 10) || 0;
+        };
+
+        const busy = function($button, on) {
+            const $label = $button.find('.nt-label');
+
+            if (on) {
+                $button.data('label', $label.text());
+                $label.text($page.data('marking'));
+                $button.find('.bi').attr('class', 'bi bi-arrow-repeat nt-spin');
+            } else {
+                $label.text($button.data('label'));
+                $button.find('.bi').attr('class', 'bi ' + ($button.is('#read_all') ? 'bi-check2-all' : 'bi-check2'));
+            }
+
+            $button.prop('disabled', on).attr('aria-busy', on ? 'true' : 'false');
+        };
+
+        const failed = function(message) {
+            toast_support.show(message || $page.data('failed-text'), 'danger', {title: $page.data('failed-title'), sticky: true});
+        };
+
+        const showEmptyIfNone = function() {
+            $('.nt-day').each(function() {
+                if (!$(this).find('.nt-item').length) {
+                    $(this).remove();
+                }
+            });
+
+            if (!$('.nt-item').length) {
+                $('#notifications_list, .nt-pager').remove();
+                $('#notifications_empty').prop('hidden', false);
+            }
+        };
+
+        const readLabel = $('<span class="nt-read"><i class="bi bi-check2" aria-hidden="true"></i> </span>');
+
+        const markRead = function($items) {
+            $items.each(function() {
+                const $item = $(this);
+                const $action = $item.find('.nt-action');
+
+                $item.removeClass('is-unread').addClass('is-read');
+                $item.find('.nt-state').text($page.data('read-state'));
+                $action.empty().append(readLabel.clone().append(document.createTextNode($page.data('read-label'))));
+            });
+        };
+
+        const leave = function($items) {
+            const $next = $items.last().nextAll('.nt-item').first().find('.nt-mark');
+            const $after = $next.length ? $next : $items.last().closest('.nt-day').nextAll('.nt-day').first().find('.nt-mark').first();
+
+            $items.remove();
+            showEmptyIfNone();
+            ($after.length ? $after : $('.nt-seg-option.is-on')).trigger('focus');
+        };
+
+        $page.on('click', '.nt-mark', function() {
+            const $button = $(this);
+            const $item = $button.closest('.nt-item');
+
+            busy($button, true);
+
+            $.post($button.data('url'), function(response) {
+                if (!response.success) {
+                    busy($button, false);
+                    failed(response.message);
+                    return;
+                }
+
+                setCount(Math.max(0, unreadCount() - 1));
+                toast_support.show(response.message, 'success');
+
+                if (unreadOnly) {
+                    leave($item);
+                } else {
+                    markRead($item);
+                    $item.find('.nt-read').attr('tabindex', '-1').trigger('focus');
+                }
+            }, 'json').fail(function() {
+                busy($button, false);
+                failed();
+            });
+        });
+
+        $page.on('click', '#read_all', function() {
+            const $button = $(this);
+
+            busy($button, true);
+
+            $.post($button.data('url'), function(response) {
+                if (!response.success) {
+                    busy($button, false);
+                    failed(response.message);
+                    return;
+                }
+
+                const $unread = $('.nt-item.is-unread');
+
+                setCount(0);
+                toast_support.show(response.message, 'success');
+
+                if (unreadOnly) {
+                    leave($unread);
+                } else {
+                    markRead($unread);
+                    $('.nt-seg-option.is-on').trigger('focus');
+                }
+            }, 'json').fail(function() {
+                busy($button, false);
+                failed();
+            });
+        });
+
     });
 
 })(jQuery);

@@ -309,14 +309,88 @@
     min-width: 96px;
 }
 
+#app-toasts {
+    position: fixed;
+    bottom: 24px;
+    inset-inline-end: 24px;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(400px, calc(100vw - 32px));
+}
+
 .app-toast {
-    min-width: min(360px, calc(100vw - 32px));
-    max-width: calc(100vw - 32px);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin: 0;
+    padding: 12px;
+    padding-inline-start: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+    color: var(--text);
+}
+
+.app-toast-icon {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    background: var(--info-bg);
+    color: var(--info-fg);
+    font-size: 16px;
+}
+
+.app-toast-success .app-toast-icon {
+    background: var(--success-bg);
+    color: var(--success-fg);
+}
+
+.app-toast-danger .app-toast-icon {
+    background: var(--danger-bg);
+    color: var(--danger-fg);
+}
+
+.app-toast-warning .app-toast-icon {
+    background: var(--warning-bg);
+    color: var(--warning);
+}
+
+.app-toast-body {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-top: 5px;
+    font-size: 14px;
+    line-height: 20px;
+    overflow-wrap: anywhere;
+}
+
+.app-toast-title {
+    margin: 0;
+    font-weight: 600;
+}
+
+.app-toast-text {
     margin: 0;
 }
 
-#app-toasts {
-    z-index: 2000;
+.app-toast-title + .app-toast-text {
+    margin-top: 2px;
+    color: var(--fg-secondary);
+    font-size: 13px;
+}
+
+.app-toast .btn-close {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background-size: 10px;
 }
 
 .app-toast-in {
@@ -328,11 +402,19 @@
 }
 
 @keyframes toast-in {
-    from { opacity: 0; transform: translateY(-8px); }
+    from { opacity: 0; transform: translateY(8px); }
 }
 
 @keyframes toast-out {
-    to { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 0; transform: translateY(8px); }
+}
+
+@media (max-width: 639.98px) {
+    #app-toasts {
+        bottom: 16px;
+        inset-inline: 16px;
+        width: auto;
+    }
 }
 
 .bootstrap-select > .dropdown-toggle {

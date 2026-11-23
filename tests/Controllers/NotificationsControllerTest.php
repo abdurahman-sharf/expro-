@@ -173,6 +173,35 @@ class NotificationsControllerTest extends CIUnitTestCase
         $this->assertSame(1, Database::connect()->table('notification_reads')->where('person_id', $viewer)->countAllResults());
     }
 
+    public function testGetIndex_GroupsTheNotificationsUnderTheDayTheyWereRaisedOn(): void
+    {
+        $this->actAsWith([IntegrationAccess::NOTIFICATIONS_MODULE]);
+        $today     = $this->notice('stock:1:1', 1, 'Pen of today');
+        $yesterday = $this->notice('stock:1:2', 1, 'Pen of yesterday');
+        Database::connect()->table('notifications')->where('notification_id', $yesterday)->update(['created_at' => date('Y-m-d H:i:s', strtotime('-1 day'))]);
+
+        $response = $this->get('/notifications');
+
+        $response->assertSee('<h3>' . lang('Integrations.notifications_today') . '</h3>');
+        $response->assertSee('<h3>' . lang('Integrations.notifications_yesterday') . '</h3>');
+        $response->assertSee('data-notification="' . $today . '"');
+    }
+
+    public function testGetIndex_OffersToMarkOnlyTheUnreadOnesAndLabelsTheReadOnes(): void
+    {
+        $personId = $this->actAsWith([IntegrationAccess::NOTIFICATIONS_MODULE]);
+        $unread   = $this->notice('stock:1:1', 1, 'Unread pen');
+        $read     = $this->notice('stock:1:2', 1, 'Read pen');
+        Database::connect()->table('notification_reads')->insert(['notification_id' => $read, 'person_id' => $personId]);
+
+        $response = $this->get('/notifications');
+
+        $response->assertSee('data-url="' . base_url('notifications/read/' . $unread) . '"');
+        $response->assertDontSee('data-url="' . base_url('notifications/read/' . $read) . '"');
+        $response->assertSee('class="nt-read"');
+        $response->assertSee('id="read_all"');
+    }
+
     public function testPostRead_MarksOneNotificationReadForTheEmployeeAndSaysSo(): void
     {
         $viewer = $this->actAsWith([IntegrationAccess::NOTIFICATIONS_MODULE]);

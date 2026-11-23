@@ -32,7 +32,7 @@
 | 4 | SHL-03 | نافذة البحث الشامل (Ctrl K) | مشترك | `home/searchIndex` (JSON) | `Home::getSearchIndex` · `partial/footer.php` `#global_search` | P1 | SHL-02 | مكتمل (مع DASH-01) |
 | 5 | SHL-04 | تذييل الصفحة (الحقوق، الإصدار) | مشترك | كل الصفحات | `partial/footer.php` | P3 | — | مكتمل (مع DASH-01) |
 | 6 | DASH-02 | نافذة تخصيص الاختصارات | 1 الرئيسية | داخل `home` | `home/home.php` `#home_shortcuts_modal` | P2 | DASH-01 | مكتمل (مع DASH-01) |
-| 7 | DASH-03 | الإشعارات | 1 الرئيسية | `notifications`؛ `POST notifications/read/{id}`، `read_all` | `Notifications::getIndex` · `notifications/manage.php` | P2 | SHL-01 | التصميم معتمد |
+| 7 | DASH-03 | الإشعارات | 1 الرئيسية | `notifications`؛ `POST notifications/read/{id}`، `read_all` | `Notifications::getIndex` · `notifications/manage.php` | P2 | SHL-01 | قيد التنفيذ (منفّذ على فرع التطوير، بانتظار مراجعة المالك) |
 
 ## المرحلة 2: الدخول والحالات العامة
 
