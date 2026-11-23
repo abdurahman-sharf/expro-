@@ -1,0 +1,255 @@
+[
+  {
+    "name": "G01 the work that throws is left in an open transaction",
+    "file": "app/Models/Employee.php",
+    "find": "        } catch (Throwable $exception) {\n            $this->db->transRollback();\n\n            if ($ownsTransaction) {",
+    "replace": "        } catch (Throwable $exception) {\n            if ($ownsTransaction) {",
+    "tests": [
+      "--filter",
+      "RollsBackWhenTheRolesCannotBeReleased|FreesTheConnectionWhenTheBranchRowsCannotBeLocked|testInTransaction_",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G02 the writes of the work that throws are committed instead of rolled back",
+    "file": "app/Models/Employee.php",
+    "find": "            $this->db->transRollback();\n\n            if ($ownsTransaction) {",
+    "replace": "            $this->db->transComplete();\n\n            if ($ownsTransaction) {",
+    "tests": [
+      "--filter",
+      "testInTransaction_RollsBackTheWritesOfTheWorkThatThrows",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G03 the failed status of the connection is kept after the work that throws",
+    "file": "app/Models/Employee.php",
+    "find": "            if ($ownsTransaction) {\n                $this->db->resetTransStatus();\n            }\n\n            throw $exception;",
+    "replace": "            throw $exception;",
+    "tests": [
+      "--filter",
+      "RollsBackWhenTheRolesCannotBeReleased|FreesTheConnectionWhenTheBranchRowsCannotBeLocked|testInTransaction_",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G04 the status of the transaction of a caller is reset by a call that does not own it",
+    "file": "app/Models/Employee.php",
+    "find": "$ownsTransaction = $this->db->transDepth === 0;",
+    "replace": "$ownsTransaction = true;",
+    "tests": [
+      "--filter",
+      "testInTransaction_LeavesTheTransactionOfTheCallerFailedAndOpenWhenTheWorkThrows",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G05 a call that owns the transaction never resets the failed status",
+    "file": "app/Models/Employee.php",
+    "find": "$ownsTransaction = $this->db->transDepth === 0;",
+    "replace": "$ownsTransaction = false;",
+    "tests": [
+      "--filter",
+      "RollsBackWhenTheRolesCannotBeReleased|FreesTheConnectionWhenTheBranchRowsCannotBeLocked|testInTransaction_",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G06 the exception of the work is swallowed",
+    "file": "app/Models/Employee.php",
+    "find": "            throw $exception;\n        }\n\n        $this->db->transComplete();",
+    "replace": "            return false;\n        }\n\n        $this->db->transComplete();",
+    "tests": [
+      "--filter",
+      "RollsBackWhenTheRolesCannotBeReleased|FreesTheConnectionWhenTheBranchRowsCannotBeLocked|testInTransaction_",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G07 the transaction of the work that succeeds is never completed",
+    "file": "app/Models/Employee.php",
+    "find": "        $this->db->transComplete();\n\n        $completed",
+    "replace": "        $completed",
+    "tests": [
+      "--filter",
+      "testInTransaction_CommitsTheWorkThatSucceeds",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G08 a rolled back transaction is answered as done when the work says it is",
+    "file": "app/Models/Employee.php",
+    "find": "return $success && $completed;",
+    "replace": "return $success;",
+    "tests": [
+      "--filter",
+      "testInTransaction_AnswersFalseAndRollsBackWhenAQueryFailedAndTheWorkAnswersTrue",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G09 the failed status is kept after a transaction that was rolled back",
+    "file": "app/Models/Employee.php",
+    "find": "        if (! $completed && $ownsTransaction) {\n            $this->db->resetTransStatus();\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testInTransaction_AnswersFalseAndRollsBackWhenAQueryFailedAndTheWorkAnswersTrue",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G10 deleting one employee runs outside the helper that ends its transaction",
+    "file": "app/Models/Employee.php",
+    "find": "return $this->inTransaction(function () use ($employeeId): bool {",
+    "replace": "return (static fn (callable $work): bool => $work())(function () use ($employeeId): bool {",
+    "tests": [
+      "--filter",
+      "testDelete_",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G11 deleting a list of employees runs outside the helper that ends its transaction",
+    "file": "app/Models/Employee.php",
+    "find": "return $this->inTransaction(function () use ($personIds): bool {",
+    "replace": "return (static fn (callable $work): bool => $work())(function () use ($personIds): bool {",
+    "tests": [
+      "--filter",
+      "testDeleteList_",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G12 the answer of the work is dropped",
+    "file": "app/Models/Employee.php",
+    "find": "            $success = $work();",
+    "replace": "            $work();\n            $success = true;",
+    "tests": [
+      "--filter",
+      "DeleteList_|Delete_|testInTransaction_",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G13 the delete screen leaves its transaction open when the record scope cannot be released",
+    "file": "app/Models/Employee.php",
+    "find": "        } catch (Throwable $exception) {\n            $this->db->transRollback();\n\n            if ($ownsTransaction) {",
+    "replace": "        } catch (Throwable $exception) {\n            if ($ownsTransaction) {",
+    "tests": [
+      "--filter",
+      "testPostDelete_RollsBack",
+      "tests/Controllers/EmployeesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G14 the failed status of the transaction of a caller is reset by a call that does not own it",
+    "file": "app/Models/Employee.php",
+    "find": "if (! $completed && $ownsTransaction) {",
+    "replace": "if (! $completed) {",
+    "tests": [
+      "--filter",
+      "testInTransaction_KeepsTheTransactionOfTheCaller",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G15 the transaction of the caller is completed by the work that succeeds",
+    "file": "app/Models/Employee.php",
+    "find": "        $this->db->transComplete();\n\n        $completed",
+    "replace": "        $this->db->transComplete();\n        $this->db->transComplete();\n\n        $completed",
+    "tests": [
+      "--filter",
+      "testInTransaction_JoinsTheTransactionOfTheCaller",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G16 an Error of the work leaves the transaction open",
+    "file": "app/Models/Employee.php",
+    "find": "} catch (Throwable $exception) {",
+    "replace": "} catch (\\Exception $exception) {",
+    "tests": [
+      "--filter",
+      "testInTransaction_RollsBackAndRethrowsAnErrorOfTheWork",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G17 an Error of the work is swallowed",
+    "file": "app/Models/Employee.php",
+    "find": "            throw $exception;\n        }\n\n        $this->db->transComplete();",
+    "replace": "            if ($exception instanceof \\Error) {\n                return false;\n            }\n\n            throw $exception;\n        }\n\n        $this->db->transComplete();",
+    "tests": [
+      "--filter",
+      "testInTransaction_RollsBackAndRethrowsAnErrorOfTheWork",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G18 the exception of the work is swallowed inside the transaction of a caller",
+    "file": "app/Models/Employee.php",
+    "find": "            throw $exception;\n        }\n\n        $this->db->transComplete();",
+    "replace": "            if (! $ownsTransaction) {\n                return false;\n            }\n\n            throw $exception;\n        }\n\n        $this->db->transComplete();",
+    "tests": [
+      "--filter",
+      "testInTransaction_LeavesTheTransactionOfTheCaller",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G19 an employee may delete themselves with delete",
+    "file": "app/Models/Employee.php",
+    "find": "if ($employeeId == $this->get_logged_in_employee_info()->person_id) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testDelete_RefusesTheEmployeeWhoIsLoggedIn",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G20 an employee may delete themselves with delete_list",
+    "file": "app/Models/Employee.php",
+    "find": "if (in_array($this->get_logged_in_employee_info()->person_id, $personIds)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testDeleteList_RefusesAListThatHoldsTheEmployeeWhoIsLoggedIn",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G21 the ids of the list are compared with the logged in employee by type",
+    "file": "app/Models/Employee.php",
+    "find": "if (in_array($this->get_logged_in_employee_info()->person_id, $personIds)) {",
+    "replace": "if (in_array($this->get_logged_in_employee_info()->person_id, $personIds, true)) {",
+    "tests": [
+      "--filter",
+      "testDeleteList_RefusesAListThatHoldsTheEmployeeWhoIsLoggedIn",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G22 a delete that succeeds leaves a transaction open",
+    "file": "app/Models/Employee.php",
+    "find": "            return $success;\n        });\n    }\n\n    /**\n     * Deletes a list of employees",
+    "replace": "            if ($success) {\n                $this->db->transStart();\n            }\n\n            return $success;\n        });\n    }\n\n    /**\n     * Deletes a list of employees",
+    "tests": [
+      "--filter",
+      "testDelete_DeletesOneOfTwo",
+      "tests/Models/EmployeeTest.php"
+    ]
+  },
+  {
+    "name": "G23 a delete of a list that succeeds leaves a transaction open",
+    "file": "app/Models/Employee.php",
+    "find": "            return $success;\n        });\n    }\n\n    /**\n     * What throws inside the work",
+    "replace": "            if ($success) {\n                $this->db->transStart();\n            }\n\n            return $success;\n        });\n    }\n\n    /**\n     * What throws inside the work",
+    "tests": [
+      "--filter",
+      "testDeleteList_DeletesOneOfTwo",
+      "tests/Models/EmployeeTest.php"
+    ]
+  }
+]
