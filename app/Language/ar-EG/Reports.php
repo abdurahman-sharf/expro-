@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'كود الاستلام',
     'receiving_type'                          => 'نوع الاستلام',
     'receivings'                              => 'استلام الأصناف',
+    'related_reports'                         => 'تقارير ذات صلة',
     'reorder_level'                           => 'نقطة اعادة الطلب',
     'report'                                  => 'تقرير',
     'report_input'                            => 'مدخلات التقرير',

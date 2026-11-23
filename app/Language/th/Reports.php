@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'เลขที่การรับ',
     'receiving_type'                          => 'รูปแบบการรับสินค้า',
     'receivings'                              => 'รับสินค้า',
+    'related_reports'                         => '',
     'reorder_level'                           => 'ระดับการสั่งใหม่',
     'report'                                  => 'รายงาน',
     'report_input'                            => 'ข้อมูลรายงาน',

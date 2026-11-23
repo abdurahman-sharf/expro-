@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'Einangs-ID',
     'receiving_type'                          => 'Eingangstyp',
     'receivings'                              => 'Eingänge',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Mindestbestand',
     'report'                                  => 'Bericht',
     'report_input'                            => 'Berichtsdefinition',

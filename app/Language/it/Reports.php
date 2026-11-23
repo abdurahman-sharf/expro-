@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'ID Incasso',
     'receiving_type'                          => 'Tipo Ricezione',
     'receivings'                              => 'Ricezioni',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Livello Riordino',
     'report'                                  => 'Resoconto',
     'report_input'                            => 'Input Resoconto',

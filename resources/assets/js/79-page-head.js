@@ -71,7 +71,13 @@
         }
 
         const $tabs = sectionTabs($bar).detach();
-        const $heading = $bar.children('h1, h2, h3, h4, h5, h6').first();
+        let $heading = $bar.children('h1, h2, h3, h4, h5, h6').first();
+        const $pageHeading = $('#app-main h1').not($bar.find('h1')).not('.modal h1, .print-only h1, [hidden] h1');
+
+        // A bar without a heading takes the one title the page gives itself further down.
+        if (!$heading.length && $pageHeading.length === 1) {
+            $heading = $pageHeading.removeClass('h3 h4 h5 me-auto mb-0 mb-2 mb-3');
+        }
         const $note = $bar.children('p');
         const $actions = $('<div class="page-head-actions"></div>');
         const $start = $('<div class="page-head-start"></div>');
@@ -96,6 +102,24 @@
         }
 
         $start.append($note.removeClass('mb-0 mb-1 mb-2 mb-3 small text-body-secondary text-secondary me-auto').addClass('page-note'));
+
+        // Links to neighbouring reports gather under one menu so the header keeps to its own actions.
+        const $related = $actions.children('a.btn').not('.btn-primary').filter(function() {
+            const target = (this.getAttribute('href') || '') + ' ' + this.id;
+
+            return /(accounting_reports|accounting_statements|\/reports\/)/.test(target) && !/(csv|xlsx|pdf|print|export)/i.test(target);
+        });
+
+        if ($related.length >= 3) {
+            const $menu = $('<ul class="dropdown-menu dropdown-menu-end"></ul>');
+            const $toggle = $('<button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"></button>')
+                .append('<span class="bi bi-collection" aria-hidden="true"></span> ', document.createTextNode(lang.line('related_reports')));
+
+            $related.first().before($('<div class="dropdown"></div>').append($toggle, $menu));
+            $related.each(function() {
+                $menu.append($('<li></li>').append($(this).removeClass('btn btn-sm btn-outline-secondary btn-outline-primary').addClass('dropdown-item')));
+            });
+        }
 
         $bar.addClass('page-head').empty().append($start, $actions);
         $actions.prop('hidden', !$actions.children().length);

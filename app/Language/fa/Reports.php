@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'دریافت شناسه',
     'receiving_type'                          => 'دریافت نوع',
     'receivings'                              => 'دریافت',
+    'related_reports'                         => '',
     'reorder_level'                           => 'سطح سفارش مجدد',
     'report'                                  => 'گزارش',
     'report_input'                            => 'گزارش ورودی',

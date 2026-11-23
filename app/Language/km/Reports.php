@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => '',
     'receiving_type'                          => '',
     'receivings'                              => '',
+    'related_reports'                         => '',
     'reorder_level'                           => '',
     'report'                                  => '',
     'report_input'                            => '',

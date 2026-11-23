@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'Levering ID',
     'receiving_type'                          => 'Levering soort',
     'receivings'                              => 'Leveringen',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Opnieuw bestellen niveau',
     'report'                                  => 'Rapport',
     'report_input'                            => 'Rapport invoer',

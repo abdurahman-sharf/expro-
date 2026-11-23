@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'Átvételi ID',
     'receiving_type'                          => 'Átvételi típus',
     'receivings'                              => 'Áruátvétel',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Újrarend. szint',
     'report'                                  => 'Riport',
     'report_input'                            => 'Report Input',

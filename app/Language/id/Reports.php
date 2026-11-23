@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'Id Penerima',
     'receiving_type'                          => 'Type Diterima',
     'receivings'                              => 'Barang Masuk',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Level pesan ulang',
     'report'                                  => 'Laporan',
     'report_input'                            => 'Input data Laporan',

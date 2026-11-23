@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'Alım No',
     'receiving_type'                          => 'Alım Türü',
     'receivings'                              => 'Alımlar',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Düşük Stok',
     'report'                                  => 'Rapor',
     'report_input'                            => 'Rapor Girdisi',

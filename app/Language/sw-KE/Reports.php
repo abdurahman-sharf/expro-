@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'ID ya Mapokezi',
     'receiving_type'                          => 'Aina ya Mapokezi',
     'receivings'                              => 'Mapokezi',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Kiwango cha Kuagiza Tena',
     'report'                                  => 'Ripoti',
     'report_input'                            => 'Ingizo la Ripoti',

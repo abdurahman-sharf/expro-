@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'وەرگرتنی ناسنامە',
     'receiving_type'                          => 'جۆری وەرگرتن',
     'receivings'                              => 'وەرگرتنەکان',
+    'related_reports'                         => '',
     'reorder_level'                           => 'ئاست ڕێکخستنەوە',
     'report'                                  => 'ڕاپۆرت',
     'report_input'                            => 'ڕاپۆرتی ئینپوت',

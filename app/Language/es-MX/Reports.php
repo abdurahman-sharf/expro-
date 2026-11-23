@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'Id de Recepción',
     'receiving_type'                          => 'Tipo de Recepción',
     'receivings'                              => 'Recepciones',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Cantidad minima',
     'report'                                  => 'Reporte',
     'report_input'                            => 'Entrada de Reporte',
