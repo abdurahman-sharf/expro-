@@ -38,7 +38,7 @@
 
 | # | المعرف | الشاشة | القسم | مسار URL | Controller · View | الأولوية | يعتمد على | الحالة |
 |---|---|---|---|---|---|---|---|---|
-| 8 | AUTH-01 | تسجيل الدخول (مع زر ترقية قاعدة البيانات) | مشترك | `/`، `login`؛ `POST migrate` | `Login::index`، `Login::migrate` · `login.php` | P1 | — | أُرسل للتصميم |
+| 8 | AUTH-01 | تسجيل الدخول (مع زر ترقية قاعدة البيانات) | مشترك | `/`، `login`؛ `POST migrate` | `Login::index`، `Login::migrate` · `login.php` | P1 | — | التصميم معتمد |
 | 9 | AUTH-02 | مطالبة المالك بالحساب (أول تشغيل) | مشترك | `login` قبل وجود مالك؛ `POST owner_setup` | `OwnerSetup::postClaim` · `setup/claim.php` | P3 | AUTH-01 | لم تبدأ |
 | 10 | AUTH-03 | معالج الإعداد الأول (اللغة، الشركة، الفرع، الضريبة، المحاسبة) | مشترك | `setup?step=…`؛ `POST setup/language|company|branch|tax|finish` | `Setup::*` · `setup/wizard.php` + `accounting_settings/activation_panels.php` | P3 | AUTH-02، FIN-56 | لم تبدأ |
 | 11 | AUTH-04 | تغيير كلمة المرور الإجباري | مشترك | `home/mustChangePassword`؛ `POST home/save` | `Home::getMustChangePassword` · `home/must_change_password.php` | P2 | AUTH-01 | لم تبدأ |
@@ -339,6 +339,7 @@
 |---|---|---|---|---|---|
 | DASH-01، DASH-02، SHL-01..04 | `1795426370-9bb6` | 2026-11-23 | https://claude.ai/artifact/J7bAniTTj82EwWsfNbr83M (لوحة «EXPRO — إطار التطبيق ولوحة التحكم»، 5 صفحات و38 لوحة) | AppSidebar، AppTopbar، AppFooter، SearchPalette، ShortcutTile، CustomizeShortcuts، رموز التصميم `ds/alawal-pro/tokens.json` | محتوى القائمة في التصميم توضيحي؛ يُعتمد محتوى `SidebarMenu` الفعلي |
 | DASH-03 | `1795429422-2e2c` | 2026-11-23 | https://claude.ai/artifact/18CC6pTUEBkNkNiviHjyrb (لوحة «EXPRO — الإشعارات»، 5 صفحات و27 لوحة) | يعيد استخدام AppSidebar وAppTopbar وAppFooter دون تغيير | ستة مقترحات وظيفية معروضة منفصلة ولم تُعتمد |
+| AUTH-01 | `1795449448-18f5` | 2026-11-23 | https://claude.ai/artifact/CVfeUeLntJ9dbjAzCuV372 (لوحة «EXPRO — تسجيل الدخول»، 4 صفحات و33 لوحة) | صفحة مستقلة بلا إطار؛ تعيد استخدام أنماط الحقول والتنبيهات | ثلاثة مقترحات وظيفية معروضة منفصلة ولم تُعتمد |
 
 ## ما لم يُدرج عن قصد
 
