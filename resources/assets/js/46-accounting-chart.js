@@ -174,10 +174,14 @@
         const action = $button.data('acc-action');
         const id = $button.data('acc-id');
 
-        if (!window.confirm(settings.confirmations[action])) {
-            return;
-        }
+        appConfirm(settings.confirmations[action], {tone: action === 'delete' ? 'danger' : 'primary'}).then(function(confirmed) {
+            if (confirmed) {
+                run($button, action, id);
+            }
+        });
+    };
 
+    const run = function($button, action, id) {
         const parentId = $button.closest('li.acc-node').parent().closest('li.acc-node').data('account-id') || 0;
 
         $button.prop('disabled', true);

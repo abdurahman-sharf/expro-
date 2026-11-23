@@ -5772,6 +5772,72 @@ a.rollover img {
     color: var(--danger);
 }
 
+/* Confirmation dialog: the tone of the action on an icon, the question, and the decision at the end. */
+.app-confirm {
+    z-index: 1075;
+}
+
+.modal-backdrop.app-confirm-backdrop {
+    z-index: 1070;
+}
+
+.app-confirm .modal-dialog {
+    max-width: 440px;
+}
+
+.app-confirm .modal-content {
+    background: var(--surface);
+}
+
+.app-confirm .modal-body {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 24px;
+}
+
+.app-confirm-art {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--blue-100);
+    color: var(--blue-500);
+    font-size: 18px;
+}
+
+.app-confirm.is-danger .app-confirm-art {
+    background: var(--danger-bg);
+    color: var(--danger);
+}
+
+.app-confirm.is-warning .app-confirm-art {
+    background: var(--warning-bg);
+    color: var(--warning-strong);
+}
+
+.app-confirm-title {
+    margin: 0 0 4px;
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 24px;
+}
+
+.app-confirm-text {
+    margin: 0;
+    color: var(--fg-secondary);
+    font-size: 14px;
+    line-height: 22px;
+}
+
+.app-confirm .modal-footer .btn {
+    min-width: 96px;
+    min-height: 40px;
+}
+
 .kbd:empty {
     display: none;
 }

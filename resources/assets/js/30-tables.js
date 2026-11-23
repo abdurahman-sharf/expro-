@@ -44,7 +44,14 @@
 
     const do_action = function(action) {
         return function (url, ids) {
-            if (confirm($.fn.bootstrapTable.defaults.formatConfirmAction(action))) {
+            const message = $.fn.bootstrapTable.defaults.formatConfirmAction(action);
+            const tone = action === 'delete' ? 'danger' : 'primary';
+
+            appConfirm(message, {tone: tone, confirmLabel: lang.line('common_' + action)}).then(function(confirmed) {
+                if (!confirmed) {
+                    return;
+                }
+
                 const targetIds = ids || selected_ids();
                 $.post((url || options.resource) + '/' + action, {'ids[]': targetIds}, function (response) {
                     if (response.success) {
@@ -70,9 +77,9 @@
                 }, "json").fail(function () {
                     $.notify($.fn.bootstrapTable.defaults.formatRequestFailed(), {type: 'danger'});
                 });
-            } else {
-                return false;
-            }
+            });
+
+            return false;
         };
     };
 
