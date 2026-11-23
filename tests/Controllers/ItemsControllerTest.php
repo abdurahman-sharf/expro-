@@ -1240,15 +1240,21 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertEquals(NEW_ENTRY, $resultingAttribute->attribute_id);
     }
 
-    public function testPostImportCsvFile_EndsItsTransactionWhenARowRaisesAnException(): void
+    /**
+     * @param array<class-string, object> $mocks
+     *
+     * @return array<string, mixed>
+     */
+    private function importARowWith(array $mocks): array
     {
-        $failing = $this->getMockBuilder(Item::class)->onlyMethods(['item_number_exists'])->getMock();
-        $failing->method('item_number_exists')->willThrowException(new RuntimeException('The row failed.'));
         $locations = [1 => 'stock'];
         $stocks    = $this->getMockBuilder(Stock_location::class)->onlyMethods(['get_allowed_locations'])->getMock();
         $stocks->method('get_allowed_locations')->willReturn($locations);
-        Factories::injectMock('models', Item::class, $failing);
         Factories::injectMock('models', Stock_location::class, $stocks);
+
+        foreach ($mocks as $class => $mock) {
+            Factories::injectMock('models', $class, $mock);
+        }
 
         $header = str_getcsv(substr(generate_import_items_csv($locations, $this->attribute->getDefinitionNames()), 3));
         $row    = array_fill_keys($header, '');
@@ -1271,14 +1277,48 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->loginAsItemsEmployee($this->createItemsEmployee());
 
         try {
-            $result = json_decode($this->post('/items/importCsvFile')->getJSON(), true);
+            return json_decode($this->post('/items/importCsvFile')->getJSON(), true);
         } finally {
             unset($_FILES['file_path']);
             unlink($path);
             Factories::reset('models');
         }
+    }
+
+    public function testPostImportCsvFile_EndsItsTransactionWhenARowRaisesAnException(): void
+    {
+        $failing = $this->getMockBuilder(Item::class)->onlyMethods(['item_number_exists'])->getMock();
+        $failing->method('item_number_exists')->willThrowException(new RuntimeException('The row failed.'));
+
+        $result = $this->importARowWith([Item::class => $failing]);
 
         $this->assertSame('The row failed.', $result['message']);
+        $this->assertNoTransactionIsOpen();
+    }
+
+    public function testPostImportCsvFile_EndsEveryLevelOfTheTransactionWhenARowLeavesANestedOneOpen(): void
+    {
+        $failing = $this->getMockBuilder(Item::class)->onlyMethods(['item_number_exists'])->getMock();
+        $failing->method('item_number_exists')->willReturnCallback(static function (): never {
+            Config::connect()->transStart();
+
+            throw new RuntimeException('The row failed.');
+        });
+
+        $result = $this->importARowWith([Item::class => $failing]);
+
+        $this->assertSame('The row failed.', $result['message']);
+        $this->assertNoTransactionIsOpen();
+    }
+
+    public function testPostImportCsvFile_AnswersTheFailureOfAStepBeforeTheTransactionBegins(): void
+    {
+        $early = $this->getMockBuilder(Attribute::class)->onlyMethods(['getDefinitionNames'])->getMock();
+        $early->method('getDefinitionNames')->willThrowException(new RuntimeException('The definitions failed.'));
+
+        $result = $this->importARowWith([Attribute::class => $early]);
+
+        $this->assertSame('The definitions failed.', $result['message']);
         $this->assertNoTransactionIsOpen();
     }
 

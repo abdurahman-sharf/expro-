@@ -61,6 +61,18 @@ final class Tax_categoryTest extends CIUnitTestCase
         $this->assertSame(1, Database::connect()->table('tax_categories')->where(['tax_category' => $name, 'deleted' => 0])->countAllResults());
     }
 
+    public function testSaveCategories_SoftDeletesTheRowsAbsentFromThePost(): void
+    {
+        $absent = 'T13' . substr(uniqid(), -8);
+
+        $this->assertTrue($this->categories->save_categories([['tax_category_id' => NEW_ENTRY, 'tax_category' => $absent, 'tax_group_sequence' => 1]]));
+
+        $absentId = (int) Database::connect()->table('tax_categories')->select('tax_category_id')->where('tax_category', $absent)->get()->getRow()->tax_category_id;
+
+        $this->assertTrue($this->categories->save_categories([['tax_category_id' => NEW_ENTRY, 'tax_category' => 'T13' . substr(uniqid(), -8), 'tax_group_sequence' => 1]]));
+        $this->assertSame(1, (int) Database::connect()->table('tax_categories')->select('deleted')->where('tax_category_id', $absentId)->get()->getRow()->deleted);
+    }
+
     public function testSaveCategories_AnswersFalseAndLeavesNoTransactionWhenANewRowCannotBeSaved(): void
     {
         $name = 'T13' . substr(uniqid(), -8);

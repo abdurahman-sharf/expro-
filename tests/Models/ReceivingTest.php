@@ -1852,7 +1852,7 @@ class ReceivingTest extends CIUnitTestCase
     private function deleteListWhoseItemsCannotBeRead(int $receivingId): ?RuntimeException
     {
         $receivings = new class () extends Receiving {
-            public function get_receiving_items(int $receiving_id): ResultInterface
+            public function get_receiving_items(int $receivingId): ResultInterface
             {
                 throw new RuntimeException('The items could not be read.');
             }

@@ -112,6 +112,35 @@ final class AbandonedTransactionTest extends CIUnitTestCase
         $this->assertTrue($db->transStatus());
     }
 
+    public function testClose_ForgetsTheFailedStatusThatAnEndedTransactionLeft(): void
+    {
+        $db = Database::connect();
+
+        $this->failInsideATransaction();
+        $db->transComplete();
+
+        $this->assertSame(0, $db->transDepth);
+        $this->assertFalse($db->transStatus());
+
+        AbandonedTransaction::close($db, 0);
+
+        $this->assertTrue($db->transStatus());
+    }
+
+    public function testClose_ForgetsTheFailedStatusOfTheConnectionItWasGiven(): void
+    {
+        $other = new Connection((new Database())->tests);
+
+        $other->transStart();
+        $other->query('SELECT * FROM table_that_does_not_exist_for_the_test');
+
+        AbandonedTransaction::close($other, 0);
+
+        $this->assertTrue($other->transStatus());
+
+        $other->close();
+    }
+
     public function testClose_LeavesTheFailedStatusToTheCallerWhoseTransactionIsStillOpen(): void
     {
         $db = Database::connect();

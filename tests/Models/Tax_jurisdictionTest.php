@@ -77,6 +77,18 @@ final class Tax_jurisdictionTest extends CIUnitTestCase
         $this->assertSame(1, Database::connect()->table('tax_jurisdictions')->where(['tax_group' => $group, 'deleted' => 0])->countAllResults());
     }
 
+    public function testSaveJurisdictions_SoftDeletesTheRowsAbsentFromThePost(): void
+    {
+        $absent = 'T13' . substr(uniqid(), -8);
+
+        $this->assertTrue($this->jurisdictions->save_jurisdictions([$this->row($absent)]));
+
+        $absentId = (int) Database::connect()->table('tax_jurisdictions')->select('jurisdiction_id')->where('tax_group', $absent)->get()->getRow()->jurisdiction_id;
+
+        $this->assertTrue($this->jurisdictions->save_jurisdictions([$this->row('T13' . substr(uniqid(), -8))]));
+        $this->assertSame(1, (int) Database::connect()->table('tax_jurisdictions')->select('deleted')->where('jurisdiction_id', $absentId)->get()->getRow()->deleted);
+    }
+
     public function testSaveJurisdictions_AnswersFalseAndLeavesNoTransactionWhenANewRowCannotBeSaved(): void
     {
         $group = 'T13' . substr(uniqid(), -8);

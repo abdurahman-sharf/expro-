@@ -111,6 +111,72 @@ final class OpenTransactionHandlerTest extends CIUnitTestCase
         $this->assertTrue($db->transStatus());
     }
 
+    public function testHandle_ForgetsTheFailedStatusAnEndedTransactionLeft(): void
+    {
+        $db = Database::connect();
+
+        $db->transStart();
+        $db->query('SELECT * FROM table_that_does_not_exist_for_the_test');
+        $db->transComplete();
+
+        $this->assertSame(0, $db->transDepth);
+        $this->assertFalse($db->transStatus());
+
+        $this->handle(new OpenTransactionHandler($this->spy()), new RuntimeException('The request failed.'));
+
+        $this->assertTrue($db->transStatus());
+    }
+
+    public function testHandle_PassesTheRequestAndTheResponseOnUntouched(): void
+    {
+        $next = new class () implements ExceptionHandlerInterface {
+            /** @var list<array{RequestInterface, ResponseInterface}> */
+            public array $calls = [];
+
+            public function handle(Throwable $exception, RequestInterface $request, ResponseInterface $response, int $statusCode, int $exitCode): void
+            {
+                $this->calls[] = [$request, $response];
+            }
+        };
+        $request  = service('incomingrequest', null, false);
+        $response = new Response(config('App'));
+
+        (new OpenTransactionHandler($next))->handle(new RuntimeException('The request failed.'), $request, $response, 500, 1);
+
+        $this->assertCount(1, $next->calls);
+        $this->assertSame($request, $next->calls[0][0]);
+        $this->assertSame($response, $next->calls[0][1]);
+    }
+
+    public function testHandle_LetsTheFailureOfTheHandlerItWrapsReachTheCallerOnce(): void
+    {
+        $failure = new RuntimeException('The answer failed.');
+        $next    = new class ($failure) implements ExceptionHandlerInterface {
+            public int $calls = 0;
+
+            public function __construct(private readonly Throwable $failure)
+            {
+            }
+
+            public function handle(Throwable $exception, RequestInterface $request, ResponseInterface $response, int $statusCode, int $exitCode): void
+            {
+                $this->calls++;
+
+                throw $this->failure;
+            }
+        };
+        $thrown = null;
+
+        try {
+            $this->handle(new OpenTransactionHandler($next), new RuntimeException('The request failed.'));
+        } catch (RuntimeException $caught) {
+            $thrown = $caught;
+        }
+
+        $this->assertSame($failure, $thrown);
+        $this->assertSame(1, $next->calls);
+    }
+
     public function testHandle_PassesTheExceptionOnWhenNoTransactionIsOpen(): void
     {
         $next      = $this->spy();

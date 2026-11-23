@@ -111,9 +111,13 @@ final class AttributeTest extends CIUnitTestCase
         $definition = $this->definition(TEXT);
         $yes        = $this->item();
         $no         = $this->item();
+        $zero       = $this->item();
+        $empty      = $this->item();
 
         $this->assertGreaterThan(0, $this->attribute->saveAttributeValue('yes', $definition['definition_id'], $yes, false, TEXT));
         $this->assertGreaterThan(0, $this->attribute->saveAttributeValue('false', $definition['definition_id'], $no, false, TEXT));
+        $this->assertGreaterThan(0, $this->attribute->saveAttributeValue('0', $definition['definition_id'], $zero, false, TEXT));
+        $this->assertGreaterThan(0, $this->attribute->saveAttributeValue('', $definition['definition_id'], $empty, false, TEXT));
 
         $converted = ['definition_name' => $definition['definition_name'], 'definition_type' => CHECKBOX, 'definition_flags' => 0, 'deleted' => 0];
 
@@ -126,6 +130,8 @@ final class AttributeTest extends CIUnitTestCase
             $this->assertSame(CHECKBOX, $other->table('attribute_definitions')->where('definition_id', $definition['definition_id'])->get()->getRow()->definition_type);
             $this->assertSame('1', $this->linkedValue($other, $definition['definition_id'], $yes));
             $this->assertSame('0', $this->linkedValue($other, $definition['definition_id'], $no));
+            $this->assertSame('0', $this->linkedValue($other, $definition['definition_id'], $zero));
+            $this->assertSame('0', $this->linkedValue($other, $definition['definition_id'], $empty));
         } finally {
             $other->close();
         }

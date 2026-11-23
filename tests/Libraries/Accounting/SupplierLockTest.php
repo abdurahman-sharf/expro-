@@ -159,6 +159,25 @@ class SupplierLockTest extends CIUnitTestCase
         $this->assertSame(1, $depth);
     }
 
+    public function testRun_EndsTheTransactionOnTheConnectionOfTheLockWhenThereIsNoSupplier(): void
+    {
+        $connection = $this->connectionThatNotesTheLockAtRollback();
+        $thrown     = null;
+
+        try {
+            (new SupplierLock($connection))->run(null, static function () use ($connection): never {
+                $connection->transStart();
+
+                throw new RuntimeException('failed');
+            });
+        } catch (RuntimeException $failure) {
+            $thrown = $failure;
+        }
+
+        $this->assertSame('failed', $thrown?->getMessage());
+        $this->assertSame(0, $connection->transDepth);
+    }
+
     public function testRun_EndsTheTransactionOfTheWorkBeforeItReleasesTheLockOfTheSupplier(): void
     {
         $connection = $this->connectionThatNotesTheLockAtRollback();

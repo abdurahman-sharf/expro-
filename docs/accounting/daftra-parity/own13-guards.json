@@ -470,5 +470,148 @@
       "testSaveDefinition_CommitsTheConversionOfATextToACheckbox",
       "tests/Models/AttributeTest.php"
     ]
+  },
+  {
+    "name": "G45 the status that an ended transaction left failed is kept when no level is left to roll back",
+    "file": "app/Libraries/Database/AbandonedTransaction.php",
+    "find": "        try {\n            while ($db->transDepth > $depth) {\n                if (! $db->transRollback()) {\n                    break;\n                }\n            }\n        } catch (Throwable $failure) {\n            log_message('error', 'A transaction that the work left open could not be rolled back: ' . $failure->getMessage());\n        }\n\n        FailedTransaction::forget($db);",
+    "replace": "        $before = $db->transDepth;\n\n        try {\n            while ($db->transDepth > $depth) {\n                if (! $db->transRollback()) {\n                    break;\n                }\n            }\n        } catch (Throwable $failure) {\n            log_message('error', 'A transaction that the work left open could not be rolled back: ' . $failure->getMessage());\n        }\n\n        if ($db->transDepth < $before) {\n            FailedTransaction::forget($db);\n        }",
+    "tests": [
+      "--filter",
+      "testClose_ForgetsTheFailedStatusThatAnEndedTransactionLeft",
+      "tests/Libraries/Database/AbandonedTransactionTest.php"
+    ]
+  },
+  {
+    "name": "G46 the failed status is forgotten on the default connection and not on the one it was given",
+    "file": "app/Libraries/Database/AbandonedTransaction.php",
+    "find": "        FailedTransaction::forget($db);",
+    "replace": "        FailedTransaction::forget(\\Config\\Database::connect());",
+    "tests": [
+      "--filter",
+      "testClose_ForgetsTheFailedStatusOfTheConnectionItWasGiven",
+      "tests/Libraries/Database/AbandonedTransactionTest.php"
+    ]
+  },
+  {
+    "name": "G47 the handler ends only the connections that are inside a transaction",
+    "file": "app/Libraries/Database/OpenTransactionHandler.php",
+    "find": "                AbandonedTransaction::close($connection, 0);",
+    "replace": "                if ($connection->transDepth > 0) {\n                    AbandonedTransaction::close($connection, 0);\n                }",
+    "tests": [
+      "--filter",
+      "testHandle_ForgetsTheFailedStatusAnEndedTransactionLeft",
+      "tests/Libraries/Database/OpenTransactionHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G48 the handler gives the next one a response of its own",
+    "file": "app/Libraries/Database/OpenTransactionHandler.php",
+    "find": "$this->next->handle($exception, $request, $response, $statusCode, $exitCode);",
+    "replace": "$this->next->handle($exception, $request, new \\CodeIgniter\\HTTP\\Response(config('App')), $statusCode, $exitCode);",
+    "tests": [
+      "--filter",
+      "testHandle_PassesTheRequestAndTheResponseOnUntouched",
+      "tests/Libraries/Database/OpenTransactionHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G49 the handler swallows the failure of the one it wraps and calls it again",
+    "file": "app/Libraries/Database/OpenTransactionHandler.php",
+    "find": "        try {\n            foreach (Database::getConnections() as $connection) {\n                AbandonedTransaction::close($connection, 0);\n            }\n        } catch (Throwable) {\n            // The answer to the exception must not fail on what could not be ended; the connection closing ends it.\n        }\n\n        $this->next->handle($exception, $request, $response, $statusCode, $exitCode);",
+    "replace": "        try {\n            foreach (Database::getConnections() as $connection) {\n                AbandonedTransaction::close($connection, 0);\n            }\n\n            $this->next->handle($exception, $request, $response, $statusCode, $exitCode);\n        } catch (Throwable) {\n            $this->next->handle($exception, $request, $response, $statusCode, $exitCode);\n        }",
+    "tests": [
+      "--filter",
+      "testHandle_LetsTheFailureOfTheHandlerItWrapsReachTheCallerOnce",
+      "tests/Libraries/Database/OpenTransactionHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G50 the work of a sale without a customer is guarded on the default connection",
+    "file": "app/Libraries/Accounting/CustomerLock.php",
+    "find": "        if ($customerId === null || $customerId <= 0) {\n            return AbandonedTransaction::guard($this->db, $work);",
+    "replace": "        if ($customerId === null || $customerId <= 0) {\n            return AbandonedTransaction::guard(\\Config\\Database::connect(), $work);",
+    "tests": [
+      "--filter",
+      "testRun_EndsTheTransactionOnTheConnectionOfTheLockWhenThereIsNoCustomer",
+      "tests/Libraries/Accounting/CustomerLockTest.php"
+    ]
+  },
+  {
+    "name": "G51 the work of a purchase without a supplier is guarded on the default connection",
+    "file": "app/Libraries/Accounting/SupplierLock.php",
+    "find": "        if ($supplierId === null || $supplierId <= 0) {\n            return AbandonedTransaction::guard($this->db, $work);",
+    "replace": "        if ($supplierId === null || $supplierId <= 0) {\n            return AbandonedTransaction::guard(\\Config\\Database::connect(), $work);",
+    "tests": [
+      "--filter",
+      "testRun_EndsTheTransactionOnTheConnectionOfTheLockWhenThereIsNoSupplier",
+      "tests/Libraries/Accounting/SupplierLockTest.php"
+    ]
+  },
+  {
+    "name": "G52 the tax categories absent from the post are not deleted",
+    "file": "app/Models/Tax_category.php",
+    "find": "                $this->delete($taxCategoryData['tax_category_id']);",
+    "replace": "                continue;",
+    "tests": [
+      "--filter",
+      "testSaveCategories_SoftDeletesTheRowsAbsentFromThePost",
+      "tests/Models/Tax_categoryTest.php"
+    ]
+  },
+  {
+    "name": "G53 the tax jurisdictions absent from the post are not deleted",
+    "file": "app/Models/Tax_jurisdiction.php",
+    "find": "                $this->delete($taxJurisdictionData['jurisdiction_id']);",
+    "replace": "                continue;",
+    "tests": [
+      "--filter",
+      "testSaveJurisdictions_SoftDeletesTheRowsAbsentFromThePost",
+      "tests/Models/Tax_jurisdictionTest.php"
+    ]
+  },
+  {
+    "name": "G54 a text of 0 converts to a checked checkbox",
+    "file": "app/Models/Attribute.php",
+    "find": "\n                $query .= \"SET links.attribute_id = IF((attribute_value IN('false','0','') OR (attribute_value IS NULL)), {$checkboxAttributeValues[0]}, {$checkboxAttributeValues[1]}) \";",
+    "replace": "\n                $query .= \"SET links.attribute_id = IF((attribute_value IN('false','') OR (attribute_value IS NULL)), {$checkboxAttributeValues[0]}, {$checkboxAttributeValues[1]}) \";",
+    "tests": [
+      "--filter",
+      "testSaveDefinition_CommitsTheConversionOfATextToACheckbox",
+      "tests/Models/AttributeTest.php"
+    ]
+  },
+  {
+    "name": "G55 an empty text converts to a checked checkbox",
+    "file": "app/Models/Attribute.php",
+    "find": "\n                $query .= \"SET links.attribute_id = IF((attribute_value IN('false','0','') OR (attribute_value IS NULL)), {$checkboxAttributeValues[0]}, {$checkboxAttributeValues[1]}) \";",
+    "replace": "\n                $query .= \"SET links.attribute_id = IF((attribute_value IN('false','0') OR (attribute_value IS NULL)), {$checkboxAttributeValues[0]}, {$checkboxAttributeValues[1]}) \";",
+    "tests": [
+      "--filter",
+      "testSaveDefinition_CommitsTheConversionOfATextToACheckbox",
+      "tests/Models/AttributeTest.php"
+    ]
+  },
+  {
+    "name": "G56 the import ends one level of its transaction and not every level",
+    "file": "app/Controllers/Items.php",
+    "find": "            AbandonedTransaction::close(db_connect(), 0);",
+    "replace": "            db_connect()->transRollback();",
+    "tests": [
+      "--filter",
+      "testPostImportCsvFile_EndsEveryLevelOfTheTransactionWhenARowLeavesANestedOneOpen",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G57 the import ends its transaction on a connection that a step before it may not have opened",
+    "file": "app/Controllers/Items.php",
+    "find": "            AbandonedTransaction::close(db_connect(), 0);",
+    "replace": "            AbandonedTransaction::close($db, 0);",
+    "tests": [
+      "--filter",
+      "testPostImportCsvFile_AnswersTheFailureOfAStepBeforeTheTransactionBegins",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
   }
 ]

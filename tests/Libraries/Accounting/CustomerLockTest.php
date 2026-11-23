@@ -154,6 +154,25 @@ class CustomerLockTest extends CIUnitTestCase
         $this->assertSame(1, $depth);
     }
 
+    public function testRun_EndsTheTransactionOnTheConnectionOfTheLockWhenThereIsNoCustomer(): void
+    {
+        $connection = $this->connectionThatNotesTheLockAtRollback();
+        $thrown     = null;
+
+        try {
+            (new CustomerLock($connection))->run(null, static function () use ($connection): never {
+                $connection->transStart();
+
+                throw new RuntimeException('failed');
+            });
+        } catch (RuntimeException $failure) {
+            $thrown = $failure;
+        }
+
+        $this->assertSame('failed', $thrown?->getMessage());
+        $this->assertSame(0, $connection->transDepth);
+    }
+
     public function testRun_EndsTheTransactionOfTheWorkBeforeItReleasesTheLockOfTheCustomer(): void
     {
         $connection = $this->connectionThatNotesTheLockAtRollback();
