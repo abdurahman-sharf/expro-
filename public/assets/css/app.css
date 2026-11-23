@@ -5125,6 +5125,315 @@ a.rollover img {
     vertical-align: middle;
 }
 
+/* The shared components in the measures of the الأول برو design system: page header, buttons, fields,
+   tables, dialogs and tabs. Every screen built on them takes these without its own styles. */
+
+.page-head {
+    position: sticky;
+    top: 56px;
+    z-index: 1010;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 16px;
+    min-height: 64px;
+    margin: -24px -24px 24px;
+    padding: 10px 24px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+.page-head-start {
+    display: flex;
+    flex: 1 1 260px;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.page-crumbs {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 18px;
+}
+
+.page-head .page-title {
+    margin: 0;
+    overflow: hidden;
+    color: var(--text);
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 32px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.page-head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.page-head-actions[hidden] {
+    display: none;
+}
+
+.page-head-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    margin: 0;
+    padding-inline: 16px;
+    font-size: 14px;
+}
+
+.page-head-actions .btn > .bi {
+    font-size: 16px;
+}
+
+.btn {
+    --bs-btn-font-weight: 500;
+}
+
+.btn-sm {
+    --bs-btn-font-size: 13px;
+    min-height: 32px;
+}
+
+.btn-outline-secondary {
+    --bs-btn-color: var(--text);
+    --bs-btn-bg: var(--surface);
+    --bs-btn-border-color: var(--field);
+    --bs-btn-hover-color: var(--text);
+    --bs-btn-hover-bg: var(--surface-hover);
+    --bs-btn-hover-border-color: var(--field);
+    --bs-btn-active-color: var(--text);
+    --bs-btn-active-bg: var(--neutral-bg);
+    --bs-btn-active-border-color: var(--field);
+    --bs-btn-disabled-color: var(--muted);
+    --bs-btn-disabled-bg: var(--surface);
+    --bs-btn-disabled-border-color: var(--line-strong);
+}
+
+.form-label,
+.col-form-label {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.form-text {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 18px;
+}
+
+.form-control,
+.form-select {
+    border-color: var(--field);
+    border-radius: var(--radius-sm);
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--sky-400);
+    box-shadow: 0 0 0 3px var(--blue-100), inset 0 0 0 1px var(--sky-400);
+}
+
+.card {
+    --bs-card-border-radius: var(--radius-sm);
+    --bs-card-inner-border-radius: 3px;
+    box-shadow: var(--shadow-xs);
+}
+
+.table > thead > tr > th,
+.bootstrap-table .fixed-table-container thead th {
+    height: 40px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--fg-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.bootstrap-table .fixed-table-container thead th .th-inner {
+    padding-block: 10px;
+}
+
+.table > tbody > tr > td {
+    height: 48px;
+    border-bottom-color: var(--line-light);
+    color: var(--text);
+}
+
+.table-hover > tbody > tr:hover > *,
+.bootstrap-table .table tbody tr:hover > td {
+    --bs-table-accent-bg: var(--surface-hover);
+    background: var(--surface-hover);
+}
+
+.bootstrap-table .table tbody tr.selected > td {
+    background: var(--blue-100);
+}
+
+.table > tfoot > tr > td,
+.table > tfoot > tr > th,
+.bootstrap-table .fixed-table-footer td {
+    border-top: 2px solid var(--line);
+    background: var(--surface-2);
+    font-weight: 600;
+}
+
+.table-sm > tbody > tr > td,
+.table.compact > tbody > tr > td {
+    height: 36px;
+    font-size: 13px;
+}
+
+.bootstrap-table .fixed-table-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    color: var(--fg-secondary);
+    font-size: 13px;
+}
+
+.pagination {
+    --bs-pagination-border-radius: var(--radius-sm);
+    --bs-pagination-color: var(--text);
+    --bs-pagination-border-color: var(--line);
+    --bs-pagination-hover-bg: var(--surface-hover);
+    --bs-pagination-active-bg: var(--blue-500);
+    --bs-pagination-active-border-color: var(--blue-500);
+    gap: 4px;
+}
+
+.pagination .page-link {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    line-height: 30px;
+    text-align: center;
+}
+
+.nav-tabs {
+    --bs-nav-tabs-border-color: var(--line);
+    gap: 16px;
+}
+
+.nav-tabs .nav-link {
+    margin-bottom: -1px;
+    padding: 12px 4px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: var(--fg-secondary);
+    font-weight: 500;
+}
+
+.nav-tabs .nav-link:hover {
+    border-bottom-color: var(--line-strong);
+    color: var(--text);
+}
+
+.nav-tabs .nav-link.active,
+.nav-tabs .nav-item.show .nav-link {
+    border-bottom-color: var(--blue-500);
+    background: none;
+    color: var(--blue-500);
+}
+
+.modal-content {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+    padding: 16px 24px;
+    border-bottom-color: var(--line-light);
+}
+
+.modal-header .modal-title {
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 28px;
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.modal-footer {
+    gap: 12px;
+    padding: 16px 24px;
+    border-top-color: var(--line-light);
+    border-bottom-right-radius: var(--radius-md);
+    border-bottom-left-radius: var(--radius-md);
+    background: var(--surface-2);
+}
+
+.modal-footer > * {
+    margin: 0;
+}
+
+.alert {
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+}
+
+.badge {
+    border-radius: 2px;
+    font-weight: 600;
+}
+
+@media (min-width: 640px) and (max-width: 1023.98px) {
+    .page-head {
+        margin: -20px -20px 20px;
+        padding-inline: 20px;
+    }
+}
+
+@media (max-width: 639.98px) {
+    .page-head {
+        position: static;
+        margin: -16px -16px 16px;
+        padding: 12px 16px;
+    }
+
+    .page-head .page-title {
+        font-size: 20px;
+        line-height: 28px;
+    }
+
+    .page-head-actions {
+        width: 100%;
+    }
+}
+
+@media print {
+    .page-head {
+        position: static;
+        margin: 0 0 12px;
+        border: 0;
+        box-shadow: none;
+    }
+
+    .page-head-actions {
+        display: none;
+    }
+}
+
 .kbd:empty {
     display: none;
 }
