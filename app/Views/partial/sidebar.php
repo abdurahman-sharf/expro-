@@ -77,7 +77,7 @@ foreach ($sections as $section) {
             '<span class="app-avatar" aria-hidden="true">' . esc($initial) . '</span>'
                 . '<span class="app-user"><span class="app-user-name">' . esc("{$user_info->first_name} {$user_info->last_name}") . '</span>'
                 . '<span class="app-user-sub">' . esc($user_info->username) . '</span></span>',
-            ['class' => 'app-user-link modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Employees.change_password')],
+            ['class' => 'app-user-link modal-dlg modal-dlg-narrow', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Employees.change_password')],
         ) ?>
         <a class="app-logout" href="<?= site_url('home/logout') ?>" title="<?= lang('Login.logout') ?>">
             <i class="bi bi-box-arrow-right" aria-hidden="true"></i>

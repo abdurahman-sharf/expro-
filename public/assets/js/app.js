@@ -129,8 +129,14 @@
             }
         });
 
+        // The design system's footer order: a destructive action alone at the start, then close, then the
+        // secondary "new", and the primary "submit" last, at the end of the row.
+        const rank = function(id) {
+            return ({delete: 0, restore: 0, new: 2, submit: 3})[id] ?? 1;
+        };
+
         buttons.sort(function(a, b) {
-            return SUBMITTING.indexOf(a.id) - SUBMITTING.indexOf(b.id);
+            return rank(a.id) - rank(b.id);
         });
 
         return buttons;
@@ -145,10 +151,10 @@
     };
 
     const modalOf = function($link, buttons) {
-        const wide = dialogClassOf($link) === 'modal-dlg-wide';
+        const size = {'modal-dlg-wide': 'modal-xl', 'modal-dlg-narrow': ''}[dialogClassOf($link)] ?? 'modal-lg';
         const $modal = $(
             '<div class="modal fade modal-dlg" tabindex="-1" aria-hidden="true">' +
-                '<div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down ' + (wide ? 'modal-xl' : 'modal-lg') + '">' +
+                '<div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down ' + size + '">' +
                     '<div class="modal-content">' +
                         '<div class="modal-header"><h2 class="modal-title fs-5"></h2><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
                         '<div class="modal-body"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div></div>' +
@@ -164,8 +170,11 @@
         $modal.find('.btn-close').attr('aria-label', lang.line('common_close'));
 
         const $footer = $modal.find('.modal-footer');
-        $footer.append($('<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"></button>').text(lang.line('common_close')));
+        const $close = $('<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"></button>').text(lang.line('common_close'));
         $.each(buttons, function(index, button) {
+            if (button.id !== 'delete' && button.id !== 'restore' && !$close.parent().length) {
+                $footer.append($close);
+            }
             $('<button type="button"></button>')
                 .attr({id: button.id, 'data-dialog-button': button.id})
                 .addClass('btn ' + button.cssClass)
@@ -175,6 +184,9 @@
                 })
                 .appendTo($footer);
         });
+        if (!$close.parent().length) {
+            $footer.append($close);
+        }
 
         return $modal;
     };

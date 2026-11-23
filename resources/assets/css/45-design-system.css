@@ -452,3 +452,143 @@
 .bootstrap-table .fixed-table-container .table tbody td {
     white-space: nowrap;
 }
+
+/* Form dialog (Dialog + PageInvoiceCreate fields): a white sheet, labels above 40px fields, sections titled
+   in the text colour, and the footer's destructive action held apart at the start. */
+.modal-dlg .modal-content,
+.modal-dlg .modal-header {
+    background: var(--surface);
+}
+
+.modal-dlg .modal-footer [data-dialog-button="delete"],
+.modal-dlg .modal-footer [data-dialog-button="restore"] {
+    margin-inline-end: auto;
+}
+
+.modal-body .app-form .form-label,
+.modal-body .app-form .col-form-label {
+    margin-bottom: 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.modal-body .app-form .form-control-sm,
+.modal-body .app-form .form-select-sm,
+.modal-body .app-form .form-select,
+.modal-body .app-form .input-group-text {
+    min-height: 40px;
+    font-size: 14px;
+}
+
+.modal-body .app-form .field {
+    margin-bottom: 16px;
+}
+
+.form-section {
+    margin-top: 8px;
+}
+
+.form-section-title {
+    margin: 8px 0 16px;
+    padding-bottom: 8px;
+    border-bottom-color: var(--line-light);
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.modal-body #required_fields_message {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 16px;
+    color: var(--fg-secondary);
+    font-size: 13px;
+}
+
+.modal-body #required_fields_message::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--danger, #cf3350);
+}
+
+.modal-dlg .modal-footer .btn {
+    min-height: 40px;
+}
+
+@media (max-width: 575.98px) {
+    .modal-dlg .modal-footer {
+        flex-wrap: wrap;
+    }
+
+    .modal-dlg .modal-footer .btn {
+        flex: 1 1 0;
+    }
+
+    .modal-dlg .modal-footer [data-dialog-button="submit"] {
+        flex-basis: 100%;
+        order: -1;
+    }
+
+    .modal-dlg .modal-footer [data-dialog-button="delete"],
+    .modal-dlg .modal-footer [data-dialog-button="restore"] {
+        margin: 0;
+    }
+}
+
+.app-form.dialog-narrow {
+    max-width: 440px;
+    margin-inline: auto;
+}
+
+.dialog-account {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+}
+
+.dialog-account-avatar {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--blue-500);
+    color: #fff;
+    font-weight: 600;
+}
+
+.dialog-account-text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.dialog-account-text b {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.dialog-account-text small {
+    color: var(--fg-secondary);
+    text-align: start;
+}
+
+.dialog-account-mark {
+    color: var(--success, #07824d);
+    font-size: 20px;
+}
+
+.modal-body .app-form label.required::after {
+    color: var(--danger);
+}

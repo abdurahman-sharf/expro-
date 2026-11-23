@@ -42,7 +42,7 @@
 | 9 | AUTH-02 | مطالبة المالك بالحساب (أول تشغيل) | مشترك | `login` قبل وجود مالك؛ `POST owner_setup` | `OwnerSetup::postClaim` · `setup/claim.php` | P3 | AUTH-01 | مكتمل (على فرع التطوير، لم يُدمج) |
 | 10 | AUTH-03 | معالج الإعداد الأول (اللغة، الشركة، الفرع، الضريبة، المحاسبة) | مشترك | `setup?step=…`؛ `POST setup/language|company|branch|tax|finish` | `Setup::*` · `setup/wizard.php` + `accounting_settings/activation_panels.php` | P3 | AUTH-02 (يُصمم معه مكوّن خطوات تشغيل المحاسبة المشترك مع FIN-57) | مكتمل (معتمد ذاتيًا على الديزاين سيستم، على فرع التطوير) |
 | 11 | AUTH-04 | تغيير كلمة المرور الإجباري | مشترك | `home/mustChangePassword`؛ `POST home/save` | `Home::getMustChangePassword` · `home/must_change_password.php` | P2 | AUTH-01 | مكتمل (معتمد ذاتيًا، على فرع التطوير) |
-| 12 | AUTH-05 | نافذة تغيير كلمة المرور (من تذييل القائمة) | مشترك | `home/changePassword/{id}`؛ `POST home/save` | `Home::getChangePassword` · `home/form_change_password.php` | P2 | SHL-01، CMP-02 | لم تبدأ (يُنفَّذ مع نمط نافذة النموذج CMP-02) |
+| 12 | AUTH-05 | نافذة تغيير كلمة المرور (من تذييل القائمة) | مشترك | `home/changePassword/{id}`؛ `POST home/save` | `Home::getChangePassword` · `home/form_change_password.php` | P2 | SHL-01، CMP-02 | مكتمل (معتمد ذاتيًا) |
 | 13 | AUTH-06 | لا تملك صلاحية | مشترك | `no_access/{module}/{permission}` | `No_access::getIndex` · `no_access.php` | P2 | SHL-01 | مكتمل (معتمد ذاتيًا، على فرع التطوير) |
 | 14 | AUTH-07 | صفحات الأخطاء (404، الاستثناء، قاعدة البيانات، الإنتاج) | مشترك | أي مسار | الإطار · `errors/html/*` (مستثناة من المنسّق) | P3 | — | مكتمل لصفحتي 404 والإنتاج (صفحات الاستثناء للمطوّر فقط بقيت كما هي) |
 
@@ -51,13 +51,13 @@
 | # | المعرف | المكوّن | القسم | أين يظهر | الملفات | الأولوية | يُصمم مع | الحالة |
 |---|---|---|---|---|---|---|---|---|
 | 15 | CMP-01 | صفحة قائمة قياسية (شريط أدوات، بحث، فلاتر، جدول، تحديد جماعي، حذف، تصدير، ترقيم صفحات) | مشترك | كل صفحات `manage.php` | `people/manage.php` ونظائرها، `partial/table_filter_persistence.php`، `js/35-export.js` | P1 | SYS-17 | مكتمل (معتمد ذاتيًا، طبقة مشتركة: رأس الصفحة، شريط أدوات الجدول، الجدول، الترقيم) |
-| 16 | CMP-02 | نافذة نموذج قياسية (إضافة وتعديل، تبويبات داخلية، حفظ وإلغاء، رسائل التحقق) | مشترك | كل روابط `modal-dlg` | كل `form.php` | P1 | SYS-18 | لم تبدأ |
+| 16 | CMP-02 | نافذة نموذج قياسية (إضافة وتعديل، تبويبات داخلية، حفظ وإلغاء، رسائل التحقق) | مشترك | كل روابط `modal-dlg` | كل `form.php` | P1 | SYS-18 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 17 | CMP-03 | نافذة تأكيد أو إلغاء أو عكس أو اعتماد (سبب، تاريخ، أثر العملية) | مشترك | كل `*_cancel_form`، `reverse_form`، `approve_form` | — | P2 | INV-20 | لم تبدأ |
 | 18 | CMP-04 | صفحة تقرير (فلاتر، ملخص، جدول، قائمة تصدير CSV/XLSX/PDF، طباعة) | مشترك | تقارير الدفاتر | `partial/report_files.php`، `partial/daterangepicker.php`، `accounting_statements/toolbar.php` | P2 | SAL-24 | لم تبدأ |
 | 19 | CMP-05 | شاشة طباعة مستند مع شريط إجراءات (طباعة، PDF، بريد) | مشترك | القيود والسندات وفواتير الشراء والإيصالات | `documents/screen.php`، `partial/document_actions.php`، `partial/print_receipt.php` | P1 | SAL-09 | لم تبدأ |
 | 20 | CMP-06 | محرر بنود المستند (أصناف، كميات، أسعار، ضريبة، إجماليات) | مشترك | أوامر البيع، المتكررات، دورة الشراء | `partial/document_lines.php`، `purchase_cycle/lines.php` | P2 | SAL-15 | لم تبدأ |
 | 21 | CMP-07 | كتل نماذج الأشخاص (البيانات الأساسية، الملاحظات، جهات الاتصال، الحقول الإضافية) | مشترك | نماذج العملاء والموردين والموظفين والأصناف | `people/form_basic_info.php`، `form_comments.php`، `contacts_panel.php`، `contacts_list.php`، `custom_fields/inputs.php` | P2 | SYS-18 | لم تبدأ |
-| 22 | CMP-08 | نافذة إرسال رسالة SMS لشخص | مشترك | قوائم العملاء والموردين والموظفين | `Messages::getView` · `messages/form_sms.php` | P3 | CMP-02 | لم تبدأ |
+| 22 | CMP-08 | نافذة إرسال رسالة SMS لشخص | مشترك | قوائم العملاء والموردين والموظفين | `Messages::getView` · `messages/form_sms.php` | P3 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 23 | CMP-09 | لوحة حالة الفاتورة الإلكترونية (إصدار، إشعار مدين، XML) | مشترك | الإيصال والفاتورة | `AccountingEInvoicing::postIssue` · `accounting_einvoicing/sale_panel.php`، `status_panel.php` | P2 | SAL-04 | لم تبدأ |
 | 24 | CMP-10 | تنبيه المحاسبة على الصفحات (مثل: المحاسبة موقوفة أو الفترة مقفلة) | مشترك | صفحات متعددة | `accounting_journals/notice.php` | P3 | SHL-02 | لم تبدأ |
 
@@ -80,19 +80,19 @@
 | 37 | SYS-13 | تبويب الطاولات | 2 النظام | `config#table_tab` | `configs/table_config.php` + `partial/dinner_tables.php` | P3 | SYS-01 | لم تبدأ |
 | 38 | SYS-14 | تبويب النظام بتبويباته الفرعية: معلومات النظام، البريد، رسائل SMS، Mailchimp، الترخيص | 2 النظام | `config#system_tab` | `configs/system_config.php`، `system_info.php`، `email_config.php`، `message_config.php`، `integrations_config.php`، `license_config.php` | P3 | SYS-01 | لم تبدأ |
 | 39 | SYS-15 | الفروع (قائمة) | 2 النظام | `branches` | `Branches::getIndex` · `branches/manage.php` | P2 | CMP-01 | لم تبدأ |
-| 40 | SYS-16 | نموذج الفرع | 2 النظام | `branches/view[/{id}]` | `Branches::getView` · `branches/form.php` | P2 | CMP-02 | لم تبدأ |
+| 40 | SYS-16 | نموذج الفرع | 2 النظام | `branches/view[/{id}]` | `Branches::getView` · `branches/form.php` | P2 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 41 | SYS-17 | الموظفون (قائمة) | 2 النظام | `employees` | `Persons::getIndex` · `people/manage.php` | P2 | SHL-01 | لم تبدأ |
 | 42 | SYS-18 | نموذج الموظف (بيانات أساسية، الدخول، الصلاحيات، الفروع، الأدوار) | 2 النظام | `employees/view/{id}` | `Employees::getView` · `employees/form.php` | P2 | CMP-07 | لم تبدأ |
 | 43 | SYS-19 | الأدوار (قائمة) | 2 النظام | `roles` | `Roles::getIndex` · `roles/manage.php` | P2 | CMP-01 | لم تبدأ |
-| 44 | SYS-20 | نموذج الدور (الصلاحيات ونطاق السجلات) | 2 النظام | `roles/view[/{id}]` | `Roles::getView` · `roles/form.php` | P2 | CMP-02 | لم تبدأ |
+| 44 | SYS-20 | نموذج الدور (الصلاحيات ونطاق السجلات) | 2 النظام | `roles/view[/{id}]` | `Roles::getView` · `roles/form.php` | P2 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 45 | SYS-21 | الحقول الإضافية (قائمة) | 2 النظام | `custom_fields` | `Custom_fields::getIndex` · `custom_fields/manage.php` | P3 | CMP-01 | لم تبدأ |
-| 46 | SYS-22 | نموذج الحقل الإضافي | 2 النظام | `custom_fields/view[/{id}]` | `custom_fields/form.php` | P3 | CMP-02 | لم تبدأ |
+| 46 | SYS-22 | نموذج الحقل الإضافي | 2 النظام | `custom_fields/view[/{id}]` | `custom_fields/form.php` | P3 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 47 | SYS-23 | مركز الضرائب والفوترة الإلكترونية (بطاقات وفحوص الجاهزية) | 2 النظام | `tax_settings` | `TaxSettingsHub::getIndex` · `tax_settings/hub.php` | P3 | SHL-01 | لم تبدأ |
 | 48 | SYS-24 | الضرائب (التبويبات الأربعة: الرموز، الولايات الضريبية، الفئات، النسب) | 2 النظام | `taxes` | `Taxes::getIndex`، `getAjax_tax_*` · `taxes/manage.php`، `tax_codes.php`، `tax_jurisdictions.php`، `tax_categories.php`، `tax_rates.php` | P3 | CMP-01 | لم تبدأ |
-| 49 | SYS-25 | نموذج نسبة الضريبة | 2 النظام | `taxes/view/{id}` | `taxes/tax_rates_form.php` | P3 | CMP-02 | لم تبدأ |
+| 49 | SYS-25 | نموذج نسبة الضريبة | 2 النظام | `taxes/view/{id}` | `taxes/tax_rates_form.php` | P3 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 50 | SYS-26 | فئات ضريبة القيمة المضافة (الفئات، النسب، تصنيف الأصناف) | 2 النظام | `vat_classes` | `Vat_classes::getIndex` · `vat_classes/manage.php` | P3 | SYS-23 | لم تبدأ |
 | 51 | SYS-27 | تعريفات الضرائب (قائمة) | 2 النظام | `tax_definitions` | `Tax_definitions::getIndex` · `tax_definitions/manage.php` | P3 | CMP-01 | لم تبدأ |
-| 52 | SYS-28 | نموذج تعريف الضريبة | 2 النظام | `tax_definitions/view[/{id}]` | `tax_definitions/form.php` | P3 | CMP-02 | لم تبدأ |
+| 52 | SYS-28 | نموذج تعريف الضريبة | 2 النظام | `tax_definitions/view[/{id}]` | `tax_definitions/form.php` | P3 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 53 | SYS-29 | إعدادات التكامل | 2 النظام | `integrations` | `Integrations::getIndex` · `integrations/manage.php` | P3 | SHL-01 | لم تبدأ |
 | 54 | SYS-30 | ترجمة رموز التكامل | 2 النظام | `integrations/translations` | `integrations/translations.php` | P3 | SYS-29 | لم تبدأ |
 | 55 | SYS-31 | طرق الدفع | 2 النظام | `integrations/payment_methods` | `integrations/payment_methods.php` | P2 | SHL-01 | لم تبدأ |
@@ -107,21 +107,21 @@
 | 59 | INV-02 | نموذج الصنف (مع كتلة السمات والحقول الإضافية) | 6 المخازن | `items/view/{id}`، `items/attributes/{id}` | `Items::getView` · `items/form.php`، `attributes/item.php` | P1 | CMP-02، CMP-07 | لم تبدأ |
 | 60 | INV-03 | تعديل كمية الصنف | 6 المخازن | `items/inventory/{id}` | `items/form_inventory.php` | P2 | INV-02 | لم تبدأ |
 | 61 | INV-04 | سجل حركة الصنف | 6 المخازن | `items/countDetails/{id}` | `items/form_count_details.php` | P2 | INV-02 | لم تبدأ |
-| 62 | INV-05 | التعديل الجماعي للأصناف | 6 المخازن | `items/bulkEdit` | `items/form_bulk.php` | P3 | CMP-02 | لم تبدأ |
-| 63 | INV-06 | استيراد الأصناف من CSV | 6 المخازن | `items/csvImport` | `items/form_csv_import.php` | P3 | CMP-02 | لم تبدأ |
+| 62 | INV-05 | التعديل الجماعي للأصناف | 6 المخازن | `items/bulkEdit` | `items/form_bulk.php` | P3 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
+| 63 | INV-06 | استيراد الأصناف من CSV | 6 المخازن | `items/csvImport` | `items/form_csv_import.php` | P3 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 64 | INV-07 | صفحة طباعة ملصقات الباركود | 6 المخازن | `items/generateBarcodes/{ids}`، `item_kits/generateBarcodes/{ids}` | `barcodes/barcode_sheet.php` | P2 | SYS-09 | لم تبدأ |
 | 65 | INV-08 | الأطقم (قائمة) | 6 المخازن | `item_kits` | `Item_kits::getIndex` · `item_kits/manage.php` | P2 | CMP-01 | لم تبدأ |
-| 66 | INV-09 | نموذج الطقم | 6 المخازن | `item_kits/view/{id}` | `item_kits/form.php` | P2 | CMP-02 | لم تبدأ |
+| 66 | INV-09 | نموذج الطقم | 6 المخازن | `item_kits/view/{id}` | `item_kits/form.php` | P2 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 67 | INV-10 | سمات الأصناف (قائمة) | 6 المخازن | `attributes` | `attributes/manage.php` | P3 | CMP-01 | لم تبدأ |
-| 68 | INV-11 | نموذج السمة | 6 المخازن | `attributes/view/{id}` | `attributes/form.php` | P3 | CMP-02 | لم تبدأ |
+| 68 | INV-11 | نموذج السمة | 6 المخازن | `attributes/view/{id}` | `attributes/form.php` | P3 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 69 | INV-12 | العلامات التجارية (قائمة) | 6 المخازن | `item_brands` | `LookupScreen::getIndex` · `lookups/manage.php` | P3 | CMP-01 | لم تبدأ |
-| 70 | INV-13 | نموذج القوائم المرجعية (العلامة التجارية وتصنيف العملاء) | 6 المخازن | `item_brands/view[/{id}]`، `customer_classifications/view[/{id}]` | `LookupScreen::getView` · `lookups/form.php` | P3 | CMP-02 | لم تبدأ |
+| 70 | INV-13 | نموذج القوائم المرجعية (العلامة التجارية وتصنيف العملاء) | 6 المخازن | `item_brands/view[/{id}]`، `customer_classifications/view[/{id}]` | `LookupScreen::getView` · `lookups/form.php` | P3 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 71 | INV-14 | الوحدات والتتبع (قوالب الوحدات، وحدات الصنف، الدفعات والأرقام التسلسلية، الباركودات) | 6 المخازن | `stock_units` | `StockUnits::getIndex` · `stock_units/manage.php` | P2 | SHL-01 | لم تبدأ |
-| 72 | INV-15 | نموذج قالب الوحدة | 6 المخازن | `stock_units/templateForm/{kind}` | `stock_units/template_form.php` | P3 | CMP-02 | لم تبدأ |
+| 72 | INV-15 | نموذج قالب الوحدة | 6 المخازن | `stock_units/templateForm/{kind}` | `stock_units/template_form.php` | P3 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 73 | INV-16 | قوائم الأسعار | 6 المخازن | `price_lists` | `price_lists/manage.php` | P2 | CMP-01 | لم تبدأ |
-| 74 | INV-17 | نموذج قائمة الأسعار | 6 المخازن | `price_lists/view[/{id}]` | `price_lists/form.php` | P2 | CMP-02 | لم تبدأ |
+| 74 | INV-17 | نموذج قائمة الأسعار | 6 المخازن | `price_lists/view[/{id}]` | `price_lists/form.php` | P2 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 75 | INV-18 | مستندات المخزون: تبويبات + أذون المخزون (قائمة) | 6 المخازن | `stock_documents`، `stock_documents/permits` | `StockPermits::getIndex` · `stock_permits/manage.php` + `stock_documents/tabs.php` | P2 | CMP-01 | لم تبدأ |
-| 76 | INV-19 | نموذج إذن المخزون (إضافة، صرف، تحويل) | 6 المخازن | `stock_documents/permits/form/{type}`، `edit/{id}` | `stock_permits/form.php` | P2 | CMP-02 | لم تبدأ |
+| 76 | INV-19 | نموذج إذن المخزون (إضافة، صرف، تحويل) | 6 المخازن | `stock_documents/permits/form/{type}`، `edit/{id}` | `stock_permits/form.php` | P2 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 77 | INV-20 | عرض إذن المخزون + نافذة إلغائه | 6 المخازن | `stock_documents/permits/view/{id}`، `cancel_form/{id}` | `stock_permits/view.php`، `cancel_form.php` | P2 | CMP-03 | لم تبدأ |
 | 78 | INV-21 | الجرد (قائمة) + نافذة جرد جديد | 6 المخازن | `stock_documents/stocktakes`، `stocktakes/form` | `stocktakes/manage.php`، `form.php` | P2 | INV-18 | لم تبدأ |
 | 79 | INV-22 | ورقة الجرد (إدخال الكميات، إضافة وحذف أصناف، اعتماد) + نافذة الإلغاء | 6 المخازن | `stock_documents/stocktakes/view/{id}`، `cancel_form/{id}` | `stocktakes/sheet.php`، `cancel_form.php` | P2 | INV-21 | لم تبدأ |
@@ -143,7 +143,7 @@
 | 90 | SAL-08 | طباعة مستند البيع (إشعار دائن وغيره) | 4 المبيعات | `sales/print/{id}/{type}` | `sales/document_print.php` | P2 | SAL-05 | لم تبدأ |
 | 91 | SAL-09 | سند قبض دفعة العميل | 4 المبيعات | `sales/paymentReceipt/{id}` | `documents/screen.php` | P2 | CMP-05 | لم تبدأ |
 | 92 | SAL-10 | سجل فواتير المبيعات | 4 المبيعات | `sales/manage` | `Sales::getManage` · `sales/manage.php` | P1 | CMP-01 | لم تبدأ |
-| 93 | SAL-11 | نافذة تعديل البيع | 4 المبيعات | `sales/edit/{id}` | `sales/form.php` | P2 | CMP-02 | لم تبدأ |
+| 93 | SAL-11 | نافذة تعديل البيع | 4 المبيعات | `sales/edit/{id}` | `sales/form.php` | P2 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 94 | SAL-12 | المسودات وعروض الأسعار (قائمة) | 4 المبيعات | `sales/documents` | `sales/documents.php` | P2 | CMP-01 | لم تبدأ |
 | 95 | SAL-13 | تفاصيل المسودة أو عرض السعر (إصدار، حالة العرض، تحويل) | 4 المبيعات | `sales/document/{id}` | `sales/document.php` | P2 | SAL-12 | لم تبدأ |
 | 96 | SAL-14 | أوامر البيع (قائمة) | 4 المبيعات | `customer_orders` | `customer_orders/manage.php` | P2 | CMP-01 | لم تبدأ |
@@ -178,7 +178,7 @@
 | 119 | PUR-03 | إيصال الاستلام | 5 المشتريات | `receivings/receipt/{id}` | `receivings/receipt.php` | P2 | CMP-05 | لم تبدأ |
 | 120 | PUR-04 | طباعة فاتورة الشراء | 5 المشتريات | `receivings/print/{id}` | `documents/screen.php` + `documents/purchase_invoice.php` | P2 | CMP-05 | لم تبدأ |
 | 121 | PUR-05 | سند صرف دفعة المورد | 5 المشتريات | `receivings/paymentReceipt/{id}` | `documents/screen.php` | P2 | CMP-05 | لم تبدأ |
-| 122 | PUR-06 | نافذة تعديل فاتورة الشراء | 5 المشتريات | `receivings/edit/{id}` | `receivings/form.php` | P2 | CMP-02 | لم تبدأ |
+| 122 | PUR-06 | نافذة تعديل فاتورة الشراء | 5 المشتريات | `receivings/edit/{id}` | `receivings/form.php` | P2 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 123 | PUR-07 | دورة الشراء: القائمة الموحدة (طلبات الشراء، طلبات عروض الأسعار، عروض الموردين، أوامر الشراء) | 5 المشتريات | `purchase_requests`، `quotation_requests`، `supplier_quotations`، `purchase_orders` | `PurchaseCycleScreen::getIndex` · `purchase_cycle/manage.php` | P2 | CMP-01 | لم تبدأ |
 | 124 | PUR-08 | دورة الشراء: نموذج المستند (للأنواع الأربعة) | 5 المشتريات | `{type}/add`، `{type}/edit/{id}` | `PurchaseCycleScreen::getForm` · `purchase_cycle/form.php`، `lines.php` | P2 | CMP-06 | لم تبدأ |
 | 125 | PUR-09 | دورة الشراء: عرض المستند (حالة، إلغاء، تحويل للمرحلة التالية أو للاستلام) | 5 المشتريات | `{type}/view/{id}` | `PurchaseCycleScreen::getShow` · `purchase_cycle/view.php` | P2 | PUR-08 | لم تبدأ |
@@ -196,22 +196,22 @@
 | # | المعرف | الشاشة | القسم | مسار URL | Controller · View | الأولوية | يعتمد على | الحالة |
 |---|---|---|---|---|---|---|---|---|
 | 134 | FIN-01 | المصروفات وسندات صرفها (قائمة) | 3 المالية | `expenses` | `Expenses::getIndex` · `expenses/manage.php` | P1 | CMP-01 | لم تبدأ |
-| 135 | FIN-02 | نموذج المصروف | 3 المالية | `expenses/view/{id}` | `expenses/form.php` | P1 | CMP-02 | لم تبدأ |
+| 135 | FIN-02 | نموذج المصروف | 3 المالية | `expenses/view/{id}` | `expenses/form.php` | P1 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 136 | FIN-03 | سند صرف المصروف (طباعة) | 3 المالية | `expenses/voucher/{id}` | `documents/screen.php` | P2 | CMP-05 | لم تبدأ |
 | 137 | FIN-04 | فئات المصروفات (قائمة) + نموذجها | 3 المالية | `expenses_categories`، `view/{id}` | `expenses_categories/manage.php`، `form.php` | P3 | CMP-01، CMP-02 | لم تبدأ |
 | 138 | FIN-05 | المصروفات المتكررة: القائمة والنموذج والعرض | 3 المالية | `recurring_expenses`، `add`، `edit/{id}`، `view/{id}` | `RecurringScreen` · `recurring/*.php` | P3 | SAL-17..19 | لم تبدأ |
 | 139 | FIN-06 | سندات القبض (قائمة) | 3 المالية | `receipt_vouchers` | `receipt_vouchers/manage.php` | P2 | CMP-01 | لم تبدأ |
-| 140 | FIN-07 | نموذج سند القبض | 3 المالية | `receipt_vouchers/view[/{id}]` | `receipt_vouchers/form.php` | P2 | CMP-02 | لم تبدأ |
+| 140 | FIN-07 | نموذج سند القبض | 3 المالية | `receipt_vouchers/view[/{id}]` | `receipt_vouchers/form.php` | P2 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 141 | FIN-08 | طباعة سند القبض | 3 المالية | `receipt_vouchers/print/{id}` | `documents/screen.php` | P2 | CMP-05 | لم تبدأ |
 | 142 | FIN-09 | فئات الإيرادات (قائمة) + نموذجها | 3 المالية | `revenue_categories`، `view[/{id}]` | `revenue_categories/*.php` | P3 | FIN-04 | لم تبدأ |
 | 143 | FIN-10 | الخزائن والحسابات البنكية (قائمة) | 3 المالية | `accounting_treasuries` | `accounting_treasuries/manage.php` | P2 | CMP-01 | لم تبدأ |
-| 144 | FIN-11 | نموذج الخزينة أو الحساب البنكي | 3 المالية | `accounting_treasuries/view[/{id}]` | `accounting_treasuries/form.php` | P2 | CMP-02 | لم تبدأ |
+| 144 | FIN-11 | نموذج الخزينة أو الحساب البنكي | 3 المالية | `accounting_treasuries/view[/{id}]` | `accounting_treasuries/form.php` | P2 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 145 | FIN-12 | كشف الخزينة | 3 المالية | `accounting_treasuries/statement/{id}` | `accounting_treasuries/statement.php` | P2 | CMP-04 | لم تبدأ |
 | 146 | FIN-13 | الخزائن الافتراضية لكل طريقة دفع وفرع | 3 المالية | `accounting_treasuries/defaults` | `accounting_treasuries/defaults.php` | P3 | FIN-10 | لم تبدأ |
 | 147 | FIN-14 | التحويلات بين الخزائن (قائمة) | 3 المالية | `accounting_treasuries/transfers` | `accounting_treasuries/transfers.php` | P2 | CMP-01 | لم تبدأ |
 | 148 | FIN-15 | نافذة تحويل جديد + نافذة إلغاء تحويل | 3 المالية | `accounting_treasuries/transfer_form`، `cancel_transfer_form/{id}` | `transfer_form.php`، `cancel_form.php` | P2 | CMP-02، CMP-03 | لم تبدأ |
 | 149 | FIN-16 | الشيكات (تبويبا الواردة والصادرة) | 3 المالية | `accounting_cheques?direction=received|paid` | `accounting_cheques/manage.php` | P2 | CMP-01 | لم تبدأ |
-| 150 | FIN-17 | نموذج الشيك | 3 المالية | `accounting_cheques/form/{direction}[/{id}]` | `accounting_cheques/form.php` | P2 | CMP-02 | لم تبدأ |
+| 150 | FIN-17 | نموذج الشيك | 3 المالية | `accounting_cheques/form/{direction}[/{id}]` | `accounting_cheques/form.php` | P2 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 151 | FIN-18 | تفاصيل الشيك + نافذة الإجراء (إيداع، تحصيل، ارتداد…) | 3 المالية | `accounting_cheques/view/{id}`، `action_form/{action}/{id}` | `accounting_cheques/view.php`، `action_form.php` | P2 | FIN-16 | لم تبدأ |
 | 152 | FIN-19 | دفاتر الشيكات + نموذج الدفتر | 3 المالية | `accounting_cheques/books`، `book_form[/{id}]` | `books.php`، `book_form.php` | P3 | FIN-16 | لم تبدأ |
 | 153 | FIN-20 | التسوية البنكية: الحسابات | 3 المالية | `accounting_treasuries/bank` | `AccountingBankReconciliation::getIndex` · `accounting_bank/index.php` | P2 | SHL-01 | لم تبدأ |
@@ -221,7 +221,7 @@
 | 157 | FIN-24 | إقفالات الصندوق (قائمة) + نموذج فتح وإقفال الصندوق | 3 المالية | `cashups`، `cashups/view/{id}` | `cashups/manage.php`، `form.php` | P1 | CMP-01، CMP-02 | لم تبدأ |
 | 158 | FIN-25 | نظرة عامة على المحاسبة | 3 المالية | `accounting_reports/overview` | `AccountingOverview::getIndex` · `accounting_reports/overview.php` | P2 | DASH-01 | لم تبدأ |
 | 159 | FIN-26 | دليل الحسابات (الشجرة) | 3 المالية | `accounting_chart` | `AccountingChart::getIndex` · `accounting_chart/manage.php`، `node.php`، `branch.php`، `find.php`، `actions.php` | P2 | SHL-01 | لم تبدأ |
-| 160 | FIN-27 | نموذج الحساب | 3 المالية | `accounting_chart/view[/{id}]` | `accounting_chart/form.php` | P2 | CMP-02 | لم تبدأ |
+| 160 | FIN-27 | نموذج الحساب | 3 المالية | `accounting_chart/view[/{id}]` | `accounting_chart/form.php` | P2 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 161 | FIN-28 | القيود اليومية (قائمة، ومنها عرض «ترحيل القيود» للمسودات) | 3 المالية | `accounting_journals`، `?status[]=draft` | `AccountingJournals::getIndex` · `accounting_journals/manage.php` | P1 | CMP-01 | لم تبدأ |
 | 162 | FIN-29 | محرر القيد (جديد، تعديل مسودة، مرفقات، توزيع مراكز التكلفة) | 3 المالية | `accounting_journals/new`، `edit/{id}` | `accounting_journals/form.php` + `attachments.php`، `line_more.php`، `line_charge.php` | P1 | FIN-26 | لم تبدأ |
 | 163 | FIN-30 | عرض القيد | 3 المالية | `accounting_journals/view/{id}` | `accounting_journals/view.php` | P1 | FIN-28 | لم تبدأ |
@@ -354,6 +354,7 @@
 | # | الشاشة | المقترح | السبب |
 |---|---|---|---|
 | 1 | CMP-01 | حفظ عرض أعمدة الجدول لكل مستخدم على الخادم بدل المتصفح | يحتاج تخزينًا جديدًا (ميزة جديدة) |
+| 2 | CMP-02 | تمييز الحقول المطلوبة بنجمة حمراء فقط وتغيير رسالة «الحقول التي بالأحمر مطلوبة» إلى «الحقول المعلّمة بـ * مطلوبة» | تغيير نص في 46 لغة و93 شاشة؛ أُبقي اللون الأحمر للتسمية حتى لا تكذب الرسالة |
 
 ## بانتظار قرارك
 
