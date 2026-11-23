@@ -3978,4 +3978,26 @@ class ItemsControllerTest extends CIUnitTestCase
             session()->remove('person_id');
         }
     }
+
+    public function testGetGenerateBarcodes_RendersItemsWithAndWithoutBrand(): void
+    {
+        $db = Config::connect($this->DBGroup);
+        $db->table('item_brands')->insert(['name' => 'Barcode Brand ' . uniqid()]);
+        $brandId = (int) $db->insertID();
+
+        $branded   = $this->createTestItem();
+        $unbranded = $this->createTestItem();
+        $db->table('items')->where('item_id', $branded)->update(['brand_id' => $brandId]);
+
+        foreach ([$branded, $unbranded] as $itemId) {
+            $this->item_quantity->save_value(['item_id' => $itemId, 'location_id' => 1, 'quantity' => 0], $itemId, 1);
+        }
+
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $response = $this->get("/items/generateBarcodes/{$branded}:{$unbranded}");
+
+        $response->assertStatus(200);
+        $this->assertSame(2, substr_count($response->getBody(), '<div class="barcode">'));
+    }
 }

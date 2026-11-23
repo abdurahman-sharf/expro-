@@ -1301,4 +1301,28 @@ class ItemTest extends CIUnitTestCase
         $this->assertSame(['0', '0'], [(string) $this->accountingDb()->table('items')->where('item_id', $free)->get()->getRow()->deleted, (string) $this->accountingDb()->table('items')->where('item_id', $named)->get()->getRow()->deleted]);
         $this->cleanStatusFixtures();
     }
+
+    public function testGetMultipleInfo_ReturnsBrandName(): void
+    {
+        $db = Database::connect();
+        $db->table('item_brands')->insert(['name' => 'Barcode Brand ' . uniqid()]);
+        $brandId   = (int) $db->insertID();
+        $brandName = $db->table('item_brands')->where('brand_id', $brandId)->get()->getRow()->name;
+
+        $branded   = $this->createTestItem();
+        $unbranded = $this->createTestItem();
+        $db->table('items')->where('item_id', $branded)->update(['brand_id' => $brandId]);
+
+        foreach ([$branded, $unbranded] as $itemId) {
+            model(Item_quantity::class)->save_value(['item_id' => $itemId, 'location_id' => 1, 'quantity' => 0], $itemId, 1);
+        }
+
+        $rows = [];
+
+        foreach (model(Item::class)->get_multiple_info([$branded, $unbranded], 1)->getResult() as $row) {
+            $rows[(int) $row->item_id] = $row->brand_name;
+        }
+
+        $this->assertSame([$branded => $brandName, $unbranded => null], $rows);
+    }
 }

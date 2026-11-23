@@ -834,7 +834,7 @@ class Item extends Model
         $builder->select('MAX(quantity) as quantity');
         $builder->select('MAX(item_brands.name) AS brand_name');
 
-        $builder->join('item_brands', 'item_brands.brand_id = items.brand_id', 'left');
+        $builder->join('item_brands AS item_brands', 'item_brands.brand_id = items.brand_id', 'left');
         $builder->join('suppliers', 'suppliers.person_id = items.supplier_id', 'left');
         $builder->join('item_quantities', 'item_quantities.item_id = items.item_id', 'left');
         $builder->join('attribute_links', 'attribute_links.item_id = items.item_id AND sale_id IS NULL AND receiving_id IS NULL', 'left');
