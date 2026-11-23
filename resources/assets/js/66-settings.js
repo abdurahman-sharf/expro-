@@ -52,7 +52,7 @@
 
         $('.settings-link').on('shown.bs.tab', function(event) {
             const link = $(event.target);
-            $('#settings_nav_current').text($.trim(link.text()));
+            $('#settings_nav_current, #settings_title').text($.trim(link.text()));
             try {
                 history.replaceState(null, '', window.location.pathname + window.location.search + link.attr('data-bs-target'));
             } catch (error) {

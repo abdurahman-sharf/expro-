@@ -58,27 +58,27 @@
 | 20 | CMP-06 | محرر بنود المستند (أصناف، كميات، أسعار، ضريبة، إجماليات) | مشترك | أوامر البيع، المتكررات، دورة الشراء | `partial/document_lines.php`، `purchase_cycle/lines.php` | P2 | SAL-15 | مكتمل (معتمد ذاتيًا: بطاقة البيانات، بطاقة سطور مرقّمة بحذف بأيقونة وإضافة سطر، شريط حفظ ثابت، سطور مكدّسة على الجوال؛ مطبّق على دورة المشتريات وأوامر البيع والفواتير والمصروفات المتكررة) |
 | 21 | CMP-07 | كتل نماذج الأشخاص (البيانات الأساسية، الملاحظات، جهات الاتصال، الحقول الإضافية) | مشترك | نماذج العملاء والموردين والموظفين والأصناف | `people/form_basic_info.php`، `form_comments.php`، `contacts_panel.php`، `contacts_list.php`، `custom_fields/inputs.php` | P2 | SYS-18 | مكتمل (معتمد ذاتيًا عبر طبقة نافذة النموذج CMP-02؛ تحقق بصري على نموذج العميل) |
 | 22 | CMP-08 | نافذة إرسال رسالة SMS لشخص | مشترك | قوائم العملاء والموردين والموظفين | `Messages::getView` · `messages/form_sms.php` | P3 | CMP-02 | لم تبدأ |
-| 23 | CMP-09 | لوحة حالة الفاتورة الإلكترونية (إصدار، إشعار مدين، XML) | مشترك | الإيصال والفاتورة | `AccountingEInvoicing::postIssue` · `accounting_einvoicing/sale_panel.php`، `status_panel.php` | P2 | SAL-04 | لم تبدأ |
-| 24 | CMP-10 | تنبيه المحاسبة على الصفحات (مثل: المحاسبة موقوفة أو الفترة مقفلة) | مشترك | صفحات متعددة | `accounting_journals/notice.php` | P3 | SHL-02 | لم تبدأ |
+| 23 | CMP-09 | لوحة حالة الفاتورة الإلكترونية (إصدار، إشعار مدين، XML) | مشترك | الإيصال والفاتورة | `AccountingEInvoicing::postIssue` · `accounting_einvoicing/sale_panel.php`، `status_panel.php` | P2 | SAL-04 | مكتمل بطبقة CSS (المعرّفات الطويلة تلتف، تسميات ثانوية)؛ لم تُعرض حيًّا لأن الفوترة الإلكترونية غير مفعّلة ولا تُفعَّل ضمن القيود |
+| 24 | CMP-10 | تنبيه المحاسبة على الصفحات (مثل: المحاسبة موقوفة أو الفترة مقفلة) | مشترك | صفحات متعددة | `accounting_journals/notice.php` | P3 | SHL-02 | مكتمل (يظهر كإشعار toast بنمط نظام التصميم المنفّذ سابقًا) |
 
 ## المرحلة 3: إدارة النظام
 
 | # | المعرف | الشاشة | القسم | مسار URL | Controller · View | الأولوية | يعتمد على | الحالة |
 |---|---|---|---|---|---|---|---|---|
-| 25 | SYS-01 | الإعدادات: الهيكل والتنقل بين المجموعات الخمس | 2 النظام | `config` | `Config::getIndex` · `configs/manage.php` | P2 | SHL-01 | لم تبدأ |
-| 26 | SYS-02 | تبويب معلومات الشركة (مع الشعار) | 2 النظام | `config#info_tab` | `Config::postSaveInfo` · `configs/info_config.php` | P2 | SYS-01 | لم تبدأ |
-| 27 | SYS-03 | تبويب الإعدادات العامة | 2 النظام | `config#general_tab` | `configs/general_config.php` | P2 | SYS-01 | لم تبدأ |
-| 28 | SYS-04 | تبويب إعدادات طباعة الإيصال | 2 النظام | `config#receipt_tab` | `configs/receipt_config.php` | P2 | SYS-01 | لم تبدأ |
-| 29 | SYS-05 | تبويب إعدادات طباعة الفاتورة | 2 النظام | `config#invoice_tab` | `configs/invoice_config.php` | P2 | SYS-01 | لم تبدأ |
-| 30 | SYS-06 | تبويب الترقيم | 2 النظام | `config#numbering_tab` | `configs/numbering_config.php` | P3 | SYS-01 | لم تبدأ |
-| 31 | SYS-07 | تبويب اختصارات لوحة المفاتيح في المبيعات | 2 النظام | `config#shortcuts_tab` | `configs/shortcuts_config.php` | P3 | SYS-01 | لم تبدأ |
-| 32 | SYS-08 | تبويب أماكن المخزون (المستودعات) | 2 النظام | `config#stock_tab` | `configs/stock_config.php` + `partial/stock_locations.php` | P2 | SYS-01 | لم تبدأ |
-| 33 | SYS-09 | تبويب الباركود | 2 النظام | `config#barcode_tab` | `configs/barcode_config.php` | P3 | SYS-01 | لم تبدأ |
-| 34 | SYS-10 | تبويب اللغة والتنسيق المحلي | 2 النظام | `config#locale_tab` | `configs/locale_config.php` | P3 | SYS-01 | لم تبدأ |
-| 35 | SYS-11 | تبويب الضريبة (افتراضيات الشركة) | 2 النظام | `config#tax_tab` | `configs/tax_config.php` + `partial/tax_categories.php` | P3 | SYS-01 | لم تبدأ |
-| 36 | SYS-12 | تبويب المكافآت | 2 النظام | `config#reward_tab` | `configs/reward_config.php` + `partial/customer_rewards.php` | P3 | SYS-01 | لم تبدأ |
-| 37 | SYS-13 | تبويب الطاولات | 2 النظام | `config#table_tab` | `configs/table_config.php` + `partial/dinner_tables.php` | P3 | SYS-01 | لم تبدأ |
-| 38 | SYS-14 | تبويب النظام بتبويباته الفرعية: معلومات النظام، البريد، رسائل SMS، Mailchimp، الترخيص | 2 النظام | `config#system_tab` | `configs/system_config.php`، `system_info.php`، `email_config.php`، `message_config.php`، `integrations_config.php`، `license_config.php` | P3 | SYS-01 | لم تبدأ |
+| 25 | SYS-01 | الإعدادات: الهيكل والتنقل بين المجموعات الخمس | 2 النظام | `config` | `Config::getIndex` · `configs/manage.php` | P2 | SHL-01 | مكتمل (معتمد ذاتيًا: رأس صفحة باسم القسم، صفوف إعداد بتسمية وحقل وفاصل، حقول 40px، شريط حفظ ثابت) |
+| 26 | SYS-02 | تبويب معلومات الشركة (مع الشعار) | 2 النظام | `config#info_tab` | `Config::postSaveInfo` · `configs/info_config.php` | P2 | SYS-01 | مكتمل (معتمد ذاتيًا: رأس صفحة باسم القسم، صفوف إعداد بتسمية وحقل وفاصل، حقول 40px، شريط حفظ ثابت) |
+| 27 | SYS-03 | تبويب الإعدادات العامة | 2 النظام | `config#general_tab` | `configs/general_config.php` | P2 | SYS-01 | مكتمل (معتمد ذاتيًا: رأس صفحة باسم القسم، صفوف إعداد بتسمية وحقل وفاصل، حقول 40px، شريط حفظ ثابت) |
+| 28 | SYS-04 | تبويب إعدادات طباعة الإيصال | 2 النظام | `config#receipt_tab` | `configs/receipt_config.php` | P2 | SYS-01 | مكتمل (معتمد ذاتيًا: رأس صفحة باسم القسم، صفوف إعداد بتسمية وحقل وفاصل، حقول 40px، شريط حفظ ثابت) |
+| 29 | SYS-05 | تبويب إعدادات طباعة الفاتورة | 2 النظام | `config#invoice_tab` | `configs/invoice_config.php` | P2 | SYS-01 | مكتمل (معتمد ذاتيًا: رأس صفحة باسم القسم، صفوف إعداد بتسمية وحقل وفاصل، حقول 40px، شريط حفظ ثابت) |
+| 30 | SYS-06 | تبويب الترقيم | 2 النظام | `config#numbering_tab` | `configs/numbering_config.php` | P3 | SYS-01 | مكتمل (معتمد ذاتيًا: رأس صفحة باسم القسم، صفوف إعداد بتسمية وحقل وفاصل، حقول 40px، شريط حفظ ثابت) |
+| 31 | SYS-07 | تبويب اختصارات لوحة المفاتيح في المبيعات | 2 النظام | `config#shortcuts_tab` | `configs/shortcuts_config.php` | P3 | SYS-01 | مكتمل (معتمد ذاتيًا: رأس صفحة باسم القسم، صفوف إعداد بتسمية وحقل وفاصل، حقول 40px، شريط حفظ ثابت) |
+| 32 | SYS-08 | تبويب أماكن المخزون (المستودعات) | 2 النظام | `config#stock_tab` | `configs/stock_config.php` + `partial/stock_locations.php` | P2 | SYS-01 | مكتمل (معتمد ذاتيًا: رأس صفحة باسم القسم، صفوف إعداد بتسمية وحقل وفاصل، حقول 40px، شريط حفظ ثابت) |
+| 33 | SYS-09 | تبويب الباركود | 2 النظام | `config#barcode_tab` | `configs/barcode_config.php` | P3 | SYS-01 | مكتمل (معتمد ذاتيًا: رأس صفحة باسم القسم، صفوف إعداد بتسمية وحقل وفاصل، حقول 40px، شريط حفظ ثابت) |
+| 34 | SYS-10 | تبويب اللغة والتنسيق المحلي | 2 النظام | `config#locale_tab` | `configs/locale_config.php` | P3 | SYS-01 | مكتمل (معتمد ذاتيًا: رأس صفحة باسم القسم، صفوف إعداد بتسمية وحقل وفاصل، حقول 40px، شريط حفظ ثابت) |
+| 35 | SYS-11 | تبويب الضريبة (افتراضيات الشركة) | 2 النظام | `config#tax_tab` | `configs/tax_config.php` + `partial/tax_categories.php` | P3 | SYS-01 | مكتمل (معتمد ذاتيًا: رأس صفحة باسم القسم، صفوف إعداد بتسمية وحقل وفاصل، حقول 40px، شريط حفظ ثابت) |
+| 36 | SYS-12 | تبويب المكافآت | 2 النظام | `config#reward_tab` | `configs/reward_config.php` + `partial/customer_rewards.php` | P3 | SYS-01 | مكتمل (معتمد ذاتيًا: رأس صفحة باسم القسم، صفوف إعداد بتسمية وحقل وفاصل، حقول 40px، شريط حفظ ثابت) |
+| 37 | SYS-13 | تبويب الطاولات | 2 النظام | `config#table_tab` | `configs/table_config.php` + `partial/dinner_tables.php` | P3 | SYS-01 | مكتمل (معتمد ذاتيًا: رأس صفحة باسم القسم، صفوف إعداد بتسمية وحقل وفاصل، حقول 40px، شريط حفظ ثابت) |
+| 38 | SYS-14 | تبويب النظام بتبويباته الفرعية: معلومات النظام، البريد، رسائل SMS، Mailchimp، الترخيص | 2 النظام | `config#system_tab` | `configs/system_config.php`، `system_info.php`، `email_config.php`، `message_config.php`، `integrations_config.php`، `license_config.php` | P3 | SYS-01 | مكتمل (معتمد ذاتيًا: رأس صفحة باسم القسم، صفوف إعداد بتسمية وحقل وفاصل، حقول 40px، شريط حفظ ثابت) |
 | 39 | SYS-15 | الفروع (قائمة) | 2 النظام | `branches` | `Branches::getIndex` · `branches/manage.php` | P2 | CMP-01 | لم تبدأ |
 | 40 | SYS-16 | نموذج الفرع | 2 النظام | `branches/view[/{id}]` | `Branches::getView` · `branches/form.php` | P2 | CMP-02 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 41 | SYS-17 | الموظفون (قائمة) | 2 النظام | `employees` | `Persons::getIndex` · `people/manage.php` | P2 | SHL-01 | لم تبدأ |

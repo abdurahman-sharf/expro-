@@ -20,6 +20,13 @@ $panes = [
 
 <?= view('partial/header') ?>
 
+<header class="page-head settings-head">
+    <div class="page-head-start">
+        <p class="page-crumbs"><?= lang('Module.config') ?></p>
+        <h1 class="page-title" id="settings_title"><?= lang($sections[0][1][0][2]) ?></h1>
+    </div>
+</header>
+
 <div class="settings-layout">
     <nav class="settings-nav" aria-label="<?= lang('Config.settings_sections') ?>">
         <button type="button" id="settings_nav_toggle" class="btn btn-outline-secondary settings-nav-toggle d-lg-none" data-bs-toggle="collapse" data-bs-target="#settings_nav_list" aria-expanded="false" aria-controls="settings_nav_list">

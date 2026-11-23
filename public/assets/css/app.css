@@ -6167,6 +6167,124 @@ a.rollover img {
     font-size: 14px;
 }
 
+/* E-invoice status panel on a sale: a quiet card of badges and a definition list whose long identifiers wrap. */
+#einvoice_panel {
+    max-width: 1180px;
+    margin-inline: auto;
+    padding: 16px 20px;
+}
+
+#einvoice_panel dt {
+    color: var(--fg-secondary);
+    font-weight: 500;
+}
+
+#einvoice_panel dd bdi {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+/* Settings (PageSettings): each setting is a row of its label at the start and its control beside it, rows
+   parted by a light rule, the pane a card. */
+.settings-content > .tab-pane {
+    padding: 8px 24px 0;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-xs);
+}
+
+.settings-content .row.mb-3 {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 520px);
+    align-items: start;
+    gap: 6px 32px;
+    margin: 0 !important;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--line-light);
+}
+
+.settings-content .row.mb-3 > .col-form-label,
+.settings-content .row.mb-3 > [class*="col-"]:not(.col-form-label) {
+    width: auto;
+    max-width: none;
+    padding: 0;
+}
+
+.settings-content .row.mb-3 > .col-form-label {
+    padding-top: 9px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.settings-content .row.mb-3 > :nth-child(n + 3) {
+    grid-column: 2;
+}
+
+.settings-content .form-control-sm,
+.settings-content .form-select-sm,
+.settings-content .form-select,
+.settings-content .input-group-text {
+    min-height: 40px;
+    font-size: 14px;
+}
+
+.settings-content label.required::after {
+    color: var(--danger);
+}
+
+.settings-content #required_fields_message {
+    margin: 12px 0 4px;
+}
+
+.settings-actions {
+    margin: 0 -24px;
+    padding: 12px 24px;
+}
+
+.settings-actions .btn {
+    min-width: 120px;
+    min-height: 40px;
+}
+
+.settings-link {
+    font-weight: 500;
+}
+
+.settings-link.active {
+    font-weight: 600;
+}
+
+@media (max-width: 767.98px) {
+    .settings-content .row.mb-3 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .settings-content .row.mb-3 > :nth-child(n + 3) {
+        grid-column: 1;
+    }
+
+    .settings-content .row.mb-3 > .col-form-label {
+        padding-top: 0;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .settings-content > .tab-pane {
+        padding: 4px 16px 0;
+    }
+
+    .settings-actions {
+        margin: 0 -16px;
+        padding: 12px 16px;
+    }
+}
+
+.settings-content textarea.form-control-sm {
+    height: 96px;
+    min-height: 72px;
+}
+
 .kbd:empty {
     display: none;
 }
