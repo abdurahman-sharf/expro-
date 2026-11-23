@@ -1,7 +1,15 @@
 <?php
 
 return [
+    'back_home'                        => '',
+    'go_back'                          => '',
+    'no_access_permission'             => '',
+    'no_access_text'                   => '',
     'no_permission_module'             => 'آپ کو اس ماڈیول تک رسائی کی اجازت نہیں ہے',
+    'not_found_text'                   => '',
+    'not_found_title'                  => '',
+    'server_error_text'                => '',
+    'server_error_title'               => '',
     'unable_to_create_env_file'        => 'throttle.key ترتیب دینے کے لیے {filePath} نہیں بنائی جا سکی',
     'unable_to_lock_file'              => '{filePath} کو لاک نہیں کیا جا سکا: {reason}',
     'unable_to_open_lock_file'         => '{filePath} کو کھولا نہیں جا سکا: {reason}',

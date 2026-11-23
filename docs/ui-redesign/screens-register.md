@@ -43,8 +43,8 @@
 | 10 | AUTH-03 | معالج الإعداد الأول (اللغة، الشركة، الفرع، الضريبة، المحاسبة) | مشترك | `setup?step=…`؛ `POST setup/language|company|branch|tax|finish` | `Setup::*` · `setup/wizard.php` + `accounting_settings/activation_panels.php` | P3 | AUTH-02 (يُصمم معه مكوّن خطوات تشغيل المحاسبة المشترك مع FIN-57) | مكتمل (معتمد ذاتيًا على الديزاين سيستم، على فرع التطوير) |
 | 11 | AUTH-04 | تغيير كلمة المرور الإجباري | مشترك | `home/mustChangePassword`؛ `POST home/save` | `Home::getMustChangePassword` · `home/must_change_password.php` | P2 | AUTH-01 | مكتمل (معتمد ذاتيًا، على فرع التطوير) |
 | 12 | AUTH-05 | نافذة تغيير كلمة المرور (من تذييل القائمة) | مشترك | `home/changePassword/{id}`؛ `POST home/save` | `Home::getChangePassword` · `home/form_change_password.php` | P2 | SHL-01، CMP-02 | لم تبدأ (يُنفَّذ مع نمط نافذة النموذج CMP-02) |
-| 13 | AUTH-06 | لا تملك صلاحية | مشترك | `no_access/{module}/{permission}` | `No_access::getIndex` · `no_access.php` | P2 | SHL-01 | لم تبدأ |
-| 14 | AUTH-07 | صفحات الأخطاء (404، الاستثناء، قاعدة البيانات، الإنتاج) | مشترك | أي مسار | الإطار · `errors/html/*` (مستثناة من المنسّق) | P3 | — | لم تبدأ |
+| 13 | AUTH-06 | لا تملك صلاحية | مشترك | `no_access/{module}/{permission}` | `No_access::getIndex` · `no_access.php` | P2 | SHL-01 | مكتمل (معتمد ذاتيًا، على فرع التطوير) |
+| 14 | AUTH-07 | صفحات الأخطاء (404، الاستثناء، قاعدة البيانات، الإنتاج) | مشترك | أي مسار | الإطار · `errors/html/*` (مستثناة من المنسّق) | P3 | — | مكتمل لصفحتي 404 والإنتاج (صفحات الاستثناء للمطوّر فقط بقيت كما هي) |
 
 ## الأنماط المشتركة (تُصمم مع أول شاشة تستخدمها)
 

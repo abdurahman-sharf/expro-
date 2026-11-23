@@ -1,7 +1,15 @@
 <?php
 
 return [
+    'back_home'                        => '',
+    'go_back'                          => '',
+    'no_access_permission'             => '',
+    'no_access_text'                   => '',
     'no_permission_module'             => 'Nu aveti permisiunea de acces a modulului numit',
+    'not_found_text'                   => '',
+    'not_found_title'                  => '',
+    'server_error_text'                => '',
+    'server_error_title'               => '',
     'unable_to_create_env_file'        => 'Nu s-a putut crea {filePath} pentru a aproviziona throttle.key',
     'unable_to_lock_file'              => 'Nu s-a putut bloca {filePath}: {reason}',
     'unable_to_open_lock_file'         => 'Nu s-a putut deschide {filePath}: {reason}',
