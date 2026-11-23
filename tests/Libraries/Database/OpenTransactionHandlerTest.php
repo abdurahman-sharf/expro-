@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Database;
 
 use App\Libraries\Database\OpenTransactionHandler;
+use CodeIgniter\Database\Config as DatabaseConfig;
 use CodeIgniter\Debug\ExceptionHandlerInterface;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\Response;
@@ -10,6 +11,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use ReflectionProperty;
 use RuntimeException;
 use Throwable;
 
@@ -102,5 +104,32 @@ final class OpenTransactionHandlerTest extends CIUnitTestCase
         $this->handle(new OpenTransactionHandler($next), $exception);
 
         $this->assertSame([[$exception, 0, 500, 1]], $next->calls);
+    }
+
+    public function testHandle_OpensNoConnectionWhenTheRequestMadeNone(): void
+    {
+        $next = new class () implements ExceptionHandlerInterface {
+            public int $calls = 0;
+
+            public function handle(Throwable $exception, RequestInterface $request, ResponseInterface $response, int $statusCode, int $exitCode): void
+            {
+                $this->calls++;
+            }
+        };
+        $instances = new ReflectionProperty(DatabaseConfig::class, 'instances');
+        $kept      = $instances->getValue();
+
+        $instances->setValue(null, []);
+
+        try {
+            $this->handle(new OpenTransactionHandler($next), new RuntimeException('The request failed.'));
+
+            $opened = DatabaseConfig::getConnections();
+        } finally {
+            $instances->setValue(null, $kept);
+        }
+
+        $this->assertSame([], $opened);
+        $this->assertSame(1, $next->calls);
     }
 }

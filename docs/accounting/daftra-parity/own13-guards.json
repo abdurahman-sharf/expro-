@@ -90,8 +90,8 @@
   {
     "name": "G09 the handler does not end the transaction the request left open",
     "file": "app/Libraries/Database/OpenTransactionHandler.php",
-    "find": "            AbandonedTransaction::close(Database::connect(), 0);",
-    "replace": "",
+    "find": "                AbandonedTransaction::close($connection, 0);",
+    "replace": "                $connection->transDepth;",
     "tests": [
       "tests/Libraries/Database/OpenTransactionHandlerTest.php"
     ]
@@ -108,8 +108,8 @@
   {
     "name": "G11 the handler passes the exception on before it ends the transaction",
     "file": "app/Libraries/Database/OpenTransactionHandler.php",
-    "find": "            AbandonedTransaction::close(Database::connect(), 0);",
-    "replace": "            $this->next->handle($exception, $request, $response, $statusCode, $exitCode);",
+    "find": "                AbandonedTransaction::close($connection, 0);",
+    "replace": "                $this->next->handle($exception, $request, $response, $statusCode, $exitCode);",
     "tests": [
       "tests/Libraries/Database/OpenTransactionHandlerTest.php"
     ]
@@ -117,8 +117,8 @@
   {
     "name": "G12 the handler leaves one level open",
     "file": "app/Libraries/Database/OpenTransactionHandler.php",
-    "find": "AbandonedTransaction::close(Database::connect(), 0);",
-    "replace": "AbandonedTransaction::close(Database::connect(), 1);",
+    "find": "AbandonedTransaction::close($connection, 0);",
+    "replace": "AbandonedTransaction::close($connection, 1);",
     "tests": [
       "--filter",
       "testHandle_RollsBack",
@@ -326,6 +326,17 @@
       "--filter",
       "testPostImportCsvFile_",
       "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G32 the handler opens a connection for a request that made none",
+    "file": "app/Libraries/Database/OpenTransactionHandler.php",
+    "find": "foreach (Database::getConnections() as $connection) {",
+    "replace": "foreach ([Database::connect()] as $connection) {",
+    "tests": [
+      "--filter",
+      "testHandle_OpensNoConnection",
+      "tests/Libraries/Database/OpenTransactionHandlerTest.php"
     ]
   }
 ]
