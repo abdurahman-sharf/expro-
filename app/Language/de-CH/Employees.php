@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => '',
     'password_required'                     => 'Passwort ist erforderlich',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Klicken Sie unten, um die jeweiligen Zugangsrechte zu aktivieren',
     'permission_info'                       => 'Mitarbeiter Zugangsrechte',
     'permission_select_all'                 => '',

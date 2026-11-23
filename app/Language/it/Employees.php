@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'La password corrente e quella nuova devono essere uniche.',
     'password_required'                     => 'Password obbligatoria.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Barra le caselle sotto per garantire l\'accesso ai moduli.',
     'permission_info'                       => 'Permessi',
     'permission_select_all'                 => '',

@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'Nenosiri la sasa na jipya lazima liwe tofauti.',
     'password_required'                     => 'Nenosiri linahitajika.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Chagua visanduku hapa chini kutoa ruhusa kwa moduli.',
     'permission_info'                       => 'Ruhusa',
     'permission_select_all'                 => '',

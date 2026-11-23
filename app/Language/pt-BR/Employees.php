@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'A senha atual e a nova senha devem ser exclusivas.',
     'password_required'                     => 'Senha requerida.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Marque as caixas abaixo para conceder acesso aos módulos.',
     'permission_info'                       => 'Permissões de acesso do funcionário',
     'permission_select_all'                 => '',

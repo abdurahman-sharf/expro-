@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'Текущата парола и новата парола трябва да са уникални.',
     'password_required'                     => 'Изисква се парола.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Поставете отметка в квадратчетата по-долу, за да получите достъп до модулите.',
     'permission_info'                       => 'Разрешения',
     'permission_select_all'                 => '',

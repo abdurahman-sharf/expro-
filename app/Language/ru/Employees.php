@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'Текущий пароль и новый пароль должны быть уникальными.',
     'password_required'                     => 'Ввод пароля - обязателен.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Отметьте флажками ниже, чтобы предоставить доступ к модулям.',
     'permission_info'                       => 'Права доступа',
     'permission_select_all'                 => '',

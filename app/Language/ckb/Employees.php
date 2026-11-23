@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'وشەی نهێنی ئێستا و وشەی نهێنی نوێ دەبێت بێهاوتابن.',
     'password_required'                     => 'وشەی نهێنی پێویستە.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'چوارگۆشەکانی خوارەوە دیاری بکە بۆ پێدانی دەستگەیشتن بە مۆدیولەکان.',
     'permission_info'                       => 'ڕێپێدانەکان',
     'permission_select_all'                 => '',

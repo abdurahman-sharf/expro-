@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'รหัสผ่านปัจจุบันและรหัสผ่านใหม่จะต้องไม่ซ้ำกัน',
     'password_required'                     => 'ต้องระบุรหัสผ่าน',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'ทำเครื่องหมายในช่องด้านล่างเพื่อให้สิทธิ์การเข้าถึงโมดูลต่างๆ',
     'permission_info'                       => 'สิทธิ์',
     'permission_select_all'                 => '',

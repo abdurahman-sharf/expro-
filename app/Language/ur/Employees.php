@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => '',
     'password_required'                     => '',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => '',
     'permission_info'                       => '',
     'permission_select_all'                 => '',

@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'ពាក្យសម្ងាត់បច្ចុប្បន្ន នឹងពាក្យសម្ងាត់ថ្មី ត្រូវតែមានតែមួយ។',
     'password_required'                     => 'ត្រូវការពាក្យសម្ងាត់។',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'ឆែកប្រអប់ខាងក្រោម ដើម្បីផ្ដល់សិទ្ធទៅក្នុងផ្នែកណាមួយ។',
     'permission_info'                       => 'សិទ្ធិ',
     'permission_select_all'                 => '',

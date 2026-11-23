@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'Nuvarande lösenord och nytt lösenord måste vara unikt.',
     'password_required'                     => 'Lösenord krävs.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Markera rutorna nedan för att ge tillgång till moduler.',
     'permission_info'                       => 'Behörigheter',
     'permission_select_all'                 => '',
