@@ -385,6 +385,33 @@ class ItemTest extends CIUnitTestCase
         $this->assertFalse($items->item_number_exists('FREE-NUMBER-1'));
     }
 
+    public function testGetMultipleInfo_ReturnsTheBrandNameOfEachItemAndNullWithoutABrand(): void
+    {
+        $db       = Database::connect();
+        $branded  = $this->createTestItem();
+        $plain    = $this->createTestItem();
+        $location = 1;
+
+        $db->table('item_brands')->insert(['name' => 'Brand ' . uniqid()]);
+        $brandId = (int) $db->insertID();
+        $db->table('items')->where('item_id', $branded)->update(['brand_id' => $brandId]);
+
+        foreach ([$branded, $plain] as $itemId) {
+            $db->table('item_quantities')->ignore()->insert(['item_id' => $itemId, 'location_id' => $location, 'quantity' => 0]);
+        }
+
+        $rows = [];
+
+        foreach (model(Item::class)->get_multiple_info([$branded, $plain], $location)->getResult() as $row) {
+            $rows[(int) $row->item_id] = $row->brand_name;
+        }
+
+        $brandName = $db->table('item_brands')->select('name')->where('brand_id', $brandId)->get()->getRow()->name;
+
+        $this->assertSame($brandName, $rows[$branded]);
+        $this->assertNull($rows[$plain]);
+    }
+
     private function stockOfAnotherBranchOutOfReachOfTheEmployee(int $itemId): int
     {
         $branch = $this->createBranch('B' . substr(md5(uniqid('', true)), 0, 6), 'Second branch');
