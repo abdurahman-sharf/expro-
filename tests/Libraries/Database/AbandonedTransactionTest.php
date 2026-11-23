@@ -150,6 +150,37 @@ final class AbandonedTransactionTest extends CIUnitTestCase
         $this->assertSame(2, $connection->transDepth);
     }
 
+    public function testClose_StopsAtTheFirstRollbackThatFails(): void
+    {
+        $connection = new class () extends Connection {
+            public int $rollbacks = 0;
+
+            public function __construct()
+            {
+            }
+
+            public function open(int $levels): void
+            {
+                $this->transDepth = $levels;
+            }
+
+            public function transRollback(): bool
+            {
+                if (++$this->rollbacks > 3) {
+                    throw new RuntimeException('Runaway.');
+                }
+
+                return false;
+            }
+        };
+
+        $connection->open(5);
+
+        AbandonedTransaction::close($connection, 0);
+
+        $this->assertSame(1, $connection->rollbacks);
+    }
+
     public function testGuard_ReturnsWhatTheWorkReturns(): void
     {
         $this->assertSame('done', AbandonedTransaction::guard(Database::connect(), static fn (): string => 'done'));

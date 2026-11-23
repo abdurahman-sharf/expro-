@@ -92,7 +92,7 @@
   {
     "name": "G11 the configuration does not use the handler of the scope failures",
     "file": "app/Config/Exceptions.php",
-    "find": "return new ScopeUnavailableHandler(new MemoryExhaustedHandler($this));",
+    "find": "return new OpenTransactionHandler(new ScopeUnavailableHandler(new MemoryExhaustedHandler($this)));",
     "replace": "return new MemoryExhaustedHandler($this);",
     "tests": [
       "tests/Config/ExceptionsTest.php"
