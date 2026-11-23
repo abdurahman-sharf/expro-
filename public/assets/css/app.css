@@ -6285,6 +6285,131 @@ a.rollover img {
     min-height: 72px;
 }
 
+#app-main > .container-fluid,
+#app-main > .container {
+    max-width: none;
+    padding-inline: 0;
+}
+
+.page-head-tabs {
+    flex: 1 1 100%;
+    margin: 2px -24px -10px;
+    padding-inline: 24px;
+    border-top: 1px solid var(--line-light);
+}
+
+.page-head-tabs .nav-tabs {
+    margin: 0 !important;
+    border-bottom: 0;
+}
+
+.page-head-tabs .nav-tabs .nav-link {
+    padding-block: 10px;
+}
+
+/* Lists written by hand: the filter form, the table and the settings below it each sit in a card. */
+#app-main > form[method="get"]:not(.acc-filters),
+#app-main > .container-fluid > form[method="get"]:not(.acc-filters) {
+    margin-bottom: 16px !important;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+    gap: 12px 16px !important;
+}
+
+#app-main > form[method="get"] .form-control-sm,
+#app-main > form[method="get"] .form-select-sm,
+#app-main > form[method="get"] .btn-sm {
+    min-height: 40px;
+    font-size: 14px;
+}
+
+#app-main > form[method="get"] .form-label {
+    margin-bottom: 6px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+#app-main > .table-responsive,
+#app-main > .container-fluid > .table-responsive {
+    margin-bottom: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+#app-main > .table-responsive > .table,
+#app-main > .container-fluid > .table-responsive > .table {
+    margin: 0;
+}
+
+#app-main > .table-responsive > .table > :not(caption) > * > :first-child,
+#app-main > .container-fluid > .table-responsive > .table > :not(caption) > * > :first-child {
+    padding-inline-start: 16px;
+}
+
+#app-main > .table-responsive > .table > :not(caption) > * > :last-child,
+#app-main > .container-fluid > .table-responsive > .table > :not(caption) > * > :last-child {
+    padding-inline-end: 16px;
+}
+
+#app-main > .table-responsive td[colspan].text-body-secondary {
+    height: 120px;
+    text-align: center;
+}
+
+#app-main > section.mt-4 {
+    padding: 16px 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+#app-main > section.mt-4 > h2 {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+#app-main > nav.d-flex {
+    margin-bottom: 16px;
+}
+
+@media (min-width: 640px) and (max-width: 1023.98px) {
+    .page-head-tabs {
+        margin-inline: -20px;
+        padding-inline: 20px;
+    }
+}
+
+@media (max-width: 639.98px) {
+    .page-head-tabs {
+        margin-inline: -16px;
+        padding-inline: 16px;
+        overflow-x: auto;
+    }
+
+    .page-head-tabs .nav-tabs {
+        flex-wrap: nowrap;
+    }
+
+    .page-head-tabs .nav-link {
+        white-space: nowrap;
+    }
+}
+
+.page-head .page-note {
+    max-width: 880px;
+    margin: 2px 0 0;
+    color: var(--fg-secondary);
+    font-size: 13px;
+    line-height: 20px;
+}
+
 .kbd:empty {
     display: none;
 }
