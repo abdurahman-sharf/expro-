@@ -27,8 +27,9 @@ $action     = $isNew ? $module . '/save' : $module . '/save/' . (int) $document-
 <ul id="error_message_box" class="error_message_box"></ul>
 
 <?= form_open($action, ['id' => 'document_form', 'class' => 'app-form']) ?>
-    <p class="small text-body-secondary"><?= lang('Purchase_cycle.form_note') ?></p>
+    <p class="doc-editor-note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= lang('Purchase_cycle.form_note') ?></p>
 
+    <section class="doc-editor-card">
     <div class="form-grid">
         <div class="field">
             <label class="form-label" for="document_number"><?= lang('Purchase_cycle.number') ?></label>
@@ -77,11 +78,13 @@ $action     = $isNew ? $module . '/save' : $module . '/save/' . (int) $document-
             </div>
         </div>
     </div>
+    </section>
 
     <?= view('purchase_cycle/lines', ['rows' => $rows, 'itemsUrl' => $module . '/items']) ?>
 
-    <div class="mt-3">
-        <button type="submit" class="btn btn-primary btn-sm" id="submit_document"><?= lang('Common.submit') ?></button>
+    <div class="doc-editor-actions">
+        <a class="btn btn-outline-secondary" href="<?= esc(base_url($module), 'attr') ?>"><?= lang('Purchase_cycle.back') ?></a>
+        <button type="submit" class="btn btn-primary" id="submit_document"><span class="bi bi-check2" aria-hidden="true"></span> <?= lang('Common.submit') ?></button>
     </div>
 <?= form_close() ?>
 
