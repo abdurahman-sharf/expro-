@@ -207,11 +207,16 @@ $locked  = $quote_status?->isLocked() === true;
         };
 
         const send = function(form, confirmation) {
-            if (confirmation && !window.confirm(confirmation)) {
+            if (!confirmation) {
+                post($(form).attr('action'), $(form).serialize(), answer);
                 return;
             }
 
-            post($(form).attr('action'), $(form).serialize(), answer);
+            appConfirm(confirmation, {tone: 'warning'}).then(function(confirmed) {
+                if (confirmed) {
+                    post($(form).attr('action'), $(form).serialize(), answer);
+                }
+            });
         };
 
         $('#issue_form').on('submit', function(event) {
@@ -230,11 +235,13 @@ $locked  = $quote_status?->isLocked() === true;
         });
 
         $('#delete_button').on('click', function() {
-            if (window.confirm($(this).data('confirm'))) {
-                post(<?= json_encode(site_url('sales/delete/' . $saleId), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, {}, function() {
-                    window.location.href = <?= json_encode(site_url('sales/documents'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-                });
-            }
+            appConfirm($(this).data('confirm'), {tone: 'danger'}).then(function(confirmed) {
+                if (confirmed) {
+                    post(<?= json_encode(site_url('sales/delete/' . $saleId), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, {}, function() {
+                        window.location.href = <?= json_encode(site_url('sales/documents'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+                    });
+                }
+            });
         });
     });
 </script>

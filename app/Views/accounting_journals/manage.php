@@ -89,14 +89,20 @@ $empty     = '<p class="mb-2">' . esc(lang('Accounting_journals.empty')) . '</p>
         const bulk = function(action, url) {
             const ids = table_support.selected_ids();
 
-            if (!ids.length || !confirm(confirmations[action])) {
+            if (!ids.length) {
                 return;
             }
 
-            $.post(url, {'ids[]': ids}, function(response) {
-                toast_support.show(response.message, response.success ? 'success' : 'danger');
-                table_support.refresh();
-            }, 'json');
+            appConfirm(confirmations[action], {tone: action === 'delete' ? 'danger' : 'warning'}).then(function(confirmed) {
+                if (!confirmed) {
+                    return;
+                }
+
+                $.post(url, {'ids[]': ids}, function(response) {
+                    toast_support.show(response.message, response.success ? 'success' : 'danger');
+                    table_support.refresh();
+                }, 'json');
+            });
         };
 
         $('#post_drafts').on('click', function() {

@@ -41,9 +41,11 @@ $status = $stockRequest->status;
         });
 
         $('#request_fulfil').on('click', function() {
-            if (window.confirm("<?= esc(lang('Stock_documents.fulfil_confirm'), 'js') ?>")) {
-                send('fulfil');
-            }
+            appConfirm("<?= esc(lang('Stock_documents.fulfil_confirm'), 'js') ?>", {tone: 'warning'}).then(function(confirmed) {
+                if (confirmed) {
+                    send('fulfil');
+                }
+            });
         });
     });
 </script>

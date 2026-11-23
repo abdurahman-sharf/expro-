@@ -16,19 +16,23 @@ $flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 <script type="text/javascript">
     $(document).ready(function() {
         $('.bank-unmatch').on('click', function() {
-            if (!confirm(<?= json_encode(lang('Accounting_bank.confirm_unmatch'), $flags) ?>)) {
-                return;
-            }
+            const match = $(this).data('match');
 
-            $.post(<?= json_encode(base_url('accounting_treasuries/bank/' . $id . '/unmatch/'), $flags) ?> + $(this).data('match'), {}, function(response) {
-                toast_support.show(response.message, response.success ? 'success' : 'danger');
-
-                if (response.success) {
-                    setTimeout(function() {
-                        window.location.reload();
-                    }, 700);
+            appConfirm(<?= json_encode(lang('Accounting_bank.confirm_unmatch'), $flags) ?>, {tone: 'danger'}).then(function(confirmed) {
+                if (!confirmed) {
+                    return;
                 }
-            }, 'json');
+
+                $.post(<?= json_encode(base_url('accounting_treasuries/bank/' . $id . '/unmatch/'), $flags) ?> + match, {}, function(response) {
+                    toast_support.show(response.message, response.success ? 'success' : 'danger');
+
+                    if (response.success) {
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 700);
+                    }
+                }, 'json');
+            });
         });
     });
 </script>

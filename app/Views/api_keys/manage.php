@@ -40,16 +40,20 @@ $branchChoices = ['' => lang('Integrations.key_every_branch')] + $branches;
         });
 
         $('.key-revoke').on('click', function() {
-            if (!window.confirm($(this).data('confirm'))) {
-                return;
-            }
+            const url = $(this).data('url');
 
-            $.post($(this).data('url'), function(response) {
-                toast_support.show(response.message, response.success ? 'success' : 'danger');
-                if (response.success) {
-                    window.location.reload();
+            appConfirm($(this).data('confirm'), {tone: 'danger'}).then(function(confirmed) {
+                if (!confirmed) {
+                    return;
                 }
-            }, 'json');
+
+                $.post(url, function(response) {
+                    toast_support.show(response.message, response.success ? 'success' : 'danger');
+                    if (response.success) {
+                        window.location.reload();
+                    }
+                }, 'json');
+            });
         });
     });
 </script>

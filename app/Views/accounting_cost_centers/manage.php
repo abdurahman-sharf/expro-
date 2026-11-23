@@ -32,16 +32,18 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             const action = $(this).data('acc-action');
             const id = $(this).data('acc-id');
 
-            if (!confirm(confirmations[action])) {
-                return;
-            }
-
-            $.post('accounting_cost_centers/' + action + '/' + id, {}, function(response) {
-                toast_support.show(response.message, response.success ? 'success' : 'danger');
-                if (response.success) {
-                    table_support.refresh();
+            appConfirm(confirmations[action], {tone: action === 'delete' ? 'danger' : 'primary'}).then(function(confirmed) {
+                if (!confirmed) {
+                    return;
                 }
-            }, 'json');
+
+                $.post('accounting_cost_centers/' + action + '/' + id, {}, function(response) {
+                    toast_support.show(response.message, response.success ? 'success' : 'danger');
+                    if (response.success) {
+                        table_support.refresh();
+                    }
+                }, 'json');
+            });
         });
     });
 </script>

@@ -24,16 +24,18 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         $(document).on('click', '.role-action', function() {
             const id = $(this).data('role-id');
 
-            if (!confirm(<?= json_encode(lang('Roles.confirm_delete'), $jsonFlags) ?>)) {
-                return;
-            }
-
-            $.post('roles/delete/' + id, {}, function(response) {
-                toast_support.show(response.message, response.success ? 'success' : 'danger');
-                if (response.success) {
-                    table_support.refresh();
+            appConfirm(<?= json_encode(lang('Roles.confirm_delete'), $jsonFlags) ?>, {tone: 'danger'}).then(function(confirmed) {
+                if (!confirmed) {
+                    return;
                 }
-            }, 'json');
+
+                $.post('roles/delete/' + id, {}, function(response) {
+                    toast_support.show(response.message, response.success ? 'success' : 'danger');
+                    if (response.success) {
+                        table_support.refresh();
+                    }
+                }, 'json');
+            });
         });
     });
 </script>

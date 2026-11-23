@@ -33,9 +33,13 @@ $base = base_url('accounting_treasuries/bank/' . $id);
         };
 
         $('.bank-statement-delete').on('click', function() {
-            if (confirm(<?= json_encode(lang('Accounting_bank.confirm_delete_statement'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)) {
-                $.post('accounting_treasuries/bank/statement_delete/' + $(this).data('id'), {}, done, 'json');
-            }
+            const id = $(this).data('id');
+
+            appConfirm(<?= json_encode(lang('Accounting_bank.confirm_delete_statement'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, {tone: 'danger'}).then(function(confirmed) {
+                if (confirmed) {
+                    $.post('accounting_treasuries/bank/statement_delete/' + id, {}, done, 'json');
+                }
+            });
         });
 
         $('.bank-reopen').on('click', function() {

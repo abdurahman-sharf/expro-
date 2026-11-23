@@ -28,16 +28,20 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         });
 
         $(document).on('click', '.acc-action', function() {
-            if (!confirm(confirmation)) {
-                return;
-            }
+            const id = $(this).data('acc-id');
 
-            $.post('accounting_currencies/rate_delete/' + $(this).data('acc-id'), {}, function(response) {
-                toast_support.show(response.message, response.success ? 'success' : 'danger');
-                if (response.success) {
-                    table_support.refresh();
+            appConfirm(confirmation, {tone: 'danger'}).then(function(confirmed) {
+                if (!confirmed) {
+                    return;
                 }
-            }, 'json');
+
+                $.post('accounting_currencies/rate_delete/' + id, {}, function(response) {
+                    toast_support.show(response.message, response.success ? 'success' : 'danger');
+                    if (response.success) {
+                        table_support.refresh();
+                    }
+                }, 'json');
+            });
         });
     });
 </script>

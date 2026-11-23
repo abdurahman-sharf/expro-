@@ -383,7 +383,11 @@ $rows   = $lines === [] ? [null, null] : $lines;
         });
 
         $('#delete_draft').on('click', function() {
-            if (confirm(text.confirm_delete)) {
+            appConfirm(text.confirm_delete, {tone: 'danger'}).then(function(confirmed) {
+                if (!confirmed) {
+                    return;
+                }
+
                 $.post('accounting_journals/delete_draft/' + journalId, {}, function(response) {
                     if (response.success) {
                         window.location.href = response.redirect;
@@ -391,7 +395,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
                         toast_support.show(response.message, 'danger');
                     }
                 }, 'json');
-            }
+            });
         });
 
         $(document).on('keydown', function(event) {

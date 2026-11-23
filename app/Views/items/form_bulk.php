@@ -176,17 +176,17 @@
             delay: 10
         });
 
-        let confirm_message = false;
+        let confirmMessage = false;
         $('#tax_percent_name_2, #tax_name_2').prop('disabled', true),
             $('#tax_percent_name_1, #tax_name_1').blur(function() {
                 const disabled = !($('#tax_percent_name_1').val() + $('#tax_name_1').val());
                 $('#tax_percent_name_2, #tax_name_2').prop('disabled', disabled);
-                confirm_message = disabled ? '' : "<?= lang('Items.confirm_bulk_edit_wipe_taxes') ?>";
+                confirmMessage = disabled ? '' : "<?= lang('Items.confirm_bulk_edit_wipe_taxes') ?>";
             });
 
         $('#item_form').validate($.extend({
             submitHandler: function(form) {
-                if (!confirm_message || confirm(confirm_message)) {
+                const send = function() {
                     $(form).ajaxSubmit({
                         beforeSubmit: function(arr, $form, options) {
                             arr.push({
@@ -200,7 +200,18 @@
                         },
                         dataType: 'json'
                     });
+                };
+
+                if (!confirmMessage) {
+                    send();
+                    return;
                 }
+
+                appConfirm(confirmMessage, {tone: 'warning'}).then(function(confirmed) {
+                    if (confirmed) {
+                        send();
+                    }
+                });
             },
 
             errorLabelContainer: '#error_message_box',

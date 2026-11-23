@@ -68,16 +68,25 @@
             const button = $(this);
             const message = button.data('confirm');
 
-            if (message && !window.confirm(message)) {
+            const post = function() {
+                $.post(button.data('url'), {}, function(response) {
+                    toast_support.show(response.message, response.success ? 'success' : 'danger');
+                    if (response.success) {
+                        window.location.reload();
+                    }
+                }, 'json');
+            };
+
+            if (!message) {
+                post();
                 return;
             }
 
-            $.post(button.data('url'), {}, function(response) {
-                toast_support.show(response.message, response.success ? 'success' : 'danger');
-                if (response.success) {
-                    window.location.reload();
+            appConfirm(message, {tone: 'danger'}).then(function(confirmed) {
+                if (confirmed) {
+                    post();
                 }
-            }, 'json');
+            });
         });
     });
 </script>

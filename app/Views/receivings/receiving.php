@@ -519,10 +519,12 @@ $hasCart     = count($cart) > 0;
         });
 
         $("#cancel_receiving_button").click(function() {
-            if (confirm('<?= lang(ucfirst($controller_name) . '.confirm_cancel_receiving') ?>')) {
-                $('#finish_receiving_form').attr('action', '<?= esc("{$controller_name}/cancelReceiving") ?>');
-                $('#finish_receiving_form').submit();
-            }
+            appConfirm('<?= lang(ucfirst($controller_name) . '.confirm_cancel_receiving') ?>', {tone: 'danger'}).then(function(confirmed) {
+                if (confirmed) {
+                    $('#finish_receiving_form').attr('action', '<?= esc("{$controller_name}/cancelReceiving") ?>');
+                    $('#finish_receiving_form').submit();
+                }
+            });
         });
 
         table_support.handle_submit = function(resource, response, stay_open) {

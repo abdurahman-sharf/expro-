@@ -40,28 +40,32 @@ $currencies = new Currencies();
         ], $jsonFlags) ?>;
 
         $('#post_draft').on('click', function() {
-            if (!confirm(confirmations.post)) {
-                return;
-            }
-            $.post('accounting_journals/post_drafts', {'ids[]': [<?= (int) $journal->journal_id ?>]}, function(response) {
-                toast_support.show(response.message, response.success ? 'success' : 'danger');
-                if (response.success) {
-                    window.location.reload();
+            appConfirm(confirmations.post, {tone: 'warning'}).then(function(confirmed) {
+                if (!confirmed) {
+                    return;
                 }
-            }, 'json');
+                $.post('accounting_journals/post_drafts', {'ids[]': [<?= (int) $journal->journal_id ?>]}, function(response) {
+                    toast_support.show(response.message, response.success ? 'success' : 'danger');
+                    if (response.success) {
+                        window.location.reload();
+                    }
+                }, 'json');
+            });
         });
 
         $('#delete_draft').on('click', function() {
-            if (!confirm(confirmations.delete)) {
-                return;
-            }
-            $.post('accounting_journals/delete_draft/<?= (int) $journal->journal_id ?>', {}, function(response) {
-                if (response.success) {
-                    window.location.href = response.redirect;
-                } else {
-                    toast_support.show(response.message, 'danger');
+            appConfirm(confirmations.delete, {tone: 'danger'}).then(function(confirmed) {
+                if (!confirmed) {
+                    return;
                 }
-            }, 'json');
+                $.post('accounting_journals/delete_draft/<?= (int) $journal->journal_id ?>', {}, function(response) {
+                    if (response.success) {
+                        window.location.href = response.redirect;
+                    } else {
+                        toast_support.show(response.message, 'danger');
+                    }
+                }, 'json');
+            });
         });
     });
 </script>

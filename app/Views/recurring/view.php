@@ -177,11 +177,18 @@ $status     = ScheduleStatus::from((string) $schedule->status);
         };
 
         $('.schedule-status').on('click', function() {
-            if ($(this).data('confirm') === 1 && ! window.confirm("<?= esc(lang('Recurring.end_confirm'), 'js') ?>")) {
+            const status = $(this).data('status');
+
+            if ($(this).data('confirm') !== 1) {
+                post('<?= esc($module, 'js') ?>/status/<?= $scheduleId ?>', {status: status});
                 return;
             }
 
-            post('<?= esc($module, 'js') ?>/status/<?= $scheduleId ?>', {status: $(this).data('status')});
+            appConfirm("<?= esc(lang('Recurring.end_confirm'), 'js') ?>", {tone: 'danger'}).then(function(confirmed) {
+                if (confirmed) {
+                    post('<?= esc($module, 'js') ?>/status/<?= $scheduleId ?>', {status: status});
+                }
+            });
         });
 
         $('.run-retry').on('click', function() {

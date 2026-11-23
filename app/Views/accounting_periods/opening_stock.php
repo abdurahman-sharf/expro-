@@ -98,24 +98,30 @@ $ready = count(array_filter($stock, static fn (array $row): bool => $row['status
                 let busy = false;
 
                 const post = function(locationId) {
-                    if (busy || !confirm(text.confirm)) {
+                    if (busy) {
                         return;
                     }
 
-                    busy = true;
-                    $('#stock_message_box').empty();
-
-                    $.post('accounting_periods/opening/stock/post', {branch_id: <?= (int) $branch_id ?>, location_id: locationId}, function(response) {
-                        if (response.success) {
-                            window.location.href = response.redirect;
+                    appConfirm(text.confirm, {tone: 'warning'}).then(function(confirmed) {
+                        if (!confirmed) {
                             return;
                         }
-                        $('#stock_message_box').append($('<li></li>').text(response.message));
-                        toast_support.show(response.message, 'danger');
-                    }, 'json').fail(function() {
-                        $('#stock_message_box').append($('<li></li>').text(text.failed));
-                    }).always(function() {
-                        busy = false;
+
+                        busy = true;
+                        $('#stock_message_box').empty();
+
+                        $.post('accounting_periods/opening/stock/post', {branch_id: <?= (int) $branch_id ?>, location_id: locationId}, function(response) {
+                            if (response.success) {
+                                window.location.href = response.redirect;
+                                return;
+                            }
+                            $('#stock_message_box').append($('<li></li>').text(response.message));
+                            toast_support.show(response.message, 'danger');
+                        }, 'json').fail(function() {
+                            $('#stock_message_box').append($('<li></li>').text(text.failed));
+                        }).always(function() {
+                            busy = false;
+                        });
                     });
                 };
 

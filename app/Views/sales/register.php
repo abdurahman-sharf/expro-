@@ -910,10 +910,12 @@ $employee        = model(Employee::class);
         });
 
         $('#cancel_sale_button').click(function() {
-            if (confirm("<?= lang(ucfirst($controller_name) . '.confirm_cancel_sale') ?>")) {
-                $('#buttons_form').attr('action', "<?= site_url("{$controller_name}/cancel") ?>");
-                $('#buttons_form').submit();
-            }
+            appConfirm("<?= lang(ucfirst($controller_name) . '.confirm_cancel_sale') ?>", {tone: 'danger'}).then(function(confirmed) {
+                if (confirmed) {
+                    $('#buttons_form').attr('action', "<?= site_url("{$controller_name}/cancel") ?>");
+                    $('#buttons_form').submit();
+                }
+            });
         });
 
         $('#add_payment_button').click(function() {
