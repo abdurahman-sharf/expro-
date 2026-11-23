@@ -32,13 +32,13 @@
 | 4 | SHL-03 | نافذة البحث الشامل (Ctrl K) | مشترك | `home/searchIndex` (JSON) | `Home::getSearchIndex` · `partial/footer.php` `#global_search` | P1 | SHL-02 | مكتمل (مع DASH-01) |
 | 5 | SHL-04 | تذييل الصفحة (الحقوق، الإصدار) | مشترك | كل الصفحات | `partial/footer.php` | P3 | — | مكتمل (مع DASH-01) |
 | 6 | DASH-02 | نافذة تخصيص الاختصارات | 1 الرئيسية | داخل `home` | `home/home.php` `#home_shortcuts_modal` | P2 | DASH-01 | مكتمل (مع DASH-01) |
-| 7 | DASH-03 | الإشعارات | 1 الرئيسية | `notifications`؛ `POST notifications/read/{id}`، `read_all` | `Notifications::getIndex` · `notifications/manage.php` | P2 | SHL-01 | قيد التنفيذ (منفّذ على فرع التطوير، بانتظار مراجعة المالك) |
+| 7 | DASH-03 | الإشعارات | 1 الرئيسية | `notifications`؛ `POST notifications/read/{id}`، `read_all` | `Notifications::getIndex` · `notifications/manage.php` | P2 | SHL-01 | مكتمل (على فرع التطوير، لم يُدمج) |
 
 ## المرحلة 2: الدخول والحالات العامة
 
 | # | المعرف | الشاشة | القسم | مسار URL | Controller · View | الأولوية | يعتمد على | الحالة |
 |---|---|---|---|---|---|---|---|---|
-| 8 | AUTH-01 | تسجيل الدخول (مع زر ترقية قاعدة البيانات) | مشترك | `/`، `login`؛ `POST migrate` | `Login::index`، `Login::migrate` · `login.php` | P1 | — | لم تبدأ |
+| 8 | AUTH-01 | تسجيل الدخول (مع زر ترقية قاعدة البيانات) | مشترك | `/`، `login`؛ `POST migrate` | `Login::index`، `Login::migrate` · `login.php` | P1 | — | أُرسل للتصميم |
 | 9 | AUTH-02 | مطالبة المالك بالحساب (أول تشغيل) | مشترك | `login` قبل وجود مالك؛ `POST owner_setup` | `OwnerSetup::postClaim` · `setup/claim.php` | P3 | AUTH-01 | لم تبدأ |
 | 10 | AUTH-03 | معالج الإعداد الأول (اللغة، الشركة، الفرع، الضريبة، المحاسبة) | مشترك | `setup?step=…`؛ `POST setup/language|company|branch|tax|finish` | `Setup::*` · `setup/wizard.php` + `accounting_settings/activation_panels.php` | P3 | AUTH-02، FIN-56 | لم تبدأ |
 | 11 | AUTH-04 | تغيير كلمة المرور الإجباري | مشترك | `home/mustChangePassword`؛ `POST home/save` | `Home::getMustChangePassword` · `home/must_change_password.php` | P2 | AUTH-01 | لم تبدأ |
