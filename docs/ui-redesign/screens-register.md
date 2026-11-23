@@ -26,12 +26,12 @@
 
 | # | المعرف | الشاشة | القسم | مسار URL | Controller · View | الأولوية | يعتمد على | الحالة |
 |---|---|---|---|---|---|---|---|---|
-| 1 | DASH-01 | لوحة التحكم الرئيسية (الترحيب، تنبيه تشغيل المحاسبة، الاختصارات السريعة، المؤشرات، رسم المبيعات، الأكثر مبيعًا، نقص المخزون، بلاطات الوحدات) | 1 الرئيسية | `home` (وشعار القائمة، و`office` يحوّل إليها) | `Home::getIndex` · `home/home.php`، `Libraries/Dashboard_lib.php`، `Libraries/Navigation/QuickActions.php`، `resources/assets/js/82-home-shortcuts.js` | P1 | SHL-01..04 (تُصمم معها) | أُرسل للتصميم |
-| 2 | SHL-01 | القائمة الجانبية (11 قسمًا، أكورديون، درج على الجوال، تذييل المستخدم والخروج) | مشترك | كل الصفحات | `navigationSections()` · `partial/sidebar.php`، `SidebarMenu.php` | P1 | — | أُرسل للتصميم (مع DASH-01) |
-| 3 | SHL-02 | الترويسة العلوية (زر القائمة، عنوان الصفحة، اسم الشركة، مبدّل الفروع، زر البحث، الساعة، شريط إيقاف العمليات) | مشترك | كل الصفحات؛ `POST home/switchBranch` | `Home::postSwitchBranch` · `partial/header.php`، `partial/branch_switcher.php` | P1 | — | أُرسل للتصميم (مع DASH-01) |
-| 4 | SHL-03 | نافذة البحث الشامل (Ctrl K) | مشترك | `home/searchIndex` (JSON) | `Home::getSearchIndex` · `partial/footer.php` `#global_search` | P1 | SHL-02 | أُرسل للتصميم (مع DASH-01) |
-| 5 | SHL-04 | تذييل الصفحة (الحقوق، الإصدار) | مشترك | كل الصفحات | `partial/footer.php` | P3 | — | أُرسل للتصميم (مع DASH-01) |
-| 6 | DASH-02 | نافذة تخصيص الاختصارات | 1 الرئيسية | داخل `home` | `home/home.php` `#home_shortcuts_modal` | P2 | DASH-01 | أُرسل للتصميم (مع DASH-01) |
+| 1 | DASH-01 | لوحة التحكم الرئيسية (الترحيب، تنبيه تشغيل المحاسبة، الاختصارات السريعة، المؤشرات، رسم المبيعات، الأكثر مبيعًا، نقص المخزون، بلاطات الوحدات) | 1 الرئيسية | `home` (وشعار القائمة، و`office` يحوّل إليها) | `Home::getIndex` · `home/home.php`، `Libraries/Dashboard_lib.php`، `Libraries/Navigation/QuickActions.php`، `resources/assets/js/82-home-shortcuts.js` | P1 | SHL-01..04 (تُصمم معها) | التصميم معتمد |
+| 2 | SHL-01 | القائمة الجانبية (11 قسمًا، أكورديون، درج على الجوال، تذييل المستخدم والخروج) | مشترك | كل الصفحات | `navigationSections()` · `partial/sidebar.php`، `SidebarMenu.php` | P1 | — | التصميم معتمد (مع DASH-01) |
+| 3 | SHL-02 | الترويسة العلوية (زر القائمة، عنوان الصفحة، اسم الشركة، مبدّل الفروع، زر البحث، الساعة، شريط إيقاف العمليات) | مشترك | كل الصفحات؛ `POST home/switchBranch` | `Home::postSwitchBranch` · `partial/header.php`، `partial/branch_switcher.php` | P1 | — | التصميم معتمد (مع DASH-01) |
+| 4 | SHL-03 | نافذة البحث الشامل (Ctrl K) | مشترك | `home/searchIndex` (JSON) | `Home::getSearchIndex` · `partial/footer.php` `#global_search` | P1 | SHL-02 | التصميم معتمد (مع DASH-01) |
+| 5 | SHL-04 | تذييل الصفحة (الحقوق، الإصدار) | مشترك | كل الصفحات | `partial/footer.php` | P3 | — | التصميم معتمد (مع DASH-01) |
+| 6 | DASH-02 | نافذة تخصيص الاختصارات | 1 الرئيسية | داخل `home` | `home/home.php` `#home_shortcuts_modal` | P2 | DASH-01 | التصميم معتمد (مع DASH-01) |
 | 7 | DASH-03 | الإشعارات | 1 الرئيسية | `notifications`؛ `POST notifications/read/{id}`، `read_all` | `Notifications::getIndex` · `notifications/manage.php` | P2 | SHL-01 | لم تبدأ |
 
 ## المرحلة 2: الدخول والحالات العامة
@@ -337,7 +337,7 @@
 
 | المعرف | الإصدار | تاريخ الاعتماد | المرجع (رابط أو ملف) | المكونات المشتركة التي ثبّتها | ملاحظات |
 |---|---|---|---|---|---|
-| — | — | — | — | — | — |
+| DASH-01، DASH-02، SHL-01..04 | `1795426370-9bb6` | 2026-11-23 | https://claude.ai/artifact/J7bAniTTj82EwWsfNbr83M (لوحة «EXPRO — إطار التطبيق ولوحة التحكم»، 5 صفحات و38 لوحة) | AppSidebar، AppTopbar، AppFooter، SearchPalette، ShortcutTile، CustomizeShortcuts، رموز التصميم `ds/alawal-pro/tokens.json` | محتوى القائمة في التصميم توضيحي؛ يُعتمد محتوى `SidebarMenu` الفعلي |
 
 ## ما لم يُدرج عن قصد
 
