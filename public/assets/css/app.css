@@ -1516,8 +1516,15 @@ input[type="radio"] {
     float: none;
 }
 
+#daterangepicker.is-datetime {
+    width: 340px;
+}
+
 #daterangepicker {
-    width: 240px;
+    flex: 0 0 auto;
+    width: 248px;
+    min-height: 34px;
+    font-variant-numeric: tabular-nums;
     direction: ltr;
     text-align: center;
 }
@@ -1714,12 +1721,13 @@ input.flatpickr-input,
         width: 100%;
     }
 
-    #daterangepicker {
+    #daterangepicker,
+    #daterangepicker.is-datetime {
         width: 100%;
     }
 
-    .bootstrap-table {
-        padding: 8px;
+    .bootstrap-table .fixed-table-toolbar {
+        padding: 12px;
     }
 
     .bootstrap-table .fixed-table-toolbar .search {
@@ -5554,6 +5562,74 @@ a.rollover img {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+}
+
+/* List page (PageInvoices): the table sits flush in its card under a toolbar row. */
+.bootstrap-table {
+    padding: 0;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-xs);
+}
+
+.bootstrap-table .fixed-table-toolbar {
+    margin: 0;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line-light);
+}
+
+.bootstrap-table .fixed-table-toolbar .search .form-control,
+.bootstrap-table .fixed-table-toolbar .search input {
+    min-height: 40px;
+    padding-inline-start: 36px;
+    border: 1px solid var(--field);
+    background: var(--surface) url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237d8fae' stroke-width='1.75' stroke-linecap='round'%3e%3cpath d='m21 21-4.34-4.34'/%3e%3ccircle cx='11' cy='11' r='8'/%3e%3c/svg%3e") no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+}
+
+[dir="ltr"] .bootstrap-table .fixed-table-toolbar .search .form-control,
+[dir="ltr"] .bootstrap-table .fixed-table-toolbar .search input {
+    background-position: left 12px center;
+}
+
+.bootstrap-table .fixed-table-container .table,
+.bootstrap-table .fixed-table-container .table > :not(caption) > * > * {
+    border-inline-width: 0;
+}
+
+.bootstrap-table .fixed-table-container .table {
+    margin: 0;
+    border-width: 0;
+}
+
+.bootstrap-table .fixed-table-container .table thead th {
+    border-top: 0;
+    background: var(--surface-2);
+}
+
+.bootstrap-table .fixed-table-container .table thead th .th-inner {
+    color: var(--fg-secondary);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.bootstrap-table .fixed-table-container .table tbody td {
+    padding-inline: 16px;
+}
+
+.bootstrap-table .fixed-table-pagination {
+    border-top: 1px solid var(--line-light);
+}
+
+.bootstrap-table .fixed-table-container .no-records-found td {
+    height: 160px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.bootstrap-table .fixed-table-container .table tbody td {
+    white-space: nowrap;
 }
 
 .kbd:empty {

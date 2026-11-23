@@ -18,6 +18,10 @@
         $bar.children().not($heading).appendTo($actions);
         $actions.find('.float-end, .float-start').removeClass('float-end float-start');
 
+        // One primary action per page, as the design system asks: the last filled button (the "new" one) stays
+        // filled, the others become outlined.
+        $actions.find('.btn-primary').slice(0, -1).removeClass('btn-primary').addClass('btn-outline-secondary');
+
         if (section && section !== title) {
             $start.append($('<p class="page-crumbs" aria-hidden="true"></p>').text(section));
         }

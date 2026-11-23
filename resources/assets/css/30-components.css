@@ -607,8 +607,15 @@ input[type="radio"] {
     float: none;
 }
 
+#daterangepicker.is-datetime {
+    width: 340px;
+}
+
 #daterangepicker {
-    width: 240px;
+    flex: 0 0 auto;
+    width: 248px;
+    min-height: 34px;
+    font-variant-numeric: tabular-nums;
     direction: ltr;
     text-align: center;
 }

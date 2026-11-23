@@ -155,12 +155,13 @@
         width: 100%;
     }
 
-    #daterangepicker {
+    #daterangepicker,
+    #daterangepicker.is-datetime {
         width: 100%;
     }
 
-    .bootstrap-table {
-        padding: 8px;
+    .bootstrap-table .fixed-table-toolbar {
+        padding: 12px;
     }
 
     .bootstrap-table .fixed-table-toolbar .search {
