@@ -58,8 +58,12 @@ $quantity = static fn (?string $value): string => $value === null ? '' : rtrim(r
         };
 
         $('#stocktake_approve').on('click', function() {
-            if (!unsaved() && window.confirm("<?= esc(lang('Stock_documents.approve_confirm'), 'js') ?>")) {
-                send('approve', {digest: "<?= esc($digest, 'js') ?>"}, true);
+            if (!unsaved()) {
+                appConfirm("<?= esc(lang('Stock_documents.approve_confirm'), 'js') ?>", {tone: 'warning'}).then(function(confirmed) {
+                    if (confirmed) {
+                        send('approve', {digest: "<?= esc($digest, 'js') ?>"}, true);
+                    }
+                });
             }
         });
 
