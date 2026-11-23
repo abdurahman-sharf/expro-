@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Database\FailedTransaction;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use stdClass;
@@ -129,31 +130,36 @@ class Tax_category extends Model
     {
         $this->db->transStart();
 
-        $not_to_delete = [];
+        $notToDelete = [];
 
         foreach ($array_save as $key => $value) {
             // Save or update
-            $tax_category_data = [
+            $taxCategoryData = [
                 'tax_category'       => $value['tax_category'],
                 'tax_group_sequence' => $value['tax_group_sequence'],
                 'deleted'            => '0',
             ];
 
-            $this->save_value($tax_category_data, $value['tax_category_id']);
+            if (! $this->save_value($taxCategoryData, $value['tax_category_id'])) {
+                $this->db->transRollback();
+                FailedTransaction::forget($this->db);
+
+                return false;
+            }
 
             if ($value['tax_category_id'] == NEW_ENTRY) {
-                $not_to_delete[] = $tax_category_data['tax_category_id'];
+                $notToDelete[] = $taxCategoryData['tax_category_id'];
             } else {
-                $not_to_delete[] = $value['tax_category_id'];
+                $notToDelete[] = $value['tax_category_id'];
             }
         }
 
         // All entries not available in post will be deleted now
-        $deleted_tax_categories = $this->get_all()->getResultArray();
+        $deletedTaxCategories = $this->get_all()->getResultArray();
 
-        foreach ($deleted_tax_categories as $key => $tax_category_data) {
-            if (! in_array($tax_category_data['tax_category_id'], $not_to_delete)) {
-                $this->delete($tax_category_data['tax_category_id']);
+        foreach ($deletedTaxCategories as $key => $taxCategoryData) {
+            if (! in_array($taxCategoryData['tax_category_id'], $notToDelete)) {
+                $this->delete($taxCategoryData['tax_category_id']);
             }
         }
 

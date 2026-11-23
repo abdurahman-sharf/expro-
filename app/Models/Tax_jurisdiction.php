@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Database\FailedTransaction;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use stdClass;
@@ -129,11 +130,11 @@ class Tax_jurisdiction extends Model
     {
         $this->db->transStart();
 
-        $not_to_delete = [];
+        $notToDelete = [];
 
         foreach ($array_save as $key => $value) {
             // Save or update
-            $tax_jurisdiction_data = [
+            $taxJurisdictionData = [
                 'jurisdiction_name'   => $value['jurisdiction_name'],
                 'tax_group'           => $value['tax_group'],
                 'tax_type'            => $value['tax_type'],
@@ -143,21 +144,26 @@ class Tax_jurisdiction extends Model
                 'deleted'             => '0',
             ];
 
-            $this->save_value($tax_jurisdiction_data, $value['jurisdiction_id']);
+            if (! $this->save_value($taxJurisdictionData, $value['jurisdiction_id'])) {
+                $this->db->transRollback();
+                FailedTransaction::forget($this->db);
+
+                return false;
+            }
 
             if ($value['jurisdiction_id'] == NEW_ENTRY) {
-                $not_to_delete[] = $tax_jurisdiction_data['jurisdiction_id'];
+                $notToDelete[] = $taxJurisdictionData['jurisdiction_id'];
             } else {
-                $not_to_delete[] = $value['jurisdiction_id'];
+                $notToDelete[] = $value['jurisdiction_id'];
             }
         }
 
         // All entries not available in post will be deleted now
-        $deleted_tax_jurisdictions = $this->get_all()->getResultArray();
+        $deletedTaxJurisdictions = $this->get_all()->getResultArray();
 
-        foreach ($deleted_tax_jurisdictions as $key => $tax_jurisdiction_data) {
-            if (! in_array($tax_jurisdiction_data['jurisdiction_id'], $not_to_delete)) {
-                $this->delete($tax_jurisdiction_data['jurisdiction_id']);
+        foreach ($deletedTaxJurisdictions as $key => $taxJurisdictionData) {
+            if (! in_array($taxJurisdictionData['jurisdiction_id'], $notToDelete)) {
+                $this->delete($taxJurisdictionData['jurisdiction_id']);
             }
         }
 

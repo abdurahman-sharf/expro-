@@ -13,6 +13,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\TransactionStateTrait;
 
 class Price_listTest extends CIUnitTestCase
 {
@@ -20,6 +21,7 @@ class Price_listTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use TransactionStateTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -159,6 +161,27 @@ class Price_listTest extends CIUnitTestCase
     public function testSaveList_RejectsAListThatDoesNotExist(): void
     {
         $this->assertSame(AccountingError::PriceListNotFound, $this->refused(fn () => $this->lists->saveList('Ghost', true, 987654, $this->employeeId))->error);
+    }
+
+    public function testSaveList_RefusesWithTheNamedExceptionWhenTheListCannotBeLocked(): void
+    {
+        $listId = $this->list();
+        $db     = $this->accountingDb();
+        $before = (int) $db->query('SELECT @@SESSION.innodb_lock_wait_timeout AS seconds')->getRow()->seconds;
+        $other  = $this->openSecondConnection(false);
+
+        try {
+            $other->transStart();
+            $other->query('SELECT price_list_id FROM ' . $other->prefixTable('price_lists') . ' WHERE price_list_id = ? FOR UPDATE', [$listId]);
+            $db->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+            $this->assertSame(AccountingError::WriteFailed, $this->refused(fn () => $this->lists->saveList('Renamed', true, $listId, $this->employeeId))->error);
+            $this->assertNoTransactionIsOpen();
+        } finally {
+            $db->query('SET SESSION innodb_lock_wait_timeout = ' . $before);
+            $other->transRollback();
+            $other->close();
+        }
     }
 
     public function testSetStatus_DeactivatesAndActivatesAndWritesEach(): void

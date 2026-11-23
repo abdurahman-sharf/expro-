@@ -14,6 +14,7 @@ use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\Roles\RoleTablesUnavailableException;
 use App\Libraries\Tax\VatClassification;
 use CodeIgniter\Database\Config;
+use CodeIgniter\Config\Factories;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
@@ -28,6 +29,7 @@ use App\Models\Stock_location;
 use App\Models\Supplier;
 use ReflectionClass;
 use ReflectionMethod;
+use RuntimeException;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -1236,6 +1238,48 @@ class ItemsControllerTest extends CIUnitTestCase
 
         $resultingAttribute = $this->attribute->getAttributeValue($originalData['item_id'], $definitionData['definition_id']);
         $this->assertEquals(NEW_ENTRY, $resultingAttribute->attribute_id);
+    }
+
+    public function testPostImportCsvFile_EndsItsTransactionWhenARowRaisesAnException(): void
+    {
+        $failing = $this->getMockBuilder(Item::class)->onlyMethods(['item_number_exists'])->getMock();
+        $failing->method('item_number_exists')->willThrowException(new RuntimeException('The row failed.'));
+        $locations = [1 => 'stock'];
+        $stocks    = $this->getMockBuilder(Stock_location::class)->onlyMethods(['get_allowed_locations'])->getMock();
+        $stocks->method('get_allowed_locations')->willReturn($locations);
+        Factories::injectMock('models', Item::class, $failing);
+        Factories::injectMock('models', Stock_location::class, $stocks);
+
+        $header = str_getcsv(substr(generate_import_items_csv($locations, $this->attribute->getDefinitionNames()), 3));
+        $row    = array_fill_keys($header, '');
+
+        $row['Item Name']     = 'Imported ' . uniqid();
+        $row['Barcode']       = 'BC' . uniqid();
+        $row['Category']      = 'Imports';
+        $row['Cost Price']    = '1.00';
+        $row['Unit Price']    = '2.00';
+        $row['Reorder Level'] = '0';
+
+        $quoted = static fn (array $cells): string => implode(',', array_map(static fn (string $cell): string => '"' . $cell . '"', $cells));
+        $csv    = $quoted($header) . "\n" . $quoted(array_values($row)) . "\n";
+        $path   = tempnam(sys_get_temp_dir(), 'import_');
+
+        file_put_contents($path, $csv);
+
+        $_FILES['file_path'] = ['name' => 'items.csv', 'type' => 'text/csv', 'tmp_name' => $path, 'error' => UPLOAD_ERR_OK, 'size' => strlen($csv)];
+
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        try {
+            $result = json_decode($this->post('/items/importCsvFile')->getJSON(), true);
+        } finally {
+            unset($_FILES['file_path']);
+            unlink($path);
+            Factories::reset('models');
+        }
+
+        $this->assertSame('The row failed.', $result['message']);
+        $this->assertNoTransactionIsOpen();
     }
 
     public function testImportItemWithAttributeText(): void

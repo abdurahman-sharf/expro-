@@ -113,7 +113,7 @@ class Dinner_table extends Model
      * Occupy table
      * Ignore the Delivery and Takeaway "tables".  They should never be occupied.
      */
-    public function occupy(int $dinner_table_id): bool
+    public function occupy(?int $dinner_table_id): bool
     {
         if ($dinner_table_id > 2) {
             $builder = $this->db->table('dinner_tables');
@@ -128,7 +128,7 @@ class Dinner_table extends Model
     /**
      * Release table
      */
-    public function release(int $dinner_table_id): bool
+    public function release(?int $dinner_table_id): bool
     {
         if ($dinner_table_id > 2) {
             $builder = $this->db->table('dinner_tables');

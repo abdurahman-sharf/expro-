@@ -18,6 +18,7 @@ use App\Libraries\Accounting\RoutingResolver;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Accounting\StockAdjustment;
 use App\Libraries\Barcode_lib;
+use App\Libraries\Database\AbandonedTransaction;
 use App\Libraries\Documents\CustomFields;
 use App\Libraries\Documents\DocumentException;
 use App\Libraries\Item_lib;
@@ -1778,6 +1779,8 @@ class Items extends Secure_Controller
         } catch (RoleTablesUnavailableException $exception) {
             throw $exception;
         } catch (Exception $e) {
+            AbandonedTransaction::close(db_connect(), 0);
+
             return $this->response->setJSON(['success' => false, 'message' => $e->getMessage()]);
         }
     }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Database\FailedTransaction;
 use CodeIgniter\Database\Query;
 use CodeIgniter\Database\RawSql;
 use CodeIgniter\Database\ResultInterface;
@@ -470,8 +471,8 @@ class Attribute extends Model
                     // $builder->set('attribute_links.attribute_id', "IF((attribute_value IN('false','0','') OR (attribute_value IS NULL)), $checkbox_attribute_values[0], $checkbox_attribute_values[1])", false);
                     // $builder->where('definition_id', $definition_id);
                     // $success = $builder->update();
-                    //
-                    // $this->db->transComplete();
+
+                    $this->db->transComplete();
                 }
             }
         } else {
@@ -952,6 +953,9 @@ class Attribute extends Model
                 && $storedValue !== $value) {
                 $attributeId = $this->saveAttributeValue($value, $attributeData['definition_id'], $itemId, $attributeId, $attributeData['definition_type']);
             } elseif (! $this->saveAttributeLink($itemId, $attributeData['definition_id'], $attributeId)) {
+                $this->db->transRollback();
+                FailedTransaction::forget($this->db);
+
                 return false;
             }
         }

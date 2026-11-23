@@ -6,6 +6,8 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\JournalOrigin;
+use App\Libraries\Accounting\LockedRead;
+use App\Libraries\Database\AbandonedTransaction;
 use App\Libraries\Pricing\SalesControlSettings;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Model;
@@ -75,6 +77,14 @@ class Price_list extends Model
             throw new AccountingException(AccountingError::PriceListNameInvalid, 'The name of a price list is one to 100 characters.');
         }
 
+        return AbandonedTransaction::guard($this->db, fn (): int => $this->saveListInTransaction($name, $active, $priceListId, $employeeId));
+    }
+
+    /**
+     * @throws AccountingException
+     */
+    private function saveListInTransaction(string $name, bool $active, ?int $priceListId, ?int $employeeId): int
+    {
         $audit = new AuditLog($this->db);
 
         $this->db->transStart();
@@ -82,7 +92,7 @@ class Price_list extends Model
         $before = null;
 
         if ($priceListId !== null) {
-            $before = $this->db->query('SELECT name, status FROM ' . $this->db->prefixTable('price_lists') . ' WHERE price_list_id = ? FOR UPDATE', [$priceListId])->getRow();
+            $before = LockedRead::row($this->db, 'SELECT name, status FROM ' . $this->db->prefixTable('price_lists') . ' WHERE price_list_id = ? FOR UPDATE', [$priceListId]);
 
             if ($before === null) {
                 $this->db->transRollback();
