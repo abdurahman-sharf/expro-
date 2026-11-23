@@ -19,6 +19,7 @@ use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PooledConnection;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\TransactionStateTrait;
 
 /**
  * One change at a time to what is owed to a supplier: the lock itself, and the reason it exists,
@@ -34,6 +35,7 @@ class SupplierLockTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use TransactionStateTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -95,6 +97,61 @@ class SupplierLockTest extends CIUnitTestCase
         }
 
         $this->assertTrue($this->anotherConnectionCanTake($lock->nameOf($this->supplierId)));
+    }
+
+    public function testRun_EndsTheTransactionTheWorkLeftOpenWhenItFails(): void
+    {
+        $lock = new SupplierLock();
+
+        try {
+            $lock->run($this->supplierId, static function (): never {
+                Database::connect()->transStart();
+
+                throw new RuntimeException('failed');
+            });
+            $this->fail('The failure of the work must come out.');
+        } catch (RuntimeException $failure) {
+            $this->assertSame('failed', $failure->getMessage());
+        }
+
+        $this->assertNoTransactionIsOpen();
+        $this->assertTrue($this->anotherConnectionCanTake($lock->nameOf($this->supplierId)));
+    }
+
+    public function testRun_EndsTheTransactionTheWorkLeftOpenWhenThereIsNoSupplier(): void
+    {
+        try {
+            (new SupplierLock())->run(null, static function (): never {
+                Database::connect()->transStart();
+
+                throw new RuntimeException('failed');
+            });
+            $this->fail('The failure of the work must come out.');
+        } catch (RuntimeException $failure) {
+            $this->assertSame('failed', $failure->getMessage());
+        }
+
+        $this->assertNoTransactionIsOpen();
+    }
+
+    public function testRun_LeavesTheTransactionOfTheCallerOpenWhenTheWorkFails(): void
+    {
+        $db = Database::connect();
+
+        $db->transStart();
+
+        try {
+            (new SupplierLock())->run($this->supplierId, static function (): never {
+                Database::connect()->transStart();
+
+                throw new RuntimeException('failed');
+            });
+            $this->fail('The failure of the work must come out.');
+        } catch (RuntimeException) {
+            $this->assertSame(1, $db->transDepth);
+        } finally {
+            $this->closeOpenTransaction();
+        }
     }
 
     public function testRun_RefusesWhenAnotherChangeHoldsTheSupplierLongerThanItWaits(): void

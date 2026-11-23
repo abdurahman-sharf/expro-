@@ -17,6 +17,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PooledConnection;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\TransactionStateTrait;
 
 /**
  * One change at a time to what a customer owes: the lock itself, and the reason it exists, that
@@ -30,6 +31,7 @@ class CustomerLockTest extends CIUnitTestCase
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
+    use TransactionStateTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -90,6 +92,61 @@ class CustomerLockTest extends CIUnitTestCase
         }
 
         $this->assertTrue($this->anotherConnectionCanTake($lock->nameOf($this->customerId)));
+    }
+
+    public function testRun_EndsTheTransactionTheWorkLeftOpenWhenItFails(): void
+    {
+        $lock = new CustomerLock();
+
+        try {
+            $lock->run($this->customerId, static function (): never {
+                Database::connect()->transStart();
+
+                throw new RuntimeException('failed');
+            });
+            $this->fail('The failure of the work must come out.');
+        } catch (RuntimeException $failure) {
+            $this->assertSame('failed', $failure->getMessage());
+        }
+
+        $this->assertNoTransactionIsOpen();
+        $this->assertTrue($this->anotherConnectionCanTake($lock->nameOf($this->customerId)));
+    }
+
+    public function testRun_EndsTheTransactionTheWorkLeftOpenWhenThereIsNoCustomer(): void
+    {
+        try {
+            (new CustomerLock())->run(null, static function (): never {
+                Database::connect()->transStart();
+
+                throw new RuntimeException('failed');
+            });
+            $this->fail('The failure of the work must come out.');
+        } catch (RuntimeException $failure) {
+            $this->assertSame('failed', $failure->getMessage());
+        }
+
+        $this->assertNoTransactionIsOpen();
+    }
+
+    public function testRun_LeavesTheTransactionOfTheCallerOpenWhenTheWorkFails(): void
+    {
+        $db = Database::connect();
+
+        $db->transStart();
+
+        try {
+            (new CustomerLock())->run($this->customerId, static function (): never {
+                Database::connect()->transStart();
+
+                throw new RuntimeException('failed');
+            });
+            $this->fail('The failure of the work must come out.');
+        } catch (RuntimeException) {
+            $this->assertSame(1, $db->transDepth);
+        } finally {
+            $this->closeOpenTransaction();
+        }
     }
 
     public function testRun_RefusesWhenAnotherChangeHoldsTheCustomerLongerThanItWaits(): void

@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Database\AbandonedTransaction;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -33,7 +34,7 @@ final class CustomerLock
     public function run(?int $customerId, callable $work): mixed
     {
         if ($customerId === null || $customerId <= 0) {
-            return $work();
+            return AbandonedTransaction::guard($this->db, $work);
         }
 
         $name  = $this->nameOf($customerId);
@@ -49,7 +50,7 @@ final class CustomerLock
         }
 
         try {
-            return $work();
+            return AbandonedTransaction::guard($this->db, $work);
         } finally {
             $lock->release($name);
         }

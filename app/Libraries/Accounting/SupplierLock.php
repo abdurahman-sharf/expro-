@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Database\AbandonedTransaction;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -33,7 +34,7 @@ final class SupplierLock
     public function run(?int $supplierId, callable $work): mixed
     {
         if ($supplierId === null || $supplierId <= 0) {
-            return $work();
+            return AbandonedTransaction::guard($this->db, $work);
         }
 
         $name  = $this->nameOf($supplierId);
@@ -49,7 +50,7 @@ final class SupplierLock
         }
 
         try {
-            return $work();
+            return AbandonedTransaction::guard($this->db, $work);
         } finally {
             $lock->release($name);
         }

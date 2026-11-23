@@ -18,36 +18,11 @@ use ReflectionProperty;
  */
 trait RoleFixtureTrait
 {
+    use TransactionStateTrait;
+
     protected function roleDb(): BaseConnection
     {
         return Database::connect();
-    }
-
-    /**
-     * Closes whatever transaction a failed call left open, so that one test that fails does not fail
-     * every test after it on the shared connection, and then asserts that there was none.
-     */
-    protected function assertNoTransactionIsOpen(): void
-    {
-        $db     = $this->roleDb();
-        $depth  = $db->transDepth;
-        $status = $db->transStatus();
-
-        $this->closeOpenTransaction();
-
-        $this->assertSame(0, $depth, 'The call left its transaction open.');
-        $this->assertTrue($status, 'The call left the transaction status of the connection failed.');
-    }
-
-    protected function closeOpenTransaction(): void
-    {
-        $db = $this->roleDb();
-
-        while ($db->transDepth > 0) {
-            $db->transRollback();
-        }
-
-        $db->resetTransStatus();
     }
 
     /**
