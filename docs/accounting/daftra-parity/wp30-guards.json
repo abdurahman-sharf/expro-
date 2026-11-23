@@ -389,7 +389,7 @@
   {
     "name": "G36 deleting an employee releases their roles",
     "file": "app/Models/Employee.php",
-    "find": "(new RoleService($this->db, $this))->releaseEmployees([$employee_id], (int) $this->session->get('person_id') ?: null);",
+    "find": "(new RoleService($this->db, $this))->releaseEmployees([$employeeId], (int) $this->session->get('person_id') ?: null);",
     "replace": "",
     "tests": [
       "--filter",
@@ -400,7 +400,7 @@
   {
     "name": "G37 deleting a list of employees releases their roles",
     "file": "app/Models/Employee.php",
-    "find": "(new RoleService($this->db, $this))->releaseEmployees($person_ids, (int) $this->session->get('person_id') ?: null);",
+    "find": "(new RoleService($this->db, $this))->releaseEmployees($personIds, (int) $this->session->get('person_id') ?: null);",
     "replace": "",
     "tests": [
       "--filter",

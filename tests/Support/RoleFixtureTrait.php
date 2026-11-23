@@ -24,6 +24,26 @@ trait RoleFixtureTrait
     }
 
     /**
+     * Closes whatever transaction a failed call left open, so that one test that fails does not fail
+     * every test after it on the shared connection, and then asserts that there was none.
+     */
+    protected function assertNoTransactionIsOpen(): void
+    {
+        $db     = $this->roleDb();
+        $depth  = $db->transDepth;
+        $status = $db->transStatus();
+
+        while ($db->transDepth > 0) {
+            $db->transRollback();
+        }
+
+        $db->resetTransStatus();
+
+        $this->assertSame(0, $depth, 'The call left its transaction open.');
+        $this->assertTrue($status, 'The call left the transaction status of the connection failed.');
+    }
+
+    /**
      * @param list<string> $permissions
      */
     protected function createRole(array $permissions = [], string $scope = 'all', bool $active = true, ?string $name = null, ?string $description = null): int

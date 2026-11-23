@@ -11,6 +11,7 @@ use App\Libraries\Setup\InstallState;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Session\Session;
 use stdClass;
+use Throwable;
 
 /**
  * Employee class
@@ -193,71 +194,99 @@ class Employee extends Person
     /**
      * Deletes one employee
      *
-     * @param mixed|null $employee_id
+     * @param mixed|null $employeeId
      */
-    public function delete($employee_id = null, bool $purge = false): bool
+    public function delete($employeeId = null, bool $purge = false): bool
     {
-        $success = false;
-
         // Don't let employees delete themselves
-        if ($employee_id == $this->get_logged_in_employee_info()->person_id) {
+        if ($employeeId == $this->get_logged_in_employee_info()->person_id) {
             return false;
         }
 
         // Run these queries as a transaction, we want to make sure we do all or nothing
-        $this->db->transStart();
+        return $this->inTransaction(function () use ($employeeId): bool {
+            $success = false;
 
-        if (! (new EmployeeBranchService($this->db))->wouldLeaveNobodyWithEveryBranch([$employee_id])) {
-            // Delete permissions
-            $builder = $this->db->table('grants');
+            if (! (new EmployeeBranchService($this->db))->wouldLeaveNobodyWithEveryBranch([$employeeId])) {
+                // Delete permissions
+                $builder = $this->db->table('grants');
 
-            if ($builder->delete(['person_id' => $employee_id])) {
-                $builder = $this->db->table('employees');
-                $builder->where('person_id', $employee_id);
-                $success = $builder->update(['deleted' => 1]);
+                if ($builder->delete(['person_id' => $employeeId])) {
+                    $builder = $this->db->table('employees');
+                    $builder->where('person_id', $employeeId);
+                    $success = $builder->update(['deleted' => 1]);
 
-                (new RoleService($this->db, $this))->releaseEmployees([$employee_id], (int) $this->session->get('person_id') ?: null);
+                    (new RoleService($this->db, $this))->releaseEmployees([$employeeId], (int) $this->session->get('person_id') ?: null);
+                }
             }
-        }
 
-        $this->db->transComplete();
-
-        return $success;
+            return $success;
+        });
     }
 
     /**
      * Deletes a list of employees
      */
-    public function delete_list(array $person_ids): bool
+    public function delete_list(array $personIds): bool
     {
-        $success = false;
-
         // Don't let employees delete themselves
-        if (in_array($this->get_logged_in_employee_info()->person_id, $person_ids)) {
+        if (in_array($this->get_logged_in_employee_info()->person_id, $personIds)) {
             return false;
         }
 
         // Run these queries as a transaction, we want to make sure we do all or nothing
+        return $this->inTransaction(function () use ($personIds): bool {
+            $success = false;
+
+            if (! (new EmployeeBranchService($this->db))->wouldLeaveNobodyWithEveryBranch($personIds)) {
+                $builder = $this->db->table('grants');
+                $builder->whereIn('person_id', $personIds);
+                // Delete permissions
+                if ($builder->delete()) {
+                    // Delete from employee table
+                    $builder = $this->db->table('employees');
+                    $builder->whereIn('person_id', $personIds);
+                    $success = $builder->update(['deleted' => 1]);
+
+                    (new RoleService($this->db, $this))->releaseEmployees($personIds, (int) $this->session->get('person_id') ?: null);
+                }
+            }
+
+            return $success;
+        });
+    }
+
+    /**
+     * What throws inside the work is not left in an open transaction that every later write on the
+     * connection of the request would join and never commit. The exception goes on as it was.
+     */
+    private function inTransaction(callable $work): bool
+    {
+        $ownsTransaction = $this->db->transDepth === 0;
+
         $this->db->transStart();
 
-        if (! (new EmployeeBranchService($this->db))->wouldLeaveNobodyWithEveryBranch($person_ids)) {
-            $builder = $this->db->table('grants');
-            $builder->whereIn('person_id', $person_ids);
-            // Delete permissions
-            if ($builder->delete()) {
-                // Delete from employee table
-                $builder = $this->db->table('employees');
-                $builder->whereIn('person_id', $person_ids);
-                $success = $builder->update(['deleted' => 1]);
+        try {
+            $success = $work();
+        } catch (Throwable $exception) {
+            $this->db->transRollback();
 
-                (new RoleService($this->db, $this))->releaseEmployees($person_ids, (int) $this->session->get('person_id') ?: null);
+            if ($ownsTransaction) {
+                $this->db->resetTransStatus();
             }
+
+            throw $exception;
         }
 
         $this->db->transComplete();
-        $success &= $this->db->transStatus();
 
-        return $success;
+        $completed = $this->db->transStatus();
+
+        if (! $completed && $ownsTransaction) {
+            $this->db->resetTransStatus();
+        }
+
+        return $success && $completed;
     }
 
     /**

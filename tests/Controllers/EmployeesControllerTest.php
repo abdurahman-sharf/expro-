@@ -8,6 +8,8 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Config\Services;
 use App\Models\Employee;
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\EmployeeBranchService;
@@ -1350,6 +1352,27 @@ class EmployeesControllerTest extends CIUnitTestCase
 
         $this->assertTrue(json_decode($this->post('/employees/delete', ['ids' => [(string) $target]])->getJSON(), true)['success']);
         $this->assertSame([], (new RoleService())->roleIdsOf($target));
+    }
+
+    public function testPostDelete_RollsBackAndLeavesNoTransactionOpenWhenTheRecordScopeOfTheEmployeeCannotBeReleased(): void
+    {
+        $target = $this->employeeWithRoles([$this->createRole(['sales'])], ['customers']);
+
+        $this->loginAsAdmin();
+
+        $this->withUnreadableTable('employee_record_scopes', function () use ($target): void {
+            try {
+                $this->post('/employees/delete', ['ids' => [(string) $target]]);
+                $this->fail('A delete that could not release the record scope went through.');
+            } catch (AccountingException $exception) {
+                $this->assertSame(AccountingError::WriteFailed, $exception->error);
+            }
+
+            $this->assertNoTransactionIsOpen();
+        });
+
+        $this->assertSame('0', (string) $this->db->table('employees')->where('person_id', $target)->get()->getRow()->deleted);
+        $this->assertSame(1, $this->db->table('grants')->where(['person_id' => $target, 'permission_id' => 'customers'])->countAllResults());
     }
 
     public function testPostSave_AcceptsTheSameDirectGrantsWhileGrantsMayNotBeChangedForAnEmployeeWhoHoldsARole(): void

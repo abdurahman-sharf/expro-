@@ -2,15 +2,22 @@
 
 namespace Tests\Models;
 
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Organization\EmployeeBranchService;
 use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
 use App\Libraries\Roles\RoleTablesUnavailableException;
 use App\Libraries\Security\PasswordPolicy;
 use App\Models\Employee;
 use App\Models\Module;
+use Config\Database;
+use ReflectionMethod;
+use RuntimeException;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
 
@@ -393,6 +400,202 @@ class EmployeeTest extends CIUnitTestCase
         });
 
         $this->assertTrue($this->isDeleted($first));
+    }
+
+    private function secondConnection(): BaseConnection
+    {
+        $config            = (new Database())->tests;
+        $config['DBDebug'] = false;
+
+        $connection = Database::connect($config, false);
+        $connection->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        return $connection;
+    }
+
+    private function whileAnotherRequestLocksTheBranchRows(callable $action): void
+    {
+        $other  = $this->secondConnection();
+        $db     = $this->roleDb();
+        $before = (int) $db->query('SELECT @@SESSION.innodb_lock_wait_timeout AS seconds')->getRow()->seconds;
+
+        try {
+            $other->transStart();
+            (new EmployeeBranchService($other))->wouldLeaveNobodyWithEveryBranch([]);
+            $db->query('SET SESSION innodb_lock_wait_timeout = 1');
+            $action();
+        } finally {
+            $db->query('SET SESSION innodb_lock_wait_timeout = ' . $before);
+            $other->transRollback();
+            $other->close();
+        }
+    }
+
+    private function runInTransaction(callable $work): bool
+    {
+        return (new ReflectionMethod(Employee::class, 'inTransaction'))->invoke(model(Employee::class), $work);
+    }
+
+    public function testDeleteList_RollsBackWhenTheRolesCannotBeReleased(): void
+    {
+        $employee = $this->employeeWithRoles([$this->createRole(['sales'])], ['customers']);
+
+        $this->withUnreadableTable('employee_roles', function () use ($employee): void {
+            try {
+                $this->employeeModelActingAs(1)->delete_list([$employee]);
+                $this->fail('A delete that could not release the roles went through.');
+            } catch (RoleTablesUnavailableException) {
+                $this->addToAssertionCount(1);
+            }
+
+            $this->assertNoTransactionIsOpen();
+        });
+
+        $this->assertFalse($this->isDeleted($employee));
+        $this->assertSame(1, $this->roleDb()->table('grants')->where(['person_id' => $employee, 'permission_id' => 'customers'])->countAllResults());
+    }
+
+    public function testDelete_RollsBackWhenTheRolesCannotBeReleased(): void
+    {
+        $employee = $this->employeeWithRoles([$this->createRole(['sales'])], ['customers']);
+
+        $this->withUnreadableTable('employee_roles', function () use ($employee): void {
+            try {
+                $this->employeeModelActingAs(1)->delete($employee);
+                $this->fail('A delete that could not release the roles went through.');
+            } catch (RoleTablesUnavailableException) {
+                $this->addToAssertionCount(1);
+            }
+
+            $this->assertNoTransactionIsOpen();
+        });
+
+        $this->assertFalse($this->isDeleted($employee));
+        $this->assertSame(1, $this->roleDb()->table('grants')->where(['person_id' => $employee, 'permission_id' => 'customers'])->countAllResults());
+    }
+
+    public function testDeleteList_FreesTheConnectionWhenTheBranchRowsCannotBeLocked(): void
+    {
+        $employee = $this->createEmployee();
+
+        $this->whileAnotherRequestLocksTheBranchRows(function () use ($employee): void {
+            try {
+                $this->employeeModelActingAs(1)->delete_list([$employee]);
+                $this->fail('A delete that could not lock the branch rows went through.');
+            } catch (AccountingException $exception) {
+                $this->assertSame(AccountingError::WriteFailed, $exception->error);
+            }
+
+            $this->assertNoTransactionIsOpen();
+        });
+
+        $this->assertFalse($this->isDeleted($employee));
+    }
+
+    public function testDelete_FreesTheConnectionWhenTheBranchRowsCannotBeLocked(): void
+    {
+        $employee = $this->createEmployee();
+
+        $this->whileAnotherRequestLocksTheBranchRows(function () use ($employee): void {
+            try {
+                $this->employeeModelActingAs(1)->delete($employee);
+                $this->fail('A delete that could not lock the branch rows went through.');
+            } catch (AccountingException $exception) {
+                $this->assertSame(AccountingError::WriteFailed, $exception->error);
+            }
+
+            $this->assertNoTransactionIsOpen();
+        });
+
+        $this->assertFalse($this->isDeleted($employee));
+    }
+
+    public function testInTransaction_CommitsTheWorkThatSucceeds(): void
+    {
+        $employee = $this->createEmployee();
+        $other    = $this->secondConnection();
+
+        try {
+            $result = $this->runInTransaction(function () use ($employee): bool {
+                $this->roleDb()->table('employees')->where('person_id', $employee)->update(['deleted' => 1]);
+
+                return true;
+            });
+
+            $this->assertTrue($result);
+            $this->assertNoTransactionIsOpen();
+            $this->assertSame('1', (string) $other->table('employees')->where('person_id', $employee)->get()->getRow()->deleted);
+        } finally {
+            $other->close();
+        }
+    }
+
+    public function testInTransaction_RollsBackTheWritesOfTheWorkThatThrows(): void
+    {
+        $employee = $this->createEmployee();
+
+        try {
+            $this->runInTransaction(function () use ($employee): bool {
+                $this->roleDb()->table('employees')->where('person_id', $employee)->update(['deleted' => 1]);
+
+                throw new RuntimeException('The work failed.');
+            });
+            $this->fail('The exception of the work was swallowed.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('The work failed.', $exception->getMessage());
+        }
+
+        $this->assertNoTransactionIsOpen();
+        $this->assertFalse($this->isDeleted($employee));
+    }
+
+    public function testInTransaction_AnswersFalseAndRollsBackWhenAQueryFailedAndTheWorkAnswersTrue(): void
+    {
+        $employee = $this->createEmployee();
+
+        $this->withUnreadableTable('employee_roles', function () use ($employee): void {
+            $result = $this->runInTransaction(function () use ($employee): bool {
+                $this->roleDb()->table('employees')->where('person_id', $employee)->update(['deleted' => 1]);
+                $this->roleDb()->table('employee_roles')->get();
+
+                return true;
+            });
+
+            $this->assertFalse($result);
+            $this->assertNoTransactionIsOpen();
+        });
+
+        $this->assertFalse($this->isDeleted($employee));
+    }
+
+    public function testInTransaction_LeavesTheTransactionOfTheCallerFailedAndOpenWhenTheWorkThrows(): void
+    {
+        $employee = $this->createEmployee();
+        $db       = $this->roleDb();
+
+        $this->withUnreadableTable('employee_roles', function () use ($employee, $db): void {
+            $db->transStart();
+
+            try {
+                $this->runInTransaction(function () use ($employee, $db): bool {
+                    $db->table('employees')->where('person_id', $employee)->update(['deleted' => 1]);
+                    $db->table('employee_roles')->get();
+
+                    throw new RuntimeException('The work failed.');
+                });
+                $this->fail('The exception of the work was swallowed.');
+            } catch (RuntimeException) {
+                $this->addToAssertionCount(1);
+            }
+
+            $this->assertSame(1, $db->transDepth);
+            $this->assertFalse($db->transStatus());
+
+            $db->transComplete();
+
+            $this->assertFalse($this->isDeleted($employee));
+            $db->resetTransStatus();
+        });
     }
 
     public function testHasGrant_AcceptsAPermissionHeldOnlyThroughARole(): void
