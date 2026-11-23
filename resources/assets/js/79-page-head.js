@@ -66,6 +66,12 @@
             $bar = headingBar();
         }
 
+        // A working screen with no title of its own still gets a header naming it; the sale and receiving
+        // registers, the dashboards and the full-page states keep their own layouts.
+        if (!$bar.length && !$('.page-head').length && !$('#app-main').find('.pos, .dash, .nt, .settings-layout, .empty-state').length) {
+            $bar = $('<div></div>').prependTo('#app-main');
+        }
+
         if (!$bar.length || $bar.hasClass('page-head')) {
             return;
         }

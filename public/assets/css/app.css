@@ -6410,6 +6410,17 @@ a.rollover img {
     line-height: 20px;
 }
 
+.acc-setup-card {
+    padding: 20px 24px;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-xs);
+}
+
+.acc-setup-title {
+    color: var(--text);
+    font-weight: 600;
+}
+
 .kbd:empty {
     display: none;
 }
