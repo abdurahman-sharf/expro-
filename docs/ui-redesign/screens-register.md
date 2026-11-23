@@ -26,13 +26,13 @@
 
 | # | المعرف | الشاشة | القسم | مسار URL | Controller · View | الأولوية | يعتمد على | الحالة |
 |---|---|---|---|---|---|---|---|---|
-| 1 | DASH-01 | لوحة التحكم الرئيسية (الترحيب، تنبيه تشغيل المحاسبة، الاختصارات السريعة، المؤشرات، رسم المبيعات، الأكثر مبيعًا، نقص المخزون، بلاطات الوحدات) | 1 الرئيسية | `home` (وشعار القائمة، و`office` يحوّل إليها) | `Home::getIndex` · `home/home.php`، `Libraries/Dashboard_lib.php`، `Libraries/Navigation/QuickActions.php`، `resources/assets/js/82-home-shortcuts.js` | P1 | SHL-01..04 (تُصمم معها) | قيد التنفيذ (منفّذ على فرع التطوير، بانتظار مراجعة المالك) |
-| 2 | SHL-01 | القائمة الجانبية (11 قسمًا، أكورديون، درج على الجوال، تذييل المستخدم والخروج) | مشترك | كل الصفحات | `navigationSections()` · `partial/sidebar.php`، `SidebarMenu.php` | P1 | — | قيد التنفيذ (مع DASH-01) |
-| 3 | SHL-02 | الترويسة العلوية (زر القائمة، عنوان الصفحة، اسم الشركة، مبدّل الفروع، زر البحث، الساعة، شريط إيقاف العمليات) | مشترك | كل الصفحات؛ `POST home/switchBranch` | `Home::postSwitchBranch` · `partial/header.php`، `partial/branch_switcher.php` | P1 | — | قيد التنفيذ (مع DASH-01) |
-| 4 | SHL-03 | نافذة البحث الشامل (Ctrl K) | مشترك | `home/searchIndex` (JSON) | `Home::getSearchIndex` · `partial/footer.php` `#global_search` | P1 | SHL-02 | قيد التنفيذ (مع DASH-01) |
-| 5 | SHL-04 | تذييل الصفحة (الحقوق، الإصدار) | مشترك | كل الصفحات | `partial/footer.php` | P3 | — | قيد التنفيذ (مع DASH-01) |
-| 6 | DASH-02 | نافذة تخصيص الاختصارات | 1 الرئيسية | داخل `home` | `home/home.php` `#home_shortcuts_modal` | P2 | DASH-01 | قيد التنفيذ (مع DASH-01) |
-| 7 | DASH-03 | الإشعارات | 1 الرئيسية | `notifications`؛ `POST notifications/read/{id}`، `read_all` | `Notifications::getIndex` · `notifications/manage.php` | P2 | SHL-01 | لم تبدأ |
+| 1 | DASH-01 | لوحة التحكم الرئيسية (الترحيب، تنبيه تشغيل المحاسبة، الاختصارات السريعة، المؤشرات، رسم المبيعات، الأكثر مبيعًا، نقص المخزون، بلاطات الوحدات) | 1 الرئيسية | `home` (وشعار القائمة، و`office` يحوّل إليها) | `Home::getIndex` · `home/home.php`، `Libraries/Dashboard_lib.php`، `Libraries/Navigation/QuickActions.php`، `resources/assets/js/82-home-shortcuts.js` | P1 | SHL-01..04 (تُصمم معها) | مكتمل (على فرع التطوير، لم يُدمج) |
+| 2 | SHL-01 | القائمة الجانبية (11 قسمًا، أكورديون، درج على الجوال، تذييل المستخدم والخروج) | مشترك | كل الصفحات | `navigationSections()` · `partial/sidebar.php`، `SidebarMenu.php` | P1 | — | مكتمل (مع DASH-01) |
+| 3 | SHL-02 | الترويسة العلوية (زر القائمة، عنوان الصفحة، اسم الشركة، مبدّل الفروع، زر البحث، الساعة، شريط إيقاف العمليات) | مشترك | كل الصفحات؛ `POST home/switchBranch` | `Home::postSwitchBranch` · `partial/header.php`، `partial/branch_switcher.php` | P1 | — | مكتمل (مع DASH-01) |
+| 4 | SHL-03 | نافذة البحث الشامل (Ctrl K) | مشترك | `home/searchIndex` (JSON) | `Home::getSearchIndex` · `partial/footer.php` `#global_search` | P1 | SHL-02 | مكتمل (مع DASH-01) |
+| 5 | SHL-04 | تذييل الصفحة (الحقوق، الإصدار) | مشترك | كل الصفحات | `partial/footer.php` | P3 | — | مكتمل (مع DASH-01) |
+| 6 | DASH-02 | نافذة تخصيص الاختصارات | 1 الرئيسية | داخل `home` | `home/home.php` `#home_shortcuts_modal` | P2 | DASH-01 | مكتمل (مع DASH-01) |
+| 7 | DASH-03 | الإشعارات | 1 الرئيسية | `notifications`؛ `POST notifications/read/{id}`، `read_all` | `Notifications::getIndex` · `notifications/manage.php` | P2 | SHL-01 | أُرسل للتصميم |
 
 ## المرحلة 2: الدخول والحالات العامة
 
