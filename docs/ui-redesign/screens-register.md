@@ -53,7 +53,7 @@
 | 15 | CMP-01 | صفحة قائمة قياسية (شريط أدوات، بحث، فلاتر، جدول، تحديد جماعي، حذف، تصدير، ترقيم صفحات) | مشترك | كل صفحات `manage.php` | `people/manage.php` ونظائرها، `partial/table_filter_persistence.php`، `js/35-export.js` | P1 | SYS-17 | مكتمل (معتمد ذاتيًا، طبقة مشتركة: رأس الصفحة، شريط أدوات الجدول، الجدول، الترقيم) |
 | 16 | CMP-02 | نافذة نموذج قياسية (إضافة وتعديل، تبويبات داخلية، حفظ وإلغاء، رسائل التحقق) | مشترك | كل روابط `modal-dlg` | كل `form.php` | P1 | SYS-18 | مكتمل (معتمد ذاتيًا: ورقة بيضاء، حقول 40px، ترتيب أزرار التذييل، الحذف في البداية) |
 | 17 | CMP-03 | نافذة تأكيد أو إلغاء أو عكس أو اعتماد (سبب، تاريخ، أثر العملية) | مشترك | كل `*_cancel_form`، `reverse_form`، `approve_form` | — | P2 | INV-20 | مكتمل للمكوّن (`appConfirm` في `js/21-confirm.js`، مطبّق على الحذف والاستعادة في كل القوائم وشجرة الحسابات؛ بقية مواضع `confirm()` (36) تُحوَّل مع شاشاتها) |
-| 18 | CMP-04 | صفحة تقرير (فلاتر، ملخص، جدول، قائمة تصدير CSV/XLSX/PDF، طباعة) | مشترك | تقارير الدفاتر | `partial/report_files.php`، `partial/daterangepicker.php`، `accounting_statements/toolbar.php` | P2 | SAL-24 | لم تبدأ |
+| 18 | CMP-04 | صفحة تقرير (فلاتر، ملخص، جدول، قائمة تصدير CSV/XLSX/PDF، طباعة) | مشترك | تقارير الدفاتر | `partial/report_files.php`، `partial/daterangepicker.php`، `accounting_statements/toolbar.php` | P2 | SAL-24 | مكتمل (معتمد ذاتيًا: رأس الصفحة باسم التقرير، بطاقة فلاتر بحقول 40px وخيارات رقائق، حالة «لم يُشغَّل» فارغة، جدول في بطاقة) |
 | 19 | CMP-05 | شاشة طباعة مستند مع شريط إجراءات (طباعة، PDF، بريد) | مشترك | القيود والسندات وفواتير الشراء والإيصالات | `documents/screen.php`، `partial/document_actions.php`، `partial/print_receipt.php` | P1 | SAL-09 | لم تبدأ |
 | 20 | CMP-06 | محرر بنود المستند (أصناف، كميات، أسعار، ضريبة، إجماليات) | مشترك | أوامر البيع، المتكررات، دورة الشراء | `partial/document_lines.php`، `purchase_cycle/lines.php` | P2 | SAL-15 | لم تبدأ |
 | 21 | CMP-07 | كتل نماذج الأشخاص (البيانات الأساسية، الملاحظات، جهات الاتصال، الحقول الإضافية) | مشترك | نماذج العملاء والموردين والموظفين والأصناف | `people/form_basic_info.php`، `form_comments.php`، `contacts_panel.php`، `contacts_list.php`، `custom_fields/inputs.php` | P2 | SYS-18 | لم تبدأ |
@@ -260,9 +260,9 @@
 
 | # | المعرف | الشاشة | القسم | مسار URL | Controller · View | الأولوية | يعتمد على | الحالة |
 |---|---|---|---|---|---|---|---|---|
-| 194 | RPT-01 | مركز التقارير (بطاقات مجمّعة وبحث) | 7 التقارير | `reports` | `Reports::getIndex` · `reports/listing.php` | P1 | SHL-01 | لم تبدأ |
-| 195 | RPT-02 | قوالب مدخلات التقارير الكلاسيكية: الفترة، الكيان المحدد، العميل المحدد، ملخص المخزون | 7 التقارير | خطوة الإدخال قبل كل تقرير | `reports/date_input.php`، `specific_input.php`، `specific_customer_input.php`، `inventory_summary_input.php`، `_head.php` | P2 | CMP-04 | لم تبدأ |
-| 196 | RPT-03 | قوالب مخرجات التقارير الكلاسيكية: جدول، جدول بتفاصيل قابلة للفتح، رسم بياني | 7 التقارير | مخرجات كل تقرير | `reports/tabular.php`، `tabular_details.php`، `graphical.php`، `_summary.php` | P2 | CMP-04 | لم تبدأ |
+| 194 | RPT-01 | مركز التقارير (بطاقات مجمّعة وبحث) | 7 التقارير | `reports` | `Reports::getIndex` · `reports/listing.php` | P1 | SHL-01 | مكتمل (معتمد ذاتيًا: بطاقات بموضوع وأيقونة وعدد، روابط صفوف، بحث يصفّي حتى مستوى التقرير) |
+| 195 | RPT-02 | قوالب مدخلات التقارير الكلاسيكية: الفترة، الكيان المحدد، العميل المحدد، ملخص المخزون | 7 التقارير | خطوة الإدخال قبل كل تقرير | `reports/date_input.php`، `specific_input.php`، `specific_customer_input.php`، `inventory_summary_input.php`، `_head.php` | P2 | CMP-04 | مكتمل (معتمد ذاتيًا عبر رأس التقرير المشترك `_head.php`) |
+| 196 | RPT-03 | قوالب مخرجات التقارير الكلاسيكية: جدول، جدول بتفاصيل قابلة للفتح، رسم بياني | 7 التقارير | مخرجات كل تقرير | `reports/tabular.php`، `tabular_details.php`، `graphical.php`، `_summary.php` | P2 | CMP-04 | مكتمل (معتمد ذاتيًا عبر رأس التقرير المشترك وطبقة الجدول CMP-01) |
 | 197 | RPT-04 | تقارير المبيعات: رسم، ملخص، تفصيلي، مبيعات الأصناف التفصيلية | 7 التقارير | `reports/graphical_summary_sales`، `summary_sales`، `detailed_sales`، `detailed_item_sales` | `Reports` · RPT-02/03 | P2 | RPT-03 | لم تبدأ |
 | 198 | RPT-05 | تقارير العملاء: رسم، ملخص، تفصيلي لعميل | 7 التقارير | `reports/graphical_summary_customers`، `summary_customers`، `specific_customers` | RPT-02/03 | P2 | RPT-03 | لم تبدأ |
 | 199 | RPT-06 | تقارير الموظفين: رسم، ملخص، تفصيلي لموظف | 7 التقارير | `reports/graphical_summary_employees`، `summary_employees`، `specific_employees` | RPT-02/03 | P3 | RPT-03 | لم تبدأ |
@@ -276,7 +276,7 @@
 | 207 | RPT-14 | تقارير فئات المصروفات: رسم، ملخص | 7 التقارير | `reports/graphical_summary_expenses_categories`، `summary_expenses_categories` | RPT-02/03 | P3 | RPT-03 | لم تبدأ |
 | 208 | RPT-15 | تقييم المخزون من الدفاتر | 7 التقارير | `accounting_reports/inventory_valuation` | `accounting_reports/inventory_valuation.php` | P2 | CMP-04 | لم تبدأ |
 | 209 | RPT-16 | الأرباح والخسائر من الدفاتر | 7 التقارير | `accounting_statements/profit_loss` | `accounting_statements/profit_loss.php` | P2 | FIN-36 | لم تبدأ |
-| 210 | RPT-17 | قالب التقارير التشغيلية من الدفاتر (يخدم الصفوف 211–218 و106) | 7 التقارير | — | `accounting_operational/report.php` | P2 | CMP-04 | لم تبدأ |
+| 210 | RPT-17 | قالب التقارير التشغيلية من الدفاتر (يخدم الصفوف 211–218 و106) | 7 التقارير | — | `accounting_operational/report.php` | P2 | CMP-04 | مكتمل (معتمد ذاتيًا عبر CMP-04) |
 | 211 | RPT-18 | إيرادات المبيعات (حسب اليوم، العميل…) | 7 التقارير | `accounting_reports/revenue` | RPT-17 | P2 | RPT-17 | لم تبدأ |
 | 212 | RPT-19 | المبيعات حسب العميل | 7 التقارير | `accounting_reports/clients_sales` | RPT-17 | P2 | RPT-17 | لم تبدأ |
 | 213 | RPT-20 | الفواتير والمرتجعات | 7 التقارير | `accounting_reports/invoice_returns` | RPT-17 | P2 | RPT-17 | لم تبدأ |

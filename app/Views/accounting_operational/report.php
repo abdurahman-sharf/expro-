@@ -63,7 +63,8 @@ foreach ($table?->columns ?? [] as $column) {
 
 <?= view('partial/header') ?>
 
-<div id="title_bar" class="print_hide btn-toolbar">
+<div id="title_bar" class="btn-toolbar">
+    <h1 class="h4"><?= lang($titleKey) ?></h1>
     <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()">
         <span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?>
     </button>
@@ -169,21 +170,23 @@ foreach ($table?->columns ?? [] as $column) {
             </fieldset>
         <?php endif; ?>
         <div class="acc-filter acc-filter-actions">
-            <button type="submit" class="btn btn-primary btn-sm" id="report_run"><span class="bi bi-search" aria-hidden="true">&nbsp;</span><?= lang('Accounting_operational_reports.show_report') ?></button>
-            <a class="btn btn-outline-secondary btn-sm" id="report_reset" href="<?= esc(base_url($route), 'attr') ?>"><?= lang('Accounting_reports.reset') ?></a>
+            <button type="submit" class="btn btn-primary" id="report_run"><span class="bi bi-search" aria-hidden="true">&nbsp;</span><?= lang('Accounting_operational_reports.show_report') ?></button>
+            <a class="btn btn-outline-secondary" id="report_reset" href="<?= esc(base_url($route), 'attr') ?>"><?= lang('Accounting_reports.reset') ?></a>
         </div>
     </div>
 </form>
 
-<div class="container-fluid py-3" id="operational_report">
-    <h1 class="h4"><?= lang($titleKey) ?></h1>
+<div class="report-result" id="operational_report">
 
     <?php if ($error !== null): ?>
         <p class="alert alert-danger" id="report_error" role="alert"><?= esc($error) ?></p>
     <?php endif; ?>
 
     <?php if ($table === null): ?>
-        <p class="text-body-secondary" id="report_not_run"><?= lang('Accounting_operational_reports.not_run') ?></p>
+        <div class="empty-state" id="report_not_run">
+            <span class="empty-state-art" aria-hidden="true"><i class="bi bi-funnel"></i></span>
+            <p class="empty-state-text"><?= lang('Accounting_operational_reports.not_run') ?></p>
+        </div>
     <?php elseif ($table->isRefused()): ?>
         <p class="alert alert-warning" id="report_refused" role="alert"><span class="bi bi-exclamation-triangle" aria-hidden="true">&nbsp;</span><?= esc(lang((string) $table->refusal, $table->refusalArguments)) ?></p>
     <?php else: ?>

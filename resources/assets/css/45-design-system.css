@@ -658,3 +658,114 @@
     min-width: 96px;
     min-height: 40px;
 }
+
+/* Report page (PageReports): a filter card of 40px fields whose choices wrap as chips, then the result. */
+.acc-filters {
+    margin-bottom: 24px;
+    padding: 16px;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-xs);
+}
+
+.acc-filter-row {
+    gap: 16px;
+}
+
+.acc-filter .form-label {
+    margin-bottom: 6px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.acc-filters .form-control-sm,
+.acc-filters .form-select-sm {
+    min-height: 40px;
+    font-size: 14px;
+}
+
+.acc-filters .acc-filter-actions .btn {
+    min-height: 40px;
+}
+
+.acc-filter.acc-filter-status {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-width: none;
+}
+
+.acc-filter-status legend {
+    width: 100%;
+    margin-bottom: 0;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.acc-filter-status .choice {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    margin: 0;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.acc-filter-status .choice:has(input:checked) {
+    border-color: var(--blue-500);
+    background: var(--blue-50);
+    color: var(--blue-700);
+}
+
+.acc-filter-status .choice .form-check-input {
+    margin: 0;
+}
+
+.report-result > .table-responsive {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+.report-result > .table-responsive > .table {
+    margin: 0;
+}
+
+.report-result #report_period {
+    color: var(--fg-secondary);
+    font-size: 13px;
+}
+
+.report-result > .table-responsive > .table > :not(caption) > * > :first-child {
+    padding-inline-start: 16px;
+}
+
+.report-result > .table-responsive > .table > :not(caption) > * > :last-child {
+    padding-inline-end: 16px;
+}
+
+.report-result #report_scope {
+    border-color: var(--line);
+    background: var(--surface-2);
+    color: var(--fg-secondary);
+}
+
+.bootstrap-table .fixed-table-pagination > .pagination-detail,
+.bootstrap-table .fixed-table-pagination > .pagination,
+.bootstrap-table .fixed-table-pagination .pagination-info {
+    margin: 0;
+}
+
+.bootstrap-table .fixed-table-container .fixed-table-body + .fixed-table-footer:empty,
+.bootstrap-table .fixed-table-container {
+    padding-bottom: 0 !important;
+}
