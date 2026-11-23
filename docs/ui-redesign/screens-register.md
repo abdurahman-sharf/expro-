@@ -32,7 +32,7 @@
 | 4 | SHL-03 | نافذة البحث الشامل (Ctrl K) | مشترك | `home/searchIndex` (JSON) | `Home::getSearchIndex` · `partial/footer.php` `#global_search` | P1 | SHL-02 | مكتمل (مع DASH-01) |
 | 5 | SHL-04 | تذييل الصفحة (الحقوق، الإصدار) | مشترك | كل الصفحات | `partial/footer.php` | P3 | — | مكتمل (مع DASH-01) |
 | 6 | DASH-02 | نافذة تخصيص الاختصارات | 1 الرئيسية | داخل `home` | `home/home.php` `#home_shortcuts_modal` | P2 | DASH-01 | مكتمل (مع DASH-01) |
-| 7 | DASH-03 | الإشعارات | 1 الرئيسية | `notifications`؛ `POST notifications/read/{id}`، `read_all` | `Notifications::getIndex` · `notifications/manage.php` | P2 | SHL-01 | أُرسل للتصميم |
+| 7 | DASH-03 | الإشعارات | 1 الرئيسية | `notifications`؛ `POST notifications/read/{id}`، `read_all` | `Notifications::getIndex` · `notifications/manage.php` | P2 | SHL-01 | التصميم معتمد |
 
 ## المرحلة 2: الدخول والحالات العامة
 
@@ -338,6 +338,7 @@
 | المعرف | الإصدار | تاريخ الاعتماد | المرجع (رابط أو ملف) | المكونات المشتركة التي ثبّتها | ملاحظات |
 |---|---|---|---|---|---|
 | DASH-01، DASH-02، SHL-01..04 | `1795426370-9bb6` | 2026-11-23 | https://claude.ai/artifact/J7bAniTTj82EwWsfNbr83M (لوحة «EXPRO — إطار التطبيق ولوحة التحكم»، 5 صفحات و38 لوحة) | AppSidebar، AppTopbar، AppFooter، SearchPalette، ShortcutTile، CustomizeShortcuts، رموز التصميم `ds/alawal-pro/tokens.json` | محتوى القائمة في التصميم توضيحي؛ يُعتمد محتوى `SidebarMenu` الفعلي |
+| DASH-03 | `1795429422-2e2c` | 2026-11-23 | https://claude.ai/artifact/18CC6pTUEBkNkNiviHjyrb (لوحة «EXPRO — الإشعارات»، 5 صفحات و27 لوحة) | يعيد استخدام AppSidebar وAppTopbar وAppFooter دون تغيير | ستة مقترحات وظيفية معروضة منفصلة ولم تُعتمد |
 
 ## ما لم يُدرج عن قصد
 
