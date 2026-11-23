@@ -4,9 +4,11 @@ namespace Tests\Models;
 
 use App\Models\Attribute;
 use App\Models\Item;
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\TransactionStateTrait;
 
 /**
@@ -15,6 +17,7 @@ use Tests\Support\TransactionStateTrait;
 final class AttributeTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use AccountingFixtureTrait;
     use TransactionStateTrait;
 
     protected $migrate     = true;
@@ -65,21 +68,39 @@ final class AttributeTest extends CIUnitTestCase
         return $data;
     }
 
+    private function linkedValue(BaseConnection $connection, int $definitionId, int $itemId): ?string
+    {
+        $row = $connection->table('attribute_links')
+            ->select('attribute_values.attribute_value')
+            ->join('attribute_values', 'attribute_values.attribute_id = attribute_links.attribute_id')
+            ->where('attribute_links.definition_id', $definitionId)
+            ->where('attribute_links.item_id', $itemId)
+            ->get()
+            ->getRow();
+
+        return $row?->attribute_value;
+    }
+
     public function testSaveDefinition_CommitsTheConversionOfADropdownToACheckbox(): void
     {
         $definition = $this->definition(DROPDOWN);
+        $large      = $this->item();
+        $none       = $this->item();
 
-        $this->assertGreaterThan(0, $this->attribute->saveAttributeValue('Large', $definition['definition_id'], $this->item(), false, DROPDOWN));
+        $this->assertGreaterThan(0, $this->attribute->saveAttributeValue('Large', $definition['definition_id'], $large, false, DROPDOWN));
+        $this->assertGreaterThan(0, $this->attribute->saveAttributeValue('false', $definition['definition_id'], $none, false, DROPDOWN));
 
         $converted = ['definition_name' => $definition['definition_name'], 'definition_type' => CHECKBOX, 'definition_flags' => 0, 'deleted' => 0];
 
         $this->assertTrue($this->attribute->saveDefinition($converted, $definition['definition_id']));
         $this->assertNoTransactionIsOpen();
 
-        $other = $this->anotherConnection();
+        $other = $this->openSecondConnection(false);
 
         try {
             $this->assertSame(CHECKBOX, $other->table('attribute_definitions')->where('definition_id', $definition['definition_id'])->get()->getRow()->definition_type);
+            $this->assertSame('1', $this->linkedValue($other, $definition['definition_id'], $large));
+            $this->assertSame('0', $this->linkedValue($other, $definition['definition_id'], $none));
         } finally {
             $other->close();
         }
@@ -96,7 +117,7 @@ final class AttributeTest extends CIUnitTestCase
         $this->assertTrue($this->attribute->saveDefinition($converted, $definition['definition_id']));
         $this->assertNoTransactionIsOpen();
 
-        $other = $this->anotherConnection();
+        $other = $this->openSecondConnection(false);
 
         try {
             $this->assertSame(CHECKBOX, $other->table('attribute_definitions')->where('definition_id', $definition['definition_id'])->get()->getRow()->definition_type);

@@ -36,7 +36,7 @@ final class Tax_jurisdictionTest extends CIUnitTestCase
     {
         parent::setUp();
 
-        $this->kept = array_column(Database::connect()->table('tax_jurisdictions')->select('jurisdiction_id')->where('deleted', 0)->get()->getResultArray(), 'jurisdiction_id');
+        $this->kept          = array_column(Database::connect()->table('tax_jurisdictions')->select('jurisdiction_id')->where('deleted', 0)->get()->getResultArray(), 'jurisdiction_id');
         $this->jurisdictions = model(Tax_jurisdiction::class);
     }
 

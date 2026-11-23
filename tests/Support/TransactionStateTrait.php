@@ -2,7 +2,6 @@
 
 namespace Tests\Support;
 
-use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
 trait TransactionStateTrait
@@ -34,19 +33,8 @@ trait TransactionStateTrait
         $db->resetTransStatus();
     }
 
-    /**
-     * A second connection to the test database, which sees only what was committed. It gives up on a
-     * lock after a second, and with debugging off it behaves as production does: a failed query
-     * returns false.
-     */
-    protected function anotherConnection(): BaseConnection
+    protected function connectionThatNotesTheLockAtRollback(): LockNotingConnection
     {
-        $config            = (new Database())->tests;
-        $config['DBDebug'] = false;
-
-        $connection = Database::connect($config, false);
-        $connection->query('SET SESSION innodb_lock_wait_timeout = 1');
-
-        return $connection;
+        return new LockNotingConnection((new Database())->tests);
     }
 }

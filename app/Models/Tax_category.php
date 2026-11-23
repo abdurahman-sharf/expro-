@@ -126,13 +126,13 @@ class Tax_category extends Model
     /**
      * Saves changes to the tax categories table
      */
-    public function save_categories(array $array_save): bool    // TODO: $array_save probably needs to be renamed here to $categories or something similar.  Datatype in the variable name is a code smell.
+    public function save_categories(array $categories): bool
     {
         $this->db->transStart();
 
         $notToDelete = [];
 
-        foreach ($array_save as $key => $value) {
+        foreach ($categories as $key => $value) {
             // Save or update
             $taxCategoryData = [
                 'tax_category'       => $value['tax_category'],

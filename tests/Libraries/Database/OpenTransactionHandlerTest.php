@@ -4,6 +4,7 @@ namespace Tests\Libraries\Database;
 
 use App\Libraries\Database\OpenTransactionHandler;
 use CodeIgniter\Database\Config as DatabaseConfig;
+use CodeIgniter\Database\MySQLi\Connection;
 use CodeIgniter\Debug\ExceptionHandlerInterface;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\Response;
@@ -14,6 +15,7 @@ use Config\Database;
 use ReflectionProperty;
 use RuntimeException;
 use Throwable;
+use Tests\Support\TransactionStateTrait;
 
 /**
  * A request that stops on an exception does not leave its transaction open for the writes that follow it,
@@ -24,6 +26,7 @@ use Throwable;
 final class OpenTransactionHandlerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use TransactionStateTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -38,13 +41,7 @@ final class OpenTransactionHandlerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
-        $db = Database::connect();
-
-        while ($db->transDepth > 0) {
-            $db->transRollback();
-        }
-
-        $db->resetTransStatus();
+        $this->closeOpenTransaction();
 
         parent::tearDown();
     }
@@ -62,9 +59,26 @@ final class OpenTransactionHandlerTest extends CIUnitTestCase
         };
     }
 
-    private function handle(OpenTransactionHandler $handler, Throwable $exception): void
+    private function handle(OpenTransactionHandler $handler, Throwable $exception, int $statusCode = 500, int $exitCode = 1): void
     {
-        $handler->handle($exception, service('incomingrequest', null, false), new Response(config('App')), 500, 1);
+        $handler->handle($exception, service('incomingrequest', null, false), new Response(config('App')), $statusCode, $exitCode);
+    }
+
+    /**
+     * @param array<string, Connection> $connections
+     */
+    private function withConnections(array $connections, callable $then): void
+    {
+        $instances = new ReflectionProperty(DatabaseConfig::class, 'instances');
+        $kept      = $instances->getValue();
+
+        $instances->setValue(null, $connections);
+
+        try {
+            $then();
+        } finally {
+            $instances->setValue(null, $kept);
+        }
     }
 
     public function testHandle_RollsBackWhatTheRequestLeftOpenBeforeItPassesTheExceptionOn(): void
@@ -106,6 +120,61 @@ final class OpenTransactionHandlerTest extends CIUnitTestCase
         $this->assertSame([[$exception, 0, 500, 1]], $next->calls);
     }
 
+    public function testHandle_PassesTheStatusAndTheExitCodeOfTheRequestOn(): void
+    {
+        $next      = $this->spy();
+        $exception = new RuntimeException('The page is not there.');
+
+        $this->handle(new OpenTransactionHandler($next), $exception, 404, 3);
+
+        $this->assertSame([[$exception, 0, 404, 3]], $next->calls);
+    }
+
+    public function testHandle_RollsBackEveryConnectionTheRequestMade(): void
+    {
+        $first  = Database::connect();
+        $second = new Connection((new Database())->tests);
+
+        $this->withConnections(['first' => $first, 'second' => $second], function () use ($first, $second): void {
+            $first->transStart();
+            $second->transStart();
+
+            $this->handle(new OpenTransactionHandler($this->spy()), new RuntimeException('The request failed.'));
+
+            $this->assertSame([0, 0], [$first->transDepth, $second->transDepth]);
+        });
+
+        $second->close();
+    }
+
+    public function testHandle_PassesTheExceptionOnWhenAConnectionCannotBeEnded(): void
+    {
+        $broken = new class () extends Connection {
+            public function __construct()
+            {
+            }
+
+            public function resetTransStatus(): static
+            {
+                throw new RuntimeException('The connection is gone.');
+            }
+        };
+        $next = new class () implements ExceptionHandlerInterface {
+            public int $calls = 0;
+
+            public function handle(Throwable $exception, RequestInterface $request, ResponseInterface $response, int $statusCode, int $exitCode): void
+            {
+                $this->calls++;
+            }
+        };
+
+        $this->withConnections(['broken' => $broken], function () use ($next): void {
+            $this->handle(new OpenTransactionHandler($next), new RuntimeException('The request failed.'));
+        });
+
+        $this->assertSame(1, $next->calls);
+    }
+
     public function testHandle_OpensNoConnectionWhenTheRequestMadeNone(): void
     {
         $next = new class () implements ExceptionHandlerInterface {
@@ -116,18 +185,13 @@ final class OpenTransactionHandlerTest extends CIUnitTestCase
                 $this->calls++;
             }
         };
-        $instances = new ReflectionProperty(DatabaseConfig::class, 'instances');
-        $kept      = $instances->getValue();
+        $opened = null;
 
-        $instances->setValue(null, []);
-
-        try {
+        $this->withConnections([], function () use ($next, &$opened): void {
             $this->handle(new OpenTransactionHandler($next), new RuntimeException('The request failed.'));
 
             $opened = DatabaseConfig::getConnections();
-        } finally {
-            $instances->setValue(null, $kept);
-        }
+        });
 
         $this->assertSame([], $opened);
         $this->assertSame(1, $next->calls);

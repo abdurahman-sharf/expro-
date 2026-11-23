@@ -136,7 +136,8 @@ class SupplierLockTest extends CIUnitTestCase
 
     public function testRun_LeavesTheTransactionOfTheCallerOpenWhenTheWorkFails(): void
     {
-        $db = Database::connect();
+        $db     = Database::connect();
+        $thrown = null;
 
         $db->transStart();
 
@@ -146,12 +147,38 @@ class SupplierLockTest extends CIUnitTestCase
 
                 throw new RuntimeException('failed');
             });
-            $this->fail('The failure of the work must come out.');
-        } catch (RuntimeException) {
-            $this->assertSame(1, $db->transDepth);
+        } catch (RuntimeException $failure) {
+            $thrown = $failure;
         } finally {
+            $depth = $db->transDepth;
+
             $this->closeOpenTransaction();
         }
+
+        $this->assertSame('failed', $thrown?->getMessage());
+        $this->assertSame(1, $depth);
+    }
+
+    public function testRun_EndsTheTransactionOfTheWorkBeforeItReleasesTheLockOfTheSupplier(): void
+    {
+        $connection = $this->connectionThatNotesTheLockAtRollback();
+        $lock       = new SupplierLock($connection);
+        $thrown     = null;
+
+        $connection->lockName = $lock->nameOf($this->supplierId);
+
+        try {
+            $lock->run($this->supplierId, static function () use ($connection): never {
+                $connection->transStart();
+
+                throw new RuntimeException('failed');
+            });
+        } catch (RuntimeException $failure) {
+            $thrown = $failure;
+        }
+
+        $this->assertSame('failed', $thrown?->getMessage());
+        $this->assertTrue($connection->heldAtRollback);
     }
 
     public function testRun_RefusesWhenAnotherChangeHoldsTheSupplierLongerThanItWaits(): void

@@ -126,13 +126,13 @@ class Tax_jurisdiction extends Model
     /**
      * Saves changes to the tax jurisdictions table
      */
-    public function save_jurisdictions(array $array_save): bool
+    public function save_jurisdictions(array $jurisdictions): bool
     {
         $this->db->transStart();
 
         $notToDelete = [];
 
-        foreach ($array_save as $key => $value) {
+        foreach ($jurisdictions as $key => $value) {
             // Save or update
             $taxJurisdictionData = [
                 'jurisdiction_name'   => $value['jurisdiction_name'],

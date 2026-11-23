@@ -28,6 +28,7 @@ use App\Libraries\Accounting\SupplierLock;
 use App\Libraries\Accounting\SupplierPaymentDate;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Database\AbandonedTransaction;
 use App\Libraries\Database\FailedTransaction;
 use App\Libraries\Database\ReadCommittedStatement;
 use App\Libraries\Integrations\PaymentMethods;
@@ -1783,7 +1784,7 @@ class Receiving extends Model
     private function lockSuppliers(array $supplierIds, callable $work): bool
     {
         if ($supplierIds === []) {
-            return $work();
+            return AbandonedTransaction::guard($this->db, $work);
         }
 
         $first = array_shift($supplierIds);

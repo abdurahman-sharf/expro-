@@ -36,7 +36,7 @@ final class Tax_categoryTest extends CIUnitTestCase
     {
         parent::setUp();
 
-        $this->kept = array_column(Database::connect()->table('tax_categories')->select('tax_category_id')->where('deleted', 0)->get()->getResultArray(), 'tax_category_id');
+        $this->kept       = array_column(Database::connect()->table('tax_categories')->select('tax_category_id')->where('deleted', 0)->get()->getResultArray(), 'tax_category_id');
         $this->categories = model(Tax_category::class);
     }
 

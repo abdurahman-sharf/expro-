@@ -423,20 +423,20 @@ class Attribute extends Model
         if ($from_type === TEXT) {
             if (in_array($to_type, [DATE, DECIMAL], true)) {
                 if ($this->check_data_validity($definition_id, $from_type, $to_type)) {
-                    $attributes_to_convert = $this->get_attributes_by_definition($definition_id);
-                    $success               = $this->attribute_cleanup($attributes_to_convert, $definition_id, $to_type);
+                    $attributesToConvert = $this->get_attributes_by_definition($definition_id);
+                    $success             = $this->attribute_cleanup($attributesToConvert, $definition_id, $to_type);
                 }
             } elseif ($to_type === DROPDOWN) {
                 $success = true;
             } elseif ($to_type === CHECKBOX) {    // TODO: duplicated code.
-                $checkbox_attribute_values = $this->checkbox_attribute_values($definition_id);
+                $checkboxAttributeValues = $this->checkbox_attribute_values($definition_id);
 
                 $this->db->transStart();
 
                 $query = 'UPDATE ' . $this->db->prefixTable('attribute_links') . ' links ';
                 $query .= 'JOIN ' . $this->db->prefixTable('attribute_values') . ' vals ';
                 $query .= 'ON vals.attribute_id = links.attribute_id ';
-                $query .= "SET links.attribute_id = IF((attribute_value IN('false','0','') OR (attribute_value IS NULL)), {$checkbox_attribute_values[0]}, {$checkbox_attribute_values[1]}) ";
+                $query .= "SET links.attribute_id = IF((attribute_value IN('false','0','') OR (attribute_value IS NULL)), {$checkboxAttributeValues[0]}, {$checkboxAttributeValues[1]}) ";
                 $query .= 'WHERE definition_id = ' . $this->db->escape($definition_id);
                 $success = $this->db->query($query);
 
@@ -445,7 +445,7 @@ class Attribute extends Model
                 // $db_prefix = $this->db->getPrefix();
                 // $builder = $this->db->table('attribute_links');
                 // $builder->join('attribute_values', 'attribute_values.attribute_id = attribute_links.attribute_id', 'inner');
-                // $builder->set('attribute_links.attribute_id', "IF((`$db_prefix" . "attribute_values`.`attribute_value` IN('false','0','') OR (`". $db_prefix ."attribute_values`.`attribute_value` IS NULL)), $checkbox_attribute_values[0], $checkbox_attribute_values[1])", false);
+                // $builder->set('attribute_links.attribute_id', "IF((`$db_prefix" . "attribute_values`.`attribute_value` IN('false','0','') OR (`". $db_prefix ."attribute_values`.`attribute_value` IS NULL)), $checkboxAttributeValues[0], $checkboxAttributeValues[1])", false);
                 // $builder->where('attribute_links.definition_id', $definition_id);
                 // $success = $builder->update();
 
@@ -454,21 +454,21 @@ class Attribute extends Model
         } elseif ($from_type === DROPDOWN) {
             if (in_array($to_type, [TEXT, CHECKBOX], true)) {
                 if ($to_type === CHECKBOX) {    // TODO: Duplicated code.
-                    $checkbox_attribute_values = $this->checkbox_attribute_values($definition_id);
+                    $checkboxAttributeValues = $this->checkbox_attribute_values($definition_id);
 
                     $this->db->transStart();
 
                     $query = 'UPDATE ' . $this->db->prefixTable('attribute_links') . ' links ';
                     $query .= 'JOIN ' . $this->db->prefixTable('attribute_values') . ' vals ';
                     $query .= 'ON vals.attribute_id = links.attribute_id ';
-                    $query .= "SET links.attribute_id = IF((attribute_value IN('false','0','') OR (attribute_value IS NULL)), {$checkbox_attribute_values[0]}, {$checkbox_attribute_values[1]}) ";
+                    $query .= "SET links.attribute_id = IF((attribute_value IN('false','0','') OR (attribute_value IS NULL)), {$checkboxAttributeValues[0]}, {$checkboxAttributeValues[1]}) ";
                     $query .= 'WHERE definition_id = ' . $this->db->escape($definition_id);
                     $success = $this->db->query($query);
 
                     // TODO: Same issue here. Replace the code above with the code below when it's fixed.
                     // $builder = $this->db->table('attribute_links');
                     // $builder->join('attribute_values', 'attribute_values.attribute_id = attribute_links.attribute_id', 'inner');
-                    // $builder->set('attribute_links.attribute_id', "IF((attribute_value IN('false','0','') OR (attribute_value IS NULL)), $checkbox_attribute_values[0], $checkbox_attribute_values[1])", false);
+                    // $builder->set('attribute_links.attribute_id', "IF((attribute_value IN('false','0','') OR (attribute_value IS NULL)), $checkboxAttributeValues[0], $checkboxAttributeValues[1])", false);
                     // $builder->where('definition_id', $definition_id);
                     // $success = $builder->update();
 

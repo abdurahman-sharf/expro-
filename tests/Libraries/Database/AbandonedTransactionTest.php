@@ -148,6 +148,32 @@ final class AbandonedTransactionTest extends CIUnitTestCase
         AbandonedTransaction::close($connection, 0);
 
         $this->assertSame(2, $connection->transDepth);
+        $this->assertLogContains('error', 'A transaction that the work left open could not be rolled back: The connection is gone.');
+    }
+
+    public function testClose_StopsWhenARollbackRaisesAnError(): void
+    {
+        $connection = new class () extends Connection {
+            public function __construct()
+            {
+            }
+
+            public function open(int $levels): void
+            {
+                $this->transDepth = $levels;
+            }
+
+            public function transRollback(): bool
+            {
+                throw new TypeError('The connection answered with the wrong type.');
+            }
+        };
+
+        $connection->open(1);
+
+        AbandonedTransaction::close($connection, 0);
+
+        $this->assertSame(1, $connection->transDepth);
     }
 
     public function testClose_StopsAtTheFirstRollbackThatFails(): void
@@ -246,6 +272,19 @@ final class AbandonedTransactionTest extends CIUnitTestCase
         }
 
         $this->assertNotNull($thrown);
+        $this->assertSame(1, $db->transDepth);
+    }
+
+    public function testGuard_LeavesWhatTheWorkLeftOpenWhenItDoesNotThrow(): void
+    {
+        $db = Database::connect();
+
+        $this->assertSame('done', AbandonedTransaction::guard($db, static function () use ($db): string {
+            $db->transStart();
+
+            return 'done';
+        }));
+
         $this->assertSame(1, $db->transDepth);
     }
 

@@ -21,10 +21,12 @@ use App\Libraries\PurchaseCycle\PurchaseDocumentKind;
 use App\Libraries\PurchaseCycle\PurchaseDocumentStatus;
 use App\Libraries\PurchaseCycle\PurchaseOrderReceipts;
 use App\Models\Receiving;
+use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\DatabaseFailureTrait;
@@ -1835,6 +1837,54 @@ class ReceivingTest extends CIUnitTestCase
         $this->assertTrue($this->purchases->delete_list([$first, $second], $this->clerk));
         $this->assertSame(PurchaseDocumentStatus::Open, $this->orderStatus($orderId));
         $this->assertSame(0, $this->countRows('purchase_order_receiving_lines'));
+    }
+
+    private function cashPurchaseWithoutSupplier(): int
+    {
+        $receivingId = $this->buy([$this->purchaseLine($this->item('0.00'), 0, '1', '50.00')], null, lang('Sales.cash'));
+
+        $this->assertGreaterThan(0, $receivingId);
+        $this->assertNull($this->accountingDb()->table('receivings')->select('supplier_id')->where('receiving_id', $receivingId)->get()->getRow()->supplier_id);
+
+        return $receivingId;
+    }
+
+    private function deleteListWhoseItemsCannotBeRead(int $receivingId): ?RuntimeException
+    {
+        $receivings = new class () extends Receiving {
+            public function get_receiving_items(int $receiving_id): ResultInterface
+            {
+                throw new RuntimeException('The items could not be read.');
+            }
+        };
+
+        try {
+            $receivings->delete_list([$receivingId], $this->employeeId);
+        } catch (RuntimeException $failure) {
+            return $failure;
+        }
+
+        return null;
+    }
+
+    public function testDeleteList_EndsItsTransactionWhenDeletingAPurchaseWithoutASupplierThrows(): void
+    {
+        $this->startBuying();
+
+        $failure = $this->deleteListWhoseItemsCannotBeRead($this->cashPurchaseWithoutSupplier());
+
+        $this->assertSame('The items could not be read.', $failure?->getMessage());
+        $this->assertNoTransactionIsOpen();
+    }
+
+    public function testDeleteList_EndsItsTransactionWhenDeletingAPurchaseOfASupplierThrows(): void
+    {
+        $this->startBuying();
+
+        $failure = $this->deleteListWhoseItemsCannotBeRead($this->purchaseOf('50.00', $this->supplierId));
+
+        $this->assertSame('The items could not be read.', $failure?->getMessage());
+        $this->assertNoTransactionIsOpen();
     }
 
     public function testSaveValue_LetsOneOfTwoReceivingsAtTheSameMomentTakeTheUnitsOfTheOrder(): void

@@ -338,5 +338,115 @@
       "testHandle_OpensNoConnection",
       "tests/Libraries/Database/OpenTransactionHandlerTest.php"
     ]
+  },
+  {
+    "name": "G33 the delete of a list of purchases none of which has a supplier is not guarded",
+    "file": "app/Models/Receiving.php",
+    "find": "            return AbandonedTransaction::guard($this->db, $work);",
+    "replace": "            return $work();",
+    "tests": [
+      "--filter",
+      "testDeleteList_EndsItsTransaction",
+      "tests/Models/ReceivingTest.php"
+    ]
+  },
+  {
+    "name": "G34 the transaction of the work is ended after the lock of the customer is released",
+    "file": "app/Libraries/Accounting/CustomerLock.php",
+    "find": "        try {\n            return AbandonedTransaction::guard($this->db, $work);\n        } finally {\n            $lock->release($name);\n        }",
+    "replace": "        return AbandonedTransaction::guard($this->db, static function () use ($work, $lock, $name): mixed {\n            try {\n                return $work();\n            } finally {\n                $lock->release($name);\n            }\n        });",
+    "tests": [
+      "--filter",
+      "testRun_EndsTheTransactionOfTheWork",
+      "tests/Libraries/Accounting/CustomerLockTest.php"
+    ]
+  },
+  {
+    "name": "G35 the transaction of the work is ended after the lock of the supplier is released",
+    "file": "app/Libraries/Accounting/SupplierLock.php",
+    "find": "        try {\n            return AbandonedTransaction::guard($this->db, $work);\n        } finally {\n            $lock->release($name);\n        }",
+    "replace": "        return AbandonedTransaction::guard($this->db, static function () use ($work, $lock, $name): mixed {\n            try {\n                return $work();\n            } finally {\n                $lock->release($name);\n            }\n        });",
+    "tests": [
+      "--filter",
+      "testRun_EndsTheTransactionOfTheWork",
+      "tests/Libraries/Accounting/SupplierLockTest.php"
+    ]
+  },
+  {
+    "name": "G36 a rollback that cannot be ended is not logged",
+    "file": "app/Libraries/Database/AbandonedTransaction.php",
+    "find": "            log_message('error', 'A transaction that the work left open could not be rolled back: ' . $failure->getMessage());",
+    "replace": "            unset($failure);",
+    "tests": [
+      "--filter",
+      "testClose_Stops",
+      "tests/Libraries/Database/AbandonedTransactionTest.php"
+    ]
+  },
+  {
+    "name": "G37 close lets an Error of the rollback out",
+    "file": "app/Libraries/Database/AbandonedTransaction.php",
+    "find": "        } catch (Throwable $failure) {\n            log_message(",
+    "replace": "        } catch (\\Exception $failure) {\n            log_message(",
+    "tests": [
+      "--filter",
+      "testClose_Stops",
+      "tests/Libraries/Database/AbandonedTransactionTest.php"
+    ]
+  },
+  {
+    "name": "G38 the guard ends what the work left open even when the work does not throw",
+    "file": "app/Libraries/Database/AbandonedTransaction.php",
+    "find": "            return $work();\n        } catch (Throwable $failure) {\n            self::close($db, $depth);",
+    "replace": "            $result = $work();\n            self::close($db, $depth);\n\n            return $result;\n        } catch (Throwable $failure) {\n            self::close($db, $depth);",
+    "tests": [
+      "--filter",
+      "testGuard_",
+      "tests/Libraries/Database/AbandonedTransactionTest.php"
+    ]
+  },
+  {
+    "name": "G39 the handler gives the next one a status and an exit code of its own",
+    "file": "app/Libraries/Database/OpenTransactionHandler.php",
+    "find": "$this->next->handle($exception, $request, $response, $statusCode, $exitCode);",
+    "replace": "$this->next->handle($exception, $request, $response, 500, 1);",
+    "tests": [
+      "--filter",
+      "testHandle_PassesTheStatus",
+      "tests/Libraries/Database/OpenTransactionHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G40 the handler ends the first connection of the request only",
+    "file": "app/Libraries/Database/OpenTransactionHandler.php",
+    "find": "foreach (Database::getConnections() as $connection) {",
+    "replace": "foreach (array_slice(Database::getConnections(), 0, 1) as $connection) {",
+    "tests": [
+      "--filter",
+      "testHandle_RollsBackEveryConnection",
+      "tests/Libraries/Database/OpenTransactionHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G41 the handler fails on a connection it cannot end",
+    "file": "app/Libraries/Database/OpenTransactionHandler.php",
+    "find": "        try {\n            foreach (Database::getConnections() as $connection) {\n                AbandonedTransaction::close($connection, 0);\n            }\n        } catch (Throwable) {\n            // The answer to the exception must not fail on what could not be ended; the connection closing ends it.\n        }",
+    "replace": "        foreach (Database::getConnections() as $connection) {\n            AbandonedTransaction::close($connection, 0);\n        }",
+    "tests": [
+      "--filter",
+      "testHandle_PassesTheExceptionOnWhenAConnectionCannotBeEnded",
+      "tests/Libraries/Database/OpenTransactionHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G42 the conversion of a dropdown to a checkbox swaps the two values it links",
+    "file": "app/Models/Attribute.php",
+    "find": "                    $query .= \"SET links.attribute_id = IF((attribute_value IN('false','0','') OR (attribute_value IS NULL)), {$checkboxAttributeValues[0]}, {$checkboxAttributeValues[1]}) \";",
+    "replace": "                    $query .= \"SET links.attribute_id = IF((attribute_value IN('false','0','') OR (attribute_value IS NULL)), {$checkboxAttributeValues[1]}, {$checkboxAttributeValues[0]}) \";",
+    "tests": [
+      "--filter",
+      "testSaveDefinition_CommitsTheConversionOfADropdown",
+      "tests/Models/AttributeTest.php"
+    ]
   }
 ]
