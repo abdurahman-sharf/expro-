@@ -1,3 +1,52 @@
+.app-branch {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    color: #fff;
+}
+
+.app-branch > .bi {
+    position: absolute;
+    inset-inline-start: 10px;
+    opacity: .85;
+    pointer-events: none;
+}
+
+.app-branch .form-select {
+    width: 210px;
+    height: 36px;
+    padding-block: 0;
+    padding-inline-start: 32px;
+    border-color: rgba(255, 255, 255, .32);
+    border-radius: var(--radius-sm);
+    background-color: var(--nav-bg-strong);
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.app-branch .form-select:focus {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, .5);
+}
+
+.app-branch .form-select option {
+    background: var(--surface);
+    color: var(--text);
+}
+
+.app-branch.is-switching .form-select {
+    opacity: .7;
+}
+
+@media (min-width: 640px) and (max-width: 1023.98px) {
+    .app-branch .form-select {
+        width: 170px;
+    }
+}
+
 .branch-scope-list {
     display: grid;
     gap: 12px;

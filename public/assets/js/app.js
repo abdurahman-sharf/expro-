@@ -1543,7 +1543,28 @@ function number_sorter(a, b) {
         };
     };
 
+    const compact = function(tick) {
+        return Math.abs(tick) >= 1000 ? (tick / 1000).toLocaleString('en-US', {maximumFractionDigits: 1}) + 'k' : String(tick);
+    };
+
+    const trendColors = function(values) {
+        const last = values.length - 1;
+        const fill = css('--chart-bar', '#b7dff5');
+        const stroke = css('--chart-bar-line', '#2f8fc4');
+
+        return {
+            background: values.map(function(value, index) {
+                return value <= 0 ? '#d8dde4' : (index === last ? stroke : fill);
+            }),
+            border: stroke
+        };
+    };
+
     const cartesianConfig = function(spec, format, rtl, font) {
+        if (spec.trend) {
+            return trendConfig(spec, format, font);
+        }
+
         const kind = spec.kind;
         const horizontal = kind === 'hbar';
         const color = css('--blue-500', '#015ce4');
@@ -1611,6 +1632,47 @@ function number_sorter(a, b) {
                 }
             },
             plugins: [valueLabels(format, rtl, horizontal)]
+        };
+    };
+
+    const trendConfig = function(spec, format, font) {
+        const colors = trendColors(spec.values);
+        const muted = css('--muted', '#627189');
+
+        return {
+            type: 'bar',
+            data: {
+                labels: spec.labels,
+                datasets: [{
+                    label: spec.name || '',
+                    data: spec.values,
+                    backgroundColor: colors.background,
+                    hoverBackgroundColor: colors.border,
+                    borderColor: colors.border,
+                    borderWidth: {top: 2, right: 0, bottom: 0, left: 0},
+                    borderRadius: 2,
+                    borderSkipped: 'bottom',
+                    maxBarThickness: 28
+                }]
+            },
+            options: {
+                layout: {padding: {top: 8}},
+                scales: {
+                    x: {grid: {display: false}, ticks: {color: muted, autoSkip: true, maxRotation: 0, font: font}},
+                    y: {beginAtZero: true, position: 'left', border: {display: false}, grid: {color: css('--line-light', '#e9eef4')}, ticks: {color: muted, maxTicksLimit: 5, font: font, callback: compact}}
+                },
+                plugins: {
+                    legend: {display: false},
+                    tooltip: {
+                        displayColors: false,
+                        callbacks: {
+                            label: function(item) {
+                                return format(item.parsed.y);
+                            }
+                        }
+                    }
+                }
+            }
         };
     };
 
@@ -2124,31 +2186,88 @@ function number_sorter(a, b) {
         option[0].scrollIntoView({block: 'nearest'});
     };
 
+    const GROUPS = ['module', 'report', 'setting'];
+
+    const highlight = function(label, tokens) {
+        const container = $('<span>', {'class': 'search-result-label'});
+        const normalized = normalize(label);
+
+        if (normalized.length !== label.length) {
+            return container.text(label);
+        }
+
+        const marks = new Array(label.length).fill(false);
+
+        tokens.forEach(function(token) {
+            const at = normalized.indexOf(token);
+
+            for (let index = at; at !== -1 && index < at + token.length; index++) {
+                marks[index] = true;
+            }
+        });
+
+        let start = 0;
+
+        for (let index = 1; index <= label.length; index++) {
+            if (index === label.length || marks[index] !== marks[start]) {
+                const piece = label.slice(start, index);
+                container.append(marks[start] ? $('<mark>').text(piece) : document.createTextNode(piece));
+                start = index;
+            }
+        }
+
+        return container;
+    };
+
     const render = function() {
         const list = $('#global_search_list').empty();
         const status = $('#global_search_status');
-        const results = search($('#global_search_input').val());
+        const query = $('#global_search_input').val();
+        const tokens = normalize(query).split(/\s+/).filter(Boolean);
+        const results = search(query);
+        let index = 0;
 
-        results.forEach(function(entry, index) {
-            const link = $('<a>', {id: 'global_search_option_' + index, role: 'option', 'aria-selected': 'false', href: entry.url, 'class': 'search-result'});
-            link.append($('<i>', {'class': 'bi ' + entry.icon, 'aria-hidden': 'true'}));
-            link.append($('<span>', {'class': 'search-result-label'}).text(entry.label));
-            link.append($('<span>', {'class': 'search-result-group'}).text(entry.group));
-            list.append($('<li>', {role: 'presentation'}).append(link));
+        $('#global_search_intro').prop('hidden', tokens.length > 0);
+
+        GROUPS.forEach(function(type) {
+            const members = results.filter(function(entry) {
+                return (GROUPS.indexOf(entry.type) === -1 ? 'module' : entry.type) === type;
+            });
+
+            if (!members.length) {
+                return;
+            }
+
+            list.append($('<li>', {role: 'presentation', 'class': 'search-group'}).text(list.data('group-' + type)));
+
+            members.forEach(function(entry) {
+                const link = $('<a>', {id: 'global_search_option_' + index, role: 'option', 'aria-selected': 'false', href: entry.url, 'class': 'search-result'});
+                link.append($('<span>', {'class': 'search-result-icon', 'aria-hidden': 'true'}).append($('<i>', {'class': 'bi ' + entry.icon})));
+                link.append(highlight(entry.label, tokens));
+                link.append($('<span>', {'class': 'search-result-group'}).text(entry.group));
+                list.append($('<li>', {role: 'presentation'}).append(link));
+                index++;
+            });
         });
 
         if (results.length) {
-            status.prop('hidden', true).text('');
+            status.prop('hidden', true);
             setActive(0);
         } else {
-            status.prop('hidden', false).text(lang.line('search_empty'));
+            status.find('.search-status-title').text(status.data('empty').replace('{0}', query.trim()));
+            status.find('.search-status-hint').prop('hidden', false);
+            status.prop('hidden', false);
             setActive(-1);
         }
     };
 
     const showFailure = function() {
+        const status = $('#global_search_status');
+
         $('#global_search_list').empty();
-        $('#global_search_status').prop('hidden', false).text(lang.line('search_failed'));
+        status.find('.search-status-title').text(lang.line('search_failed'));
+        status.find('.search-status-hint').prop('hidden', true);
+        status.prop('hidden', false);
     };
 
     const open = function() {
@@ -2166,7 +2285,7 @@ function number_sorter(a, b) {
             return;
         }
 
-        $('#global_search_open').on('click', open);
+        $('#global_search_open, [data-global-search]').on('click', open);
 
         $(document).on('keydown', function(event) {
             if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'k') {
@@ -2319,8 +2438,10 @@ function number_sorter(a, b) {
         return $('.app-nav-heading').children('.app-nav-toggle, .app-nav-link');
     };
 
+    const rail = window.matchMedia('(min-width: 1024px) and (max-width: 1279.98px)');
+
     const initialKey = function() {
-        return nav().attr('data-nav-open') || null;
+        return rail.matches ? null : nav().attr('data-nav-open') || null;
     };
 
     const setOpen = function(key) {
@@ -2402,8 +2523,11 @@ function number_sorter(a, b) {
         }
 
         markCurrent($link);
-        setOpen($link.closest('.app-nav-section')[0].dataset.navSection);
-        revealLink($link);
+
+        if (!rail.matches) {
+            setOpen($link.closest('.app-nav-section')[0].dataset.navSection);
+            revealLink($link);
+        }
     };
 
     const sync = function() {
@@ -2498,6 +2622,16 @@ function number_sorter(a, b) {
             syncFragment($(event.target).attr('data-bs-target'));
         });
 
+        $(document).on('click', function(event) {
+            if (rail.matches && !$(event.target).closest('.app-nav-section.' + OPEN).length) {
+                setOpen(null);
+            }
+        });
+
+        rail.addEventListener('change', function() {
+            setOpen(initialKey());
+        });
+
         $('#app-sidebar').on('shown.bs.offcanvas', function() {
             revealLink($('.app-nav-link.active').first());
         });
@@ -2581,6 +2715,8 @@ function number_sorter(a, b) {
             ids.forEach(function(id) {
                 byId[id].prop('hidden', false).appendTo($grid);
             });
+            $grid.toggleClass('is-large', ids.length > 0 && ids.length <= 4)
+                .css('--shortcut-count', ids.length);
         };
 
         apply(pinned());
@@ -2595,46 +2731,61 @@ function number_sorter(a, b) {
         };
 
         $grid.on('click', '[data-home-quote]', function() {
-            const $button = $(this).prop('disabled', true);
+            const $button = $(this).prop('disabled', true).attr('aria-busy', 'true').addClass('is-busy');
+
+            $button.find('.home-shortcut-label').text($grid.data('converting'));
+            $button.find('.home-shortcut-icon .bi').attr('class', 'bi bi-arrow-repeat home-shortcut-spin');
 
             $.post($button.data('home-quote'), {mode: 'sale_quote'}).always(function() {
                 window.location.href = $button.data('home-register');
             });
         });
 
-        const $chooser = $('#home_shortcuts_chooser');
+        const $chosen = $('#home_shortcuts_chosen');
+        const $others = $('#home_shortcuts_others');
         let working = [];
 
+        const row = function(id, position) {
+            const $source = byId[id];
+            const checked = position !== -1;
+            const label = $source.find('.home-shortcut-label').text();
+            const icon = $source.find('.home-shortcut-icon').clone();
+            const $row = $('<li class="list-group-item"></li>').attr('data-id', id);
+            const $label = $('<label class="home-shortcuts-chooser-label"></label>');
+            const $box = $('<input type="checkbox" class="form-check-input mt-0">').prop('checked', checked).prop('disabled', !checked && working.length >= max);
+
+            if (checked) {
+                $label.append($('<bdi class="home-shortcuts-position" dir="ltr"></bdi>').text(position + 1));
+            }
+
+            $label.append($box, icon, $('<span></span>').text(label));
+            $row.append($label);
+
+            if (checked) {
+                $row.append(
+                    $('<button type="button" class="btn btn-outline-secondary btn-sm" data-move="-1"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>').attr('aria-label', $chosen.data('up')).prop('disabled', position === 0),
+                    $('<button type="button" class="btn btn-outline-secondary btn-sm" data-move="1"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>').attr('aria-label', $chosen.data('down')).prop('disabled', position === working.length - 1)
+                );
+            }
+
+            return $row;
+        };
+
         const render = function() {
-            const order = working.concat(catalog.filter(function(id) {
+            const rest = catalog.filter(function(id) {
                 return working.indexOf(id) === -1;
-            }));
-            const full = working.length >= max;
-
-            $chooser.empty();
-            order.forEach(function(id) {
-                const $source = byId[id];
-                const checked = working.indexOf(id) !== -1;
-                const label = $source.find('.home-shortcut-label').text();
-                const icon = $source.find('.home-shortcut-icon').clone();
-                const $row = $('<li class="list-group-item"></li>').attr('data-id', id);
-                const $label = $('<label class="home-shortcuts-chooser-label"></label>');
-                const $box = $('<input type="checkbox" class="form-check-input mt-0">').prop('checked', checked).prop('disabled', !checked && full);
-
-                $label.append($box, icon, $('<span></span>').text(label));
-                $row.append($label);
-
-                if (checked) {
-                    const position = working.indexOf(id);
-
-                    $row.append(
-                        $('<button type="button" class="btn btn-outline-secondary btn-sm" data-move="-1"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>').attr('aria-label', $chooser.data('up')).prop('disabled', position === 0),
-                        $('<button type="button" class="btn btn-outline-secondary btn-sm" data-move="1"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>').attr('aria-label', $chooser.data('down')).prop('disabled', position === working.length - 1)
-                    );
-                }
-
-                $chooser.append($row);
             });
+
+            $chosen.empty().append(working.map(function(id, position) {
+                return row(id, position);
+            }));
+            $others.empty().append(rest.map(function(id) {
+                return row(id, -1);
+            }));
+            $('#home_shortcuts_count').text(working.length + ' / ' + max).toggleClass('is-full', working.length >= max);
+            $('#home_shortcuts_limit').prop('hidden', working.length < max);
+            $('#home_shortcuts_empty').prop('hidden', working.length > 0);
+            $('#home_shortcuts_others_title').prop('hidden', rest.length === 0);
         };
 
         $('#home_shortcuts_modal').on('show.bs.modal', function() {
@@ -2642,7 +2793,7 @@ function number_sorter(a, b) {
             render();
         });
 
-        $chooser.on('change', 'input[type=checkbox]', function() {
+        $chosen.add($others).on('change', 'input[type=checkbox]', function() {
             const id = $(this).closest('li').data('id');
 
             if (this.checked) {
@@ -2654,16 +2805,21 @@ function number_sorter(a, b) {
             }
 
             render();
+            $('[data-id="' + id + '"] input[type=checkbox]').trigger('focus');
         });
 
-        $chooser.on('click', '[data-move]', function() {
+        $chosen.on('click', '[data-move]', function() {
             const id = $(this).closest('li').data('id');
+            const step = parseInt($(this).data('move'), 10);
             const from = working.indexOf(id);
-            const to = from + parseInt($(this).data('move'), 10);
+            const to = from + step;
 
             if (to >= 0 && to < working.length) {
                 working.splice(to, 0, working.splice(from, 1)[0]);
                 render();
+
+                const $moved = $chosen.find('[data-id="' + id + '"] [data-move="' + step + '"]');
+                ($moved.prop('disabled') ? $chosen.find('[data-id="' + id + '"] [data-move]').not(':disabled') : $moved).first().trigger('focus');
             }
         });
 
@@ -2675,6 +2831,7 @@ function number_sorter(a, b) {
             write(key, working.slice());
             apply(working);
             close();
+            $.notify($section.data('saved'), {type: 'success'});
         });
 
         $('#home_shortcuts_reset').on('click', function() {

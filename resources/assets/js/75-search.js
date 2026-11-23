@@ -93,31 +93,88 @@
         option[0].scrollIntoView({block: 'nearest'});
     };
 
+    const GROUPS = ['module', 'report', 'setting'];
+
+    const highlight = function(label, tokens) {
+        const container = $('<span>', {'class': 'search-result-label'});
+        const normalized = normalize(label);
+
+        if (normalized.length !== label.length) {
+            return container.text(label);
+        }
+
+        const marks = new Array(label.length).fill(false);
+
+        tokens.forEach(function(token) {
+            const at = normalized.indexOf(token);
+
+            for (let index = at; at !== -1 && index < at + token.length; index++) {
+                marks[index] = true;
+            }
+        });
+
+        let start = 0;
+
+        for (let index = 1; index <= label.length; index++) {
+            if (index === label.length || marks[index] !== marks[start]) {
+                const piece = label.slice(start, index);
+                container.append(marks[start] ? $('<mark>').text(piece) : document.createTextNode(piece));
+                start = index;
+            }
+        }
+
+        return container;
+    };
+
     const render = function() {
         const list = $('#global_search_list').empty();
         const status = $('#global_search_status');
-        const results = search($('#global_search_input').val());
+        const query = $('#global_search_input').val();
+        const tokens = normalize(query).split(/\s+/).filter(Boolean);
+        const results = search(query);
+        let index = 0;
 
-        results.forEach(function(entry, index) {
-            const link = $('<a>', {id: 'global_search_option_' + index, role: 'option', 'aria-selected': 'false', href: entry.url, 'class': 'search-result'});
-            link.append($('<i>', {'class': 'bi ' + entry.icon, 'aria-hidden': 'true'}));
-            link.append($('<span>', {'class': 'search-result-label'}).text(entry.label));
-            link.append($('<span>', {'class': 'search-result-group'}).text(entry.group));
-            list.append($('<li>', {role: 'presentation'}).append(link));
+        $('#global_search_intro').prop('hidden', tokens.length > 0);
+
+        GROUPS.forEach(function(type) {
+            const members = results.filter(function(entry) {
+                return (GROUPS.indexOf(entry.type) === -1 ? 'module' : entry.type) === type;
+            });
+
+            if (!members.length) {
+                return;
+            }
+
+            list.append($('<li>', {role: 'presentation', 'class': 'search-group'}).text(list.data('group-' + type)));
+
+            members.forEach(function(entry) {
+                const link = $('<a>', {id: 'global_search_option_' + index, role: 'option', 'aria-selected': 'false', href: entry.url, 'class': 'search-result'});
+                link.append($('<span>', {'class': 'search-result-icon', 'aria-hidden': 'true'}).append($('<i>', {'class': 'bi ' + entry.icon})));
+                link.append(highlight(entry.label, tokens));
+                link.append($('<span>', {'class': 'search-result-group'}).text(entry.group));
+                list.append($('<li>', {role: 'presentation'}).append(link));
+                index++;
+            });
         });
 
         if (results.length) {
-            status.prop('hidden', true).text('');
+            status.prop('hidden', true);
             setActive(0);
         } else {
-            status.prop('hidden', false).text(lang.line('search_empty'));
+            status.find('.search-status-title').text(status.data('empty').replace('{0}', query.trim()));
+            status.find('.search-status-hint').prop('hidden', false);
+            status.prop('hidden', false);
             setActive(-1);
         }
     };
 
     const showFailure = function() {
+        const status = $('#global_search_status');
+
         $('#global_search_list').empty();
-        $('#global_search_status').prop('hidden', false).text(lang.line('search_failed'));
+        status.find('.search-status-title').text(lang.line('search_failed'));
+        status.find('.search-status-hint').prop('hidden', true);
+        status.prop('hidden', false);
     };
 
     const open = function() {
@@ -135,7 +192,7 @@
             return;
         }
 
-        $('#global_search_open').on('click', open);
+        $('#global_search_open, [data-global-search]').on('click', open);
 
         $(document).on('keydown', function(event) {
             if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'k') {

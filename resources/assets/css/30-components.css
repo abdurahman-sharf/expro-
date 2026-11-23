@@ -401,53 +401,6 @@
     font-family: inherit;
 }
 
-.home-tile {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    height: 100%;
-    padding: 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-md);
-    background: #fff;
-    box-shadow: var(--shadow-sm);
-    color: var(--text);
-    text-decoration: none;
-}
-
-.home-tile:hover {
-    border-color: var(--blue-500);
-    background: var(--blue-50);
-    color: var(--text);
-}
-
-.home-tile-icon {
-    display: inline-grid;
-    flex: none;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
-    background: var(--blue-50);
-    color: var(--blue-500);
-    font-size: 22px;
-}
-
-.home-tile-text {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-
-.home-tile-title {
-    font-weight: 700;
-}
-
-.home-tile-desc {
-    color: var(--muted);
-    font-size: 12px;
-}
-
 @media (max-width: 1099.98px) {
     .btn {
         min-height: 44px;

@@ -4,7 +4,6 @@
         const lines = {
             'common_submit': "<?= lang('Common.submit') ?>",
             'common_close': "<?= lang('Common.close') ?>",
-            'search_empty': "<?= esc(lang('Common.global_search_empty'), 'js') ?>",
             'search_failed': "<?= esc(lang('Common.global_search_failed'), 'js') ?>",
             'table_export_pdf': "<?= esc(lang('Bootstrap_tables.export_pdf'), 'js') ?>",
             'table_export_too_many_rows': "<?= esc(lang('Bootstrap_tables.export_too_many_rows'), 'js') ?>",

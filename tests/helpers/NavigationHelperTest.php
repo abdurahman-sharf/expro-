@@ -41,6 +41,13 @@ class NavigationHelperTest extends CIUnitTestCase
         parent::tearDown();
     }
 
+    public function testNavigationGroups_GivesEachSectionTheIconOfItsSidebarSection(): void
+    {
+        $groups = navigationGroups($this->modules('sales', 'items'), 'items');
+
+        $this->assertSame(['bi-cart3', 'bi-box-seam'], array_column($groups, 'icon'));
+    }
+
     private function modules(string ...$moduleIds): array
     {
         return array_map(static fn(string $moduleId): object => (object) ['module_id' => $moduleId], $moduleIds);

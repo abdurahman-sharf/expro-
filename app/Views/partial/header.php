@@ -39,22 +39,33 @@ $pageTitle = ($page_title ?? '') !== '' ? $page_title : navigationPageTitle($con
 
         <div class="app-body">
             <header class="app-topbar">
-                <button type="button" class="btn btn-icon app-menu-toggle" data-bs-toggle="offcanvas" data-bs-target="#app-sidebar" aria-controls="app-sidebar" aria-label="<?= lang('Common.open_menu') ?>">
-                    <i class="bi bi-list" aria-hidden="true"></i>
-                </button>
-                <h1 class="app-title"><?= esc($pageTitle) ?></h1>
-                <p class="app-company"><?= esc($config['company']) ?></p>
-                <?= view('partial/branch_switcher') ?>
-                <button type="button" id="global_search_open" class="btn btn-outline-secondary app-search-open" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K" title="<?= lang('Common.global_search') ?> (Ctrl K)">
-                    <i class="bi bi-search" aria-hidden="true"></i>
-                    <span class="app-search-label"><?= lang('Common.global_search') ?></span>
-                    <kbd class="app-search-kbd" dir="ltr">Ctrl K</kbd>
-                </button>
-                <p class="app-clock"><i class="bi bi-clock" aria-hidden="true"></i> <span id="liveclock"><?= date($config['dateformat'] . ' ' . $config['timeformat']) ?></span></p>
+                <div class="app-topbar-row">
+                    <button type="button" class="app-menu-toggle" data-bs-toggle="offcanvas" data-bs-target="#app-sidebar" aria-controls="app-sidebar" aria-label="<?= lang('Common.open_menu') ?>">
+                        <i class="bi bi-list" aria-hidden="true"></i>
+                    </button>
+                    <h1 class="app-title"><?= esc($pageTitle) ?></h1>
+                    <span class="app-topbar-spacer"></span>
+                    <div class="app-topbar-info">
+                        <p class="app-company" title="<?= esc($config['company'], 'attr') ?>"><i class="bi bi-buildings" aria-hidden="true"></i> <span class="app-company-name" dir="auto"><?= esc($config['company']) ?></span></p>
+                        <?= view('partial/branch_switcher') ?>
+                        <button type="button" id="global_search_open" class="app-search-open" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K" title="<?= lang('Common.global_search') ?> (Ctrl K)">
+                            <i class="bi bi-search" aria-hidden="true"></i>
+                            <span class="app-search-label"><?= lang('Common.global_search') ?></span>
+                            <kbd class="app-search-kbd" dir="ltr">Ctrl K</kbd>
+                        </button>
+                        <p class="app-clock">
+                            <span class="app-clock-day"><span id="liveclock_day"></span> <bdi id="liveclock_date"><?= date($config['dateformat']) ?></bdi></span>
+                            <bdi class="app-clock-time" id="liveclock"><?= date($config['timeformat']) ?></bdi>
+                        </p>
+                    </div>
+                    <button type="button" class="app-search-icon" data-global-search aria-haspopup="dialog" aria-label="<?= lang('Common.global_search') ?>">
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <?php $operationsHold = json_decode((string) ($config['accounting_operations_hold'] ?? ''), true); ?>
+                <?php if (is_array($operationsHold) && isset($operationsHold['reason'])): ?>
+                    <div class="app-hold" role="alert" id="operations_hold_banner"><span class="bi bi-pause-circle" aria-hidden="true"></span> <?= esc(lang('Accounting_settings.hold_banner', [(string) $operationsHold['reason']])) ?></div>
+                <?php endif; ?>
             </header>
 
             <main id="app-main" class="app-main" tabindex="-1">
-                <?php $operationsHold = json_decode((string) ($config['accounting_operations_hold'] ?? ''), true); ?>
-                <?php if (is_array($operationsHold) && isset($operationsHold['reason'])): ?>
-                    <div class="alert alert-danger" role="alert" id="operations_hold_banner"><span class="bi bi-pause-circle" aria-hidden="true"></span> <?= esc(lang('Accounting_settings.hold_banner', [(string) $operationsHold['reason']])) ?></div>
-                <?php endif; ?>
