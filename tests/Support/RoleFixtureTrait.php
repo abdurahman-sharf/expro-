@@ -33,14 +33,21 @@ trait RoleFixtureTrait
         $depth  = $db->transDepth;
         $status = $db->transStatus();
 
+        $this->closeOpenTransaction();
+
+        $this->assertSame(0, $depth, 'The call left its transaction open.');
+        $this->assertTrue($status, 'The call left the transaction status of the connection failed.');
+    }
+
+    protected function closeOpenTransaction(): void
+    {
+        $db = $this->roleDb();
+
         while ($db->transDepth > 0) {
             $db->transRollback();
         }
 
         $db->resetTransStatus();
-
-        $this->assertSame(0, $depth, 'The call left its transaction open.');
-        $this->assertTrue($status, 'The call left the transaction status of the connection failed.');
     }
 
     /**

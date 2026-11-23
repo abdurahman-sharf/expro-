@@ -20,6 +20,7 @@ use ReflectionMethod;
 use RuntimeException;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
+use TypeError;
 
 class EmployeeTest extends CIUnitTestCase
 {
@@ -334,6 +335,7 @@ class EmployeeTest extends CIUnitTestCase
             $this->assertTrue($this->employeeModelActingAs(1)->delete_list([$first]));
         });
 
+        $this->assertNoTransactionIsOpen();
         $this->assertTrue($this->isDeleted($first));
         $this->assertFalse($this->isDeleted($second));
         $this->assertTrue(model(Employee::class)->has_grant(BranchGuard::ALL_BRANCHES, $second));
@@ -399,7 +401,26 @@ class EmployeeTest extends CIUnitTestCase
             $this->assertTrue($this->employeeModelActingAs(1)->delete($first));
         });
 
+        $this->assertNoTransactionIsOpen();
         $this->assertTrue($this->isDeleted($first));
+    }
+
+    public function testDelete_RefusesTheEmployeeWhoIsLoggedIn(): void
+    {
+        $self = $this->createEmployee();
+
+        $this->assertFalse($this->employeeModelActingAs($self)->delete($self));
+        $this->assertFalse($this->isDeleted($self));
+    }
+
+    public function testDeleteList_RefusesAListThatHoldsTheEmployeeWhoIsLoggedIn(): void
+    {
+        $self  = $this->createEmployee();
+        $other = $this->createEmployee();
+
+        $this->assertFalse($this->employeeModelActingAs($self)->delete_list([(string) $other, (string) $self]));
+        $this->assertFalse($this->isDeleted($self));
+        $this->assertFalse($this->isDeleted($other));
     }
 
     private function secondConnection(): BaseConnection
@@ -533,6 +554,7 @@ class EmployeeTest extends CIUnitTestCase
     public function testInTransaction_RollsBackTheWritesOfTheWorkThatThrows(): void
     {
         $employee = $this->createEmployee();
+        $thrown   = null;
 
         try {
             $this->runInTransaction(function () use ($employee): bool {
@@ -540,11 +562,33 @@ class EmployeeTest extends CIUnitTestCase
 
                 throw new RuntimeException('The work failed.');
             });
-            $this->fail('The exception of the work was swallowed.');
         } catch (RuntimeException $exception) {
-            $this->assertSame('The work failed.', $exception->getMessage());
+            $thrown = $exception;
         }
 
+        $this->assertNotNull($thrown, 'The exception of the work was swallowed.');
+        $this->assertSame('The work failed.', $thrown->getMessage());
+        $this->assertNoTransactionIsOpen();
+        $this->assertFalse($this->isDeleted($employee));
+    }
+
+    public function testInTransaction_RollsBackAndRethrowsAnErrorOfTheWork(): void
+    {
+        $employee = $this->createEmployee();
+        $error    = new TypeError('The work failed with an Error.');
+        $thrown   = null;
+
+        try {
+            $this->runInTransaction(function () use ($employee, $error): bool {
+                $this->roleDb()->table('employees')->where('person_id', $employee)->update(['deleted' => 1]);
+
+                throw $error;
+            });
+        } catch (TypeError $caught) {
+            $thrown = $caught;
+        }
+
+        $this->assertSame($error, $thrown);
         $this->assertNoTransactionIsOpen();
         $this->assertFalse($this->isDeleted($employee));
     }
@@ -577,24 +621,85 @@ class EmployeeTest extends CIUnitTestCase
             $db->transStart();
 
             try {
-                $this->runInTransaction(function () use ($employee, $db): bool {
+                $thrown = null;
+
+                try {
+                    $this->runInTransaction(function () use ($employee, $db): bool {
+                        $db->table('employees')->where('person_id', $employee)->update(['deleted' => 1]);
+                        $db->table('employee_roles')->get();
+
+                        throw new RuntimeException('The work failed.');
+                    });
+                } catch (RuntimeException $exception) {
+                    $thrown = $exception;
+                }
+
+                $this->assertNotNull($thrown, 'The exception of the work was swallowed.');
+                $this->assertSame('The work failed.', $thrown->getMessage());
+                $this->assertSame(1, $db->transDepth);
+                $this->assertFalse($db->transStatus());
+
+                $db->transComplete();
+
+                $this->assertFalse($this->isDeleted($employee));
+            } finally {
+                $this->closeOpenTransaction();
+            }
+        });
+    }
+
+    public function testInTransaction_JoinsTheTransactionOfTheCallerWhenTheWorkSucceeds(): void
+    {
+        $employee = $this->createEmployee();
+        $db       = $this->roleDb();
+
+        $db->transStart();
+
+        try {
+            $result = $this->runInTransaction(function () use ($employee): bool {
+                $this->roleDb()->table('employees')->where('person_id', $employee)->update(['deleted' => 1]);
+
+                return true;
+            });
+
+            $this->assertTrue($result);
+            $this->assertSame(1, $db->transDepth);
+            $this->assertTrue($db->transStatus());
+
+            $db->transRollback();
+
+            $this->assertFalse($this->isDeleted($employee));
+        } finally {
+            $this->closeOpenTransaction();
+        }
+    }
+
+    public function testInTransaction_KeepsTheTransactionOfTheCallerFailedWhenAQueryFailedAndTheWorkAnswersTrue(): void
+    {
+        $employee = $this->createEmployee();
+        $db       = $this->roleDb();
+
+        $this->withUnreadableTable('employee_roles', function () use ($employee, $db): void {
+            $db->transStart();
+
+            try {
+                $result = $this->runInTransaction(function () use ($employee, $db): bool {
                     $db->table('employees')->where('person_id', $employee)->update(['deleted' => 1]);
                     $db->table('employee_roles')->get();
 
-                    throw new RuntimeException('The work failed.');
+                    return true;
                 });
-                $this->fail('The exception of the work was swallowed.');
-            } catch (RuntimeException) {
-                $this->addToAssertionCount(1);
+
+                $this->assertFalse($result);
+                $this->assertSame(1, $db->transDepth);
+                $this->assertFalse($db->transStatus());
+
+                $db->transComplete();
+
+                $this->assertFalse($this->isDeleted($employee));
+            } finally {
+                $this->closeOpenTransaction();
             }
-
-            $this->assertSame(1, $db->transDepth);
-            $this->assertFalse($db->transStatus());
-
-            $db->transComplete();
-
-            $this->assertFalse($this->isDeleted($employee));
-            $db->resetTransStatus();
         });
     }
 
