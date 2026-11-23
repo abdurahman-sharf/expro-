@@ -316,18 +316,18 @@
 
 | # | المعرف | الشاشة | القسم | مسار URL | Controller · View | الأولوية | يعتمد على | الحالة |
 |---|---|---|---|---|---|---|---|---|
-| 245 | PRT-01 | PDF مستندات البيع (فاتورة، ضريبية، عرض سعر، أمر عمل، إشعار دائن) وإرسالها بالبريد | مشترك | `sales/pdf/{id}/{type}`، `sendPdf/{id}/{type}` | `Sales::getPdf` · `documents/pdf.php`، `document.php`، `einvoice.php`، `qr.php` | P2 | SAL-05 | لم تبدأ |
-| 246 | PRT-02 | PDF الإيصال والإيصال المرسل بالبريد | مشترك | `sales/sendReceipt/{id}` | `documents/slip_pdf.php`، `slip.php`، `sales/receipt_email.php` | P2 | SAL-04 | لم تبدأ |
-| 247 | PRT-03 | PDF السندات (قبض وصرف) | مشترك | `receipt_vouchers/pdf/{id}`، `expenses/voucherPdf/{id}`، `sales/paymentReceiptPdf/{id}`، `receivings/paymentReceiptPdf/{id}` | `documents/voucher_pdf.php`، `voucher.php` | P2 | CMP-05 | لم تبدأ |
-| 248 | PRT-04 | PDF فاتورة الشراء | مشترك | `receivings/pdf/{id}` | `documents/purchase_invoice_pdf.php` | P3 | PUR-04 | لم تبدأ |
-| 249 | PRT-05 | PDF القيد | مشترك | `accounting_journals/pdf/{id}` | `documents/journal_pdf.php` | P3 | FIN-31 | لم تبدأ |
-| 250 | PRT-06 | قالب PDF للتقارير المصدّرة (XLSX/PDF) | مشترك | `{report}/pdf`، `{report}/xlsx` | فلتر `ReportExport` · `documents/report.php` | P3 | CMP-04 | لم تبدأ |
-| 251 | PRT-07 | PDF تصدير الجداول | مشترك | `POST exports/pdf` | `Exports::postPdf` · `documents/table.php` | P3 | CMP-01 | لم تبدأ |
-| 252 | PRTL-01 | بوابة العملاء: الإطار وتسجيل الدخول | مشترك | `portal/login` | `Portal::getLogin` · `portal/layout.php`، `login.php` | P3 | AUTH-01 | لم تبدأ |
-| 253 | PRTL-02 | بوابة العملاء: تغيير كلمة المرور | مشترك | `portal/password` | `portal/password.php` | P3 | PRTL-01 | لم تبدأ |
-| 254 | PRTL-03 | بوابة العملاء: كشف الحساب (الرئيسية) | مشترك | `portal`، `portal/statement` | `portal/statement.php` | P3 | PRTL-01 | لم تبدأ |
-| 255 | PRTL-04 | بوابة العملاء: الفواتير والإشعارات الدائنة والمدفوعات (قوائم) | مشترك | `portal/invoices`، `credit_notes`، `payments` | `portal/invoices.php`، `credit_notes.php`، `payments.php`، `pager.php` | P3 | PRTL-03 | لم تبدأ |
-| 256 | PRTL-05 | بوابة العملاء: عرض الفاتورة أو الإشعار أو سند الدفع، وPDF | مشترك | `portal/invoice/{id}`، `credit_note/{id}`، `payment/{id}` (+`/pdf`) | `portal/document.php`، `document_body.php`، `receipt.php` | P3 | PRT-01، PRT-03 | لم تبدأ |
+| 245 | PRT-01 | PDF مستندات البيع (فاتورة، ضريبية، عرض سعر، أمر عمل، إشعار دائن) وإرسالها بالبريد | مشترك | `sales/pdf/{id}/{type}`، `sendPdf/{id}/{type}` | `Sales::getPdf` · `documents/pdf.php`، `document.php`، `einvoice.php`، `qr.php` | P2 | SAL-05 | مكتمل (تحقق من PDF الفاتورة: قالب المستندات الموحّد بنظام التصميم) |
+| 246 | PRT-02 | PDF الإيصال والإيصال المرسل بالبريد | مشترك | `sales/sendReceipt/{id}` | `documents/slip_pdf.php`، `slip.php`، `sales/receipt_email.php` | P2 | SAL-04 | مكتمل (تحقق من PDF الإيصال) |
+| 247 | PRT-03 | PDF السندات (قبض وصرف) | مشترك | `receipt_vouchers/pdf/{id}`، `expenses/voucherPdf/{id}`، `sales/paymentReceiptPdf/{id}`، `receivings/paymentReceiptPdf/{id}` | `documents/voucher_pdf.php`، `voucher.php` | P2 | CMP-05 | مكتمل عبر قالب المستندات الموحّد؛ لم يُعرض حيًّا لغياب سند اختبار |
+| 248 | PRT-04 | PDF فاتورة الشراء | مشترك | `receivings/pdf/{id}` | `documents/purchase_invoice_pdf.php` | P3 | PUR-04 | مكتمل (تحقق من PDF فاتورة الشراء) |
+| 249 | PRT-05 | PDF القيد | مشترك | `accounting_journals/pdf/{id}` | `documents/journal_pdf.php` | P3 | FIN-31 | مكتمل (تحقق من PDF القيد) |
+| 250 | PRT-06 | قالب PDF للتقارير المصدّرة (XLSX/PDF) | مشترك | `{report}/pdf`، `{report}/xlsx` | فلتر `ReportExport` · `documents/report.php` | P3 | CMP-04 | مكتمل (تحقق من PDF ميزان المراجعة المصدّر) |
+| 251 | PRT-07 | PDF تصدير الجداول | مشترك | `POST exports/pdf` | `Exports::postPdf` · `documents/table.php` | P3 | CMP-01 | مكتمل عبر قالب PDF التصدير نفسه |
+| 252 | PRTL-01 | بوابة العملاء: الإطار وتسجيل الدخول | مشترك | `portal/login` | `Portal::getLogin` · `portal/layout.php`، `login.php` | P3 | AUTH-01 | مكتمل (معتمد ذاتيًا: رأس أبيض بشعار الشركة وتبويبات، بطاقة دخول، تحقق 1440/390) |
+| 253 | PRTL-02 | بوابة العملاء: تغيير كلمة المرور | مشترك | `portal/password` | `portal/password.php` | P3 | PRTL-01 | مكتمل (معتمد ذاتيًا: بطاقة تغيير كلمة المرور بنمط بطاقة الدخول) |
+| 254 | PRTL-03 | بوابة العملاء: كشف الحساب (الرئيسية) | مشترك | `portal`، `portal/statement` | `portal/statement.php` | P3 | PRTL-01 | مكتمل (معتمد ذاتيًا: أرقام الملخص كبطاقة مؤشرات، الجداول في بطاقات) |
+| 255 | PRTL-04 | بوابة العملاء: الفواتير والإشعارات الدائنة والمدفوعات (قوائم) | مشترك | `portal/invoices`، `credit_notes`، `payments` | `portal/invoices.php`، `credit_notes.php`، `payments.php`، `pager.php` | P3 | PRTL-03 | مكتمل (معتمد ذاتيًا: الجداول في بطاقات، التبويب النشط في الرأس) |
+| 256 | PRTL-05 | بوابة العملاء: عرض الفاتورة أو الإشعار أو سند الدفع، وPDF | مشترك | `portal/invoice/{id}`، `credit_note/{id}`، `payment/{id}` (+`/pdf`) | `portal/document.php`، `document_body.php`، `receipt.php` | P3 | PRT-01، PRT-03 | مكتمل (يعرض قالب المستند الموحّد داخل إطار البوابة الجديد) |
 
 ---
 

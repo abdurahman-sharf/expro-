@@ -7,11 +7,12 @@ $error ??= null;
 <?= $this->extend('portal/layout') ?>
 
 <?= $this->section('content') ?>
-<div class="row justify-content-center">
-    <div class="col-12 col-md-6 col-lg-4">
-        <form method="post" action="<?= esc(site_url('portal/login'), 'attr') ?>" class="card card-body shadow-sm" id="portal_login_form" autocomplete="off">
+<div class="portal-auth">
+    <div class="portal-auth-card">
+        <form method="post" action="<?= esc(site_url('portal/login'), 'attr') ?>" id="portal_login_form" autocomplete="off">
             <?= csrf_field() ?>
-            <h1 class="h4 mb-3"><?= esc(lang('Portal.login_title')) ?></h1>
+            <span class="portal-auth-art" aria-hidden="true"><span class="bi bi-person-lock"></span></span>
+            <h1 class="portal-auth-title"><?= esc(lang('Portal.login_title')) ?></h1>
             <?php if ($error !== null) : ?>
                 <div class="alert alert-danger" role="alert" id="portal_error"><?= esc($error) ?></div>
             <?php endif; ?>
@@ -23,7 +24,7 @@ $error ??= null;
                 <label class="form-label" for="password"><?= esc(lang('Portal.password')) ?></label>
                 <input class="form-control" type="password" name="password" id="password" maxlength="200" dir="ltr" autocomplete="current-password" required>
             </div>
-            <button type="submit" class="btn btn-primary"><?= esc(lang('Portal.sign_in')) ?></button>
+            <button type="submit" class="btn btn-primary w-100"><?= esc(lang('Portal.sign_in')) ?></button>
         </form>
     </div>
 </div>
