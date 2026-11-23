@@ -1,9 +1,9 @@
 (function($) {
 
-    // The action bar every list and document screen opens with becomes the page header of the design system:
+    // The action bar every list, document and print screen opens with becomes the page header of the design system:
     // the trail of the section and the title at the start, the actions at the end.
     $(function() {
-        const $bar = $('#title_bar');
+        const $bar = $('#title_bar').length ? $('#title_bar') : $('#control_buttons.document-actions');
 
         if (!$bar.length || $bar.hasClass('page-head')) {
             return;
