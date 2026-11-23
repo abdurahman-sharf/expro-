@@ -22,8 +22,9 @@ $action     = $isNew ? 'customer_orders/save' : 'customer_orders/save/' . (int) 
 <ul id="error_message_box" class="error_message_box"></ul>
 
 <?= form_open($action, ['id' => 'sales_order_form', 'class' => 'app-form']) ?>
-    <p class="small text-body-secondary"><?= lang('Sales_orders.form_note') ?></p>
+    <p class="doc-editor-note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= lang('Sales_orders.form_note') ?></p>
 
+    <section class="doc-editor-card">
     <div class="form-grid">
         <div class="field">
             <label class="form-label" for="order_number"><?= lang('Sales_orders.number') ?></label>
@@ -63,11 +64,13 @@ $action     = $isNew ? 'customer_orders/save' : 'customer_orders/save/' . (int) 
             </div>
         </div>
     </div>
+    </section>
 
     <?= view('partial/document_lines', ['rows' => $rows, 'itemsUrl' => 'customer_orders/items']) ?>
 
-    <div class="mt-3">
-        <button type="submit" class="btn btn-primary btn-sm" id="submit_order"><?= lang('Common.submit') ?></button>
+    <div class="doc-editor-actions">
+        <a class="btn btn-outline-secondary" href="<?= esc(base_url('customer_orders'), 'attr') ?>"><?= lang('Sales_orders.back') ?></a>
+        <button type="submit" class="btn btn-primary" id="submit_order"><span class="bi bi-check2" aria-hidden="true"></span> <?= lang('Common.submit') ?></button>
     </div>
 <?= form_close() ?>
 
