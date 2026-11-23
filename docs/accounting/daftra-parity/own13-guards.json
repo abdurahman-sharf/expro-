@@ -448,5 +448,27 @@
       "testSaveDefinition_CommitsTheConversionOfADropdown",
       "tests/Models/AttributeTest.php"
     ]
+  },
+  {
+    "name": "G43 the handler lets an Error of the end of a connection out",
+    "file": "app/Libraries/Database/OpenTransactionHandler.php",
+    "find": "} catch (Throwable) {",
+    "replace": "} catch (\\Exception) {",
+    "tests": [
+      "--filter",
+      "testHandle_PassesTheExceptionOnWhenAConnectionCannotBeEnded",
+      "tests/Libraries/Database/OpenTransactionHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G44 the conversion of a text to a checkbox swaps the two values it links",
+    "file": "app/Models/Attribute.php",
+    "find": "\n                $query .= \"SET links.attribute_id = IF((attribute_value IN('false','0','') OR (attribute_value IS NULL)), {$checkboxAttributeValues[0]}, {$checkboxAttributeValues[1]}) \";",
+    "replace": "\n                $query .= \"SET links.attribute_id = IF((attribute_value IN('false','0','') OR (attribute_value IS NULL)), {$checkboxAttributeValues[1]}, {$checkboxAttributeValues[0]}) \";",
+    "tests": [
+      "--filter",
+      "testSaveDefinition_CommitsTheConversionOfATextToACheckbox",
+      "tests/Models/AttributeTest.php"
+    ]
   }
 ]

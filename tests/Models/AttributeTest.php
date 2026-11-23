@@ -109,8 +109,11 @@ final class AttributeTest extends CIUnitTestCase
     public function testSaveDefinition_CommitsTheConversionOfATextToACheckbox(): void
     {
         $definition = $this->definition(TEXT);
+        $yes        = $this->item();
+        $no         = $this->item();
 
-        $this->assertGreaterThan(0, $this->attribute->saveAttributeValue('yes', $definition['definition_id'], $this->item(), false, TEXT));
+        $this->assertGreaterThan(0, $this->attribute->saveAttributeValue('yes', $definition['definition_id'], $yes, false, TEXT));
+        $this->assertGreaterThan(0, $this->attribute->saveAttributeValue('false', $definition['definition_id'], $no, false, TEXT));
 
         $converted = ['definition_name' => $definition['definition_name'], 'definition_type' => CHECKBOX, 'definition_flags' => 0, 'deleted' => 0];
 
@@ -121,6 +124,8 @@ final class AttributeTest extends CIUnitTestCase
 
         try {
             $this->assertSame(CHECKBOX, $other->table('attribute_definitions')->where('definition_id', $definition['definition_id'])->get()->getRow()->definition_type);
+            $this->assertSame('1', $this->linkedValue($other, $definition['definition_id'], $yes));
+            $this->assertSame('0', $this->linkedValue($other, $definition['definition_id'], $no));
         } finally {
             $other->close();
         }

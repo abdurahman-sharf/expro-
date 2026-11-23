@@ -14,8 +14,9 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use ReflectionProperty;
 use RuntimeException;
-use Throwable;
 use Tests\Support\TransactionStateTrait;
+use Throwable;
+use TypeError;
 
 /**
  * A request that stops on an exception does not leave its transaction open for the writes that follow it,
@@ -156,7 +157,7 @@ final class OpenTransactionHandlerTest extends CIUnitTestCase
 
             public function resetTransStatus(): static
             {
-                throw new RuntimeException('The connection is gone.');
+                throw new TypeError('The connection answered with the wrong type.');
             }
         };
         $next = new class () implements ExceptionHandlerInterface {
