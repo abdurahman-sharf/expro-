@@ -93,6 +93,13 @@
         $bar.children().not($heading).not($note).appendTo($actions);
         $actions.find('.float-end, .float-start').removeClass('float-end float-start');
 
+        // A bar of document actions standing alone right under the header joins the header's actions.
+        if (!$actions.children().length) {
+            const $toolbar = ($bar.parent().is('#app-main') ? $bar : $bar.parent()).nextAll().not('script, style').first().filter('.acc-journal-bar');
+            $toolbar.children().appendTo($actions);
+            $toolbar.remove();
+        }
+
         // One primary action per page, as the design system asks: the last filled button (the "new" one) stays
         // filled, the others become outlined.
         $actions.find('.btn-primary').slice(0, -1).removeClass('btn-primary').addClass('btn-outline-secondary');

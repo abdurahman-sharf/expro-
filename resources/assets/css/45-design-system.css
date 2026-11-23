@@ -1241,3 +1241,99 @@
     color: var(--text);
     font-weight: 600;
 }
+
+/* Result tables that stand alone on the page (not already inside a card, dialog or editor) sit in a card. */
+#app-main .table-responsive:has(> table.table):not(.card *, .modal *, .acc-setup-card *, .doc-editor-card *, .bootstrap-table *, .report-card *, .page-head *) {
+    margin-bottom: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+#app-main .table-responsive:has(> table.table):not(.card *, .modal *, .acc-setup-card *, .doc-editor-card *, .bootstrap-table *, .report-card *) > .table {
+    margin: 0;
+}
+
+#app-main .table-responsive:has(> table.table):not(.card *, .modal *, .acc-setup-card *, .doc-editor-card *, .bootstrap-table *, .report-card *) > .table > :not(caption) > * > :first-child {
+    padding-inline-start: 16px;
+}
+
+#app-main .table-responsive:has(> table.table):not(.card *, .modal *, .acc-setup-card *, .doc-editor-card *, .bootstrap-table *, .report-card *) > .table > :not(caption) > * > :last-child {
+    padding-inline-end: 16px;
+}
+
+@media print {
+    #app-main .table-responsive {
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+}
+
+.table {
+    --bs-table-bg: var(--surface);
+}
+
+#app-main .acc-lines-wrap:not(.modal *) {
+    margin-bottom: 16px;
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+#app-main .acc-lines-wrap:not(.modal *) > .table {
+    margin: 0;
+}
+
+#app-main .acc-lines-wrap:not(.modal *) > .table > :not(caption) > * > :first-child {
+    padding-inline-start: 16px;
+}
+
+#app-main .acc-lines-wrap:not(.modal *) > .table > :not(caption) > * > :last-child {
+    padding-inline-end: 16px;
+}
+
+.page-head-actions .btn-link {
+    font-weight: 500;
+}
+
+/* The journal editor keeps its save actions in a bar held at the foot of the screen. */
+form.acc-journal {
+    display: flex;
+    flex-direction: column;
+}
+
+form.acc-journal > .acc-journal-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    order: 99;
+    justify-content: flex-end;
+    margin: 16px -24px;
+    padding: 12px 24px;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: 0 -2px 8px rgb(23 43 77 / 6%);
+}
+
+form.acc-journal > .acc-journal-bar .btn {
+    min-height: 40px;
+}
+
+form.acc-journal > .acc-journal-head {
+    padding: 20px 20px 4px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+    margin-bottom: 16px;
+}
+
+@media (max-width: 639.98px) {
+    form.acc-journal > .acc-journal-bar {
+        margin-inline: -16px;
+        padding-inline: 16px;
+    }
+}
