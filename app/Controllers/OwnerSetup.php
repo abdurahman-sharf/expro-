@@ -37,8 +37,9 @@ class OwnerSetup extends BaseController
             (new OwnerClaim())->claim($input, $this->request->getIPAddress());
         } catch (OwnerClaimException $failure) {
             return $this->response->setStatusCode($failure->key === 'closed' ? 404 : 422)->setBody(view('setup/claim', [
-                'error' => $this->messageOf($failure),
-                'old'   => array_diff_key($input, array_flip(['password', 'password_confirm', 'code'])),
+                'error'    => $this->messageOf($failure),
+                'errorKey' => $failure->key,
+                'old'      => array_diff_key($input, array_flip(['password', 'password_confirm', 'code'])),
             ]));
         }
 

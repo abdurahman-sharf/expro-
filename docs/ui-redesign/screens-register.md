@@ -39,7 +39,7 @@
 | # | المعرف | الشاشة | القسم | مسار URL | Controller · View | الأولوية | يعتمد على | الحالة |
 |---|---|---|---|---|---|---|---|---|
 | 8 | AUTH-01 | تسجيل الدخول (مع زر ترقية قاعدة البيانات) | مشترك | `/`، `login`؛ `POST migrate` | `Login::index`، `Login::migrate` · `login.php` | P1 | — | مكتمل (على فرع التطوير، لم يُدمج) |
-| 9 | AUTH-02 | مطالبة المالك بالحساب (أول تشغيل) | مشترك | `login` قبل وجود مالك؛ `POST owner_setup` | `OwnerSetup::postClaim` · `setup/claim.php` | P3 | AUTH-01 | التصميم معتمد |
+| 9 | AUTH-02 | مطالبة المالك بالحساب (أول تشغيل) | مشترك | `login` قبل وجود مالك؛ `POST owner_setup` | `OwnerSetup::postClaim` · `setup/claim.php` | P3 | AUTH-01 | قيد التنفيذ (منفّذ على فرع التطوير، بانتظار مراجعة المالك) |
 | 10 | AUTH-03 | معالج الإعداد الأول (اللغة، الشركة، الفرع، الضريبة، المحاسبة) | مشترك | `setup?step=…`؛ `POST setup/language|company|branch|tax|finish` | `Setup::*` · `setup/wizard.php` + `accounting_settings/activation_panels.php` | P3 | AUTH-02، FIN-56 | لم تبدأ |
 | 11 | AUTH-04 | تغيير كلمة المرور الإجباري | مشترك | `home/mustChangePassword`؛ `POST home/save` | `Home::getMustChangePassword` · `home/must_change_password.php` | P2 | AUTH-01 | لم تبدأ |
 | 12 | AUTH-05 | نافذة تغيير كلمة المرور (من تذييل القائمة) | مشترك | `home/changePassword/{id}`؛ `POST home/save` | `Home::getChangePassword` · `home/form_change_password.php` | P2 | SHL-01، CMP-02 | لم تبدأ |

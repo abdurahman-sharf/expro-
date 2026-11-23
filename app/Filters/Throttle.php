@@ -64,8 +64,9 @@ class Throttle implements FilterInterface
                     ->setStatusCode(429)
                     ->setHeader('Retry-After', (string) $seconds)
                     ->setBody(view('setup/claim', [
-                        'error' => lang('Login.too_many_attempts'),
-                        'old'   => array_intersect_key(array_map('strval', array_filter((array) $request->getPost(), 'is_string')), array_flip(['first_name', 'last_name', 'username', 'email'])),
+                        'error'    => lang('Login.too_many_attempts'),
+                        'errorKey' => 'throttle',
+                        'old'      => array_intersect_key(array_map('strval', array_filter((array) $request->getPost(), 'is_string')), array_flip(['first_name', 'last_name', 'username', 'email'])),
                     ]));
             }
 

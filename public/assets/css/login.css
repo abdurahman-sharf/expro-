@@ -41,6 +41,20 @@
     line-height: 1.5;
 }
 
+.claim-page .login-layout {
+    grid-template-columns: minmax(0, 56fr) minmax(0, 44fr);
+}
+
+.claim-page .login-side {
+    justify-content: flex-start;
+}
+
+.claim-page .login-brand {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+}
+
 .login-side,
 .login-panel {
     display: flex;
@@ -370,6 +384,188 @@
     min-height: 78px;
 }
 
+.login-label-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+}
+
+.login-help {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 18px;
+}
+
+.claim-page .login-card {
+    width: min(600px, 100%);
+}
+
+.claim-head {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.claim-head p {
+    margin: 0;
+}
+
+.claim-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: 6px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: var(--radius-sm);
+    background: var(--blue-100);
+    color: var(--blue-600);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.claim-intro {
+    color: var(--fg-secondary);
+    font-size: 14px;
+    line-height: 22px;
+}
+
+.claim-required {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.claim-alert-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.claim-alert-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 13px;
+    opacity: .9;
+}
+
+.claim-form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    margin: 0;
+}
+
+.claim-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line-light);
+}
+
+.claim-section:first-child {
+    padding-top: 0;
+    border-top: 0;
+}
+
+.claim-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.claim-step-number {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: var(--blue-500);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.claim-pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.claim-cleared {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 2px;
+    background: var(--warning-bg);
+    color: var(--warning);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.claim-error-icon {
+    color: var(--danger);
+}
+
+.claim-where {
+    display: flex;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--fg-secondary);
+    font-size: 13px;
+    line-height: 20px;
+}
+
+.claim-where > .bi {
+    flex: none;
+    color: #1783a2;
+    font-size: 16px;
+}
+
+.claim-where p {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.claim-where-title {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.claim-where code {
+    padding: 1px 6px;
+    border-radius: 2px;
+    background: var(--neutral-bg);
+    color: var(--text);
+    font-size: 12px;
+    white-space: nowrap;
+    unicode-bidi: isolate;
+}
+
+.login-control input[readonly],
+.login-floating input[readonly] {
+    color: var(--fg-secondary);
+}
+
+.login-control:has(input[readonly]) {
+    background: var(--surface-2);
+}
+
 .login-submit {
     display: flex;
     align-items: center;
@@ -516,11 +712,51 @@
     .login-control {
         height: 52px;
     }
+
+    .claim-pair {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 @media (max-width: 359.98px) {
     .g-recaptcha {
         overflow-x: auto;
         min-height: 86px;
+    }
+}
+
+@media (min-width: 1024px) and (max-width: 1279.98px) {
+    .claim-page .login-layout {
+        grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    }
+}
+
+@media (max-width: 1023.98px) {
+    .claim-page .login-layout {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto 1fr;
+    }
+
+    .claim-page .login-brand {
+        position: static;
+        grid-row: 1;
+        flex-direction: row;
+        align-items: center;
+        gap: 16px;
+        height: auto;
+        padding: 20px 24px;
+    }
+
+    .claim-page .login-logo {
+        width: 120px;
+    }
+
+    .claim-page .login-brand .login-tagline {
+        position: static;
+        width: auto;
+        height: auto;
+        overflow: visible;
+        clip: auto;
+        font-size: 15px;
     }
 }

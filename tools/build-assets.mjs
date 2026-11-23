@@ -119,6 +119,7 @@ write('js/jquery.min.js', stripSourceMaps(read(modules('jquery/dist/jquery.min.j
 write('css/app.css', concat(sourceFiles('css', '.css'), '\n\n'));
 write('css/login.css', concat(sourceFiles('pages', 'login.css'), ''));
 write('js/login.js', concat(sourceFiles('pages', 'login.js'), ''));
+write('js/claim.js', concat(sourceFiles('pages', 'claim.js'), ''));
 write('css/document.css', concat(sourceFiles('pages', 'document.css'), ''));
 write('js/app.js', concat(sourceFiles('js', '.js'), '\n;\n'));
 write('js/chart.min.js', stripSourceMaps(read(modules('chart.js/dist/chart.umd.js'))));
