@@ -1,0 +1,331 @@
+[
+  {
+    "name": "G01 the work that throws is guarded without ending what it left open",
+    "file": "app/Libraries/Database/AbandonedTransaction.php",
+    "find": "            self::close($db, $depth);\n\n            throw $failure;",
+    "replace": "            throw $failure;",
+    "tests": [
+      "--filter",
+      "testGuard_",
+      "tests/Libraries/Database/AbandonedTransactionTest.php"
+    ]
+  },
+  {
+    "name": "G02 the exception of the work that is guarded is swallowed",
+    "file": "app/Libraries/Database/AbandonedTransaction.php",
+    "find": "            throw $failure;\n        }\n    }\n\n    public static function close",
+    "replace": "            return null;\n        }\n    }\n\n    public static function close",
+    "tests": [
+      "--filter",
+      "testGuard_",
+      "tests/Libraries/Database/AbandonedTransactionTest.php"
+    ]
+  },
+  {
+    "name": "G03 the guard ends every level and not only those the work opened",
+    "file": "app/Libraries/Database/AbandonedTransaction.php",
+    "find": "        $depth = $db->transDepth;\n",
+    "replace": "        $depth = 0;\n",
+    "tests": [
+      "--filter",
+      "testGuard_",
+      "tests/Libraries/Database/AbandonedTransactionTest.php"
+    ]
+  },
+  {
+    "name": "G04 close ends nothing",
+    "file": "app/Libraries/Database/AbandonedTransaction.php",
+    "find": "            while ($db->transDepth > $depth) {",
+    "replace": "            while (false) {",
+    "tests": [
+      "--filter",
+      "testClose_",
+      "tests/Libraries/Database/AbandonedTransactionTest.php"
+    ]
+  },
+  {
+    "name": "G05 close ends the level of the caller too",
+    "file": "app/Libraries/Database/AbandonedTransaction.php",
+    "find": "            while ($db->transDepth > $depth) {",
+    "replace": "            while ($db->transDepth >= $depth) {",
+    "tests": [
+      "--filter",
+      "testClose_LeavesTheLevelsOfTheCaller",
+      "tests/Libraries/Database/AbandonedTransactionTest.php"
+    ]
+  },
+  {
+    "name": "G06 close does not stop at a rollback that fails",
+    "file": "app/Libraries/Database/AbandonedTransaction.php",
+    "find": "                if (! $db->transRollback()) {\n                    break;\n                }",
+    "replace": "                $db->transRollback();",
+    "tests": [
+      "--filter",
+      "testClose_StopsAtTheFirstRollbackThatFails",
+      "tests/Libraries/Database/AbandonedTransactionTest.php"
+    ]
+  },
+  {
+    "name": "G07 a rollback that throws replaces the exception of the work",
+    "file": "app/Libraries/Database/AbandonedTransaction.php",
+    "find": "        } catch (Throwable $failure) {\n            log_message('error'",
+    "replace": "        } catch (Error $failure) {\n            log_message('error'",
+    "tests": [
+      "--filter",
+      "testClose_StopsWhenATransactionCannotBeRolledBackAndRaisesNothing",
+      "tests/Libraries/Database/AbandonedTransactionTest.php"
+    ]
+  },
+  {
+    "name": "G08 close keeps the failed status after the last transaction was ended",
+    "file": "app/Libraries/Database/AbandonedTransaction.php",
+    "find": "        FailedTransaction::forget($db);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testClose_ForgetsTheFailedStatus",
+      "tests/Libraries/Database/AbandonedTransactionTest.php"
+    ]
+  },
+  {
+    "name": "G09 the handler does not end the transaction the request left open",
+    "file": "app/Libraries/Database/OpenTransactionHandler.php",
+    "find": "            AbandonedTransaction::close(Database::connect(), 0);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Database/OpenTransactionHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G10 the handler does not pass the exception on",
+    "file": "app/Libraries/Database/OpenTransactionHandler.php",
+    "find": "        $this->next->handle($exception, $request, $response, $statusCode, $exitCode);\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Database/OpenTransactionHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G11 the handler passes the exception on before it ends the transaction",
+    "file": "app/Libraries/Database/OpenTransactionHandler.php",
+    "find": "            AbandonedTransaction::close(Database::connect(), 0);",
+    "replace": "            $this->next->handle($exception, $request, $response, $statusCode, $exitCode);",
+    "tests": [
+      "tests/Libraries/Database/OpenTransactionHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G12 the handler leaves one level open",
+    "file": "app/Libraries/Database/OpenTransactionHandler.php",
+    "find": "AbandonedTransaction::close(Database::connect(), 0);",
+    "replace": "AbandonedTransaction::close(Database::connect(), 1);",
+    "tests": [
+      "--filter",
+      "testHandle_RollsBack",
+      "tests/Libraries/Database/OpenTransactionHandlerTest.php"
+    ]
+  },
+  {
+    "name": "G13 the configuration does not use the handler that ends the open transaction",
+    "file": "app/Config/Exceptions.php",
+    "find": "return new OpenTransactionHandler(new ScopeUnavailableHandler(new MemoryExhaustedHandler($this)));",
+    "replace": "return new ScopeUnavailableHandler(new MemoryExhaustedHandler($this));",
+    "tests": [
+      "tests/Config/ExceptionsTest.php"
+    ]
+  },
+  {
+    "name": "G14 the work run without a customer is not guarded",
+    "file": "app/Libraries/Accounting/CustomerLock.php",
+    "find": "            return AbandonedTransaction::guard($this->db, $work);\n        }\n\n        $name  = $this->nameOf($customerId);",
+    "replace": "            return $work();\n        }\n\n        $name  = $this->nameOf($customerId);",
+    "tests": [
+      "--filter",
+      "EndsTheTransactionTheWorkLeftOpenWhenThereIsNoCustomer",
+      "tests/Libraries/Accounting/CustomerLockTest.php"
+    ]
+  },
+  {
+    "name": "G15 the work run under the lock of the customer is not guarded",
+    "file": "app/Libraries/Accounting/CustomerLock.php",
+    "find": "            return AbandonedTransaction::guard($this->db, $work);\n        } finally {",
+    "replace": "            return $work();\n        } finally {",
+    "tests": [
+      "--filter",
+      "EndsTheTransactionTheWorkLeftOpenWhenItFails|LeavesTheTransactionOfTheCaller",
+      "tests/Libraries/Accounting/CustomerLockTest.php"
+    ]
+  },
+  {
+    "name": "G16 the work run without a supplier is not guarded",
+    "file": "app/Libraries/Accounting/SupplierLock.php",
+    "find": "            return AbandonedTransaction::guard($this->db, $work);\n        }\n\n        $name  = $this->nameOf($supplierId);",
+    "replace": "            return $work();\n        }\n\n        $name  = $this->nameOf($supplierId);",
+    "tests": [
+      "--filter",
+      "EndsTheTransactionTheWorkLeftOpenWhenThereIsNoSupplier",
+      "tests/Libraries/Accounting/SupplierLockTest.php"
+    ]
+  },
+  {
+    "name": "G17 the work run under the lock of the supplier is not guarded",
+    "file": "app/Libraries/Accounting/SupplierLock.php",
+    "find": "            return AbandonedTransaction::guard($this->db, $work);\n        } finally {",
+    "replace": "            return $work();\n        } finally {",
+    "tests": [
+      "--filter",
+      "EndsTheTransactionTheWorkLeftOpenWhenItFails|LeavesTheTransactionOfTheCaller",
+      "tests/Libraries/Accounting/SupplierLockTest.php"
+    ]
+  },
+  {
+    "name": "G18 the conversion of a dropdown to a checkbox is never completed",
+    "file": "app/Models/Attribute.php",
+    "find": "                    // $builder->where('definition_id', $definition_id);\n                    // $success = $builder->update();\n\n                    $this->db->transComplete();",
+    "replace": "                    // $builder->where('definition_id', $definition_id);\n                    // $success = $builder->update();",
+    "tests": [
+      "--filter",
+      "testSaveDefinition_CommitsTheConversionOfADropdown",
+      "tests/Models/AttributeTest.php"
+    ]
+  },
+  {
+    "name": "G19 the CSV attribute value that cannot be linked leaves its level open",
+    "file": "app/Models/Attribute.php",
+    "find": "                $this->db->transRollback();\n                FailedTransaction::forget($this->db);\n\n                return false;",
+    "replace": "                return false;",
+    "tests": [
+      "--filter",
+      "testSaveCSVRowAttributeData_",
+      "tests/Models/AttributeTest.php"
+    ]
+  },
+  {
+    "name": "G20 the CSV attribute value that cannot be linked keeps the failed status",
+    "file": "app/Models/Attribute.php",
+    "find": "                FailedTransaction::forget($this->db);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testSaveCSVRowAttributeData_",
+      "tests/Models/AttributeTest.php"
+    ]
+  },
+  {
+    "name": "G21 a row that cannot be saved does not stop the save of the tax_jurisdiction",
+    "file": "app/Models/Tax_jurisdiction.php",
+    "find": "            if (! $this->save_value($taxJurisdictionData, $value['jurisdiction_id'])) {\n                $this->db->transRollback();\n                FailedTransaction::forget($this->db);\n\n                return false;\n            }\n",
+    "replace": "            $this->save_value($taxJurisdictionData, $value['jurisdiction_id']);\n",
+    "tests": [
+      "--filter",
+      "AnswersFalse",
+      "tests/Models/Tax_jurisdictionTest.php"
+    ]
+  },
+  {
+    "name": "G22 the save of the tax_jurisdiction that stops leaves its transaction open",
+    "file": "app/Models/Tax_jurisdiction.php",
+    "find": "                $this->db->transRollback();\n                FailedTransaction::forget($this->db);\n\n                return false;",
+    "replace": "                FailedTransaction::forget($this->db);\n\n                return false;",
+    "tests": [
+      "--filter",
+      "AnswersFalse",
+      "tests/Models/Tax_jurisdictionTest.php"
+    ]
+  },
+  {
+    "name": "G23 the save of the tax_jurisdiction that stops keeps the failed status",
+    "file": "app/Models/Tax_jurisdiction.php",
+    "find": "                FailedTransaction::forget($this->db);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "AnswersFalse",
+      "tests/Models/Tax_jurisdictionTest.php"
+    ]
+  },
+  {
+    "name": "G24 a row that cannot be saved does not stop the save of the tax_category",
+    "file": "app/Models/Tax_category.php",
+    "find": "            if (! $this->save_value($taxCategoryData, $value['tax_category_id'])) {\n                $this->db->transRollback();\n                FailedTransaction::forget($this->db);\n\n                return false;\n            }\n",
+    "replace": "            $this->save_value($taxCategoryData, $value['tax_category_id']);\n",
+    "tests": [
+      "--filter",
+      "AnswersFalse",
+      "tests/Models/Tax_categoryTest.php"
+    ]
+  },
+  {
+    "name": "G25 the save of the tax_category that stops leaves its transaction open",
+    "file": "app/Models/Tax_category.php",
+    "find": "                $this->db->transRollback();\n                FailedTransaction::forget($this->db);\n\n                return false;",
+    "replace": "                FailedTransaction::forget($this->db);\n\n                return false;",
+    "tests": [
+      "--filter",
+      "AnswersFalse",
+      "tests/Models/Tax_categoryTest.php"
+    ]
+  },
+  {
+    "name": "G26 the save of the tax_category that stops keeps the failed status",
+    "file": "app/Models/Tax_category.php",
+    "find": "                FailedTransaction::forget($this->db);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "AnswersFalse",
+      "tests/Models/Tax_categoryTest.php"
+    ]
+  },
+  {
+    "name": "G27 occupying a table refuses a sale without one",
+    "file": "app/Models/Dinner_table.php",
+    "find": "public function occupy(?int $dinner_table_id): bool",
+    "replace": "public function occupy(int $dinner_table_id): bool",
+    "tests": [
+      "tests/Models/Dinner_tableTest.php"
+    ]
+  },
+  {
+    "name": "G28 releasing a table refuses a sale without one",
+    "file": "app/Models/Dinner_table.php",
+    "find": "public function release(?int $dinner_table_id): bool",
+    "replace": "public function release(int $dinner_table_id): bool",
+    "tests": [
+      "tests/Models/Dinner_tableTest.php"
+    ]
+  },
+  {
+    "name": "G29 the save of a price list is not guarded",
+    "file": "app/Models/Price_list.php",
+    "find": "return AbandonedTransaction::guard($this->db, fn (): int => $this->saveListInTransaction($name, $active, $priceListId, $employeeId));",
+    "replace": "return $this->saveListInTransaction($name, $active, $priceListId, $employeeId);",
+    "tests": [
+      "--filter",
+      "CannotBeLocked",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G30 the lock of the price list is read without noticing that it was not had",
+    "file": "app/Models/Price_list.php",
+    "find": "$before = LockedRead::row($this->db, 'SELECT name, status FROM ' . $this->db->prefixTable('price_lists') . ' WHERE price_list_id = ? FOR UPDATE', [$priceListId]);",
+    "replace": "$before = $this->db->query('SELECT name, status FROM ' . $this->db->prefixTable('price_lists') . ' WHERE price_list_id = ? FOR UPDATE', [$priceListId])->getRow();",
+    "tests": [
+      "--filter",
+      "CannotBeLocked",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G31 the import of the items answers a failed row with its transaction open",
+    "file": "app/Controllers/Items.php",
+    "find": "            AbandonedTransaction::close(db_connect(), 0);\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testPostImportCsvFile_",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  }
+]
