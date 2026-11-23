@@ -31,19 +31,23 @@ $journal = static function (object $line) use ($journalLinks, $number): string {
         $('#bank_close_form').on('submit', function(event) {
             event.preventDefault();
 
-            if (!confirm(<?= json_encode(lang('Accounting_bank.confirm_close'), $flags) ?>)) {
-                return;
-            }
+            const data = $(this).serialize();
 
-            $.post(<?= json_encode(base_url('accounting_treasuries/bank/' . $id . '/close'), $flags) ?>, $(this).serialize(), function(response) {
-                toast_support.show(response.message, response.success ? 'success' : 'danger');
-
-                if (response.success) {
-                    setTimeout(function() {
-                        window.location.href = <?= json_encode(base_url('accounting_treasuries/bank/' . $id), $flags) ?>;
-                    }, 700);
+            appConfirm(<?= json_encode(lang('Accounting_bank.confirm_close'), $flags) ?>, {tone: 'warning'}).then(function(confirmed) {
+                if (!confirmed) {
+                    return;
                 }
-            }, 'json');
+
+                $.post(<?= json_encode(base_url('accounting_treasuries/bank/' . $id . '/close'), $flags) ?>, data, function(response) {
+                    toast_support.show(response.message, response.success ? 'success' : 'danger');
+
+                    if (response.success) {
+                        setTimeout(function() {
+                            window.location.href = <?= json_encode(base_url('accounting_treasuries/bank/' . $id), $flags) ?>;
+                        }, 700);
+                    }
+                }, 'json');
+            });
         });
     });
 </script>

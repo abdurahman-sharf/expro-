@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'Ordernummer',
     'receiving_type'                          => 'Ordertype',
     'receivings'                              => 'Orders',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Bestel niveau',
     'report'                                  => 'Rapport',
     'report_input'                            => 'Input Rapport',

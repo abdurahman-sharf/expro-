@@ -101,20 +101,23 @@ $maxMb     = JournalAttachments::MAX_BYTES / 1048576;
 
                 $list.on('click', '[data-delete-attachment]', function() {
                     const $row = $(this).closest('li');
+                    const attachmentId = $(this).data('delete-attachment');
 
-                    if (!confirm(text.confirm)) {
-                        return;
-                    }
-
-                    $.post('accounting_journals/delete_attachment/' + $(this).data('delete-attachment'), {}, function(response) {
-                        toast_support.show(response.message, response.success ? 'success' : 'danger');
-
-                        if (response.success) {
-                            $row.remove();
-                            refreshEmpty();
+                    appConfirm(text.confirm, {tone: 'danger'}).then(function(confirmed) {
+                        if (!confirmed) {
+                            return;
                         }
-                    }, 'json').fail(function() {
-                        toast_support.show(text.failed, 'danger');
+
+                        $.post('accounting_journals/delete_attachment/' + attachmentId, {}, function(response) {
+                            toast_support.show(response.message, response.success ? 'success' : 'danger');
+
+                            if (response.success) {
+                                $row.remove();
+                                refreshEmpty();
+                            }
+                        }, 'json').fail(function() {
+                            toast_support.show(text.failed, 'danger');
+                        });
                     });
                 });
             });

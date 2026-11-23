@@ -5,17 +5,18 @@
 ?>
 
 <script type="text/javascript">
-    // Live clock
-    const clock_tick = function clock_tick() {
-        setInterval('update_clock();', 1000);
-    }
+    const updateClock = function updateClock() {
+        const now = moment();
 
-    // Start the clock immediately
-    clock_tick();
+        document.getElementById('liveclock').textContent = now.format("<?= esc(dateformat_momentjs($config['timeformat']), 'js') ?>");
+        document.getElementById('liveclock_date').textContent = now.format("<?= esc(dateformat_momentjs($config['dateformat']), 'js') ?>");
+        document.getElementById('liveclock_day').textContent = now.toDate().toLocaleDateString(document.documentElement.lang, {weekday: 'long'});
+    };
 
-    const update_clock = function update_clock() {
-        document.getElementById('liveclock').innerHTML = moment().format("<?= dateformat_momentjs($config['dateformat'] . ' ' . $config['timeformat']) ?>");
-    }
+    $(function() {
+        updateClock();
+        setInterval(updateClock, 1000);
+    });
 
     const notify = $.notify;
 

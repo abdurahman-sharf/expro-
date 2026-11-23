@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => '',
     'password_required'                     => 'Lozinka je potrebna',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Odaberite module za dozvolu',
     'permission_info'                       => 'Dozvole',
     'permission_select_all'                 => '',

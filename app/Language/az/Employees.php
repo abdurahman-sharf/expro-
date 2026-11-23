@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'Hazırki şifrə və yeni şifrə unikal olmalıdır.',
     'password_required'                     => 'Şifrə tələb olunur.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Modullara giriş imkanı vermək üçün aşağıdakı qutuları yoxlayın.',
     'permission_info'                       => 'İcazələr',
     'permission_select_all'                 => '',

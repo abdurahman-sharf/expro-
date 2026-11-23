@@ -4,75 +4,42 @@
  */
 ?>
 
-<div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 <ul id="error_message_box" class="error_message_box"></ul>
 
-<?= form_open("home/save/{$person_info->person_id}", ['id' => 'employee_form', 'class' => 'app-form']) ?>
-    <div class="tab-content">
-        <div class="tab-pane fade show active" id="employee_login_info">
-            <fieldset>
+<?= form_open("home/save/{$person_info->person_id}", ['id' => 'employee_form', 'class' => 'app-form dialog-narrow', 'autocomplete' => 'off']) ?>
+    <input type="hidden" name="username" id="username" value="<?= esc($person_info->username, 'attr') ?>">
 
-                <div class="row mb-3">
-                    <?= form_label(lang('Employees.username'), 'username', ['class' => 'col-form-label col-3 text-danger required']) ?>
-                    <div class="col-8">
-                        <div class="input-group">
-                            <span class="input-group-text"><span class="bi bi-person" aria-hidden="true"></span></span>
-                            <?= form_input([
-                                'name'     => 'username',
-                                'id'       => 'username',
-                                'class'    => 'form-control form-control-sm',
-                                'value'    => $person_info->username,
-                                'readonly' => 'true',
-                            ]) ?>
-                        </div>
-                    </div>
-                </div>
+    <div class="dialog-account">
+        <span class="dialog-account-avatar" aria-hidden="true"><?= esc(mb_substr(trim($person_info->first_name . $person_info->last_name) ?: $person_info->username, 0, 1)) ?></span>
+        <span class="dialog-account-text">
+            <b><?= esc(trim($person_info->first_name . ' ' . $person_info->last_name)) ?></b>
+            <small dir="ltr"><?= esc($person_info->username) ?></small>
+        </span>
+        <i class="bi bi-shield-lock dialog-account-mark" aria-hidden="true"></i>
+    </div>
 
-                <?php $password_label_attributes = $person_info->person_id == '' ? ['class' => 'required'] : []; ?>
+    <div class="field">
+        <?= form_label(lang('Employees.current_password'), 'current_password', ['class' => 'form-label required']) ?>
+        <div class="input-group">
+            <span class="input-group-text"><span class="bi bi-key" aria-hidden="true"></span></span>
+            <?= form_password(['name' => 'current_password', 'id' => 'current_password', 'class' => 'form-control form-control-sm', 'autocomplete' => 'current-password']) ?>
+        </div>
+    </div>
 
-                <div class="row mb-3">
-                    <?= form_label(lang('Employees.current_password'), 'current_password', array_merge($password_label_attributes, ['class' => 'col-form-label col-3'])) ?>
-                    <div class="col-8">
-                        <div class="input-group">
-                            <span class="input-group-text"><span class="bi bi-lock" aria-hidden="true"></span></span>
-                            <?= form_password([
-                                'name'  => 'current_password',
-                                'id'    => 'current_password',
-                                'class' => 'form-control form-control-sm',
-                            ]) ?>
-                        </div>
-                    </div>
-                </div>
+    <div class="field">
+        <?= form_label(lang('Employees.password'), 'password', ['class' => 'form-label required']) ?>
+        <div class="input-group">
+            <span class="input-group-text"><span class="bi bi-lock" aria-hidden="true"></span></span>
+            <?= form_password(['name' => 'password', 'id' => 'password', 'class' => 'form-control form-control-sm', 'autocomplete' => 'new-password', 'aria-describedby' => 'password_help']) ?>
+        </div>
+        <p class="form-text mb-0" id="password_help"><?= esc(lang('Employees.password_minlength')) ?></p>
+    </div>
 
-                <div class="row mb-3">
-                    <?= form_label(lang('Employees.password'), 'password', array_merge($password_label_attributes, ['class' => 'col-form-label col-3'])) ?>
-                    <div class="col-8">
-                        <div class="input-group">
-                            <span class="input-group-text"><span class="bi bi-lock" aria-hidden="true"></span></span>
-                            <?= form_password([
-                                'name'  => 'password',
-                                'id'    => 'password',
-                                'class' => 'form-control form-control-sm',
-                            ]) ?>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row mb-3">
-                    <?= form_label(lang('Employees.repeat_password'), 'repeat_password', array_merge($password_label_attributes, ['class' => 'col-form-label col-3'])) ?>
-                    <div class="col-8">
-                        <div class="input-group">
-                            <span class="input-group-text"><span class="bi bi-lock" aria-hidden="true"></span></span>
-                            <?= form_password([
-                                'name'  => 'repeat_password',
-                                'id'    => 'repeat_password',
-                                'class' => 'form-control form-control-sm',
-                            ]) ?>
-                        </div>
-                    </div>
-                </div>
-
-            </fieldset>
+    <div class="field">
+        <?= form_label(lang('Employees.repeat_password'), 'repeat_password', ['class' => 'form-label required']) ?>
+        <div class="input-group">
+            <span class="input-group-text"><span class="bi bi-lock" aria-hidden="true"></span></span>
+            <?= form_password(['name' => 'repeat_password', 'id' => 'repeat_password', 'class' => 'form-control form-control-sm', 'autocomplete' => 'new-password']) ?>
         </div>
     </div>
 <?= form_close() ?>

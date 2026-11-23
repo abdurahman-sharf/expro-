@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'Nejsem robot.',
     'go'                            => 'Přihlásit',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'Špatné zadání.',
     'invalid_installation'          => 'Instalace není v pořádku, zkontrolujte soubor php.ini.',
     'invalid_username_and_password' => 'Neplatné jméno nebo heslo.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => '',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => 'Heslo',
     'required_username'             => '',
     'too_many_attempts'             => 'Příliš mnoho pokusů. Počkejte chvíli a zkuste to znovu.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'Uživatelské jméno',
     'welcome'                       => '',
 ];

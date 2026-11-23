@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'Hesabatlar',
     'receiving_type'                          => 'Qəbul Növü',
     'receivings'                              => 'Qəbul olunanlar',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Səviyyəni Yenidən Düzəlt',
     'report'                                  => 'Hesabat',
     'report_input'                            => 'Hesabatı daxil edin',

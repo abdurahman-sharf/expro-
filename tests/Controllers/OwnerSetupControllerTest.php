@@ -223,4 +223,14 @@ class OwnerSetupControllerTest extends CIUnitTestCase
         $blocked->assertSee('value="Huda"');
         $this->assertTrue((new InstallState())->needsOwner());
     }
+
+    public function testPostOwnerSetup_MarksTheFieldOfTheErrorAndSaysTheSecretsWereCleared(): void
+    {
+        $response = $this->post('/owner_setup', $this->form(['code' => 'AAAA-AAAA-AAAA-AAAA']));
+
+        $this->assertMatchesRegularExpression('/<input id="owner-code"[^>]*aria-invalid="true"/', $response->getBody());
+        $this->assertDoesNotMatchRegularExpression('/<input id="owner-email"[^>]*aria-invalid="true"/', $response->getBody());
+        $response->assertSee(lang('Owner_setup.cleared_note'));
+        $response->assertSee('data-cleared-for="owner-password"');
+    }
 }

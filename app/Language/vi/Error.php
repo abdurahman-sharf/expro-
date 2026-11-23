@@ -1,7 +1,15 @@
 <?php
 
 return [
+    'back_home'                        => '',
+    'go_back'                          => '',
+    'no_access_permission'             => '',
+    'no_access_text'                   => '',
     'no_permission_module'             => 'Bạn không có thẩm quyền truy cập vào mô đun đó',
+    'not_found_text'                   => '',
+    'not_found_title'                  => '',
+    'server_error_text'                => '',
+    'server_error_title'               => '',
     'unable_to_create_env_file'        => 'Không thể tạo {filePath} để thiết lập throttle.key',
     'unable_to_lock_file'              => 'Không thể khóa {filePath}: {reason}',
     'unable_to_open_lock_file'         => 'Không thể mở {filePath}: {reason}',

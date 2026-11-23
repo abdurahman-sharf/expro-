@@ -69,6 +69,7 @@ return [
     'item_description'               => 'Description',
     'journal'                        => 'Journal entry',
     'method'                         => 'Payment method',
+    'more_documents'                 => 'More documents',
     'number'                         => 'No.',
     'packing_slip'                   => 'Packing slip',
     'paid'                           => 'Paid',

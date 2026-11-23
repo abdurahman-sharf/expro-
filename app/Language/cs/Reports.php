@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'Číslo příjemky',
     'receiving_type'                          => 'Typ příjmu',
     'receivings'                              => 'Příjemky',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Množství pro doobjednání',
     'report'                                  => 'Sestava',
     'report_input'                            => 'Parametry sestavy',

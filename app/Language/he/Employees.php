@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'הסיסמה הנוכחית והסיסמה החדשה חייבות להיות ייחודיות.',
     'password_required'                     => 'דרושה סיסמה.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'סמן את התיבות שלהלן כדי להעניק גישה למודולים.',
     'permission_info'                       => 'הרשאות',
     'permission_select_all'                 => '',

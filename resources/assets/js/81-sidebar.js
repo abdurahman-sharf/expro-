@@ -26,8 +26,10 @@
         return $('.app-nav-heading').children('.app-nav-toggle, .app-nav-link');
     };
 
+    const rail = window.matchMedia('(min-width: 1024px) and (max-width: 1279.98px)');
+
     const initialKey = function() {
-        return nav().attr('data-nav-open') || null;
+        return rail.matches ? null : nav().attr('data-nav-open') || null;
     };
 
     const setOpen = function(key) {
@@ -109,8 +111,11 @@
         }
 
         markCurrent($link);
-        setOpen($link.closest('.app-nav-section')[0].dataset.navSection);
-        revealLink($link);
+
+        if (!rail.matches) {
+            setOpen($link.closest('.app-nav-section')[0].dataset.navSection);
+            revealLink($link);
+        }
     };
 
     const sync = function() {
@@ -203,6 +208,16 @@
 
         $(document).on('shown.bs.tab', '.settings-link', function(event) {
             syncFragment($(event.target).attr('data-bs-target'));
+        });
+
+        $(document).on('click', function(event) {
+            if (rail.matches && !$(event.target).closest('.app-nav-section.' + OPEN).length) {
+                setOpen(null);
+            }
+        });
+
+        rail.addEventListener('change', function() {
+            setOpen(initialKey());
         });
 
         $('#app-sidebar').on('shown.bs.offcanvas', function() {

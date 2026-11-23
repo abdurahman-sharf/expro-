@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'Primka br.',
     'receiving_type'                          => 'Tip ulaza',
     'receivings'                              => 'Primke',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Poredaj razinu',
     'report'                                  => 'Izvještaj',
     'report_input'                            => 'Ulazni izvještaj',

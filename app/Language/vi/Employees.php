@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'Mật khẩu hiện tại và mới phải khác nhau.',
     'password_required'                     => 'Mật khẩu là bắt buộc.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Các hộp dấu kiểm phía dưới cấp quyền truy cập cho các mô đun.',
     'permission_info'                       => 'Quyền hạn',
     'permission_select_all'                 => '',

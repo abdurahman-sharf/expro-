@@ -1,0 +1,1339 @@
+/* The shared components in the measures of the الأول برو design system: page header, buttons, fields,
+   tables, dialogs and tabs. Every screen built on them takes these without its own styles. */
+
+.page-head {
+    position: sticky;
+    top: 56px;
+    z-index: 1010;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 16px;
+    min-height: 64px;
+    margin: -24px -24px 24px;
+    padding: 10px 24px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+.page-head-start {
+    display: flex;
+    flex: 1 1 260px;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.page-crumbs {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 18px;
+}
+
+.page-head .page-title {
+    margin: 0;
+    overflow: hidden;
+    color: var(--text);
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 32px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.page-head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.page-head-actions[hidden] {
+    display: none;
+}
+
+.page-head-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    margin: 0;
+    padding-inline: 16px;
+    font-size: 14px;
+}
+
+.page-head-actions .btn > .bi {
+    font-size: 16px;
+}
+
+.btn {
+    --bs-btn-font-weight: 500;
+}
+
+.btn-sm {
+    --bs-btn-font-size: 13px;
+    min-height: 32px;
+}
+
+.btn-outline-secondary {
+    --bs-btn-color: var(--text);
+    --bs-btn-bg: var(--surface);
+    --bs-btn-border-color: var(--field);
+    --bs-btn-hover-color: var(--text);
+    --bs-btn-hover-bg: var(--surface-hover);
+    --bs-btn-hover-border-color: var(--field);
+    --bs-btn-active-color: var(--text);
+    --bs-btn-active-bg: var(--neutral-bg);
+    --bs-btn-active-border-color: var(--field);
+    --bs-btn-disabled-color: var(--muted);
+    --bs-btn-disabled-bg: var(--surface);
+    --bs-btn-disabled-border-color: var(--line-strong);
+}
+
+.form-label,
+.col-form-label {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.form-text {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 18px;
+}
+
+.form-control,
+.form-select {
+    border-color: var(--field);
+    border-radius: var(--radius-sm);
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--sky-400);
+    box-shadow: 0 0 0 3px var(--blue-100), inset 0 0 0 1px var(--sky-400);
+}
+
+.card {
+    --bs-card-border-radius: var(--radius-sm);
+    --bs-card-inner-border-radius: 3px;
+    box-shadow: var(--shadow-xs);
+}
+
+.table > thead > tr > th,
+.bootstrap-table .fixed-table-container thead th {
+    height: 40px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--fg-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.bootstrap-table .fixed-table-container thead th .th-inner {
+    padding-block: 10px;
+}
+
+.table > tbody > tr > td {
+    height: 48px;
+    border-bottom-color: var(--line-light);
+    color: var(--text);
+}
+
+.table-hover > tbody > tr:hover > *,
+.bootstrap-table .table tbody tr:hover > td {
+    --bs-table-accent-bg: var(--surface-hover);
+    background: var(--surface-hover);
+}
+
+.bootstrap-table .table tbody tr.selected > td {
+    background: var(--blue-100);
+}
+
+.table > tfoot > tr > td,
+.table > tfoot > tr > th,
+.bootstrap-table .fixed-table-footer td {
+    border-top: 2px solid var(--line);
+    background: var(--surface-2);
+    font-weight: 600;
+}
+
+.table-sm > tbody > tr > td,
+.table.compact > tbody > tr > td {
+    height: 36px;
+    font-size: 13px;
+}
+
+.bootstrap-table .fixed-table-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    color: var(--fg-secondary);
+    font-size: 13px;
+}
+
+.pagination {
+    --bs-pagination-border-radius: var(--radius-sm);
+    --bs-pagination-color: var(--text);
+    --bs-pagination-border-color: var(--line);
+    --bs-pagination-hover-bg: var(--surface-hover);
+    --bs-pagination-active-bg: var(--blue-500);
+    --bs-pagination-active-border-color: var(--blue-500);
+    gap: 4px;
+}
+
+.pagination .page-link {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    line-height: 30px;
+    text-align: center;
+}
+
+.nav-tabs {
+    --bs-nav-tabs-border-color: var(--line);
+    gap: 16px;
+}
+
+.nav-tabs .nav-link {
+    margin-bottom: -1px;
+    padding: 12px 4px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: var(--fg-secondary);
+    font-weight: 500;
+}
+
+.nav-tabs .nav-link:hover {
+    border-bottom-color: var(--line-strong);
+    color: var(--text);
+}
+
+.nav-tabs .nav-link.active,
+.nav-tabs .nav-item.show .nav-link {
+    border-bottom-color: var(--blue-500);
+    background: none;
+    color: var(--blue-500);
+}
+
+.modal-content {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+    padding: 16px 24px;
+    border-bottom-color: var(--line-light);
+}
+
+.modal-header .modal-title {
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 28px;
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.modal-footer {
+    gap: 12px;
+    padding: 16px 24px;
+    border-top-color: var(--line-light);
+    border-bottom-right-radius: var(--radius-md);
+    border-bottom-left-radius: var(--radius-md);
+    background: var(--surface-2);
+}
+
+.modal-footer > * {
+    margin: 0;
+}
+
+.alert {
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+}
+
+.badge {
+    border-radius: 2px;
+    font-weight: 600;
+}
+
+@media (min-width: 640px) and (max-width: 1023.98px) {
+    .page-head {
+        margin: -20px -20px 20px;
+        padding-inline: 20px;
+    }
+}
+
+@media (max-width: 639.98px) {
+    .page-head {
+        position: static;
+        margin: -16px -16px 16px;
+        padding: 12px 16px;
+    }
+
+    .page-head .page-title {
+        font-size: 20px;
+        line-height: 28px;
+    }
+
+    .page-head-actions {
+        width: 100%;
+    }
+}
+
+@media print {
+    .page-head {
+        position: static;
+        margin: 0 0 12px;
+        border: 0;
+        box-shadow: none;
+    }
+
+    .page-head-actions {
+        display: none;
+    }
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    max-width: 560px;
+    margin: 48px auto;
+    padding: 40px 32px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+    text-align: center;
+}
+
+.modal-body .empty-state {
+    margin: 0 auto;
+    padding: 24px 16px;
+    border: 0;
+    box-shadow: none;
+}
+
+.empty-state-art {
+    display: inline-grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--icon);
+    font-size: 30px;
+}
+
+.no-access .empty-state-art {
+    border-color: #fbcb78;
+    background: var(--warning-bg);
+    color: var(--warning-strong);
+}
+
+.empty-state-title {
+    margin: 4px 0 0;
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 28px;
+}
+
+.empty-state-text {
+    margin: 0;
+    color: var(--fg-secondary);
+    font-size: 14px;
+    line-height: 22px;
+}
+
+.empty-state-meta {
+    margin: 0;
+    padding: 2px 8px;
+    border-radius: 2px;
+    background: var(--neutral-bg);
+    color: var(--text-2);
+    font-size: 12px;
+}
+
+.empty-state-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.empty-state-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* List page (PageInvoices): the table sits flush in its card under a toolbar row. */
+.bootstrap-table {
+    padding: 0;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-xs);
+}
+
+.bootstrap-table .fixed-table-toolbar {
+    margin: 0;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line-light);
+}
+
+.bootstrap-table .fixed-table-toolbar .search .form-control,
+.bootstrap-table .fixed-table-toolbar .search input {
+    min-height: 40px;
+    padding-inline-start: 36px;
+    border: 1px solid var(--field);
+    background: var(--surface) url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237d8fae' stroke-width='1.75' stroke-linecap='round'%3e%3cpath d='m21 21-4.34-4.34'/%3e%3ccircle cx='11' cy='11' r='8'/%3e%3c/svg%3e") no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+}
+
+[dir="ltr"] .bootstrap-table .fixed-table-toolbar .search .form-control,
+[dir="ltr"] .bootstrap-table .fixed-table-toolbar .search input {
+    background-position: left 12px center;
+}
+
+.bootstrap-table .fixed-table-container .table,
+.bootstrap-table .fixed-table-container .table > :not(caption) > * > * {
+    border-inline-width: 0;
+}
+
+.bootstrap-table .fixed-table-container .table {
+    margin: 0;
+    border-width: 0;
+}
+
+.bootstrap-table .fixed-table-container .table thead th {
+    border-top: 0;
+    background: var(--surface-2);
+}
+
+.bootstrap-table .fixed-table-container .table thead th .th-inner {
+    color: var(--fg-secondary);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.bootstrap-table .fixed-table-container .table tbody td {
+    padding-inline: 16px;
+}
+
+.bootstrap-table .fixed-table-pagination {
+    border-top: 1px solid var(--line-light);
+}
+
+.bootstrap-table .fixed-table-container .no-records-found td {
+    height: 160px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.bootstrap-table .fixed-table-container .table tbody td {
+    white-space: nowrap;
+}
+
+/* Form dialog (Dialog + PageInvoiceCreate fields): a white sheet, labels above 40px fields, sections titled
+   in the text colour, and the footer's destructive action held apart at the start. */
+.modal-dlg .modal-content,
+.modal-dlg .modal-header {
+    background: var(--surface);
+}
+
+.modal-dlg .modal-footer [data-dialog-button="delete"],
+.modal-dlg .modal-footer [data-dialog-button="restore"] {
+    margin-inline-end: auto;
+}
+
+.modal-body .app-form .form-label,
+.modal-body .app-form .col-form-label {
+    margin-bottom: 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.modal-body .app-form .form-control-sm,
+.modal-body .app-form .form-select-sm,
+.modal-body .app-form .form-select,
+.modal-body .app-form .input-group-text {
+    min-height: 40px;
+    font-size: 14px;
+}
+
+.modal-body .app-form .field {
+    margin-bottom: 16px;
+}
+
+.form-section {
+    margin-top: 8px;
+}
+
+.form-section-title {
+    margin: 8px 0 16px;
+    padding-bottom: 8px;
+    border-bottom-color: var(--line-light);
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.modal-body #required_fields_message {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 16px;
+    color: var(--fg-secondary);
+    font-size: 13px;
+}
+
+.modal-body #required_fields_message::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--danger, #cf3350);
+}
+
+.modal-dlg .modal-footer .btn {
+    min-height: 40px;
+}
+
+@media (max-width: 575.98px) {
+    .modal-dlg .modal-footer {
+        flex-wrap: wrap;
+    }
+
+    .modal-dlg .modal-footer .btn {
+        flex: 1 1 0;
+    }
+
+    .modal-dlg .modal-footer [data-dialog-button="submit"] {
+        flex-basis: 100%;
+        order: -1;
+    }
+
+    .modal-dlg .modal-footer [data-dialog-button="delete"],
+    .modal-dlg .modal-footer [data-dialog-button="restore"] {
+        margin: 0;
+    }
+}
+
+.app-form.dialog-narrow {
+    max-width: 440px;
+    margin-inline: auto;
+}
+
+.dialog-account {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+}
+
+.dialog-account-avatar {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--blue-500);
+    color: #fff;
+    font-weight: 600;
+}
+
+.dialog-account-text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.dialog-account-text b {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.dialog-account-text small {
+    color: var(--fg-secondary);
+    text-align: start;
+}
+
+.dialog-account-mark {
+    color: var(--success, #07824d);
+    font-size: 20px;
+}
+
+.modal-body .app-form label.required::after {
+    color: var(--danger);
+}
+
+/* Confirmation dialog: the tone of the action on an icon, the question, and the decision at the end. */
+.app-confirm {
+    z-index: 1075;
+}
+
+.modal-backdrop.app-confirm-backdrop {
+    z-index: 1070;
+}
+
+.app-confirm .modal-dialog {
+    max-width: 440px;
+}
+
+.app-confirm .modal-content {
+    background: var(--surface);
+}
+
+.app-confirm .modal-body {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 24px;
+}
+
+.app-confirm-art {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--blue-100);
+    color: var(--blue-500);
+    font-size: 18px;
+}
+
+.app-confirm.is-danger .app-confirm-art {
+    background: var(--danger-bg);
+    color: var(--danger);
+}
+
+.app-confirm.is-warning .app-confirm-art {
+    background: var(--warning-bg);
+    color: var(--warning-strong);
+}
+
+.app-confirm-title {
+    margin: 0 0 4px;
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 24px;
+}
+
+.app-confirm-text {
+    margin: 0;
+    color: var(--fg-secondary);
+    font-size: 14px;
+    line-height: 22px;
+}
+
+.app-confirm .modal-footer .btn {
+    min-width: 96px;
+    min-height: 40px;
+}
+
+/* Report page (PageReports): a filter card of 40px fields whose choices wrap as chips, then the result. */
+.acc-filters {
+    margin-bottom: 24px;
+    padding: 16px;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-xs);
+}
+
+.acc-filter-row {
+    gap: 16px;
+}
+
+.acc-filter .form-label {
+    margin-bottom: 6px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.acc-filters .form-control-sm,
+.acc-filters .form-select-sm {
+    min-height: 40px;
+    font-size: 14px;
+}
+
+.acc-filters .acc-filter-actions .btn {
+    min-height: 40px;
+}
+
+.acc-filter.acc-filter-status {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-width: none;
+}
+
+.acc-filter-status legend {
+    width: 100%;
+    margin-bottom: 0;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.acc-filter-status .choice {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    margin: 0;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.acc-filter-status .choice:has(input:checked) {
+    border-color: var(--blue-500);
+    background: var(--blue-50);
+    color: var(--blue-700);
+}
+
+.acc-filter-status .choice .form-check-input {
+    margin: 0;
+}
+
+.report-result > .table-responsive {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+.report-result > .table-responsive > .table {
+    margin: 0;
+}
+
+.report-result #report_period {
+    color: var(--fg-secondary);
+    font-size: 13px;
+}
+
+.report-result > .table-responsive > .table > :not(caption) > * > :first-child {
+    padding-inline-start: 16px;
+}
+
+.report-result > .table-responsive > .table > :not(caption) > * > :last-child {
+    padding-inline-end: 16px;
+}
+
+.report-result #report_scope {
+    border-color: var(--line);
+    background: var(--surface-2);
+    color: var(--fg-secondary);
+}
+
+.bootstrap-table .fixed-table-pagination > .pagination-detail,
+.bootstrap-table .fixed-table-pagination > .pagination,
+.bootstrap-table .fixed-table-pagination .pagination-info {
+    margin: 0;
+}
+
+.bootstrap-table .fixed-table-container .fixed-table-body + .fixed-table-footer:empty,
+.bootstrap-table .fixed-table-container {
+    padding-bottom: 0 !important;
+}
+
+/* Document editor (PageInvoiceCreate): the header fields and the lines each in a card, a numbered lines table
+   with icon removal and an add-line row, and the save bar held at the foot of the screen. */
+.doc-editor-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 16px;
+    color: var(--fg-secondary);
+    font-size: 13px;
+}
+
+.doc-editor-card {
+    margin-bottom: 16px;
+    padding: 20px 20px 4px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+.doc-editor-card .field {
+    margin-bottom: 16px;
+}
+
+.doc-editor-card .form-label {
+    margin-bottom: 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.doc-editor-card .form-control-sm,
+.doc-editor-card .form-select-sm {
+    min-height: 40px;
+    font-size: 14px;
+}
+
+.doc-lines-card {
+    padding: 0;
+    overflow: hidden;
+}
+
+.doc-editor-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line-light);
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.doc-lines-count {
+    min-width: 24px;
+    padding: 0 6px;
+    border-radius: 2px;
+    background: var(--neutral-bg);
+    color: var(--fg-secondary);
+    font-size: 12px;
+    line-height: 20px;
+    text-align: center;
+}
+
+.doc-lines {
+    counter-reset: doc-line;
+    margin: 0;
+}
+
+.doc-lines > tbody > tr {
+    counter-increment: doc-line;
+}
+
+.doc-lines > tbody > tr > td {
+    height: 56px;
+    padding-block: 8px;
+}
+
+.doc-lines > :not(caption) > * > :first-child {
+    padding-inline-start: 20px;
+}
+
+.doc-lines > :not(caption) > * > :last-child {
+    width: 56px;
+    padding-inline-end: 16px;
+}
+
+.doc-lines td.doc-line-number::before {
+    content: counter(doc-line);
+    color: var(--muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.doc-lines .doc-line-number {
+    width: 48px;
+}
+
+.doc-lines .form-control-sm {
+    min-height: 40px;
+    font-size: 14px;
+}
+
+.doc-remove-line {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    color: var(--muted);
+}
+
+.doc-remove-line:hover,
+.doc-remove-line:focus-visible {
+    background: var(--danger-bg);
+    color: var(--danger);
+}
+
+.doc-lines-foot {
+    padding: 8px 12px;
+    border-top: 1px solid var(--line-light);
+    background: var(--surface-2);
+}
+
+.doc-add-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.doc-editor-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin: 8px -24px -24px;
+    padding: 12px 24px;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: 0 -2px 8px rgb(23 43 77 / 6%);
+}
+
+.doc-editor-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 120px;
+    min-height: 40px;
+    justify-content: center;
+}
+
+@media (max-width: 639.98px) {
+    .doc-editor-actions {
+        margin-inline: -16px;
+        padding-inline: 16px;
+    }
+
+    .doc-editor-actions .btn {
+        flex: 1 1 0;
+    }
+
+    .doc-lines > thead {
+        display: none;
+    }
+
+    .doc-lines > tbody > tr {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--line-light);
+    }
+
+    .doc-lines > tbody > tr > td {
+        height: auto;
+        padding: 0 !important;
+        border: 0;
+    }
+
+    .doc-lines > tbody > tr > td.doc-line-number,
+    .doc-lines > tbody > tr > td.doc-line-wide {
+        grid-column: 1 / -1;
+        width: auto;
+    }
+
+    .doc-lines > tbody > tr > td.doc-line-number {
+        min-height: 32px;
+        font-weight: 600;
+    }
+
+    .doc-lines > tbody > tr > td.doc-line-remove {
+        position: absolute;
+        top: 12px;
+        inset-inline-end: 16px;
+        width: auto;
+    }
+}
+
+.doc-editor-subtitle {
+    margin: 0 0 4px;
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.doc-lines .form-select-sm {
+    min-width: 112px;
+    min-height: 40px;
+    font-size: 14px;
+}
+
+/* E-invoice status panel on a sale: a quiet card of badges and a definition list whose long identifiers wrap. */
+#einvoice_panel {
+    max-width: 1180px;
+    margin-inline: auto;
+    padding: 16px 20px;
+}
+
+#einvoice_panel dt {
+    color: var(--fg-secondary);
+    font-weight: 500;
+}
+
+#einvoice_panel dd bdi {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+/* Settings (PageSettings): each setting is a row of its label at the start and its control beside it, rows
+   parted by a light rule, the pane a card. */
+.settings-content > .tab-pane {
+    padding: 8px 24px 0;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-xs);
+}
+
+.settings-content .row.mb-3 {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 520px);
+    align-items: start;
+    gap: 6px 32px;
+    margin: 0 !important;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--line-light);
+}
+
+.settings-content .row.mb-3 > .col-form-label,
+.settings-content .row.mb-3 > [class*="col-"]:not(.col-form-label) {
+    width: auto;
+    max-width: none;
+    padding: 0;
+}
+
+.settings-content .row.mb-3 > .col-form-label {
+    padding-top: 9px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.settings-content .row.mb-3 > :nth-child(n + 3) {
+    grid-column: 2;
+}
+
+.settings-content .form-control-sm,
+.settings-content .form-select-sm,
+.settings-content .form-select,
+.settings-content .input-group-text {
+    min-height: 40px;
+    font-size: 14px;
+}
+
+.settings-content label.required::after {
+    color: var(--danger);
+}
+
+.settings-content #required_fields_message {
+    margin: 12px 0 4px;
+}
+
+.settings-actions {
+    margin: 0 -24px;
+    padding: 12px 24px;
+}
+
+.settings-actions .btn {
+    min-width: 120px;
+    min-height: 40px;
+}
+
+.settings-link {
+    font-weight: 500;
+}
+
+.settings-link.active {
+    font-weight: 600;
+}
+
+@media (max-width: 767.98px) {
+    .settings-content .row.mb-3 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .settings-content .row.mb-3 > :nth-child(n + 3) {
+        grid-column: 1;
+    }
+
+    .settings-content .row.mb-3 > .col-form-label {
+        padding-top: 0;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .settings-content > .tab-pane {
+        padding: 4px 16px 0;
+    }
+
+    .settings-actions {
+        margin: 0 -16px;
+        padding: 12px 16px;
+    }
+}
+
+.settings-content textarea.form-control-sm {
+    height: 96px;
+    min-height: 72px;
+}
+
+#app-main > .container-fluid,
+#app-main > .container {
+    max-width: none;
+    padding-inline: 0;
+}
+
+.page-head-tabs {
+    flex: 1 1 100%;
+    margin: 2px -24px -10px;
+    padding-inline: 24px;
+    border-top: 1px solid var(--line-light);
+}
+
+.page-head-tabs .nav-tabs {
+    margin: 0 !important;
+    border-bottom: 0;
+}
+
+.page-head-tabs .nav-tabs .nav-link {
+    padding-block: 10px;
+}
+
+/* Lists written by hand: the filter form, the table and the settings below it each sit in a card. */
+#app-main > form[method="get"]:not(.acc-filters),
+#app-main > .container-fluid > form[method="get"]:not(.acc-filters) {
+    margin-bottom: 16px !important;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+    gap: 12px 16px !important;
+}
+
+#app-main > form[method="get"] .form-control-sm,
+#app-main > form[method="get"] .form-select-sm,
+#app-main > form[method="get"] .btn-sm {
+    min-height: 40px;
+    font-size: 14px;
+}
+
+#app-main > form[method="get"] .form-label {
+    margin-bottom: 6px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+#app-main > .table-responsive,
+#app-main > .container-fluid > .table-responsive {
+    margin-bottom: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+#app-main > .table-responsive > .table,
+#app-main > .container-fluid > .table-responsive > .table {
+    margin: 0;
+}
+
+#app-main > .table-responsive > .table > :not(caption) > * > :first-child,
+#app-main > .container-fluid > .table-responsive > .table > :not(caption) > * > :first-child {
+    padding-inline-start: 16px;
+}
+
+#app-main > .table-responsive > .table > :not(caption) > * > :last-child,
+#app-main > .container-fluid > .table-responsive > .table > :not(caption) > * > :last-child {
+    padding-inline-end: 16px;
+}
+
+#app-main > .table-responsive td[colspan].text-body-secondary {
+    height: 120px;
+    text-align: center;
+}
+
+#app-main > section.mt-4 {
+    padding: 16px 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+#app-main > section.mt-4 > h2 {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+#app-main > nav.d-flex {
+    margin-bottom: 16px;
+}
+
+@media (min-width: 640px) and (max-width: 1023.98px) {
+    .page-head-tabs {
+        margin-inline: -20px;
+        padding-inline: 20px;
+    }
+}
+
+@media (max-width: 639.98px) {
+    .page-head-tabs {
+        margin-inline: -16px;
+        padding-inline: 16px;
+        overflow-x: auto;
+    }
+
+    .page-head-tabs .nav-tabs {
+        flex-wrap: nowrap;
+    }
+
+    .page-head-tabs .nav-link {
+        white-space: nowrap;
+    }
+}
+
+.page-head .page-note {
+    max-width: 880px;
+    margin: 2px 0 0;
+    color: var(--fg-secondary);
+    font-size: 13px;
+    line-height: 20px;
+}
+
+.acc-setup-card {
+    padding: 20px 24px;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-xs);
+}
+
+.acc-setup-title {
+    color: var(--text);
+    font-weight: 600;
+}
+
+/* Result tables that stand alone on the page (not already inside a card, dialog or editor) sit in a card. */
+#app-main .table-responsive:has(> table.table):not(.card *, .modal *, .acc-setup-card *, .doc-editor-card *, .bootstrap-table *, .report-card *, .page-head *) {
+    margin-bottom: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+#app-main .table-responsive:has(> table.table):not(.card *, .modal *, .acc-setup-card *, .doc-editor-card *, .bootstrap-table *, .report-card *) > .table {
+    margin: 0;
+}
+
+#app-main .table-responsive:has(> table.table):not(.card *, .modal *, .acc-setup-card *, .doc-editor-card *, .bootstrap-table *, .report-card *) > .table > :not(caption) > * > :first-child {
+    padding-inline-start: 16px;
+}
+
+#app-main .table-responsive:has(> table.table):not(.card *, .modal *, .acc-setup-card *, .doc-editor-card *, .bootstrap-table *, .report-card *) > .table > :not(caption) > * > :last-child {
+    padding-inline-end: 16px;
+}
+
+@media print {
+    #app-main .table-responsive {
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+}
+
+.table {
+    --bs-table-bg: var(--surface);
+}
+
+#app-main .acc-lines-wrap:not(.modal *) {
+    margin-bottom: 16px;
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+#app-main .acc-lines-wrap:not(.modal *) > .table {
+    margin: 0;
+}
+
+#app-main .acc-lines-wrap:not(.modal *) > .table > :not(caption) > * > :first-child {
+    padding-inline-start: 16px;
+}
+
+#app-main .acc-lines-wrap:not(.modal *) > .table > :not(caption) > * > :last-child {
+    padding-inline-end: 16px;
+}
+
+.page-head-actions .btn-link {
+    font-weight: 500;
+}
+
+/* The journal editor keeps its save actions in a bar held at the foot of the screen. */
+form.acc-journal {
+    display: flex;
+    flex-direction: column;
+}
+
+form.acc-journal > .acc-journal-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    order: 99;
+    justify-content: flex-end;
+    margin: 16px -24px;
+    padding: 12px 24px;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: 0 -2px 8px rgb(23 43 77 / 6%);
+}
+
+form.acc-journal > .acc-journal-bar .btn {
+    min-height: 40px;
+}
+
+form.acc-journal > .acc-journal-head {
+    padding: 20px 20px 4px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+    margin-bottom: 16px;
+}
+
+@media (max-width: 639.98px) {
+    form.acc-journal > .acc-journal-bar {
+        margin-inline: -16px;
+        padding-inline: 16px;
+    }
+}

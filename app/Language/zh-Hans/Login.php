@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => '我不是机器人。',
     'go'                            => '登入',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => '无效，我不是机器人。',
     'invalid_installation'          => '安装不正确，请检查您的php.ini文件。',
     'invalid_username_and_password' => '无效的用户名或密码。',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => '',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => '密码',
     'required_username'             => '',
     'too_many_attempts'             => '太多次尝试。请稍等片刻后重试。',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => '用户名',
     'welcome'                       => '欢迎来到 {0}!',
 ];

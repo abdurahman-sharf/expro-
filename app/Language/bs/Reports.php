@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'ID ulaza',
     'receiving_type'                          => 'Tip ulaza',
     'receivings'                              => 'Ulazi',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Preuređivanje nivoa',
     'report'                                  => 'Izvještaj',
     'report_input'                            => 'Ulazni izvještaj',

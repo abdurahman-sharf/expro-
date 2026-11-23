@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'Password ປັດຈຸບັນ ແລະ Password ໃໝ່ ຈະຕ້ອງບໍ່ຄືກັນ.',
     'password_required'                     => 'Password ຈຳເປັນຕ້ອງໃສ່.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'ຕິກຂໍ້ມູນດ້ານລຸ່ມເພື່ອໃຫ້ສາມາດນຳໃຊ້ Modules ຕ່າງໆໄດ້.',
     'permission_info'                       => 'ສິດ',
     'permission_select_all'                 => '',

@@ -1,7 +1,15 @@
 <?php
 
 return [
+    'back_home'                        => '',
+    'go_back'                          => '',
+    'no_access_permission'             => '',
+    'no_access_text'                   => '',
     'no_permission_module'             => 'பெயரிடப்பட்ட தொகுதியை பயன்படுத்த உங்களுக்கு அனுமதி இல்லை',
+    'not_found_text'                   => '',
+    'not_found_title'                  => '',
+    'server_error_text'                => '',
+    'server_error_title'               => '',
     'unable_to_create_env_file'        => 'throttle.key ஐ ஏற்பாடு செய்ய {filePath} ஐ உருவாக்க முடியவில்லை',
     'unable_to_lock_file'              => '{filePath} ஐ பூட்ட முடியவில்லை: {reason}',
     'unable_to_open_lock_file'         => '{filePath} ஐ திறக்க முடியவில்லை: {reason}',

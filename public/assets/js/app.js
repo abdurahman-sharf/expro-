@@ -17,21 +17,34 @@
 ;
 (function(toast_support, $) {
 
-    const DISPLAY_MS = 4000;
+    const DISPLAY_MS = 5000;
     const EXIT_MS = 220;
+
+    const ICONS = {
+        success: 'bi-check-lg',
+        danger: 'bi-exclamation-octagon',
+        warning: 'bi-exclamation-triangle',
+        info: 'bi-info-lg'
+    };
 
     const container = function() {
         let $container = $('#app-toasts');
 
         if ($container.length === 0) {
-            $container = $('<div id="app-toasts" class="position-fixed top-0 end-0 p-3 d-flex flex-column gap-2" aria-live="polite"></div>').appendTo(document.body);
+            $container = $('<div id="app-toasts" aria-live="polite"></div>').appendTo(document.body);
         }
 
         return $container;
     };
 
-    const show = function(message, type) {
-        const $toast = $('<div class="app-toast app-toast-in alert d-flex align-items-start gap-2 shadow" role="alert"></div>').addClass('alert-' + (type || 'info'));
+    // options.title shows the message under a heading, options.sticky keeps the toast until it is closed.
+    const show = function(message, type, options) {
+        const kind = ICONS[type] ? type : 'info';
+        const settings = $.extend({title: '', sticky: false}, options);
+        const $toast = $('<div class="app-toast app-toast-in"></div>')
+            .addClass('app-toast-' + kind)
+            .attr('role', kind === 'danger' ? 'alert' : 'status');
+        const $body = $('<div class="app-toast-body"></div>');
 
         const dismiss = function() {
             $toast.addClass('app-toast-out');
@@ -40,11 +53,24 @@
             }, EXIT_MS);
         };
 
-        $('<span class="flex-grow-1"></span>').text(message).appendTo($toast);
+        $('<span class="app-toast-icon" aria-hidden="true"></span>').append($('<i class="bi"></i>').addClass(ICONS[kind])).appendTo($toast);
+
+        if (settings.title) {
+            $('<p class="app-toast-title"></p>').text(settings.title).appendTo($body);
+        }
+
+        if (message) {
+            $('<p class="app-toast-text"></p>').text(message).appendTo($body);
+        }
+
+        $toast.append($body);
         $('<button type="button" class="btn-close"></button>').attr('aria-label', lang.line('common_close')).on('click', dismiss).appendTo($toast);
 
         container().append($toast);
-        setTimeout(dismiss, DISPLAY_MS);
+
+        if (!settings.sticky) {
+            setTimeout(dismiss, DISPLAY_MS);
+        }
     };
 
     $.extend(toast_support, {show: show});
@@ -103,8 +129,14 @@
             }
         });
 
+        // The design system's footer order: a destructive action alone at the start, then close, then the
+        // secondary "new", and the primary "submit" last, at the end of the row.
+        const rank = function(id) {
+            return ({delete: 0, restore: 0, new: 2, submit: 3})[id] ?? 1;
+        };
+
         buttons.sort(function(a, b) {
-            return SUBMITTING.indexOf(a.id) - SUBMITTING.indexOf(b.id);
+            return rank(a.id) - rank(b.id);
         });
 
         return buttons;
@@ -119,10 +151,10 @@
     };
 
     const modalOf = function($link, buttons) {
-        const wide = dialogClassOf($link) === 'modal-dlg-wide';
+        const size = {'modal-dlg-wide': 'modal-xl', 'modal-dlg-narrow': ''}[dialogClassOf($link)] ?? 'modal-lg';
         const $modal = $(
             '<div class="modal fade modal-dlg" tabindex="-1" aria-hidden="true">' +
-                '<div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down ' + (wide ? 'modal-xl' : 'modal-lg') + '">' +
+                '<div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down ' + size + '">' +
                     '<div class="modal-content">' +
                         '<div class="modal-header"><h2 class="modal-title fs-5"></h2><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
                         '<div class="modal-body"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div></div>' +
@@ -138,8 +170,11 @@
         $modal.find('.btn-close').attr('aria-label', lang.line('common_close'));
 
         const $footer = $modal.find('.modal-footer');
-        $footer.append($('<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"></button>').text(lang.line('common_close')));
+        const $close = $('<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"></button>').text(lang.line('common_close'));
         $.each(buttons, function(index, button) {
+            if (button.id !== 'delete' && button.id !== 'restore' && !$close.parent().length) {
+                $footer.append($close);
+            }
             $('<button type="button"></button>')
                 .attr({id: button.id, 'data-dialog-button': button.id})
                 .addClass('btn ' + button.cssClass)
@@ -149,6 +184,9 @@
                 })
                 .appendTo($footer);
         });
+        if (!$close.parent().length) {
+            $footer.append($close);
+        }
 
         return $modal;
     };
@@ -218,6 +256,71 @@
 
 })(window.dialog_support = window.dialog_support || {}, jQuery);
 ;
+(function($) {
+
+    const ICONS = {danger: 'bi-trash3', warning: 'bi-exclamation-triangle', primary: 'bi-question-circle'};
+
+    // The design system's confirmation dialog in place of the browser's: it resolves true only when the action
+    // is confirmed. A destructive action is red and starts with the focus on "cancel".
+    window.appConfirm = function(message, options) {
+        const settings = $.extend({tone: 'primary', title: lang.line('common_confirm_title'), confirmLabel: lang.line('common_confirm')}, options);
+
+        return new Promise(function(resolve) {
+            let confirmed = false;
+            const titleId = 'confirm-title-' + Date.now();
+            const $modal = $(
+                '<div class="modal fade app-confirm" tabindex="-1" role="alertdialog" aria-modal="true">' +
+                    '<div class="modal-dialog modal-dialog-centered">' +
+                        '<div class="modal-content">' +
+                            '<div class="modal-body">' +
+                                '<span class="app-confirm-art" aria-hidden="true"><i class="bi"></i></span>' +
+                                '<div class="app-confirm-copy"><h2 class="app-confirm-title"></h2><p class="app-confirm-text"></p></div>' +
+                            '</div>' +
+                            '<div class="modal-footer">' +
+                                '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"></button>' +
+                                '<button type="button" class="btn app-confirm-ok"></button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>'
+            );
+
+            $modal.addClass('is-' + settings.tone).attr({'aria-labelledby': titleId, 'aria-describedby': titleId + '-text'});
+            $modal.find('.app-confirm-art i').addClass(ICONS[settings.tone] || ICONS.primary);
+            $modal.find('.app-confirm-title').attr('id', titleId).text(settings.title);
+            $modal.find('.app-confirm-text').attr('id', titleId + '-text').text(message);
+            $modal.find('[data-bs-dismiss]').text(lang.line('common_cancel'));
+            $modal.find('.app-confirm-ok')
+                .addClass(settings.tone === 'danger' ? 'btn-danger' : 'btn-primary')
+                .text(settings.confirmLabel)
+                .on('click', function() {
+                    confirmed = true;
+                    modal.hide();
+                });
+
+            const modal = new bootstrap.Modal($modal.appendTo(document.body)[0]);
+
+            $modal.on('show.bs.modal', function() {
+                // Asked from inside another dialog: stand above it and its backdrop.
+                setTimeout(function() {
+                    $('.modal-backdrop').last().addClass('app-confirm-backdrop');
+                });
+            });
+            $modal.on('shown.bs.modal', function() {
+                $modal.find(settings.tone === 'danger' ? '[data-bs-dismiss]' : '.app-confirm-ok').trigger('focus');
+            });
+            $modal.on('hidden.bs.modal', function() {
+                modal.dispose();
+                $modal.remove();
+                resolve(confirmed);
+            });
+
+            modal.show();
+        });
+    };
+
+})(jQuery);
+;
 (function(table_support, $) {
 
     let enable_actions = function(callback) {
@@ -264,7 +367,14 @@
 
     const do_action = function(action) {
         return function (url, ids) {
-            if (confirm($.fn.bootstrapTable.defaults.formatConfirmAction(action))) {
+            const message = $.fn.bootstrapTable.defaults.formatConfirmAction(action);
+            const tone = action === 'delete' ? 'danger' : 'primary';
+
+            appConfirm(message, {tone: tone, confirmLabel: lang.line('common_' + action)}).then(function(confirmed) {
+                if (!confirmed) {
+                    return;
+                }
+
                 const targetIds = ids || selected_ids();
                 $.post((url || options.resource) + '/' + action, {'ids[]': targetIds}, function (response) {
                     if (response.success) {
@@ -290,9 +400,9 @@
                 }, "json").fail(function () {
                     $.notify($.fn.bootstrapTable.defaults.formatRequestFailed(), {type: 'danger'});
                 });
-            } else {
-                return false;
-            }
+            });
+
+            return false;
         };
     };
 
@@ -1027,10 +1137,14 @@ function number_sorter(a, b) {
         const action = $button.data('acc-action');
         const id = $button.data('acc-id');
 
-        if (!window.confirm(settings.confirmations[action])) {
-            return;
-        }
+        appConfirm(settings.confirmations[action], {tone: action === 'delete' ? 'danger' : 'primary'}).then(function(confirmed) {
+            if (confirmed) {
+                run($button, action, id);
+            }
+        });
+    };
 
+    const run = function($button, action, id) {
         const parentId = $button.closest('li.acc-node').parent().closest('li.acc-node').data('account-id') || 0;
 
         $button.prop('disabled', true);
@@ -1543,7 +1657,28 @@ function number_sorter(a, b) {
         };
     };
 
+    const compact = function(tick) {
+        return Math.abs(tick) >= 1000 ? (tick / 1000).toLocaleString('en-US', {maximumFractionDigits: 1}) + 'k' : String(tick);
+    };
+
+    const trendColors = function(values) {
+        const last = values.length - 1;
+        const fill = css('--chart-bar', '#b7dff5');
+        const stroke = css('--chart-bar-line', '#2f8fc4');
+
+        return {
+            background: values.map(function(value, index) {
+                return value <= 0 ? '#d8dde4' : (index === last ? stroke : fill);
+            }),
+            border: stroke
+        };
+    };
+
     const cartesianConfig = function(spec, format, rtl, font) {
+        if (spec.trend) {
+            return trendConfig(spec, format, font);
+        }
+
         const kind = spec.kind;
         const horizontal = kind === 'hbar';
         const color = css('--blue-500', '#015ce4');
@@ -1611,6 +1746,47 @@ function number_sorter(a, b) {
                 }
             },
             plugins: [valueLabels(format, rtl, horizontal)]
+        };
+    };
+
+    const trendConfig = function(spec, format, font) {
+        const colors = trendColors(spec.values);
+        const muted = css('--muted', '#627189');
+
+        return {
+            type: 'bar',
+            data: {
+                labels: spec.labels,
+                datasets: [{
+                    label: spec.name || '',
+                    data: spec.values,
+                    backgroundColor: colors.background,
+                    hoverBackgroundColor: colors.border,
+                    borderColor: colors.border,
+                    borderWidth: {top: 2, right: 0, bottom: 0, left: 0},
+                    borderRadius: 2,
+                    borderSkipped: 'bottom',
+                    maxBarThickness: 28
+                }]
+            },
+            options: {
+                layout: {padding: {top: 8}},
+                scales: {
+                    x: {grid: {display: false}, ticks: {color: muted, autoSkip: true, maxRotation: 0, font: font}},
+                    y: {beginAtZero: true, position: 'left', border: {display: false}, grid: {color: css('--line-light', '#e9eef4')}, ticks: {color: muted, maxTicksLimit: 5, font: font, callback: compact}}
+                },
+                plugins: {
+                    legend: {display: false},
+                    tooltip: {
+                        displayColors: false,
+                        callbacks: {
+                            label: function(item) {
+                                return format(item.parsed.y);
+                            }
+                        }
+                    }
+                }
+            }
         };
     };
 
@@ -1868,7 +2044,7 @@ function number_sorter(a, b) {
 
         $('.settings-link').on('shown.bs.tab', function(event) {
             const link = $(event.target);
-            $('#settings_nav_current').text($.trim(link.text()));
+            $('#settings_nav_current, #settings_title').text($.trim(link.text()));
             try {
                 history.replaceState(null, '', window.location.pathname + window.location.search + link.attr('data-bs-target'));
             } catch (error) {
@@ -2124,31 +2300,88 @@ function number_sorter(a, b) {
         option[0].scrollIntoView({block: 'nearest'});
     };
 
+    const GROUPS = ['module', 'report', 'setting'];
+
+    const highlight = function(label, tokens) {
+        const container = $('<span>', {'class': 'search-result-label'});
+        const normalized = normalize(label);
+
+        if (normalized.length !== label.length) {
+            return container.text(label);
+        }
+
+        const marks = new Array(label.length).fill(false);
+
+        tokens.forEach(function(token) {
+            const at = normalized.indexOf(token);
+
+            for (let index = at; at !== -1 && index < at + token.length; index++) {
+                marks[index] = true;
+            }
+        });
+
+        let start = 0;
+
+        for (let index = 1; index <= label.length; index++) {
+            if (index === label.length || marks[index] !== marks[start]) {
+                const piece = label.slice(start, index);
+                container.append(marks[start] ? $('<mark>').text(piece) : document.createTextNode(piece));
+                start = index;
+            }
+        }
+
+        return container;
+    };
+
     const render = function() {
         const list = $('#global_search_list').empty();
         const status = $('#global_search_status');
-        const results = search($('#global_search_input').val());
+        const query = $('#global_search_input').val();
+        const tokens = normalize(query).split(/\s+/).filter(Boolean);
+        const results = search(query);
+        let index = 0;
 
-        results.forEach(function(entry, index) {
-            const link = $('<a>', {id: 'global_search_option_' + index, role: 'option', 'aria-selected': 'false', href: entry.url, 'class': 'search-result'});
-            link.append($('<i>', {'class': 'bi ' + entry.icon, 'aria-hidden': 'true'}));
-            link.append($('<span>', {'class': 'search-result-label'}).text(entry.label));
-            link.append($('<span>', {'class': 'search-result-group'}).text(entry.group));
-            list.append($('<li>', {role: 'presentation'}).append(link));
+        $('#global_search_intro').prop('hidden', tokens.length > 0);
+
+        GROUPS.forEach(function(type) {
+            const members = results.filter(function(entry) {
+                return (GROUPS.indexOf(entry.type) === -1 ? 'module' : entry.type) === type;
+            });
+
+            if (!members.length) {
+                return;
+            }
+
+            list.append($('<li>', {role: 'presentation', 'class': 'search-group'}).text(list.data('group-' + type)));
+
+            members.forEach(function(entry) {
+                const link = $('<a>', {id: 'global_search_option_' + index, role: 'option', 'aria-selected': 'false', href: entry.url, 'class': 'search-result'});
+                link.append($('<span>', {'class': 'search-result-icon', 'aria-hidden': 'true'}).append($('<i>', {'class': 'bi ' + entry.icon})));
+                link.append(highlight(entry.label, tokens));
+                link.append($('<span>', {'class': 'search-result-group'}).text(entry.group));
+                list.append($('<li>', {role: 'presentation'}).append(link));
+                index++;
+            });
         });
 
         if (results.length) {
-            status.prop('hidden', true).text('');
+            status.prop('hidden', true);
             setActive(0);
         } else {
-            status.prop('hidden', false).text(lang.line('search_empty'));
+            status.find('.search-status-title').text(status.data('empty').replace('{0}', query.trim()));
+            status.find('.search-status-hint').prop('hidden', false);
+            status.prop('hidden', false);
             setActive(-1);
         }
     };
 
     const showFailure = function() {
+        const status = $('#global_search_status');
+
         $('#global_search_list').empty();
-        $('#global_search_status').prop('hidden', false).text(lang.line('search_failed'));
+        status.find('.search-status-title').text(lang.line('search_failed'));
+        status.find('.search-status-hint').prop('hidden', true);
+        status.prop('hidden', false);
     };
 
     const open = function() {
@@ -2166,7 +2399,7 @@ function number_sorter(a, b) {
             return;
         }
 
-        $('#global_search_open').on('click', open);
+        $('#global_search_open, [data-global-search]').on('click', open);
 
         $(document).on('keydown', function(event) {
             if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'k') {
@@ -2219,6 +2452,155 @@ function number_sorter(a, b) {
     $.extend(global_search, {open: open, search: search, normalize: normalize});
 
 })(window.global_search = window.global_search || {}, jQuery);
+;
+(function($) {
+
+    // The action bar every list, document and print screen opens with becomes the page header of the design system:
+    // the trail of the section and the title at the start, the actions at the end, and the section tabs below.
+
+    // Links between sibling pages drawn as tabs or pills, not the panes of one page.
+    const isSectionTabs = function(element) {
+        const $element = $(element);
+        const $list = $element.is('ul') ? $element : $element.children('ul');
+
+        return $list.length === 1 && $list.is('.nav-tabs, .nav-pills') && !$list.find('[data-bs-toggle]').length;
+    };
+
+    const leading = function($parent) {
+        return $parent.children().not('script, style, .alert').filter(function() {
+            return !isSectionTabs(this);
+        }).first();
+    };
+
+    // A screen without an action bar that opens on its own heading gets a header made of that heading.
+    const headingBar = function() {
+        const $main = $('#app-main');
+        let $first = leading($main);
+
+        if ($first.is('.container-fluid, .container')) {
+            $first = leading($first);
+        }
+
+        // A title row: the heading first, its buttons after it, and perhaps a line of introduction below.
+        if ($first.is('div') && $first.children().first().is('h1, h2')) {
+            $first.children().first().removeClass('h3 h4 h5 me-auto mb-0 mb-2 mb-3');
+            $first.append($first.next('p.text-body-secondary'));
+
+            return $first.removeClass('d-flex flex-wrap align-items-center gap-2 mb-2 mb-3').prependTo($main);
+        }
+
+        if (!$first.is('h1, h2')) {
+            return $();
+        }
+
+        const $intro = $first.next('p.text-body-secondary');
+
+        return $('<div></div>').append($first.removeClass('h3 h4 h5 me-auto mb-0 mb-2 mb-3'), $intro).prependTo($main);
+    };
+
+    const sectionTabs = function($bar) {
+        const inside = $bar.children('nav, ul.nav').filter(function() {
+            return isSectionTabs(this);
+        });
+
+        if (inside.length) {
+            return inside.first();
+        }
+
+        const near = $bar.prevAll().not('script, style').first().add($bar.nextAll().not('script, style').first());
+
+        return near.filter(function() {
+            return isSectionTabs(this);
+        }).first();
+    };
+
+    $(function() {
+        let $bar = $('#title_bar').length ? $('#title_bar') : $('#control_buttons.document-actions');
+
+        if (!$bar.length && !$('.page-head').length) {
+            $bar = headingBar();
+        }
+
+        // A working screen with no title of its own still gets a header naming it; the sale and receiving
+        // registers, the dashboards and the full-page states keep their own layouts.
+        if (!$bar.length && !$('.page-head').length && !$('#app-main').find('.pos, .dash, .nt, .settings-layout, .empty-state').length) {
+            $bar = $('<div></div>').prependTo('#app-main');
+        }
+
+        if (!$bar.length || $bar.hasClass('page-head')) {
+            return;
+        }
+
+        const $tabs = sectionTabs($bar).detach();
+        let $heading = $bar.children('h1, h2, h3, h4, h5, h6').first();
+        const $pageHeading = $('#app-main h1').not($bar.find('h1')).not('.modal h1, .print-only h1, [hidden] h1');
+
+        // A bar without a heading takes the one title the page gives itself further down.
+        if (!$heading.length && $pageHeading.length === 1) {
+            $heading = $pageHeading.removeClass('h3 h4 h5 me-auto mb-0 mb-2 mb-3');
+        }
+        const $note = $bar.children('p');
+        const $actions = $('<div class="page-head-actions"></div>');
+        const $start = $('<div class="page-head-start"></div>');
+        const title = $.trim($('.app-title').first().text());
+        const section = $.trim($('.app-nav-section.has-active > .app-nav-heading .app-nav-text').first().text());
+
+        $bar.children().not($heading).not($note).appendTo($actions);
+        $actions.find('.float-end, .float-start').removeClass('float-end float-start');
+
+        // A bar of document actions standing alone right under the header joins the header's actions.
+        if (!$actions.children().length) {
+            const $toolbar = ($bar.parent().is('#app-main') ? $bar : $bar.parent()).nextAll().not('script, style').first().filter('.acc-journal-bar');
+            $toolbar.children().appendTo($actions);
+            $toolbar.remove();
+        }
+
+        // One primary action per page, as the design system asks: the last filled button (the "new" one) stays
+        // filled, the others become outlined.
+        $actions.find('.btn-primary').slice(0, -1).removeClass('btn-primary').addClass('btn-outline-secondary');
+
+        if (section && section !== title) {
+            $start.append($('<p class="page-crumbs" aria-hidden="true"></p>').text(section));
+        }
+
+        if ($heading.length) {
+            $start.append($heading.addClass('page-title'));
+        } else if (title) {
+            $start.append($('<p class="page-title" aria-hidden="true"></p>').text(title));
+        }
+
+        $start.append($note.removeClass('mb-0 mb-1 mb-2 mb-3 small text-body-secondary text-secondary me-auto').addClass('page-note'));
+
+        // Links to neighbouring reports gather under one menu so the header keeps to its own actions.
+        const $related = $actions.children('a.btn').not('.btn-primary').filter(function() {
+            const target = (this.getAttribute('href') || '') + ' ' + this.id;
+
+            return /(accounting_reports|accounting_statements|\/reports\/)/.test(target) && !/(csv|xlsx|pdf|print|export)/i.test(target);
+        });
+
+        if ($related.length >= 3) {
+            const $menu = $('<ul class="dropdown-menu dropdown-menu-end"></ul>');
+            const $toggle = $('<button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"></button>')
+                .append('<span class="bi bi-collection" aria-hidden="true"></span> ', document.createTextNode(lang.line('related_reports')));
+
+            $related.first().before($('<div class="dropdown"></div>').append($toggle, $menu));
+            $related.each(function() {
+                $menu.append($('<li></li>').append($(this).removeClass('btn btn-sm btn-outline-secondary btn-outline-primary').addClass('dropdown-item')));
+            });
+        }
+
+        $bar.addClass('page-head').empty().append($start, $actions);
+        $actions.prop('hidden', !$actions.children().length);
+
+        if ($tabs.length) {
+            const $wrap = $tabs.is('ul') ? $('<nav></nav>').attr('aria-label', $tabs.attr('aria-label') || null).append($tabs) : $tabs;
+            $wrap.find('ul.nav').removeClass('nav-pills nav-fill-sm acc-tabs me-auto').addClass('nav-tabs');
+            $wrap.find('.nav-link').removeClass('py-1');
+            $wrap.removeClass('mb-2 mb-3').addClass('page-head-tabs').appendTo($bar);
+        }
+    });
+
+})(jQuery);
 ;
 (function($) {
 
@@ -2319,8 +2701,10 @@ function number_sorter(a, b) {
         return $('.app-nav-heading').children('.app-nav-toggle, .app-nav-link');
     };
 
+    const rail = window.matchMedia('(min-width: 1024px) and (max-width: 1279.98px)');
+
     const initialKey = function() {
-        return nav().attr('data-nav-open') || null;
+        return rail.matches ? null : nav().attr('data-nav-open') || null;
     };
 
     const setOpen = function(key) {
@@ -2402,8 +2786,11 @@ function number_sorter(a, b) {
         }
 
         markCurrent($link);
-        setOpen($link.closest('.app-nav-section')[0].dataset.navSection);
-        revealLink($link);
+
+        if (!rail.matches) {
+            setOpen($link.closest('.app-nav-section')[0].dataset.navSection);
+            revealLink($link);
+        }
     };
 
     const sync = function() {
@@ -2498,6 +2885,16 @@ function number_sorter(a, b) {
             syncFragment($(event.target).attr('data-bs-target'));
         });
 
+        $(document).on('click', function(event) {
+            if (rail.matches && !$(event.target).closest('.app-nav-section.' + OPEN).length) {
+                setOpen(null);
+            }
+        });
+
+        rail.addEventListener('change', function() {
+            setOpen(initialKey());
+        });
+
         $('#app-sidebar').on('shown.bs.offcanvas', function() {
             revealLink($('.app-nav-link.active').first());
         });
@@ -2581,6 +2978,8 @@ function number_sorter(a, b) {
             ids.forEach(function(id) {
                 byId[id].prop('hidden', false).appendTo($grid);
             });
+            $grid.toggleClass('is-large', ids.length > 0 && ids.length <= 4)
+                .css('--shortcut-count', ids.length);
         };
 
         apply(pinned());
@@ -2595,46 +2994,61 @@ function number_sorter(a, b) {
         };
 
         $grid.on('click', '[data-home-quote]', function() {
-            const $button = $(this).prop('disabled', true);
+            const $button = $(this).prop('disabled', true).attr('aria-busy', 'true').addClass('is-busy');
+
+            $button.find('.home-shortcut-label').text($grid.data('converting'));
+            $button.find('.home-shortcut-icon .bi').attr('class', 'bi bi-arrow-repeat home-shortcut-spin');
 
             $.post($button.data('home-quote'), {mode: 'sale_quote'}).always(function() {
                 window.location.href = $button.data('home-register');
             });
         });
 
-        const $chooser = $('#home_shortcuts_chooser');
+        const $chosen = $('#home_shortcuts_chosen');
+        const $others = $('#home_shortcuts_others');
         let working = [];
 
+        const row = function(id, position) {
+            const $source = byId[id];
+            const checked = position !== -1;
+            const label = $source.find('.home-shortcut-label').text();
+            const icon = $source.find('.home-shortcut-icon').clone();
+            const $row = $('<li class="list-group-item"></li>').attr('data-id', id);
+            const $label = $('<label class="home-shortcuts-chooser-label"></label>');
+            const $box = $('<input type="checkbox" class="form-check-input mt-0">').prop('checked', checked).prop('disabled', !checked && working.length >= max);
+
+            if (checked) {
+                $label.append($('<bdi class="home-shortcuts-position" dir="ltr"></bdi>').text(position + 1));
+            }
+
+            $label.append($box, icon, $('<span></span>').text(label));
+            $row.append($label);
+
+            if (checked) {
+                $row.append(
+                    $('<button type="button" class="btn btn-outline-secondary btn-sm" data-move="-1"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>').attr('aria-label', $chosen.data('up')).prop('disabled', position === 0),
+                    $('<button type="button" class="btn btn-outline-secondary btn-sm" data-move="1"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>').attr('aria-label', $chosen.data('down')).prop('disabled', position === working.length - 1)
+                );
+            }
+
+            return $row;
+        };
+
         const render = function() {
-            const order = working.concat(catalog.filter(function(id) {
+            const rest = catalog.filter(function(id) {
                 return working.indexOf(id) === -1;
-            }));
-            const full = working.length >= max;
-
-            $chooser.empty();
-            order.forEach(function(id) {
-                const $source = byId[id];
-                const checked = working.indexOf(id) !== -1;
-                const label = $source.find('.home-shortcut-label').text();
-                const icon = $source.find('.home-shortcut-icon').clone();
-                const $row = $('<li class="list-group-item"></li>').attr('data-id', id);
-                const $label = $('<label class="home-shortcuts-chooser-label"></label>');
-                const $box = $('<input type="checkbox" class="form-check-input mt-0">').prop('checked', checked).prop('disabled', !checked && full);
-
-                $label.append($box, icon, $('<span></span>').text(label));
-                $row.append($label);
-
-                if (checked) {
-                    const position = working.indexOf(id);
-
-                    $row.append(
-                        $('<button type="button" class="btn btn-outline-secondary btn-sm" data-move="-1"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>').attr('aria-label', $chooser.data('up')).prop('disabled', position === 0),
-                        $('<button type="button" class="btn btn-outline-secondary btn-sm" data-move="1"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>').attr('aria-label', $chooser.data('down')).prop('disabled', position === working.length - 1)
-                    );
-                }
-
-                $chooser.append($row);
             });
+
+            $chosen.empty().append(working.map(function(id, position) {
+                return row(id, position);
+            }));
+            $others.empty().append(rest.map(function(id) {
+                return row(id, -1);
+            }));
+            $('#home_shortcuts_count').text(working.length + ' / ' + max).toggleClass('is-full', working.length >= max);
+            $('#home_shortcuts_limit').prop('hidden', working.length < max);
+            $('#home_shortcuts_empty').prop('hidden', working.length > 0);
+            $('#home_shortcuts_others_title').prop('hidden', rest.length === 0);
         };
 
         $('#home_shortcuts_modal').on('show.bs.modal', function() {
@@ -2642,7 +3056,7 @@ function number_sorter(a, b) {
             render();
         });
 
-        $chooser.on('change', 'input[type=checkbox]', function() {
+        $chosen.add($others).on('change', 'input[type=checkbox]', function() {
             const id = $(this).closest('li').data('id');
 
             if (this.checked) {
@@ -2654,16 +3068,21 @@ function number_sorter(a, b) {
             }
 
             render();
+            $('[data-id="' + id + '"] input[type=checkbox]').trigger('focus');
         });
 
-        $chooser.on('click', '[data-move]', function() {
+        $chosen.on('click', '[data-move]', function() {
             const id = $(this).closest('li').data('id');
+            const step = parseInt($(this).data('move'), 10);
             const from = working.indexOf(id);
-            const to = from + parseInt($(this).data('move'), 10);
+            const to = from + step;
 
             if (to >= 0 && to < working.length) {
                 working.splice(to, 0, working.splice(from, 1)[0]);
                 render();
+
+                const $moved = $chosen.find('[data-id="' + id + '"] [data-move="' + step + '"]');
+                ($moved.prop('disabled') ? $chosen.find('[data-id="' + id + '"] [data-move]').not(':disabled') : $moved).first().trigger('focus');
             }
         });
 
@@ -2675,6 +3094,7 @@ function number_sorter(a, b) {
             write(key, working.slice());
             apply(working);
             close();
+            $.notify($section.data('saved'), {type: 'success'});
         });
 
         $('#home_shortcuts_reset').on('click', function() {
@@ -2682,6 +3102,147 @@ function number_sorter(a, b) {
             apply(defaults);
             close();
         });
+    });
+
+})(jQuery);
+;
+(function($) {
+
+    $(function() {
+        const $page = $('#notifications');
+
+        if (!$page.length) {
+            return;
+        }
+
+        const unreadOnly = $page.data('unread-only') === 1;
+        const $count = $('#unread_count');
+
+        const setCount = function(count) {
+            $count.toggleClass('has-unread', count > 0)
+                .attr('aria-label', String($page.data('unread-count')).replace('{0}', count))
+                .find('bdi').text(count);
+
+            if (count === 0) {
+                $('#read_all').remove();
+            }
+        };
+
+        const unreadCount = function() {
+            return parseInt($count.find('bdi').text(), 10) || 0;
+        };
+
+        const busy = function($button, on) {
+            const $label = $button.find('.nt-label');
+
+            if (on) {
+                $button.data('label', $label.text());
+                $label.text($page.data('marking'));
+                $button.find('.bi').attr('class', 'bi bi-arrow-repeat nt-spin');
+            } else {
+                $label.text($button.data('label'));
+                $button.find('.bi').attr('class', 'bi ' + ($button.is('#read_all') ? 'bi-check2-all' : 'bi-check2'));
+            }
+
+            $button.prop('disabled', on).attr('aria-busy', on ? 'true' : 'false');
+        };
+
+        const failed = function(message) {
+            toast_support.show(message || $page.data('failed-text'), 'danger', {title: $page.data('failed-title'), sticky: true});
+        };
+
+        const showEmptyIfNone = function() {
+            $('.nt-day').each(function() {
+                if (!$(this).find('.nt-item').length) {
+                    $(this).remove();
+                }
+            });
+
+            if (!$('.nt-item').length) {
+                $('#notifications_list, .nt-pager').remove();
+                $('#notifications_empty').prop('hidden', false);
+            }
+        };
+
+        const readLabel = $('<span class="nt-read"><i class="bi bi-check2" aria-hidden="true"></i> </span>');
+
+        const markRead = function($items) {
+            $items.each(function() {
+                const $item = $(this);
+                const $action = $item.find('.nt-action');
+
+                $item.removeClass('is-unread').addClass('is-read');
+                $item.find('.nt-state').text($page.data('read-state'));
+                $action.empty().append(readLabel.clone().append(document.createTextNode($page.data('read-label'))));
+            });
+        };
+
+        const leave = function($items) {
+            const $next = $items.last().nextAll('.nt-item').first().find('.nt-mark');
+            const $after = $next.length ? $next : $items.last().closest('.nt-day').nextAll('.nt-day').first().find('.nt-mark').first();
+
+            $items.remove();
+            showEmptyIfNone();
+            ($after.length ? $after : $('.nt-seg-option.is-on')).trigger('focus');
+        };
+
+        $page.on('click', '.nt-mark', function() {
+            const $button = $(this);
+            const $item = $button.closest('.nt-item');
+
+            busy($button, true);
+
+            $.post($button.data('url'), function(response) {
+                if (!response.success) {
+                    busy($button, false);
+                    failed(response.message);
+                    return;
+                }
+
+                setCount(Math.max(0, unreadCount() - 1));
+                toast_support.show(response.message, 'success');
+
+                if (unreadOnly) {
+                    leave($item);
+                } else {
+                    markRead($item);
+                    $item.find('.nt-read').attr('tabindex', '-1').trigger('focus');
+                }
+            }, 'json').fail(function() {
+                busy($button, false);
+                failed();
+            });
+        });
+
+        $page.on('click', '#read_all', function() {
+            const $button = $(this);
+
+            busy($button, true);
+
+            $.post($button.data('url'), function(response) {
+                if (!response.success) {
+                    busy($button, false);
+                    failed(response.message);
+                    return;
+                }
+
+                const $unread = $('.nt-item.is-unread');
+
+                setCount(0);
+                toast_support.show(response.message, 'success');
+
+                if (unreadOnly) {
+                    leave($unread);
+                } else {
+                    markRead($unread);
+                    $('.nt-seg-option.is-on').trigger('focus');
+                }
+            }, 'json').fail(function() {
+                busy($button, false);
+                failed();
+            });
+        });
+
     });
 
 })(jQuery);

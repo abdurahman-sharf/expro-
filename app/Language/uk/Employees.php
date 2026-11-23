@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'Поточний пароль та новий пароль не повинні співпадати.',
     'password_required'                     => 'Пароль - обов\'язкове поле.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Поставте прапорці нижче, щоб надати доступ до модулів.',
     'permission_info'                       => 'Дозволи',
     'permission_select_all'                 => '',

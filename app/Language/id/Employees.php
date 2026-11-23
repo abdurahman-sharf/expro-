@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'Kata kunci sekarang dan kata kunci baru harus unik.',
     'password_required'                     => 'Kata Sandi wajib diisi.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Tandai kotak di bawah ini untuk memberikan akses ke Modul.',
     'permission_info'                       => 'Hak Akses Karyawan',
     'permission_select_all'                 => '',

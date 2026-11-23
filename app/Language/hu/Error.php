@@ -1,7 +1,15 @@
 <?php
 
 return [
+    'back_home'                        => '',
+    'go_back'                          => '',
+    'no_access_permission'             => '',
+    'no_access_text'                   => '',
     'no_permission_module'             => 'Önnek nincs hozzáférése az alábbi modulhoz ',
+    'not_found_text'                   => '',
+    'not_found_title'                  => '',
+    'server_error_text'                => '',
+    'server_error_title'               => '',
     'unable_to_create_env_file'        => 'Nem sikerült létrehozni a(z) {filePath} fájlt a throttle.key beállításához',
     'unable_to_lock_file'              => 'Nem sikerült zárolni a(z) {filePath} fájlt: {reason}',
     'unable_to_open_lock_file'         => 'Nem sikerült megnyitni a(z) {filePath} fájlt: {reason}',

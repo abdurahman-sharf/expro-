@@ -1,7 +1,15 @@
 <?php
 
 return [
+    'back_home'                        => '',
+    'go_back'                          => '',
+    'no_access_permission'             => '',
+    'no_access_text'                   => '',
     'no_permission_module'             => '您没有权限访问名为该模块',
+    'not_found_text'                   => '',
+    'not_found_title'                  => '',
+    'server_error_text'                => '',
+    'server_error_title'               => '',
     'unable_to_create_env_file'        => '无法创建 {filePath} 以配置 throttle.key',
     'unable_to_lock_file'              => '无法锁定 {filePath}：{reason}',
     'unable_to_open_lock_file'         => '无法打开 {filePath}：{reason}',

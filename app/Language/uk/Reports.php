@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'Надходження ІН',
     'receiving_type'                          => 'Тип надходження',
     'receivings'                              => 'Надходження',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Рівень перезамовлення',
     'report'                                  => 'Звіт',
     'report_input'                            => 'Вхідний звіт',

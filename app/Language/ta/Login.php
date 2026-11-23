@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'ரோபோ ஸ்கிரிப்ட்கள் அல்ல.',
     'go'                            => 'செல்',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'நீங்கள் தானியங்கி அல்ல என்பதை உறுதி செய்யவும்.',
     'invalid_installation'          => 'நிறுவியத்தில் தவறு , php.ini கோப்பை சரி பார்க்கவும் .',
     'invalid_username_and_password' => 'பயனர்பெயர் அல்லது கடவுச்சொல் தவறு.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => '{0} க்கு தரவுத்தள இடம்பெயர்வு உள்நுழைந்த பிறகு தொடங்கும்.',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => 'கடவுச்சொல்',
     'required_username'             => '',
     'too_many_attempts'             => 'பல முறை முயற்சி செய்யப்பட்டது. தயவுசெய்து சிறிது நேரம் காத்திருந்து மீண்டும் முயற்சிக்கவும்.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'பயனர்பெயர்',
     'welcome'                       => '{0} க்கு வருக!',
 ];

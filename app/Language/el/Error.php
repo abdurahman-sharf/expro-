@@ -1,7 +1,15 @@
 <?php
 
 return [
+    'back_home'                        => '',
+    'go_back'                          => '',
+    'no_access_permission'             => '',
+    'no_access_text'                   => '',
     'no_permission_module'             => 'Δεν έχετε δικαίωμα πρόσβασης στη μονάδα με το όνομα',
+    'not_found_text'                   => '',
+    'not_found_title'                  => '',
+    'server_error_text'                => '',
+    'server_error_title'               => '',
     'unable_to_create_env_file'        => 'Δεν ήταν δυνατή η δημιουργία του {filePath} για την παροχή του throttle.key',
     'unable_to_lock_file'              => 'Δεν ήταν δυνατό το κλείδωμα του {filePath}: {reason}',
     'unable_to_open_lock_file'         => 'Δεν ήταν δυνατό το άνοιγμα του {filePath}: {reason}',

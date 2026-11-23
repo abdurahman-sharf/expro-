@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'Het huidige en het nieuwe paswoord moeten verschillend zijn.',
     'password_required'                     => 'Paswoord moet ingevuld worden.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Vink de selectievakjes hieronder aan om toegang te verlenen tot de modules.',
     'permission_info'                       => 'Rechten',
     'permission_select_all'                 => '',

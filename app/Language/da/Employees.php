@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'Current password and new password must be unique.',
     'password_required'                     => 'Password is required.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Check the boxes below to grant access to modules.',
     'permission_info'                       => 'Permissions',
     'permission_select_all'                 => '',

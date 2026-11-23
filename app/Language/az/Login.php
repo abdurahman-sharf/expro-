@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'Mən robot deyiləm.',
     'go'                            => 'daxil ol',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'Robot olmadığınızı təsdiqləyin.',
     'invalid_installation'          => 'Quraşdırma düzgün deyil, php.ini faylını yoxlayın.',
     'invalid_username_and_password' => 'Yanlış istifadəçi adı və ya şifrə.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => '{0} -ə daxil olandan sonra verilənlər bazası miqrasiyası başlayacaq.',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => 'Şifrə',
     'required_username'             => '',
     'too_many_attempts'             => 'Həddindən artıq cəhd. Zəhmət olmasa bir az gözləyib yenidən cəhd edin.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'İstifadəçi',
     'welcome'                       => '{0} -ə xoş gəlmisiniz!',
 ];

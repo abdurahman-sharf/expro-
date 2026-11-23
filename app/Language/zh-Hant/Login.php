@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => '我不是機器人。',
     'go'                            => '登入',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => '請確認您不是機器人。',
     'invalid_installation'          => '安裝不正確，請檢查您的php.ini文件。',
     'invalid_username_and_password' => '帳號或密碼錯誤。',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => '登錄後將開始向 {0} 的數據庫遷移。',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => '密碼',
     'required_username'             => '',
     'too_many_attempts'             => '嘗試次數過多。請稍候片刻後再試一次。',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => '帳號',
     'welcome'                       => '歡迎來到 {0}！',
 ];

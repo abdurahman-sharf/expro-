@@ -968,9 +968,9 @@
 }
 
 .acc-wizard-steps {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 16px;
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
     margin: 16px 0 20px;
     padding: 0;
     list-style: none;
@@ -978,23 +978,57 @@
 }
 
 .acc-wizard-steps li {
+    position: relative;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    color: var(--muted);
-    font-size: 0.8rem;
+    gap: 8px;
+    min-width: 0;
+    color: var(--fg-secondary);
+    font-size: 12px;
+    line-height: 16px;
+    text-align: center;
     counter-increment: wizard-step;
 }
 
 .acc-wizard-steps li::before {
     content: counter(wizard-step);
+    position: relative;
+    z-index: 1;
     display: inline-grid;
     place-items: center;
-    inline-size: 22px;
-    block-size: 22px;
-    border: 1px solid currentcolor;
-    border-radius: 50%;
-    font-size: 0.72rem;
+    inline-size: 28px;
+    block-size: 28px;
+    border: 1px solid var(--field);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--fg-secondary);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.acc-wizard-steps li + li::after {
+    content: "";
+    position: absolute;
+    top: 14px;
+    inset-inline-end: calc(50% + 18px);
+    inline-size: calc(100% - 36px);
+    block-size: 2px;
+    background: var(--line);
+}
+
+.acc-wizard-steps li.is-done + li::after,
+.acc-wizard-steps li.is-done + li.is-current::after {
+    background: var(--success);
+}
+
+.acc-wizard-steps li a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.acc-wizard-steps li a:hover {
+    text-decoration: underline;
 }
 
 .acc-wizard-steps li.is-current {
@@ -1002,18 +1036,28 @@
     font-weight: 600;
 }
 
+.acc-wizard-steps li.is-current::before {
+    border-color: var(--blue-500);
+    background: var(--blue-500);
+    box-shadow: 0 0 0 4px var(--blue-100);
+    color: #fff;
+}
+
 .acc-wizard-steps li.is-done {
-    color: var(--success);
+    color: var(--success-fg);
 }
 
 .acc-wizard-steps li.is-done::before {
     content: "\2713";
+    border-color: var(--success);
+    background: var(--success);
+    color: #fff;
 }
 
 .acc-wizard-panel {
     padding: 20px;
     border: 1px solid var(--line);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: var(--surface);
 }
 

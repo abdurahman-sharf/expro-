@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'كلمة المرور الحالية والجديدة يجب ان يكونو فريدين.',
     'password_required'                     => 'كلمة السر مطلوبة.',
     'password_same_as_username'             => 'يجب أن تختلف كلمة المرور عن اسم المستخدم.',
+    'password_security'                     => 'أمان الحساب',
     'permission_desc'                       => 'قم بإضافة الصلاحيات بلإختيار من الأسفل.',
     'permission_info'                       => 'اذونات المستخدمين',
     'permission_select_all'                 => 'تحديد الكل',

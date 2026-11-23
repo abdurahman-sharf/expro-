@@ -101,7 +101,28 @@
         };
     };
 
+    const compact = function(tick) {
+        return Math.abs(tick) >= 1000 ? (tick / 1000).toLocaleString('en-US', {maximumFractionDigits: 1}) + 'k' : String(tick);
+    };
+
+    const trendColors = function(values) {
+        const last = values.length - 1;
+        const fill = css('--chart-bar', '#b7dff5');
+        const stroke = css('--chart-bar-line', '#2f8fc4');
+
+        return {
+            background: values.map(function(value, index) {
+                return value <= 0 ? '#d8dde4' : (index === last ? stroke : fill);
+            }),
+            border: stroke
+        };
+    };
+
     const cartesianConfig = function(spec, format, rtl, font) {
+        if (spec.trend) {
+            return trendConfig(spec, format, font);
+        }
+
         const kind = spec.kind;
         const horizontal = kind === 'hbar';
         const color = css('--blue-500', '#015ce4');
@@ -169,6 +190,47 @@
                 }
             },
             plugins: [valueLabels(format, rtl, horizontal)]
+        };
+    };
+
+    const trendConfig = function(spec, format, font) {
+        const colors = trendColors(spec.values);
+        const muted = css('--muted', '#627189');
+
+        return {
+            type: 'bar',
+            data: {
+                labels: spec.labels,
+                datasets: [{
+                    label: spec.name || '',
+                    data: spec.values,
+                    backgroundColor: colors.background,
+                    hoverBackgroundColor: colors.border,
+                    borderColor: colors.border,
+                    borderWidth: {top: 2, right: 0, bottom: 0, left: 0},
+                    borderRadius: 2,
+                    borderSkipped: 'bottom',
+                    maxBarThickness: 28
+                }]
+            },
+            options: {
+                layout: {padding: {top: 8}},
+                scales: {
+                    x: {grid: {display: false}, ticks: {color: muted, autoSkip: true, maxRotation: 0, font: font}},
+                    y: {beginAtZero: true, position: 'left', border: {display: false}, grid: {color: css('--line-light', '#e9eef4')}, ticks: {color: muted, maxTicksLimit: 5, font: font, callback: compact}}
+                },
+                plugins: {
+                    legend: {display: false},
+                    tooltip: {
+                        displayColors: false,
+                        callbacks: {
+                            label: function(item) {
+                                return format(item.parsed.y);
+                            }
+                        }
+                    }
+                }
+            }
         };
     };
 

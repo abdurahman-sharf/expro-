@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'Я не робот.',
     'go'                            => 'Войти',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'Пожалуйста, подтвердите, что вы не робот.',
     'invalid_installation'          => 'Ошибка установки, проверьте файл php.ini.',
     'invalid_username_and_password' => 'Неверное имя пользователя или пароль.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => 'Миграция базы данных в {0} начнется после входа в систему.',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => 'Пароль',
     'required_username'             => '',
     'too_many_attempts'             => 'Слишком много попыток. Пожалуйста, подождите немного и попробуйте снова.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'Имя пользователя',
     'welcome'                       => 'Панель управления',
 ];

@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'Tôi không phải là robot.',
     'go'                            => 'Đăng nhập',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'Xin vui lòng xác nhận bạn không phải là robot.',
     'invalid_installation'          => 'Phần cài đặt chưa đúng, kiểm tra tập tin php.ini của bạn.',
     'invalid_username_and_password' => 'Tài khoản hoặc mật khẩu không hợp lệ.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => 'Di chuyển cơ sở dữ liệu sang {0} sẽ được bắt đầu sau khi đăng nhập.',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => 'Mật khẩu',
     'required_username'             => '',
     'too_many_attempts'             => 'Quá nhiều lần thử. Vui lòng đợi một chút và thử lại.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'Tài khoản',
     'welcome'                       => 'Chào mừng đến với {0}!',
 ];

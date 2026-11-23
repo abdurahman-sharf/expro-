@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'Réception ID',
     'receiving_type'                          => 'Type de réception',
     'receivings'                              => 'Réceptions',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Niveau de réapprovisionnement',
     'report'                                  => 'Rapport',
     'report_input'                            => 'Rapport Entrées',

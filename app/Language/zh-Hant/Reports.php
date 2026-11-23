@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => '接收ID',
     'receiving_type'                          => '接收類型',
     'receivings'                              => '應付款',
+    'related_reports'                         => '',
     'reorder_level'                           => '補貨點',
     'report'                                  => '報表',
     'report_input'                            => '輸入報表',

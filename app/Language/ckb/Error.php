@@ -1,7 +1,15 @@
 <?php
 
 return [
+    'back_home'                        => '',
+    'go_back'                          => '',
+    'no_access_permission'             => '',
+    'no_access_text'                   => '',
     'no_permission_module'             => 'تۆ ڕێگەپێدانت نییە بۆ دەستگەیشتن بەو مۆدیولەی کە ناوی لێنراوە',
+    'not_found_text'                   => '',
+    'not_found_title'                  => '',
+    'server_error_text'                => '',
+    'server_error_title'               => '',
     'unable_to_create_env_file'        => 'نەتوانرا {filePath} دروست بکرێت بۆ دابینکردنی throttle.key',
     'unable_to_lock_file'              => 'نەتوانرا {filePath} قوفڵ بکرێت: {reason}',
     'unable_to_open_lock_file'         => 'نەتوانرا {filePath} کرایەوە: {reason}',

@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'Mã nhập hàng',
     'receiving_type'                          => 'Kiểu nhập hàng',
     'receivings'                              => 'Nhập hàng',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Mức đặt mua bổ xung',
     'report'                                  => 'Báo cáo',
     'report_input'                            => 'Đầu vào báo cáo',

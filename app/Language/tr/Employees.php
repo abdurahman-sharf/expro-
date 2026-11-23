@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'Geçerli parola ve yeni parola benzersiz olmalıdır.',
     'password_required'                     => 'Parola zorunludur.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Modül yetkisi vermek için kutuları işaretleyin.',
     'permission_info'                       => 'Personel İzin ve Yetkileri',
     'permission_select_all'                 => '',

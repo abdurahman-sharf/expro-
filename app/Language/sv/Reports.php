@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'Mottagningsid',
     'receiving_type'                          => 'Typ av mottagning',
     'receivings'                              => 'Inkomster',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Nivå för ombeställning',
     'report'                                  => 'Rapport',
     'report_input'                            => 'Rapportera inmatning',

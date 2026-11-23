@@ -944,6 +944,33 @@ class HomeTest extends CIUnitTestCase
         $response->assertDontSee('data-shortcut-id="add_journal"');
     }
 
+    public function testGetIndex_ShowsTheBestSellingItemsToWhoHoldsOnlyTheItemsReport(): void
+    {
+        $this->loginAs($this->createNonAdminEmployee(['grants' => [
+            ['permission_id' => 'home', 'menu_group' => 'home'],
+            ['permission_id' => 'reports_items', 'menu_group' => 'home'],
+        ]]));
+
+        $response = $this->get('/home');
+
+        $response->assertSee('id="dashboard_top_title"');
+        $response->assertDontSee('id="dashboard_trend"');
+        $response->assertDontSee('id="dashboard_low_title"');
+    }
+
+    public function testGetIndex_TellsWhoHasNoShortcutThatNoneIsAvailable(): void
+    {
+        $this->loginAs($this->createNonAdminEmployee(['grants' => [
+            ['permission_id' => 'home', 'menu_group' => 'home'],
+        ]]));
+
+        $response = $this->get('/home');
+
+        $response->assertSee(lang('Common.shortcuts_none'));
+        $response->assertDontSee('id="home_shortcuts_customize"');
+        $response->assertSee('https://wa.me/966530882752?text=');
+    }
+
     /**
      * @param list<string> $permissionIds
      */

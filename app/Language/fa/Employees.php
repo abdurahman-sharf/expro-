@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'گذرواژه فعلی و رمز جدید باید بی نظیر باشند.',
     'password_required'                     => 'رمز عبور مورد نیاز است.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'کادرهای زیر را برای دسترسی به ماژولها بررسی کنید.',
     'permission_info'                       => 'مجوزها',
     'permission_select_all'                 => '',

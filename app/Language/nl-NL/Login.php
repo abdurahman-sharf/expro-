@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'Ik ben geen robot.',
     'go'                            => 'Aanmelden',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'Bewijs dat je geen robot bent.',
     'invalid_installation'          => 'De installatie is niet juist, controleer uw php.ini bestand.',
     'invalid_username_and_password' => 'Ongeldige gebruikersnaam en/of wachtwoord.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => 'Verbindingsfout. Probeer het opnieuw.',
     'migration_failed'              => 'Migratie mislukt',
     'migration_initializing'        => 'Database initialiseren',
+    'migration_keep_open'           => '',
     'migration_needed'              => 'Een databasemigratie naar {0} zal starten na aanmelding.',
     'migration_required'            => 'Database migratie vereist',
     'migration_running'             => 'Databasemigraties uitvoeren...',
     'password'                      => 'Wachtwoord',
     'required_username'             => 'Het gebruikersnaam veld is verplicht.',
     'too_many_attempts'             => 'Te veel pogingen. Wacht even en probeer het opnieuw.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'Gebruikersnaam',
     'welcome'                       => 'Welkom bij {0}!',
 ];

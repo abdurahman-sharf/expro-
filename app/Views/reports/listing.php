@@ -12,36 +12,45 @@ $catalog = allReportCatalogs($permission_ids);
     <div class="alert alert-danger"><?= esc($error) ?></div>
 <?php endif; ?>
 
-<header class="report-head">
-    <h2 class="report-title"><?= lang('Module.reports') ?></h2>
-    <div class="report-search print_hide">
+<header class="page-head report-hub-head">
+    <div class="page-head-start">
+        <h1 class="page-title"><?= lang('Module.reports') ?></h1>
+    </div>
+    <div class="page-head-actions report-search print_hide" role="search">
         <label for="report_filter" class="visually-hidden"><?= lang('Reports.search_reports') ?></label>
-        <div class="input-group">
-            <span class="input-group-text"><span class="bi bi-search" aria-hidden="true"></span></span>
+        <span class="report-search-field">
+            <span class="bi bi-search" aria-hidden="true"></span>
             <input type="search" id="report_filter" class="form-control" placeholder="<?= lang('Reports.search_reports') ?>" autocomplete="off">
-        </div>
+        </span>
     </div>
 </header>
 
 <?php foreach ($catalog as $groupIndex => $group): ?>
     <section class="report-group" aria-labelledby="report-group-<?= $groupIndex ?>">
-        <h3 class="report-group-title" id="report-group-<?= $groupIndex ?>"><?= esc($group['label']) ?></h3>
+        <h2 class="report-group-title" id="report-group-<?= $groupIndex ?>"><?= esc($group['label']) ?></h2>
         <div class="report-grid">
             <?php foreach ($group['subjects'] as $subject): ?>
                 <article class="report-card">
-                    <h4 class="report-card-title"><span class="bi <?= $subject['icon'] ?>" aria-hidden="true"></span> <?= esc($subject['label']) ?></h4>
-                    <div class="report-links">
+                    <h3 class="report-card-title">
+                        <span class="report-card-icon" aria-hidden="true"><span class="bi <?= $subject['icon'] ?>"></span></span>
+                        <span class="report-card-name"><?= esc($subject['label']) ?></span>
+                        <span class="report-card-count" aria-hidden="true"><?= count($subject['links']) ?></span>
+                    </h3>
+                    <ul class="report-links">
                         <?php foreach ($subject['links'] as $link): ?>
-                            <a class="report-link" href="<?= $link['path'] ?>"><span class="bi <?= $link['icon'] ?>" aria-hidden="true"></span> <?= esc($link['label']) ?></a>
+                            <li><a class="report-link" href="<?= $link['path'] ?>"><span class="bi <?= $link['icon'] ?>" aria-hidden="true"></span> <span class="report-link-label"><?= esc($link['label']) ?></span><span class="bi bi-chevron-left report-link-go" aria-hidden="true"></span></a></li>
                         <?php endforeach; ?>
-                    </div>
+                    </ul>
                 </article>
             <?php endforeach; ?>
         </div>
     </section>
 <?php endforeach; ?>
 
-<p class="alert alert-secondary d-none" id="report_filter_empty" role="status"><?= lang('Reports.no_reports_matched') ?></p>
+<div class="empty-state d-none" id="report_filter_empty" role="status">
+    <span class="empty-state-art" aria-hidden="true"><i class="bi bi-search"></i></span>
+    <p class="empty-state-title"><?= lang('Reports.no_reports_matched') ?></p>
+</div>
 
 <script type="text/javascript">
     $(document).ready(function() {
@@ -49,10 +58,19 @@ $catalog = allReportCatalogs($permission_ids);
             const needle = $(this).val().trim().toLowerCase();
             let visible = 0;
 
+            // A card whose subject matches keeps all its reports; otherwise only the reports that match stay.
             $('.report-card').each(function() {
-                const match = needle === '' || $(this).text().toLowerCase().indexOf(needle) >= 0;
-                $(this).toggleClass('d-none', !match);
-                visible += match ? 1 : 0;
+                const $card = $(this);
+                const subjectMatch = needle === '' || $card.find('.report-card-name').text().toLowerCase().indexOf(needle) >= 0;
+                let shown = 0;
+
+                $card.find('.report-links > li').each(function() {
+                    const match = subjectMatch || $(this).text().toLowerCase().indexOf(needle) >= 0;
+                    $(this).toggleClass('d-none', !match);
+                    shown += match ? 1 : 0;
+                });
+                $card.toggleClass('d-none', shown === 0);
+                visible += shown > 0 ? 1 : 0;
             });
             $('.report-group').each(function() {
                 $(this).toggleClass('d-none', $(this).find('.report-card:not(.d-none)').length === 0);

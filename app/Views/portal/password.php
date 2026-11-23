@@ -12,11 +12,12 @@ $forced ??= false;
 <?= $this->extend('portal/layout') ?>
 
 <?= $this->section('content') ?>
-<div class="row justify-content-center">
-    <div class="col-12 col-md-6 col-lg-4">
-        <form method="post" action="<?= esc(site_url('portal/password'), 'attr') ?>" class="card card-body shadow-sm" id="portal_password_form" autocomplete="off">
+<div class="portal-auth">
+    <div class="portal-auth-card">
+        <form method="post" action="<?= esc(site_url('portal/password'), 'attr') ?>" id="portal_password_form" autocomplete="off">
             <?= csrf_field() ?>
-            <h1 class="h4 mb-3"><?= esc(lang('Portal.change_title')) ?></h1>
+            <span class="portal-auth-art" aria-hidden="true"><span class="bi bi-shield-lock"></span></span>
+            <h1 class="portal-auth-title"><?= esc(lang('Portal.change_title')) ?></h1>
             <?php if ($forced) : ?>
                 <div class="alert alert-warning" role="alert" id="portal_forced"><?= esc(lang('Portal.change_required')) ?></div>
             <?php endif; ?>
@@ -36,7 +37,7 @@ $forced ??= false;
                 <label class="form-label" for="confirm_password"><?= esc(lang('Portal.confirm_password')) ?></label>
                 <input class="form-control" type="password" name="confirm_password" id="confirm_password" maxlength="200" dir="ltr" autocomplete="new-password" required>
             </div>
-            <button type="submit" class="btn btn-primary"><?= esc(lang('Portal.save')) ?></button>
+            <button type="submit" class="btn btn-primary w-100"><?= esc(lang('Portal.save')) ?></button>
         </form>
     </div>
 </div>

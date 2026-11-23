@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'Huidige wachtwoord en nieuwe wachtwoord moeten uniek zijn.',
     'password_required'                     => 'Wachtwoord is vereist.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'De selectievakjes hieronder selecteren om toegang te verlenen tot modules.',
     'permission_info'                       => 'Machtigingen',
     'permission_select_all'                 => '',

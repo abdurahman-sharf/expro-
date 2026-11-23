@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'Ben robot değilim.',
     'go'                            => 'Giriş',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'Robot olmadığınızı kanıtlayınız.',
     'invalid_installation'          => 'Yükleme doğru değil, php.ini dosyanızı gözden geçirin.',
     'invalid_username_and_password' => 'Geçersiz kullanıcı adı ve/veya parola.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => 'Bağlantı hatası. Lütfen tekrar deneyin.',
     'migration_failed'              => 'Göç başarısız oldu',
     'migration_initializing'        => 'Veritabanı başlatılıyor',
+    'migration_keep_open'           => '',
     'migration_needed'              => 'Girişten sonra {0} veri tabanına göç başlayacak.',
     'migration_required'            => 'Veritabanı Göçü Gerekli',
     'migration_running'             => 'Veritabanı göçleri çalışıyor...',
     'password'                      => 'Parola',
     'required_username'             => 'Kullanıcı adı alanı gereklidir.',
     'too_many_attempts'             => 'Çok fazla deneme yapıldı. Lütfen bir süre bekleyip tekrar deneyin.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'Kullanıcı Adı',
     'welcome'                       => '{0}\'e Hoş Geldiniz!',
 ];

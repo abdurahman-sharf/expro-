@@ -1,7 +1,15 @@
 <?php
 
 return [
+    'back_home'                        => '',
+    'go_back'                          => '',
+    'no_access_permission'             => '',
+    'no_access_text'                   => '',
     'no_permission_module'             => 'אין לך הרשאה לגשת אל המודול ששמו',
+    'not_found_text'                   => '',
+    'not_found_title'                  => '',
+    'server_error_text'                => '',
+    'server_error_title'               => '',
     'unable_to_create_env_file'        => 'לא ניתן ליצור את {filePath} כדי להגדיר את throttle.key',
     'unable_to_lock_file'              => 'לא ניתן לנעול את {filePath}: {reason}',
     'unable_to_open_lock_file'         => 'לא ניתן לפתוח את {filePath}: {reason}',

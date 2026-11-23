@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => '',
     'password_required'                     => 'A jelszó kötelező',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Válassza ki az alábbi boxokat a hozzáférés megadásához',
     'permission_info'                       => 'Munkavállaló engedélyei',
     'permission_select_all'                 => '',

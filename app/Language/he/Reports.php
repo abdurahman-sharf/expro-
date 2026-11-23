@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => 'מזהה תקבול',
     'receiving_type'                          => 'סוג תקבול',
     'receivings'                              => 'תקבולים  החזרות',
+    'related_reports'                         => '',
     'reorder_level'                           => 'כמות מינימום להזמנה',
     'report'                                  => 'דוח',
     'report_input'                            => 'קלט דווח',

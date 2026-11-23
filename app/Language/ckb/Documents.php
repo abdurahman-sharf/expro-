@@ -69,6 +69,7 @@ return [
     'item_description'               => '',
     'journal'                        => '',
     'method'                         => '',
+    'more_documents'                 => '',
     'number'                         => '',
     'packing_slip'                   => '',
     'paid'                           => '',

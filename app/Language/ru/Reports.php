@@ -95,6 +95,7 @@ return [
     'receiving_id'                            => '№ закупки',
     'receiving_type'                          => 'Тип закупки',
     'receivings'                              => 'Закупки',
+    'related_reports'                         => '',
     'reorder_level'                           => 'Уровень повторного заказа',
     'report'                                  => 'Отчет',
     'report_input'                            => 'Ввод отчета',

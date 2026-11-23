@@ -355,7 +355,11 @@ echo form_hidden('number_of_payments', (string) $i);
     $(document).ready(function() {
         <?php if (! empty($sale_info['email'])): ?>
             $('#send_invoice').click(function(event) {
-                if (confirm("<?= esc(lang('Sales.invoice_confirm') . ' ' . $sale_info['email'], 'js') ?>")) {
+                appConfirm("<?= esc(lang('Sales.invoice_confirm') . ' ' . $sale_info['email'], 'js') ?>", {tone: 'primary'}).then(function(confirmed) {
+                    if (!confirmed) {
+                        return;
+                    }
+
                     $.get("<?= esc("{$controller_name}/sendPdf/" . $sale_info['sale_id']) ?>",
                         function(response) {
                             dialog_support.hide();
@@ -366,7 +370,7 @@ echo form_hidden('number_of_payments', (string) $i);
                             })
                         }, 'json'
                     );
-                }
+                });
             });
         <?php endif; ?>
 

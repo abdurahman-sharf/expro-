@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'Jag är inte en robot.',
     'go'                            => 'Logga in',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'Ogiltig jag är ingen robot.',
     'invalid_installation'          => 'Installationen är inte korrekt, kontrollera din php.ini fil.',
     'invalid_username_and_password' => 'Ogiltigt användarnamn eller lösenord.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => 'Anslutningsfel. Försök igen.',
     'migration_failed'              => 'Migration misslyckades',
     'migration_initializing'        => 'Initierar databas',
+    'migration_keep_open'           => '',
     'migration_needed'              => 'En migration av databasen till {0} kommer att påbörjas efter inloggningen.',
     'migration_required'            => 'Databasmigration krävs',
     'migration_running'             => 'Kör databasmigrationer...',
     'password'                      => 'Lösenord',
     'required_username'             => 'Fältet för användarnamn krävs.',
     'too_many_attempts'             => 'För många försök. Vänta en stund och försök igen.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'Användarnamn',
     'welcome'                       => 'Välkommen till {0}!',
 ];

@@ -7,11 +7,13 @@
  * @var string                                                                                              $itemsUrl
  */
 ?>
-<h2 class="h6 mt-3"><?= lang('Purchase_cycle.lines') ?></h2>
+<section class="doc-editor-card doc-lines-card" aria-labelledby="document_lines_title">
+<h2 class="doc-editor-title" id="document_lines_title"><?= lang('Purchase_cycle.lines') ?> <span class="doc-lines-count" id="document_lines_count" aria-hidden="true"></span></h2>
 <div class="table-responsive">
-    <table class="table table-sm align-middle" id="document_lines">
+    <table class="table align-middle doc-lines" id="document_lines">
         <thead>
             <tr>
+                <th scope="col" class="doc-line-number">#</th>
                 <th scope="col"><?= lang('Purchase_cycle.item') ?></th>
                 <th scope="col"><?= lang('Purchase_cycle.line_note') ?></th>
                 <th scope="col" class="text-end"><?= lang('Purchase_cycle.quantity') ?></th>
@@ -22,7 +24,10 @@
         <tbody></tbody>
     </table>
 </div>
-<button type="button" class="btn btn-outline-secondary btn-sm" id="add_line"><?= lang('Purchase_cycle.add_line') ?></button>
+<div class="doc-lines-foot">
+    <button type="button" class="btn btn-link doc-add-line" id="add_line"><span class="bi bi-plus-lg" aria-hidden="true"></span> <?= lang('Purchase_cycle.add_line') ?></button>
+</div>
+</section>
 
 <script type="text/javascript">
     $(document).ready(function() {
@@ -36,23 +41,29 @@
         };
         let next = 0;
 
+        const count = function() {
+            $('#document_lines_count').text($('#document_lines tbody tr').length);
+        };
+
         const addLine = function(data) {
             const index = next++;
             const row = $('<tr class="document-line"></tr>');
-            const itemName = $('<input type="text" class="form-control form-control-sm line-item" autocomplete="off">').attr('aria-label', labels.item).val(data.label || '');
+            const itemName = $('<input type="text" class="form-control form-control-sm line-item" autocomplete="off">').attr('aria-label', labels.item).attr('placeholder', labels.item).val(data.label || '');
             const itemId = $('<input type="hidden">').attr('name', 'lines[' + index + '][item_id]').val(data.item_id || '');
             const field = function(name, value) {
-                return $('<input type="text" class="form-control form-control-sm ltr-input text-end" dir="ltr" inputmode="decimal" autocomplete="off">').attr({name: 'lines[' + index + '][' + name + ']', 'aria-label': labels[name]}).val(value);
+                return $('<input type="text" class="form-control form-control-sm ltr-input text-end" dir="ltr" inputmode="decimal" autocomplete="off">').attr({name: 'lines[' + index + '][' + name + ']', 'aria-label': labels[name], placeholder: labels[name]}).val(value);
             };
-            const remove = $('<button type="button" class="btn btn-outline-danger btn-sm remove-line"></button>').text(labels.remove);
+            const remove = $('<button type="button" class="btn btn-sm doc-remove-line remove-line"><span class="bi bi-trash3" aria-hidden="true"></span></button>').attr({'aria-label': labels.remove, title: labels.remove});
 
-            row.append($('<td></td>').append(itemName, itemId))
-                .append($('<td></td>').append($('<input type="text" class="form-control form-control-sm" maxlength="255">').attr({name: 'lines[' + index + '][description]', 'aria-label': labels.description}).val(data.description || '')))
+            row.append($('<td class="doc-line-number"></td>'))
+                .append($('<td class="doc-line-wide"></td>').append(itemName, itemId))
+                .append($('<td class="doc-line-wide"></td>').append($('<input type="text" class="form-control form-control-sm" maxlength="255">').attr({name: 'lines[' + index + '][description]', 'aria-label': labels.description, placeholder: labels.description}).val(data.description || '')))
                 .append($('<td></td>').append(field('quantity', data.quantity || '1')))
                 .append($('<td></td>').append(field('unit_price', data.unit_price || '')))
-                .append($('<td></td>').append(remove));
+                .append($('<td class="doc-line-remove"></td>').append(remove));
 
             $('#document_lines tbody').append(row);
+            count();
 
             itemName.autocomplete({
                 source: "<?= esc($itemsUrl, 'js') ?>",
@@ -85,6 +96,7 @@
 
         $(document).on('click', '.remove-line', function() {
             $(this).closest('tr').remove();
+            count();
         });
     });
 </script>

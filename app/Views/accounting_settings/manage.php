@@ -106,9 +106,13 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         $('#hold_form').on('submit', function(event) {
             event.preventDefault();
 
-            if (confirm(confirmations.hold)) {
-                send('accounting_settings/hold', $(this).serialize(), true);
-            }
+            const data = $(this).serialize();
+
+            appConfirm(confirmations.hold, {tone: 'warning'}).then(function(confirmed) {
+                if (confirmed) {
+                    send('accounting_settings/hold', data, true);
+                }
+            });
         });
 
         $('[data-settings-action]').on('click', function() {
@@ -124,9 +128,11 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                 return;
             }
 
-            if (confirm(confirmations[action])) {
-                send('accounting_settings/' + action, {}, true);
-            }
+            appConfirm(confirmations[action], {tone: 'warning'}).then(function(confirmed) {
+                if (confirmed) {
+                    send('accounting_settings/' + action, {}, true);
+                }
+            });
         });
     });
 </script>

@@ -296,15 +296,19 @@ $accountInputs = static function (string $name, ?int $selected) use ($labels, $p
                 });
 
                 $('#post_balance').on('click', function() {
-                    if (confirm(text.confirm_balance)) {
-                        submit('accounting_periods/opening/post', '&balance=1');
-                    }
+                    appConfirm(text.confirm_balance, {tone: 'warning'}).then(function(confirmed) {
+                        if (confirmed) {
+                            submit('accounting_periods/opening/post', '&balance=1');
+                        }
+                    });
                 });
 
                 $('#discard_draft').on('click', function() {
-                    if (confirm(text.confirm_discard)) {
-                        submit('accounting_periods/opening/discard');
-                    }
+                    appConfirm(text.confirm_discard, {tone: 'danger'}).then(function(confirmed) {
+                        if (confirmed) {
+                            submit('accounting_periods/opening/discard');
+                        }
+                    });
                 });
             } else {
                 $('#opening_form').find('input, button').prop('disabled', true);

@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => '',
     'password_required'                     => '請輸入密碼',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => '勾選後授予使用該模組功能',
     'permission_info'                       => '員工權限',
     'permission_select_all'                 => '',

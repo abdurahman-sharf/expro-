@@ -37,6 +37,7 @@ return [
     'password_not_must_match'               => 'Trenutna lozinka i nova lozinka moraju biti jedinstvene.',
     'password_required'                     => 'Lozinka je obavezna.',
     'password_same_as_username'             => '',
+    'password_security'                     => '',
     'permission_desc'                       => 'Označite polja u nastavku da biste odobrili pristup modulima.',
     'permission_info'                       => 'Dozvole',
     'permission_select_all'                 => '',

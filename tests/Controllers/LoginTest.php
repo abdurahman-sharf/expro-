@@ -124,7 +124,7 @@ class LoginTest extends CIUnitTestCase
         $response->assertSee(lang('Login.invalid_username_and_password'));
     }
 
-    public function testSixthFailedAttemptIsThrottled(): void
+    public function testPostLogin_ShowsTheLoginPageWithTheNoticeOnTheSixthFailedAttempt(): void
     {
         for ($i = 0; $i < 5; $i++) {
             $this->post('/login', [
@@ -139,6 +139,22 @@ class LoginTest extends CIUnitTestCase
             'password' => 'wrongpassword',
         ]);
         $this->trackThrottleKeys('wronguser');
+
+        $response->assertStatus(429);
+        $response->assertSee('id="login-throttled"');
+        $response->assertSee(lang('Login.too_many_attempts'));
+        $response->assertSee('id="login-form"');
+    }
+
+    public function testPostMigrate_AnswersAThrottledAttemptWithJson(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->post('/migrate', ['username' => 'migrator', 'password' => 'wrongpassword']);
+            $this->trackThrottleKeys('migrator');
+        }
+
+        $response = $this->post('/migrate', ['username' => 'migrator', 'password' => 'wrongpassword']);
+        $this->trackThrottleKeys('migrator');
 
         $response->assertStatus(429);
         $result = json_decode($response->getJSON(), true);

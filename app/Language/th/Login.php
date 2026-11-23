@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'ฉันไม่ใช่หุ่นยนต์นะ',
     'go'                            => 'เข้าสู่ระบบ',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'กรุณาแสดงตัวตนว่าคุณไม่ใช่หุ่นยนต์',
     'invalid_installation'          => 'การติดตั้งไม่ถูกต้องตรวจสอบการตั้งค่าที่ไฟล์ php.ini ของคุณ',
     'invalid_username_and_password' => 'ชื่อผู้ใช้งานและ/หรือรหัสผ่านเข้าระบบไม่ถูกต้อง',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => 'การย้ายฐานข้อมูลไปยัง {0} จะเริ่มต้นหลังจากเข้าสู่ระบบ',
     'migration_required'            => 'จําเป็นต้องมีการปรับปรุงฐานข้อมูล',
     'migration_running'             => '',
     'password'                      => 'รหัสผ่าน',
     'required_username'             => 'จำเป็นต้องระบุชื่อผู้ใช้งาน',
     'too_many_attempts'             => 'พยายามมากเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'ชื่อผู้ใช้',
     'welcome'                       => 'ยินดีต้อนรับสู่ {0}!',
 ];

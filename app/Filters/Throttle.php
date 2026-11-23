@@ -5,6 +5,7 @@ namespace App\Filters;
 use CodeIgniter\Filters\FilterInterface;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\OSPOS;
 use Config\Services;
 
 /**
@@ -63,9 +64,17 @@ class Throttle implements FilterInterface
                     ->setStatusCode(429)
                     ->setHeader('Retry-After', (string) $seconds)
                     ->setBody(view('setup/claim', [
-                        'error' => lang('Login.too_many_attempts'),
-                        'old'   => array_intersect_key(array_map('strval', array_filter((array) $request->getPost(), 'is_string')), array_flip(['first_name', 'last_name', 'username', 'email'])),
+                        'error'    => lang('Login.too_many_attempts'),
+                        'errorKey' => 'throttle',
+                        'old'      => array_intersect_key(array_map('strval', array_filter((array) $request->getPost(), 'is_string')), array_flip(['first_name', 'last_name', 'username', 'email'])),
                     ]));
+            }
+
+            if (! $request->isAJAX() && strtolower(trim((string) $request->getUri()?->getRoutePath(), '/ ')) === 'login') {
+                return service('response')
+                    ->setStatusCode(429)
+                    ->setHeader('Retry-After', (string) $seconds)
+                    ->setBody($this->loginPage());
             }
 
             return service('response')
@@ -77,6 +86,26 @@ class Throttle implements FilterInterface
         }
 
         return null;
+    }
+
+    /**
+     * The login form again, saying the attempts ran out, for a browser that posted it without script.
+     */
+    private function loginPage(): string
+    {
+        $config = config(OSPOS::class)->settings;
+
+        return view('login', [
+            'hasErrors'        => false,
+            'isNewInstall'     => false,
+            'isLatest'         => true,
+            'latestVersion'    => '',
+            'gcaptchaEnabled'  => (bool) ($config['gcaptcha_enable'] ?? false),
+            'config'           => $config,
+            'validation'       => Services::validation(),
+            'migrationRefusal' => null,
+            'throttled'        => lang('Login.too_many_attempts'),
+        ]);
     }
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)

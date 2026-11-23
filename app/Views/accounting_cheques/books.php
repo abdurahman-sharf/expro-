@@ -10,16 +10,21 @@
 <script type="text/javascript">
     $(document).ready(function() {
         $('.book-action').on('click', function() {
-            if (!confirm($(this).data('confirm'))) {
-                return;
-            }
+            const url = $(this).data('url');
+            const tone = /\/book_active\/\d+\/1$/.test(url) ? 'primary' : 'danger';
 
-            $.post($(this).data('url'), {}, function(response) {
-                toast_support.show(response.message, response.success ? 'success' : 'danger');
-                if (response.success) {
-                    window.location.reload();
+            appConfirm($(this).data('confirm'), {tone: tone}).then(function(confirmed) {
+                if (!confirmed) {
+                    return;
                 }
-            }, 'json');
+
+                $.post(url, {}, function(response) {
+                    toast_support.show(response.message, response.success ? 'success' : 'danger');
+                    if (response.success) {
+                        window.location.reload();
+                    }
+                }, 'json');
+            });
         });
     });
 </script>

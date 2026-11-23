@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => '',
     'go'                            => 'Juhúúúúúú!',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => '',
     'invalid_installation'          => '',
     'invalid_username_and_password' => 'Érvénytelen felhasználói név vagy jelszó',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => '',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => 'Jelszó',
     'required_username'             => '',
     'too_many_attempts'             => 'Túl sok próbálkozás. Kérjük, várjon egy kicsit, majd próbálja újra.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'Felhasználó név',
     'welcome'                       => '',
 ];

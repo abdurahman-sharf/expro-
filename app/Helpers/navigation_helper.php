@@ -71,7 +71,7 @@ const NAVIGATION_FALLBACK_ICON = 'bi-grid';
  * @param string   $activeModule   Module id of the page being shown.
  * @param int|null $personId       Person whose branches decide, the one signed in when null.
  *
- * @return array<int, array{label: string, items: array<int, array{id: string, label: string, url: string, icon: string, active: bool}>}>
+ * @return array<int, array{label: string, icon: string, items: array<int, array{id: string, label: string, url: string, icon: string, active: bool}>}>
  */
 function navigationGroups(array $allowedModules, string $activeModule, ?int $personId = null): array
 {
@@ -109,11 +109,12 @@ function navigationGroups(array $allowedModules, string $activeModule, ?int $per
 
     $groups[SidebarMenu::SETTINGS] = array_merge($groups[SidebarMenu::SETTINGS], array_values($itemsById));
 
-    $result = [];
+    $result   = [];
+    $sections = SidebarMenu::definition();
 
     foreach ($groups as $sectionKey => $items) {
         if ($items !== []) {
-            $result[] = ['label' => lang("Module.nav_section_{$sectionKey}"), 'items' => $items];
+            $result[] = ['label' => lang("Module.nav_section_{$sectionKey}"), 'icon' => $sections[$sectionKey]['icon'] ?? NAVIGATION_FALLBACK_ICON, 'items' => $items];
         }
     }
 

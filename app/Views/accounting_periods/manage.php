@@ -29,16 +29,18 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         $(document).on('click', '.acc-action', function() {
             const id = $(this).data('acc-id');
 
-            if (!confirm(confirmations.delete)) {
-                return;
-            }
-
-            $.post('accounting_periods/delete/' + id, {}, function(response) {
-                toast_support.show(response.message, response.success ? 'success' : 'danger');
-                if (response.success) {
-                    table_support.refresh();
+            appConfirm(confirmations.delete, {tone: 'danger'}).then(function(confirmed) {
+                if (!confirmed) {
+                    return;
                 }
-            }, 'json');
+
+                $.post('accounting_periods/delete/' + id, {}, function(response) {
+                    toast_support.show(response.message, response.success ? 'success' : 'danger');
+                    if (response.success) {
+                        table_support.refresh();
+                    }
+                }, 'json');
+            });
         });
     });
 </script>

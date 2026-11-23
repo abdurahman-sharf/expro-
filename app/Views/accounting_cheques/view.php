@@ -39,24 +39,26 @@ $id = (int) $cheque->cheque_id;
 <script type="text/javascript">
     $(document).ready(function() {
         $('.acc-action').on('click', function() {
-            if (!confirm($(this).data('confirm'))) {
-                return;
-            }
-
             const action = $(this).data('acc-action');
 
-            $.post('accounting_cheques/' + action + '/<?= $id ?>', {}, function(response) {
-                toast_support.show(response.message, response.success ? 'success' : 'danger');
-                if (!response.success) {
+            appConfirm($(this).data('confirm'), {tone: 'danger'}).then(function(confirmed) {
+                if (!confirmed) {
                     return;
                 }
 
-                if (action === 'delete') {
-                    window.location.href = '<?= esc(base_url('accounting_cheques?direction=' . $direction), 'js') ?>';
-                } else {
-                    window.location.reload();
-                }
-            }, 'json');
+                $.post('accounting_cheques/' + action + '/<?= $id ?>', {}, function(response) {
+                    toast_support.show(response.message, response.success ? 'success' : 'danger');
+                    if (!response.success) {
+                        return;
+                    }
+
+                    if (action === 'delete') {
+                        window.location.href = '<?= esc(base_url('accounting_cheques?direction=' . $direction), 'js') ?>';
+                    } else {
+                        window.location.reload();
+                    }
+                }, 'json');
+            });
         });
     });
 </script>

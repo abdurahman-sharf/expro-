@@ -39,11 +39,12 @@ $locationId = $isNew ? (int) array_key_first($locations) : (int) ($lines[0]['ite
 <ul id="error_message_box" class="error_message_box"></ul>
 
 <?= form_open($action, ['id' => 'schedule_form', 'class' => 'app-form']) ?>
-    <p class="small text-body-secondary"><?= lang('Recurring.form_note_' . $kind->value) ?></p>
+    <p class="doc-editor-note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= lang('Recurring.form_note_' . $kind->value) ?></p>
     <?php if ($locked): ?>
         <div class="alert alert-info" id="schedule_locked"><?= lang('Recurring.terms_locked_note') ?></div>
     <?php endif; ?>
 
+    <section class="doc-editor-card">
     <div class="form-grid">
         <div class="field span-all">
             <label class="form-label text-danger required" for="name"><?= lang('Recurring.name') ?></label>
@@ -249,18 +250,22 @@ $locationId = $isNew ? (int) array_key_first($locations) : (int) ($lines[0]['ite
             <div class="field-control"><textarea name="comment" id="comment" class="form-control form-control-sm" rows="2" maxlength="500"><?= esc($value('comment')) ?></textarea></div>
         </div>
     </div>
+    </section>
 
     <?php if ($invoice): ?>
         <?= view('partial/document_lines', ['rows' => $lines, 'itemsUrl' => $module . '/items', 'quantityKey' => 'Sales.quantity']) ?>
 
-        <h2 class="h6 mt-3"><?= lang('Recurring.reminders') ?></h2>
-        <p class="small text-body-secondary"><?= lang('Recurring.reminders_note') ?></p>
-        <div id="reminder_rows"></div>
-        <button type="button" class="btn btn-outline-secondary btn-sm" id="add_reminder"><?= lang('Recurring.add_reminder') ?></button>
+        <section class="doc-editor-card">
+            <h2 class="doc-editor-subtitle"><?= lang('Recurring.reminders') ?></h2>
+            <p class="form-text"><?= lang('Recurring.reminders_note') ?></p>
+            <div id="reminder_rows"></div>
+            <button type="button" class="btn btn-link doc-add-line mb-3" id="add_reminder"><span class="bi bi-plus-lg" aria-hidden="true"></span> <?= lang('Recurring.add_reminder') ?></button>
+        </section>
     <?php endif; ?>
 
-    <div class="mt-3">
-        <button type="submit" class="btn btn-primary btn-sm" id="submit_schedule"><?= lang('Common.submit') ?></button>
+    <div class="doc-editor-actions">
+        <a class="btn btn-outline-secondary" href="<?= esc(base_url($module), 'attr') ?>"><?= lang('Recurring.back') ?></a>
+        <button type="submit" class="btn btn-primary" id="submit_schedule"><span class="bi bi-check2" aria-hidden="true"></span> <?= lang('Common.submit') ?></button>
     </div>
 <?= form_close() ?>
 

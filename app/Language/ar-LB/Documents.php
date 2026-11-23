@@ -69,6 +69,7 @@ return [
     'item_description'               => 'الوصف',
     'journal'                        => 'قيد يومية',
     'method'                         => 'وسيلة الدفع',
+    'more_documents'                 => 'مستندات أخرى',
     'number'                         => 'رقم',
     'packing_slip'                   => 'ملصق الطرد',
     'paid'                           => 'مدفوعة',
