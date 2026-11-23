@@ -5,6 +5,7 @@ namespace App\Filters;
 use CodeIgniter\Filters\FilterInterface;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\OSPOS;
 use Config\Services;
 
 /**
@@ -68,6 +69,13 @@ class Throttle implements FilterInterface
                     ]));
             }
 
+            if (! $request->isAJAX() && strtolower(trim((string) $request->getUri()?->getRoutePath(), '/ ')) === 'login') {
+                return service('response')
+                    ->setStatusCode(429)
+                    ->setHeader('Retry-After', (string) $seconds)
+                    ->setBody($this->loginPage());
+            }
+
             return service('response')
                 ->setStatusCode(429)
                 ->setJSON([
@@ -77,6 +85,26 @@ class Throttle implements FilterInterface
         }
 
         return null;
+    }
+
+    /**
+     * The login form again, saying the attempts ran out, for a browser that posted it without script.
+     */
+    private function loginPage(): string
+    {
+        $config = config(OSPOS::class)->settings;
+
+        return view('login', [
+            'hasErrors'        => false,
+            'isNewInstall'     => false,
+            'isLatest'         => true,
+            'latestVersion'    => '',
+            'gcaptchaEnabled'  => (bool) ($config['gcaptcha_enable'] ?? false),
+            'config'           => $config,
+            'validation'       => Services::validation(),
+            'migrationRefusal' => null,
+            'throttled'        => lang('Login.too_many_attempts'),
+        ]);
     }
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)

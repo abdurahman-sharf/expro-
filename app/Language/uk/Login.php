@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'Я не робот.',
     'go'                            => 'Увійти',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'Підтвердіть, що ви не робот.',
     'invalid_installation'          => 'Налаштування невірні, перевірте php.ini.',
     'invalid_username_and_password' => 'Невірний логін або пароль.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => '',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => 'Пароль',
     'required_username'             => '',
     'too_many_attempts'             => 'Забагато спроб. Будь ласка, зачекайте трохи і спробуйте знову.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'Ім\'я користувача',
     'welcome'                       => '',
 ];

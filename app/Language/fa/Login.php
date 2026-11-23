@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'من روبات نیستم.',
     'go'                            => 'برو',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'نامعتبر من یک روبات نیستم.',
     'invalid_installation'          => 'نصب صحیح نیست ، پرونده php.ini خود را بررسی کنید.',
     'invalid_username_and_password' => 'نام کاربری یا گذرواژه نامعتبر است.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => '',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => 'کلمه عبور',
     'required_username'             => '',
     'too_many_attempts'             => 'تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید و دوباره امتحان کنید.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'نام کاربری',
     'welcome'                       => '',
 ];

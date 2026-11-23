@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'ខ្ញុំមិនមែនជាម៉ាស៊ីនទេ។',
     'go'                            => 'ចាប់ផ្ដើម',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'មិនត្រឹមត្រូវខ្ញុំមិនមែនជាម៉ាស៊ីនទេ។',
     'invalid_installation'          => 'ការបញ្ចូលមិនត្រឹមត្រូវ, សូមពិនិត្យមើលឯកសារ php.ini របស់អ្នក។',
     'invalid_username_and_password' => 'ឈ្មោះឬក៏ពាក្យសំងាត់មិនត្រឹមត្រូវ។',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => '',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => 'ពាក្យសំងាត់',
     'required_username'             => '',
     'too_many_attempts'             => 'ការព្យាយាមច្រើនពេក។ សូមរង់ចាំបន្តិច ហើយព្យាយាមម្តងទៀត។',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'ឈ្មោះ',
     'welcome'                       => '',
 ];

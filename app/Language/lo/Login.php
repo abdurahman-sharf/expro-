@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'ຂ້ອຍບໍ່ແມ່ນເຄື່ອງຈັກ.',
     'go'                            => 'Go',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'ຍັງບໍ່ໄດ້ຕິກ ຂ້ອຍບໍ່ແມ່ນເຄື່ອງຈັກ.',
     'invalid_installation'          => 'ການຕິດຕັ້ງມີຂໍ້ຜິດພາດ, ກະລຸນາກວດສອບ php.ini file.',
     'invalid_username_and_password' => 'Username ຫຼື Password ບໍ່ຖືກຕ້ອງ.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => '',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => 'Password',
     'required_username'             => '',
     'too_many_attempts'             => 'ພະຍາຍາມຫຼາຍເກີນໄປ. ກະລຸນາລໍຖ້າບຶດໜຶ່ງ ແລ້ວລອງໃໝ່ອີກຄັ້ງ.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'Username',
     'welcome'                       => '',
 ];

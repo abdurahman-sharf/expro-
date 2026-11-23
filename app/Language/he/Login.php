@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'אני לא רובוט.',
     'go'                            => 'שלח',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'שגיאת אימות.',
     'invalid_installation'          => 'ההתקנה אינה נכונה, בדוק את קובץ php.ini.',
     'invalid_username_and_password' => 'שם משתמש או סיסמה לא נכונים.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => '',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => 'סיסמה',
     'required_username'             => '',
     'too_many_attempts'             => 'יותר מדי ניסיונות. אנא המתן רגע ונסה שוב.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'שם משתמש',
     'welcome'                       => '',
 ];

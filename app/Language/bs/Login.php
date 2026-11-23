@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'Ja nisam robot.',
     'go'                            => 'Idi',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'Molimo potvrdite da niste robot.',
     'invalid_installation'          => 'Instalacija nije ispravna, provjerite vašu php.ini datoteku.',
     'invalid_username_and_password' => 'Pogrešno korisničko ime i/ili lozinka.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => 'Migracija baze podataka na {0} će početi nakon prijavljivanja.',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => 'Lozinka',
     'required_username'             => '',
     'too_many_attempts'             => 'Previše pokušaja. Molimo pričekajte trenutak i pokušajte ponovo.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'Korisničko ime',
     'welcome'                       => 'Dobrodošli u {0}!',
 ];

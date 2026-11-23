@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => 'جارٍ التحقق...',
     'gcaptcha'                      => 'أنا لست بوت.',
     'go'                            => 'البدء',
     'initialization_message'        => 'لم تُهيَّأ قاعدة البيانات بعد.',
     'initialization_required'       => 'تهيئة قاعدة البيانات مطلوبة',
     'initialize'                    => 'تهيئة',
+    'initializing'                  => 'جارٍ التهيئة...',
     'invalid_gcaptcha'              => 'يرجى التأكيد على أنك لست روبوتا.',
     'invalid_installation'          => 'يوجد مشكلة بالتنصيب, الرجاء التحقق من ملف php.ini.',
     'invalid_username_and_password' => 'اسم مستخدم/كلمة سر غير صحيح.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => 'خطأ في الاتصال. حاول مرة أخرى.',
     'migration_failed'              => 'فشلت الترقية',
     'migration_initializing'        => 'جارٍ تهيئة قاعدة البيانات',
+    'migration_keep_open'           => 'قد تستغرق العملية بضع دقائق. أبقِ هذه الصفحة مفتوحة حتى تكتمل.',
     'migration_needed'              => 'سيبدأ ترحيل قاعدة البيانات إلى {0} بعد تسجيل الدخول.',
     'migration_required'            => 'ترقية قاعدة البيانات مطلوبة',
     'migration_running'             => 'جارٍ تنفيذ ترقيات قاعدة البيانات...',
     'password'                      => 'كلمة السر',
     'required_username'             => 'حقل اسم المستخدم مطلوب.',
     'too_many_attempts'             => 'تم تجاوز عدد المحاولات المسموح بها. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى.',
+    'upgrade'                       => 'ترقية',
+    'upgrading'                     => 'جارٍ الترقية...',
     'username'                      => 'اسم المستخدم',
     'welcome'                       => 'مرحباً بك في {0}!',
 ];

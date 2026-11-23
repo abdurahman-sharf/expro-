@@ -1,11 +1,13 @@
 <?php
 
 return [
+    'checking'                      => '',
     'gcaptcha'                      => 'Saya bukan robot.',
     'go'                            => 'Lanjut',
     'initialization_message'        => '',
     'initialization_required'       => '',
     'initialize'                    => '',
+    'initializing'                  => '',
     'invalid_gcaptcha'              => 'Tolong buktikan bahwa anda bukan robot.',
     'invalid_installation'          => 'Instalasi tidak benar, periksa file php.ini Anda.',
     'invalid_username_and_password' => 'Nama Pengguna Atau Sandi Salah.',
@@ -20,12 +22,15 @@ return [
     'migration_error_connection'    => '',
     'migration_failed'              => '',
     'migration_initializing'        => '',
+    'migration_keep_open'           => '',
     'migration_needed'              => 'Migrasi basis data untuk {0} akan mulai setelah masuk.',
     'migration_required'            => '',
     'migration_running'             => '',
     'password'                      => 'Kata kunci',
     'required_username'             => 'Kolom nama pengguna wajib diisi.',
     'too_many_attempts'             => 'Terlalu banyak percobaan. Harap tunggu sebentar dan coba lagi.',
+    'upgrade'                       => '',
+    'upgrading'                     => '',
     'username'                      => 'Nama Anda',
     'welcome'                       => 'Selamat Datang di {0}!',
 ];
