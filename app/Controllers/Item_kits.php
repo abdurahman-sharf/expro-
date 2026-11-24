@@ -9,6 +9,7 @@ use App\Libraries\Stock\Bundles;
 use App\Models\Item;
 use App\Models\Item_kit;
 use App\Models\Item_kit_items;
+use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
 class Item_kits extends Secure_Controller
@@ -109,11 +110,15 @@ class Item_kits extends Secure_Controller
         return $this->response->setJSON(get_item_kit_data_row($item_kit));
     }
 
-    public function getView(int $item_kit_id = NEW_ENTRY): string
+    public function getView(int $itemKitId = NEW_ENTRY): string
     {
-        $info = $this->item_kit->get_info($item_kit_id);
+        if ($itemKitId !== NEW_ENTRY && ! $this->item_kit->exists($itemKitId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
 
-        if ($item_kit_id == NEW_ENTRY) {
+        $info = $this->item_kit->get_info($itemKitId);
+
+        if ($itemKitId == NEW_ENTRY) {
             $info->price_option = '0';
             $info->print_option = PRINT_ALL;
             $info->kit_item_id  = 0;
@@ -129,11 +134,11 @@ class Item_kits extends Secure_Controller
 
         $items = [];
 
-        foreach ($this->item_kit_items->get_info($item_kit_id) as $item_kit_item) {
-            $item['kit_sequence'] = $item_kit_item['kit_sequence'];
-            $item['name']         = $this->item->get_info($item_kit_item['item_id'])->name;
-            $item['item_id']      = $item_kit_item['item_id'];
-            $item['quantity']     = $item_kit_item['quantity'];
+        foreach ($this->item_kit_items->get_info($itemKitId) as $itemKitItem) {
+            $item['kit_sequence'] = $itemKitItem['kit_sequence'];
+            $item['name']         = $this->item->get_info($itemKitItem['item_id'])->name;
+            $item['item_id']      = $itemKitItem['item_id'];
+            $item['quantity']     = $itemKitItem['quantity'];
 
             $items[] = $item;
         }
@@ -141,7 +146,7 @@ class Item_kits extends Secure_Controller
         $data['item_kit_items'] = $items;
 
         $data['selected_kit_item_id'] = $info->kit_item_id;
-        $data['selected_kit_item']    = ($item_kit_id > 0 && isset($info->kit_item_id)) ? $info->item_name : '';
+        $data['selected_kit_item']    = ($itemKitId > 0 && isset($info->kit_item_id)) ? $info->item_name : '';
 
         return view('item_kits/form', $data);
     }

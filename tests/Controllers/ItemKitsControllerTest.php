@@ -3,6 +3,7 @@
 namespace Tests\Controllers;
 
 use CodeIgniter\Config\Factories;
+use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -227,5 +228,38 @@ class ItemKitsControllerTest extends CIUnitTestCase
 
         $result->assertOK();
         $this->assertTrue(json_decode($result->getJSON(), true)['success']);
+    }
+
+    public function testGetView_RejectsAKitThatDoesNotExist(): void
+    {
+        $this->loginAsAdmin();
+        $missing = (int) Config::connect($this->DBGroup)->table('item_kits')->selectMax('item_kit_id')->get()->getRow()->item_kit_id + 1000;
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/item_kits/view/' . $missing);
+    }
+
+    public function testGetView_ShowsAnExistingKit(): void
+    {
+        $this->loginAsAdmin();
+        Factories::reset('config');
+        $itemKitId = $this->createItemKit();
+
+        $result = $this->get('/item_kits/view/' . $itemKitId);
+
+        $result->assertOK();
+        $result->assertSee('Test Kit');
+    }
+
+    public function testGetView_AcceptsANewKit(): void
+    {
+        $this->loginAsAdmin();
+        Factories::reset('config');
+
+        $result = $this->get('/item_kits/view/' . NEW_ENTRY);
+
+        $result->assertOK();
+        $result->assertSee('id="item_kit_form"');
     }
 }
