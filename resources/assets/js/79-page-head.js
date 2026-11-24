@@ -11,6 +11,10 @@
         return $list.length === 1 && $list.is('.nav-tabs, .nav-pills') && !$list.find('[data-bs-toggle]').length;
     };
 
+    // Screens that keep a layout of their own: the sale and receiving registers, the dashboards, the settings
+    // and the full-page states.
+    const fullLayouts = '.pos, .dash, .nt, .settings-layout, .empty-state';
+
     const leading = function($parent) {
         return $parent.children().not('script, style, .alert').filter(function() {
             return !isSectionTabs(this);
@@ -26,8 +30,12 @@
             $first = leading($first);
         }
 
-        // A title row: the heading first, its buttons after it, and perhaps a line of introduction below.
-        if ($first.is('div') && $first.children().first().is('h1, h2')) {
+        // A title row: the heading first, its buttons after it, and perhaps a line of introduction below. A
+        // block that also holds the content of the page (the dashboard opens on its welcome) is no title row.
+        const isTitleRow = $first.is('div') && $first.children().first().is('h1, h2')
+            && !$first.is(fullLayouts) && !$first.find('section, table, dl, .card, .table-responsive, .row').length;
+
+        if (isTitleRow) {
             $first.children().first().removeClass('h3 h4 h5 me-auto mb-0 mb-2 mb-3');
             $first.append($first.next('p.text-body-secondary'));
 
@@ -66,9 +74,8 @@
             $bar = headingBar();
         }
 
-        // A working screen with no title of its own still gets a header naming it; the sale and receiving
-        // registers, the dashboards and the full-page states keep their own layouts.
-        if (!$bar.length && !$('.page-head').length && !$('#app-main').find('.pos, .dash, .nt, .settings-layout, .empty-state').length) {
+        // A working screen with no title of its own still gets a header naming it.
+        if (!$bar.length && !$('.page-head').length && !$('#app-main').find(fullLayouts).length) {
             $bar = $('<div></div>').prependTo('#app-main');
         }
 
