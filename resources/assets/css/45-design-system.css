@@ -1576,3 +1576,12 @@ form.acc-journal > .acc-journal-head {
         padding: 16px 16px 4px;
     }
 }
+
+/* Tablets pad the main area by 20px: the save bars held at the foot reach out by as much and no more. */
+@media (min-width: 640px) and (max-width: 1023.98px) {
+    .doc-editor-actions,
+    form.acc-journal > .acc-journal-bar {
+        margin-inline: -20px;
+        padding-inline: 20px;
+    }
+}

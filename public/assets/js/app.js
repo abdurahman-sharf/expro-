@@ -2523,7 +2523,9 @@ function number_sorter(a, b) {
     };
 
     $(function() {
-        let $bar = $('#title_bar').length ? $('#title_bar') : $('#control_buttons.document-actions');
+        // A toolbar inside one tab of a page belongs to that tab, not to the page.
+        const $titleBar = $('#title_bar').not('.tab-pane #title_bar');
+        let $bar = $titleBar.length ? $titleBar : $('#control_buttons.document-actions');
 
         if (!$bar.length && !$('.page-head').length) {
             $bar = headingBar();
