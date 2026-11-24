@@ -134,11 +134,11 @@ class Item_kits extends Secure_Controller
 
         $items = [];
 
-        foreach ($this->item_kit_items->get_info($itemKitId) as $item_kit_item) {
-            $item['kit_sequence'] = $item_kit_item['kit_sequence'];
-            $item['name']         = $this->item->get_info($item_kit_item['item_id'])->name;
-            $item['item_id']      = $item_kit_item['item_id'];
-            $item['quantity']     = $item_kit_item['quantity'];
+        foreach ($this->item_kit_items->get_info($itemKitId) as $itemKitItem) {
+            $item['kit_sequence'] = $itemKitItem['kit_sequence'];
+            $item['name']         = $this->item->get_info($itemKitItem['item_id'])->name;
+            $item['item_id']      = $itemKitItem['item_id'];
+            $item['quantity']     = $itemKitItem['quantity'];
 
             $items[] = $item;
         }
