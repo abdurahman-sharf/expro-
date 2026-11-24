@@ -48,7 +48,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
 <div id="title_bar" class="print_hide btn-toolbar">
     <a class="btn btn-outline-secondary btn-sm" href="accounting_currencies"><?= esc(lang('Accounting_currencies.back')) ?></a>
-    <strong class="mx-3"><bdi dir="ltr"><?= esc($currency->code) ?></bdi> <?= esc(str_starts_with(service('request')->getLocale(), 'ar') ? $currency->nameAr : $currency->nameEn) ?></strong>
+    <h1 class="h5 mb-0"><bdi dir="ltr"><?= esc($currency->code) ?></bdi> <?= esc(str_starts_with(service('request')->getLocale(), 'ar') ? $currency->nameAr : $currency->nameEn) ?></h1>
     <?php if ($can_manage): ?>
         <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="accounting_currencies/rate_form/<?= esc($currency->code, 'url') ?>" title="<?= lang('Accounting_currencies.new_rate') ?>">
             <span class="bi bi-plus-lg" aria-hidden="true">&nbsp;</span><?= lang('Accounting_currencies.new_rate') ?>

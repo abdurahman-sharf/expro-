@@ -138,7 +138,7 @@ $locked  = $quote_status?->isLocked() === true;
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <button type="submit" class="btn btn-primary" id="quote_status_button"><?= lang('Sales.quote_status_change') ?></button>
+                <button type="submit" class="btn btn-outline-primary" id="quote_status_button"><?= lang('Sales.quote_status_change') ?></button>
             </form>
         <?php endif; ?>
 

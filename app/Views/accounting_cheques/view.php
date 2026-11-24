@@ -30,7 +30,7 @@ $id = (int) $cheque->cheque_id;
         <?php endforeach; ?>
         <?php foreach (['undo', 'cancel', 'delete'] as $action): ?>
             <?php if (in_array($action, $actions, true)): ?>
-                <button type="button" class="btn btn-outline-secondary btn-sm acc-action" data-acc-action="<?= $action ?>" data-confirm="<?= esc(lang('Accounting_cheques.confirm_' . $action), 'attr') ?>"><?= lang('Accounting_cheques.action_' . $action) ?></button>
+                <button type="button" class="btn <?= $action === 'delete' ? 'btn-outline-danger' : 'btn-outline-secondary' ?> btn-sm acc-action" data-acc-action="<?= $action ?>" data-confirm="<?= esc(lang('Accounting_cheques.confirm_' . $action), 'attr') ?>"><?= lang('Accounting_cheques.action_' . $action) ?></button>
             <?php endif; ?>
         <?php endforeach; ?>
     <?php endif; ?>
@@ -64,7 +64,7 @@ $id = (int) $cheque->cheque_id;
 </script>
 
 <div class="px-2">
-    <h5 class="mb-3"><bdi dir="ltr"><?= esc($number) ?></bdi> <span class="badge text-bg-secondary"><?= esc(lang(ChequeStatus::from($cheque->status)->labelKey())) ?></span></h5>
+    <h1 class="h5 mb-3"><bdi dir="ltr"><?= esc($number) ?></bdi> <span class="badge text-bg-secondary"><?= esc(lang(ChequeStatus::from($cheque->status)->labelKey())) ?></span></h1>
 
     <dl class="row" id="cheque_details">
         <dt class="col-sm-3"><?= lang($direction === 'received' ? 'Accounting_cheques.customer' : 'Accounting_cheques.supplier') ?></dt>

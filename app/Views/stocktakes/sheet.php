@@ -156,7 +156,7 @@ $quantity = static fn (?string $value): string => $value === null ? '' : rtrim(r
                         <?php if ($counting && $canManage): ?>
                             <?php $saved = esc($quantity($line->counted_quantity === null ? null : (string) $line->counted_quantity), 'attr'); ?>
                             <input type="hidden" name="seen[<?= (int) $line->item_id ?>]" value="<?= $saved ?>">
-                            <input type="text" class="form-control form-control-sm ltr-input text-end" dir="ltr" inputmode="decimal" autocomplete="off" name="counted[<?= (int) $line->item_id ?>]" aria-label="<?= esc(lang('Stock_documents.counted_quantity') . ' ' . $line->item_name, 'attr') ?>" value="<?= $saved ?>" data-saved="<?= $saved ?>">
+                            <input type="text" class="form-control form-control-sm ltr-input text-end stocktake-count" dir="ltr" inputmode="decimal" autocomplete="off" name="counted[<?= (int) $line->item_id ?>]" aria-label="<?= esc(lang('Stock_documents.counted_quantity') . ' ' . $line->item_name, 'attr') ?>" value="<?= $saved ?>" data-saved="<?= $saved ?>">
                         <?php else: ?>
                             <bdi dir="ltr"><?= esc($quantity($line->counted_quantity === null ? null : (string) $line->counted_quantity)) ?></bdi>
                         <?php endif; ?>
@@ -166,7 +166,7 @@ $quantity = static fn (?string $value): string => $value === null ? '' : rtrim(r
                         <td class="text-end"><bdi dir="ltr"><?= $line->unit_cost === null ? '' : to_currency($line->unit_cost) ?></bdi></td>
                     <?php endif; ?>
                     <?php if ($counting && $canManage): ?>
-                        <td><button type="button" class="btn btn-outline-danger btn-sm stocktake-remove" data-item="<?= (int) $line->item_id ?>" aria-label="<?= esc(lang('Stock_documents.remove_line'), 'attr') ?>"><span class="bi bi-x" aria-hidden="true"></span></button></td>
+                        <td><button type="button" class="btn btn-sm doc-remove-line stocktake-remove" data-item="<?= (int) $line->item_id ?>" aria-label="<?= esc(lang('Stock_documents.remove_line'), 'attr') ?>" title="<?= esc(lang('Stock_documents.remove_line'), 'attr') ?>"><span class="bi bi-trash3" aria-hidden="true"></span></button></td>
                     <?php endif; ?>
                 </tr>
             <?php endforeach; ?>
@@ -178,7 +178,7 @@ $quantity = static fn (?string $value): string => $value === null ? '' : rtrim(r
         <button type="submit" class="btn btn-primary btn-sm" id="counts_save"><?= lang('Stock_documents.save_counts') ?></button>
     <?= form_close() ?>
 
-    <div class="mt-3">
+    <div class="stocktake-add">
         <label class="form-label" for="add_item_name"><?= lang('Stock_documents.add_item') ?></label>
         <input type="text" class="form-control form-control-sm" id="add_item_name" autocomplete="off">
     </div>
@@ -191,7 +191,7 @@ $quantity = static fn (?string $value): string => $value === null ? '' : rtrim(r
             <?php foreach ($journals as $journal): ?>
                 <li>
                     <?= anchor('accounting_journals/view/' . (int) $journal->journal_id, esc((string) $journal->number), ['target' => '_blank', 'dir' => 'ltr']) ?>
-                    <span class="text-secondary"><?= esc($journal->journal_date) ?> · <?= esc(lang('Accounting.source_' . $journal->source_type)) ?> · <?= esc(to_currency($journal->total_debit)) ?> · <?= esc($journal->status) ?></span>
+                    <span class="text-secondary"><?= esc($journal->journal_date) ?> · <?= esc(lang('Accounting.source_' . $journal->source_type)) ?> · <?= esc(to_currency($journal->total_debit)) ?> · <?= esc(lang('Accounting.state_' . $journal->status)) ?></span>
                 </li>
             <?php endforeach; ?>
         </ul>

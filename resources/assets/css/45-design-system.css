@@ -1337,3 +1337,242 @@ form.acc-journal > .acc-journal-head {
         padding-inline: 16px;
     }
 }
+
+/* Details of a record (balance, status, dates) told as a definition list: a card of label and value rows
+   parted by light rules, the labels quiet and the values in the reading weight. */
+#app-main dl.row:not(.card dl, .modal dl, .card-body dl, #einvoice_panel dl, .print-only dl) {
+    margin-inline: 0;
+    padding: 4px 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+#app-main dl.row:not(.card dl, .modal dl, .card-body dl, #einvoice_panel dl, .print-only dl) > :is(dt, dd) {
+    margin: 0;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line-light);
+}
+
+#app-main dl.row:not(.card dl, .modal dl, .card-body dl, #einvoice_panel dl, .print-only dl) > dt {
+    padding-inline-end: 16px;
+    color: var(--fg-secondary);
+    font-weight: 500;
+}
+
+#app-main dl.row:not(.card dl, .modal dl, .card-body dl, #einvoice_panel dl, .print-only dl) > dd {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+
+#app-main dl.row:not(.card dl, .modal dl, .card-body dl, #einvoice_panel dl, .print-only dl) > :is(dt, dd):nth-last-child(-n + 2) {
+    border-bottom: 0;
+}
+
+@media (max-width: 575.98px) {
+    #app-main dl.row:not(.card dl, .modal dl, .card-body dl, #einvoice_panel dl, .print-only dl) > dt {
+        padding-bottom: 0;
+        border-bottom: 0;
+    }
+
+    #app-main dl.row:not(.card dl, .modal dl, .card-body dl, #einvoice_panel dl, .print-only dl) > dd {
+        padding-top: 2px;
+    }
+}
+
+/* Stocktake sheet: a narrow count field per line, the quiet remove icon of the document editor, the save
+   button at the foot of the lines and the add-item field in a card of its own. */
+#stocktake_lines .stocktake-count {
+    display: inline-block;
+    width: 140px;
+}
+
+#counts_save {
+    min-height: 40px;
+    margin-top: 12px;
+}
+
+.stocktake-add {
+    max-width: 560px;
+    margin-top: 16px;
+    padding: 16px 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+.stocktake-add .form-control {
+    min-height: 40px;
+}
+
+@media (max-width: 639.98px) {
+    #stocktake_lines .stocktake-count {
+        width: 96px;
+    }
+
+    .stocktake-add {
+        max-width: none;
+    }
+}
+
+/* Draft and quote view: the figures a small card of label and amount at the end of the lines, the total
+   in the heading weight; the actions a card of their own under it. */
+#document_figures {
+    min-width: 280px;
+    margin-inline-start: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+    overflow: hidden;
+}
+
+#document_figures :is(th, td) {
+    padding: 10px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--line-light);
+    background: transparent;
+}
+
+#document_figures th {
+    color: var(--fg-secondary);
+    font-weight: 500;
+}
+
+#document_figures td {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+}
+
+#document_figures tr:last-child :is(th, td) {
+    border-bottom: 0;
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 700;
+}
+
+#document_figures + p {
+    text-align: end;
+}
+
+#document_actions {
+    padding: 16px 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+#document_actions .btn {
+    min-height: 40px;
+}
+
+#document_actions .form-select {
+    min-height: 40px;
+}
+
+@media (max-width: 575.98px) {
+    #document_figures {
+        width: 100% !important;
+    }
+}
+
+/* A long record (seven facts or more) reads in two columns on a wide screen. */
+@media (min-width: 1200px) {
+    #app-main dl.row:not(.card dl, .modal dl, .card-body dl, #einvoice_panel dl, .print-only dl):has(> dt:nth-of-type(7)) {
+        display: grid;
+        grid-template-columns: minmax(140px, max-content) 1fr minmax(140px, max-content) 1fr;
+        column-gap: 0;
+    }
+
+    #app-main dl.row:not(.card dl, .modal dl, .card-body dl, #einvoice_panel dl, .print-only dl):has(> dt:nth-of-type(7)) > :is(dt, dd) {
+        width: auto;
+        max-width: none;
+        border-bottom: 1px solid var(--line-light);
+    }
+
+    #app-main dl.row:not(.card dl, .modal dl, .card-body dl, #einvoice_panel dl, .print-only dl):has(> dt:nth-of-type(7)) > dd:nth-of-type(odd) {
+        padding-inline-end: 32px;
+    }
+
+    #app-main dl.row:not(.card dl, .modal dl, .card-body dl, #einvoice_panel dl, .print-only dl):has(> dt:nth-of-type(7)) > :is(dt, dd):nth-last-child(-n + 4) {
+        border-bottom: 0;
+    }
+}
+
+.bank-window {
+    max-width: 640px;
+}
+
+.bank-window #bank_window_days {
+    width: 120px;
+    min-height: 40px;
+}
+
+.bank-window .btn {
+    min-height: 40px;
+}
+
+/* Bank statement import: the file, the paste box and the column map in one card. */
+#bank_import_form {
+    padding: 20px 24px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+#bank_import_form :is(.form-control, .form-select) {
+    min-height: 40px;
+}
+
+#bank_import_form [type="submit"] {
+    min-height: 40px;
+}
+
+@media (max-width: 639.98px) {
+    #bank_import_form {
+        padding: 16px;
+    }
+}
+
+/* Fixed asset form: each part of the asset (its basics, its purchase, its depreciation) a card under its
+   title, the save button held at the foot of the screen. */
+#asset_form > fieldset {
+    margin: 0 0 16px;
+    padding: 20px 24px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+}
+
+#asset_form > fieldset > legend {
+    float: none;
+    width: auto;
+    margin-bottom: 16px;
+    padding: 0;
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+#asset_form > fieldset :is(.form-control, .form-select) {
+    min-height: 40px;
+}
+
+#asset_form > .asset-form-actions {
+    margin-top: 0;
+    margin-bottom: -24px;
+}
+
+@media (max-width: 639.98px) {
+    #asset_form > fieldset {
+        padding: 16px 16px 4px;
+    }
+}

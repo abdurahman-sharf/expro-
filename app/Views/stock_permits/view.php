@@ -97,7 +97,7 @@ $withCost = $type !== StockPermitType::Transfer;
             <?php foreach ($journals as $journal): ?>
                 <li>
                     <?= anchor('accounting_journals/view/' . (int) $journal->journal_id, esc((string) $journal->number), ['target' => '_blank', 'dir' => 'ltr']) ?>
-                    <span class="text-secondary"><?= esc($journal->journal_date) ?> · <?= esc(lang('Accounting.source_' . $journal->source_type)) ?> · <?= esc(to_currency($journal->total_debit)) ?> · <?= esc($journal->status) ?></span>
+                    <span class="text-secondary"><?= esc($journal->journal_date) ?> · <?= esc(lang('Accounting.source_' . $journal->source_type)) ?> · <?= esc(to_currency($journal->total_debit)) ?> · <?= esc(lang('Accounting.state_' . $journal->status)) ?></span>
                 </li>
             <?php endforeach; ?>
         </ul>
