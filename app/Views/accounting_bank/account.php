@@ -164,15 +164,17 @@ $base = base_url('accounting_treasuries/bank/' . $id);
         </div>
     <?php endif; ?>
 
-    <h2 class="h5"><?= lang('Accounting_bank.window_title') ?></h2>
-    <form id="bank_window_form" class="row g-2 align-items-end mb-2">
-        <div class="col-auto">
-            <label class="form-label" for="bank_window_days"><?= lang('Accounting_bank.window_days') ?></label>
-            <input type="number" class="form-control form-control-sm" id="bank_window_days" name="days" min="<?= (int) $windowMin ?>" max="<?= (int) $windowMax ?>" value="<?= (int) $window ?>">
-        </div>
-        <div class="col-auto"><button type="submit" class="btn btn-outline-primary btn-sm"><?= lang('Common.submit') ?></button></div>
-    </form>
-    <p class="small text-body-secondary"><?= lang('Accounting_bank.window_note') ?></p>
+    <section class="card acc-setup-card bank-window mt-4" aria-labelledby="bank_window_title">
+        <h2 class="h6 acc-setup-title" id="bank_window_title"><?= lang('Accounting_bank.window_title') ?></h2>
+        <form id="bank_window_form" class="d-flex flex-wrap align-items-end gap-2 mb-2">
+            <div>
+                <label class="form-label" for="bank_window_days"><?= lang('Accounting_bank.window_days') ?></label>
+                <input type="number" class="form-control" id="bank_window_days" name="days" min="<?= (int) $windowMin ?>" max="<?= (int) $windowMax ?>" value="<?= (int) $window ?>">
+            </div>
+            <button type="submit" class="btn btn-outline-primary"><?= lang('Common.submit') ?></button>
+        </form>
+        <p class="small text-body-secondary mb-0"><?= lang('Accounting_bank.window_note') ?></p>
+    </section>
 </div>
 
 <?= view('partial/footer') ?>

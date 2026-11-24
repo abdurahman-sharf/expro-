@@ -15,6 +15,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <link rel="stylesheet" href="<?= assetUrl(isRtl() ? 'css/bootstrap.rtl.min.css' : 'css/bootstrap.min.css') ?>">
+    <style>
+        #count_sheet .count-sheet-position { width: 3rem; }
+        #count_sheet .count-sheet-system { width: 8rem; }
+        #count_sheet .count-sheet-counted { width: 12rem; }
+        #count_sheet tbody td { height: 2.25rem; vertical-align: middle; }
+    </style>
 </head>
 
 <body class="p-4">
@@ -24,7 +30,13 @@
         <p class="mb-3"><?= lang('Stock_documents.count_date') ?>: <bdi dir="ltr"><?= esc((string) $stocktake->count_date) ?></bdi> · <?= lang('Stock_documents.started_at') ?>: <bdi dir="ltr"><?= esc((string) $stocktake->started_at) ?></bdi></p>
 
         <table class="table table-bordered table-sm" id="count_sheet">
-            <thead>
+            <colgroup>
+                <col class="count-sheet-position">
+                <col>
+                <col class="count-sheet-system">
+                <col class="count-sheet-counted">
+            </colgroup>
+            <thead class="table-light">
                 <tr>
                     <th scope="col">#</th>
                     <th scope="col"><?= lang('Stock_documents.item') ?></th>
@@ -38,7 +50,7 @@
                         <td><?= $position + 1 ?></td>
                         <td><?= esc((string) $line->item_name) ?><?= (string) $line->item_number !== '' ? ' <small dir="ltr">' . esc((string) $line->item_number) . '</small>' : '' ?></td>
                         <td class="text-end"><bdi dir="ltr"><?= esc(rtrim(rtrim(bcadd((string) $line->system_quantity, '0', 3), '0'), '.')) ?></bdi></td>
-                        <td style="min-width: 8rem">&nbsp;</td>
+                        <td>&nbsp;</td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>

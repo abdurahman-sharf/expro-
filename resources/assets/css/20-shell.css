@@ -676,6 +676,7 @@
         display: flex;
         order: 10;
         flex: 0 0 calc(100% + 32px);
+        min-width: 0;
         align-items: center;
         gap: 8px;
         height: 48px;
@@ -697,6 +698,7 @@
 
     .app-topbar-info .app-branch .form-select {
         width: 100%;
+        min-width: 0;
     }
 
     .app-clock {
@@ -727,5 +729,12 @@
 
     .app-footer {
         justify-content: center;
+    }
+}
+
+/* The smallest phones: the branch picker gives up width before the bar spills off the screen. */
+@media (max-width: 359.98px) {
+    .app-topbar-info .app-branch {
+        flex-basis: 112px;
     }
 }

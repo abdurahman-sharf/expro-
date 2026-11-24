@@ -256,8 +256,8 @@ $option = static fn (string $current, string $wanted): string => $current === $w
         </div>
     </fieldset>
 
-    <div class="mt-3">
-        <button type="submit" id="submit_asset" class="btn btn-primary btn-sm"><?= lang('Accounting_assets.save') ?></button>
+    <div class="doc-editor-actions asset-form-actions">
+        <button type="submit" id="submit_asset" class="btn btn-primary"><?= lang('Accounting_assets.save') ?></button>
     </div>
 <?= form_close() ?>
 
