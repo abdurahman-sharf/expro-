@@ -13,6 +13,9 @@ Standard library only. Subcommands:
   matrix    Summarise 04a-scenario-matrix.json (sandbox scenario matrix).
   urlcheck  Refuse action-like URLs before any GET / fetch.
   scrub     Scan the deliverables for privacy / credential / brand / raw-artifact leaks.
+  uiscaffold  Write a ui/screens/<module>/<screen>.map.md skeleton listing every spec element.
+  uicheck     Compare every spec screen with its UI map; write ui/coverage.md; fail on gaps.
+  uicontrast  Check WCAG contrast of ui/tokens.json contrast_pairs (light and dark).
 
 Run `python3 acs_tool.py <cmd> --help` for options. All commands take
 --project <path-to-spec-folder> (default: current directory) except init.
@@ -40,6 +43,7 @@ PHASES = [
     ("5", "الصلاحيات وسير العمل", "acs-analyzer"),
     ("6", "التقارير", "acs-analyzer"),
     ("7", "حزمة المواصفات والتعليمات للمنفّذ", "acs-spec-writer"),
+    ("8", "تصميم الواجهات (اختياري)", "acs-ui-designer"),
 ]
 STUB_FILES = [
     "00-executive-summary.md",
@@ -131,6 +135,9 @@ def cmd_init(args) -> None:
         "mode": args.mode,
         "sandbox_confirmed_at": args.sandbox_confirmed_at,
         "test_prefix": args.test_prefix,
+        "identity": {"terms": [], "colors": [],
+                     "note": "Reference-system identity (name, wordmark, distinctive labels, brand hex colours) - "
+                             "recorded by acs-explorer for scrub only; never copied into deliverables or ui/."},
         "note": "Never store usernames, passwords, OTP codes, cookies or tokens in this project.",
     }
     save_json(root / "_private" / "project.json", config)
@@ -535,6 +542,22 @@ def cmd_progress(args) -> None:
               f"محجوبة {mstats['blocked']} · فروق {mstats['diffs']}"
               + (f" · ⚠ فروق بلا بند تناقض: {', '.join(mstats['diffs_without_anomaly'])}" if mstats['diffs_without_anomaly'] else ""),
               f"**السجلات التجريبية:** {ledger_count(root)}"]
+    ui = root / "ui"
+    if ui.exists():
+        maps = list((ui / "screens").rglob("*.map.md")) if (ui / "screens").exists() else []
+        protos = [p for p in (ui / "screens").rglob("*.html")] if (ui / "screens").exists() else []
+        designed = sum(1 for _ in designed_screens(root))
+        cov_line = ""
+        cov = ui / "coverage.md"
+        if cov.exists():
+            m = re.search(r"تغطية العناصر[^|]*\|\s*([\d.]+%)", cov.read_text(encoding="utf-8"))
+            cov_line = f" · تغطية العناصر {m.group(1)}" if m else ""
+        approvals = ui / "approvals.md"
+        block += ["", "### الواجهات (المرحلة 8)", "",
+                  f"الشاشات المطلوبة {designed} · ملفات ربط {len(maps)} · نماذج تفاعلية {len(protos)}{cov_line}",
+                  f"نظام التصميم: {'✓' if (ui / 'tokens.json').exists() and (ui / 'components.md').exists() else '⬜'} · "
+                  f"التنقل: {'✓' if (ui / 'navigation.json').exists() else '⬜'} · "
+                  f"الموافقات: {'راجع ui/approvals.md' if approvals.exists() else 'لا شيء بعد'}"]
     block.append(STATUS_END)
     path = root / "progress.md"
     text = path.read_text(encoding="utf-8")
@@ -576,12 +599,27 @@ LEAK_PATTERNS = [
         r"(?i)(?:password|passwd|pwd|كلمة\s*(?:المرور|السر)|otp)\s*[:=]\s*[^\s|`<>\-]{3,}")),
     ("api_key_param", re.compile(r"(?i)(?:api[_-]?key|access[_-]?token|session[_-]?id)=[A-Za-z0-9._-]{12,}")),
 ]
+HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b")
+UI_SUFFIXES = {".html", ".css", ".js", ".svg", ".png", ".webp", ".json"}
+TEXT_SUFFIXES = {".md", ".json", ".sql", ".mmd", ".txt", ".csv", ".html", ".css", ".js", ".svg"}
+
+
+def normalize_hex(value) -> str | None:
+    if not isinstance(value, str):
+        return None
+    m = re.fullmatch(r"#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})", value.strip())
+    if not m:
+        return None
+    h = m.group(1).lower()
+    return "#" + ("".join(c * 2 for c in h) if len(h) == 3 else h)
+
+
 TYPE_WORDS = {"string", "str", "text", "number", "int", "integer", "bigint", "float", "decimal", "numeric", "money",
               "boolean", "bool", "date", "datetime", "timestamp", "time", "array", "object", "null", "uuid", "enum",
               "id", "url", "email", "phone", "json", "nullable", "optional", "file", "any"}
 API_VALUE_RE = re.compile(r'"([\w.\-]+)"\s*:\s*("([^"]*)"|-?\d+(?:\.\d+)?|true|false)')
 RAW_SUFFIXES = {".html", ".htm", ".png", ".jpg", ".jpeg", ".webp", ".har", ".pdf", ".xlsx", ".csv"}
-ALLOWED_JSON = {"01-sitemap.json", "04a-scenario-matrix.json"}
+ALLOWED_JSON = {"01-sitemap.json", "04a-scenario-matrix.json", "ui/tokens.json", "ui/navigation.json"}
 EXAMPLE_ALLOW = re.compile(r"x{3,}|example\.(?:com|org)|<[^>]+>|\.\.\.|\*{3,}", re.IGNORECASE)
 
 
@@ -598,10 +636,17 @@ def cmd_scrub(args) -> None:
             host = re.sub(r"^https?://", "", cfg["base_url"]).split("/")[0]
             if host:
                 brands.append(host)
+        identity = cfg.get("identity") or {}
+        brands += [t for t in identity.get("terms", []) if isinstance(t, str) and len(t.strip()) >= 3]
+        colors = [normalize_hex(c) for c in identity.get("colors", []) if normalize_hex(c)]
+    else:
+        colors = []
     findings = []
     for path in sorted(root.rglob("*")):
         if path.is_file() and "_private" not in path.parts:
             rel = path.relative_to(root).as_posix()
+            if rel.startswith("ui/") and path.suffix.lower() in UI_SUFFIXES:
+                continue
             if path.suffix.lower() in RAW_SUFFIXES or (path.suffix == ".json" and rel not in ALLOWED_JSON):
                 findings.append({"file": rel, "line": 0, "kind": "raw_artifact",
                                  "match": "نسخة خام من النظام (HTML/لقطة/JSON) لا تُحفظ في المخرجات"})
@@ -618,7 +663,7 @@ def cmd_scrub(args) -> None:
                         findings.append({"file": "01-api-map.md", "line": lineno, "kind": "api_map_value",
                                          "match": m.group(0)[:60] + " — اكتب النوع لا القيمة"})
     for path in sorted(root.rglob("*")):
-        if not path.is_file() or "_private" in path.parts or path.suffix not in {".md", ".json", ".sql", ".mmd", ".txt", ".csv"}:
+        if not path.is_file() or "_private" in path.parts or path.suffix not in TEXT_SUFFIXES:
             continue
         rel = path.relative_to(root).as_posix()
         for lineno, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
@@ -631,9 +676,288 @@ def cmd_scrub(args) -> None:
                 if brand.lower() in line.lower():
                     findings.append({"file": rel, "line": lineno, "kind": "original_brand_or_host",
                                      "match": brand})
+            if colors:
+                for m in HEX_RE.finditer(line):
+                    if normalize_hex(m.group(0)) in colors:
+                        findings.append({"file": rel, "line": lineno, "kind": "original_identity_color",
+                                         "match": m.group(0)})
     print(json.dumps({"clean": not findings, "count": len(findings), "findings": findings[:200]},
                      ensure_ascii=False, indent=2))
     sys.exit(1 if findings else 0)
+
+
+# ---------------------------------------------------------------- UI (acs-ui-designer)
+
+UI_KINDS = {"field": "حقل", "action": "إجراء", "state": "حالة"}
+KIND_ALIASES = {"حقل": "field", "عمود": "field", "field": "field", "column": "field",
+                "إجراء": "action", "اجراء": "action", "زر": "action", "action": "action",
+                "حالة": "state", "state": "state"}
+SPEC_SECTIONS = [("## الحقول", "field"), ("## الجداول الفرعية", "field"),
+                 ("## الأزرار والإجراءات", "action"), ("## الحالات", "state")]
+SKIP_CELLS = {"", "—", "-", "لا ينطبق", "لا يوجد", "الحقل", "العمود", "الإجراء", "الحالة", "field", "action", "state"}
+
+
+def norm_label(text: str) -> str:
+    text = re.sub(r"\[(?:مُ|م)ستنتج\]|\[تحسين\]", "", text)
+    text = re.sub(r"[`*_]|<[^>]+>", "", text)
+    text = re.sub(r"\([^)]*\)", "", text)
+    text = re.sub(r"[\u064B-\u0652\u0640]", "", text)  # harakat + tatweel
+    text = text.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ى", "ي").replace("ة", "ه")
+    return re.sub(r"\s+", " ", text).strip(" :.-—").lower()
+
+
+def md_sections(text: str) -> dict[str, str]:
+    parts, current, buf = {}, None, []
+    for line in text.splitlines():
+        if line.startswith("## "):
+            if current is not None:
+                parts[current] = "\n".join(buf)
+            current, buf = line.strip(), []
+        elif current is not None:
+            buf.append(line)
+    if current is not None:
+        parts[current] = "\n".join(buf)
+    return parts
+
+
+def first_column(block: str) -> list[str]:
+    cells = []
+    for line in block.splitlines():
+        line = line.strip()
+        if not line.startswith("|") or re.match(r"^\|[\s:|-]+\|?$", line):
+            continue
+        first = line.strip("|").split("|")[0].strip()
+        if norm_label(first) not in {norm_label(x) for x in SKIP_CELLS}:
+            cells.append(first)
+    return cells
+
+
+def table_rows(block: str) -> list[list[str]]:
+    rows = []
+    for line in block.splitlines():
+        line = line.strip()
+        if line.startswith("|") and not re.match(r"^\|[\s:|-]+\|?$", line):
+            rows.append([c.strip() for c in line.strip("|").split("|")])
+    return rows[1:] if rows else []
+
+
+ARROW_RE = re.compile(r"-{1,2}\([^)]*\)-{1,2}>|<-{1,2}>|<-{1,2}|-{1,2}>|→|←|↔|⇄|⟶|⟵")
+
+
+def chain_states(block: str) -> list[str]:
+    """States written as an arrow chain, e.g. `مسودة --(اعتماد)--> معتمدة → مدفوعة`."""
+    states = []
+    for line in block.splitlines():
+        if not ARROW_RE.search(line) or line.strip().startswith("|"):
+            continue
+        for piece in ARROW_RE.sub("|", line).split("|"):
+            piece = re.sub(r"\[[^\]]*\]|\([^)]*\)|`", "", piece).strip()
+            if ":" in piece:
+                piece = piece.split(":")[-1].strip()
+            if piece and len(piece.split()) <= 3 and not re.search(r"[=<>{}]", piece):
+                states.append(piece)
+    return states
+
+
+def spec_elements(spec_text: str) -> list[tuple[str, str]]:
+    """(kind, label) for every field, sub-table column, action and lifecycle state in a screen spec."""
+    out, seen = [], set()
+    for heading, block in md_sections(spec_text).items():
+        for prefix, kind in SPEC_SECTIONS:
+            if heading.startswith(prefix):
+                if prefix == "## الحقول" and "الشرطية" in heading:
+                    continue
+                labels = first_column(block) + (chain_states(block) if kind == "state" else [])
+                for label in labels:
+                    key = (kind, norm_label(label))
+                    if key[1] and key not in seen:
+                        seen.add(key)
+                        out.append((kind, label))
+    return out
+
+
+def designed_screens(root: Path):
+    sitemap = load_json(root / "01-sitemap.json")
+    for module, _, sc in iter_screens(sitemap):
+        if sc.get("status") in ("done", "partial") and sc.get("file"):
+            yield module, sc
+
+
+def map_path(root: Path, module_id: str, screen_id: str) -> Path:
+    return root / "ui" / "screens" / module_id / f"{screen_id}.map.md"
+
+
+def cmd_uiscaffold(args) -> None:
+    root = project_path(args)
+    targets = [(m, sc) for m, sc in designed_screens(root) if not args.screen or sc["id"] == args.screen]
+    if args.module:
+        targets = [(m, sc) for m, sc in targets if m["id"] == args.module]
+    written = []
+    for module, sc in targets:
+        path = map_path(root, module["id"], sc["id"])
+        if path.exists() and not args.force:
+            continue
+        elements = spec_elements((root / sc["file"]).read_text(encoding="utf-8"))
+        rows = "\n".join(f"| {label} | {UI_KINDS[kind]} | ؟ | |" for kind, label in elements)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f"# ربط الواجهة: {sc['name']} (`{sc['id']}`)\n\n"
+            f"- ملف المواصفات: `{sc['file']}`\n- النموذج التفاعلي: `{sc['id']}.html`\n- النمط: ؟\n"
+            f"- موقعه في التنقل الجديد: ؟\n\n"
+            "## جدول الربط\n\n"
+            "انسخ اسم العنصر كما هو من المواصفات. استبدل كل `؟` بالمكوّن المستخدم (من `ui/components.md`).\n\n"
+            "| عنصر المواصفات | النوع | المكوّن في التصميم | ملاحظات |\n|---|---|---|---|\n"
+            f"{rows}\n\n"
+            "## عناصر غير مصممة\n\nكل عنصر نُقل من جدول الربط إلى هنا يحتاج تبريراً مكتوباً.\n\n"
+            "| العنصر | النوع | التبرير |\n|---|---|---|\n\n"
+            "## الحالات المصممة\n\n- فارغة: ؟\n- تحميل: ؟\n- خطأ: ؟\n- أخطاء التحقق: ؟\n- حالات المستند: ؟\n\n"
+            "## حسب الصلاحيات\n\n| الدور | يُخفى | يُعطَّل |\n|---|---|---|\n\n"
+            "## التحسينات\n\n- [تحسين] … — السبب: …\n",
+            encoding="utf-8")
+        written.append(path.relative_to(root).as_posix())
+    print(json.dumps({"written": written, "count": len(written)}, ensure_ascii=False, indent=2))
+
+
+def parse_map(text: str):
+    sections = md_sections(text)
+    mapped, justified, unfilled = {}, {}, []
+    for heading, block in sections.items():
+        if heading.startswith("## جدول الربط"):
+            for row in table_rows(block):
+                if len(row) < 3:
+                    continue
+                kind = KIND_ALIASES.get(norm_label(row[1]).replace("ه", "ة"), KIND_ALIASES.get(row[1].strip(), "field"))
+                comp = row[2].strip()
+                key = (kind, norm_label(row[0]))
+                if comp in ("", "؟", "?", "—", "-"):
+                    unfilled.append(row[0])
+                else:
+                    mapped[key] = comp
+        elif heading.startswith("## عناصر غير مصممة"):
+            for row in table_rows(block):
+                if len(row) >= 3 and row[2].strip() not in ("", "؟", "?", "—", "-"):
+                    kind = KIND_ALIASES.get(row[1].strip(), "field")
+                    justified[(kind, norm_label(row[0]))] = row[2].strip()
+    return mapped, justified, unfilled
+
+
+def cmd_uicheck(args) -> None:
+    root = project_path(args)
+    ui = root / "ui"
+    if not ui.exists():
+        sys.exit("error: no ui/ folder - run acs-ui-designer first")
+    nav_ids = set()
+    nav_path = ui / "navigation.json"
+    nav_warnings = []
+    if nav_path.exists():
+        nav = load_json(nav_path)
+        for sec in nav.get("sections", []):
+            for item in sec.get("items", []):
+                nav_ids.update(item.get("screen_ids", []))
+        sitemap_order = [norm_label(m["name"]) for m in module_order(load_json(root / "01-sitemap.json"))]
+        nav_order = [norm_label(sec.get("label", "")) for sec in nav.get("sections", [])]
+        if nav_order and nav_order == sitemap_order[:len(nav_order)]:
+            nav_warnings.append("أقسام التنقل تطابق ترتيب وحدات النظام المرجعي وأسماءها — أعد صياغة معمارية المعلومات.")
+    else:
+        nav_warnings.append("ui/navigation.json غير موجود.")
+    per_screen, totals = [], {"field": [0, 0], "action": [0, 0], "state": [0, 0]}
+    problems = []
+    for module, sc in designed_screens(root):
+        elements = spec_elements((root / sc["file"]).read_text(encoding="utf-8"))
+        mp = map_path(root, module["id"], sc["id"])
+        html_path = mp.with_name(f"{sc['id']}.html")
+        entry = {"screen": sc["id"], "module": module["id"], "elements": len(elements), "mapped": 0,
+                 "justified": 0, "missing": [], "unfilled": [], "map": mp.exists(), "prototype": html_path.exists(),
+                 "in_navigation": sc["id"] in nav_ids}
+        mapped, justified, unfilled = parse_map(mp.read_text(encoding="utf-8")) if mp.exists() else ({}, {}, [])
+        entry["unfilled"] = unfilled
+        for kind, label in elements:
+            key = (kind, norm_label(label))
+            alt = [k for k in list(mapped) + list(justified) if k[1] == key[1]]
+            totals[kind][1] += 1
+            if key in mapped or (alt and alt[0] in mapped):
+                entry["mapped"] += 1
+                totals[kind][0] += 1
+            elif key in justified or (alt and alt[0] in justified):
+                entry["justified"] += 1
+                totals[kind][0] += 1
+            else:
+                entry["missing"].append(f"{UI_KINDS[kind]}: {label}")
+        if not entry["map"]:
+            problems.append(f"{sc['id']}: لا يوجد ملف ربط")
+        if not entry["prototype"]:
+            problems.append(f"{sc['id']}: لا يوجد نموذج تفاعلي {html_path.name}")
+        if entry["missing"]:
+            problems.append(f"{sc['id']}: {len(entry['missing'])} عنصر بلا ربط ولا تبرير")
+        if entry["unfilled"]:
+            problems.append(f"{sc['id']}: {len(entry['unfilled'])} صف مكوّنه فارغ (؟)")
+        if nav_path.exists() and not entry["in_navigation"]:
+            problems.append(f"{sc['id']}: غير موجودة في ui/navigation.json")
+        per_screen.append(entry)
+    total_done = sum(v[0] for v in totals.values())
+    total_all = sum(v[1] for v in totals.values())
+    summary = {"screens": len(per_screen), "with_map": sum(e["map"] for e in per_screen),
+               "with_prototype": sum(e["prototype"] for e in per_screen),
+               "coverage": pct(total_done, total_all),
+               "by_kind": {UI_KINDS[k]: pct(v[0], v[1]) for k, v in totals.items()},
+               "justified": sum(e["justified"] for e in per_screen), "problems": problems, "warnings": nav_warnings}
+    lines = ["# تغطية الواجهات", "", f"_وُلّد تلقائياً بـ `acs_tool.py uicheck` في {now()}._", "",
+             "| المؤشر | القيمة |", "|---|---|",
+             f"| الشاشات المطلوب تصميمها | {summary['screens']} |",
+             f"| لها ملف ربط / نموذج تفاعلي | {summary['with_map']} / {summary['with_prototype']} |",
+             f"| تغطية العناصر (مربوطة أو مبرَّرة) | {summary['coverage']} |",
+             f"| الحقول / الإجراءات / الحالات | {summary['by_kind']['حقل']} / {summary['by_kind']['إجراء']} / {summary['by_kind']['حالة']} |",
+             f"| عناصر غير مصممة بتبرير | {summary['justified']} |", "",
+             "## حسب الشاشة", "", "| الشاشة | العناصر | مربوطة | مبرَّرة | ناقصة | نموذج | في التنقل |", "|---|---|---|---|---|---|---|"]
+    for e in per_screen:
+        lines.append(f"| `{e['module']}/{e['screen']}` | {e['elements']} | {e['mapped']} | {e['justified']} | "
+                     f"{len(e['missing'])} | {'✓' if e['prototype'] else '✗'} | {'✓' if e['in_navigation'] else '✗'} |")
+    lines += ["", "## مشكلات تمنع التسليم", ""] + ([f"- {p}" for p in problems] or ["لا يوجد."])
+    missing_detail = [(e["screen"], m) for e in per_screen for m in e["missing"]]
+    if missing_detail:
+        lines += ["", "## العناصر الناقصة", ""] + [f"- `{sid}` — {m}" for sid, m in missing_detail]
+    lines += ["", "## تحذيرات", ""] + ([f"- {w}" for w in nav_warnings] or ["لا يوجد."])
+    (ui / "coverage.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    sys.exit(1 if problems else 0)
+
+
+def _lum(hex_color: str) -> float:
+    h = hex_color.strip().lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    rgb = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in rgb]
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+
+def contrast_ratio(a: str, b: str) -> float:
+    la, lb = sorted((_lum(a), _lum(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def cmd_uicontrast(args) -> None:
+    root = project_path(args)
+    tokens = load_json(root / "ui" / "tokens.json")
+    pairs = tokens.get("contrast_pairs") or []
+    results, failures = [], []
+    for palette_name in ("color", "color_dark"):
+        palette = tokens.get(palette_name)
+        if not palette:
+            continue
+        for fg, bg, minimum in pairs:
+            if fg not in palette or bg not in palette:
+                failures.append(f"{palette_name}: token missing for pair {fg}/{bg}")
+                continue
+            ratio = contrast_ratio(palette[fg], palette[bg])
+            ok = ratio >= float(minimum)
+            results.append({"palette": palette_name, "fg": fg, "bg": bg, "ratio": round(ratio, 2), "min": minimum, "ok": ok})
+            if not ok:
+                failures.append(f"{palette_name}: {fg} on {bg} = {ratio:.2f} < {minimum}")
+    if not pairs:
+        failures.append("tokens.json has no contrast_pairs")
+    print(json.dumps({"pairs_checked": len(results), "failures": failures, "results": results}, ensure_ascii=False, indent=2))
+    sys.exit(1 if failures else 0)
 
 
 # ---------------------------------------------------------------- main
@@ -689,6 +1013,21 @@ def main() -> None:
     p.add_argument("url")
     p.add_argument("--label", default="", help="visible text of the link/button")
     p.set_defaults(func=cmd_urlcheck)
+
+    p = sub.add_parser("uiscaffold", help="write UI map skeletons from the screen specs")
+    p.add_argument("--project", default=".")
+    p.add_argument("--module", default=None)
+    p.add_argument("--screen", default=None)
+    p.add_argument("--force", action="store_true", help="overwrite existing map files")
+    p.set_defaults(func=cmd_uiscaffold)
+
+    p = sub.add_parser("uicheck", help="functional parity of ui/ against the specs")
+    p.add_argument("--project", default=".")
+    p.set_defaults(func=cmd_uicheck)
+
+    p = sub.add_parser("uicontrast", help="WCAG contrast of ui/tokens.json")
+    p.add_argument("--project", default=".")
+    p.set_defaults(func=cmd_uicontrast)
 
     p = sub.add_parser("log", help="append to the progress log")
     p.add_argument("--project", default=".")

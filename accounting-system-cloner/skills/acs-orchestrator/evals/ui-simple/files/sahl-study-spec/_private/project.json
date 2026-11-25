@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-11-25 08:43",
+  "system_label": "النظام المرجعي",
+  "system_name_private": "دفتر سهل (SahlBooks)",
+  "base_url": "http://localhost:8401",
+  "demo_environment": "نعم — شركة الديمو داخل النظام (بيئة اختبار محلية)",
+  "language": "ar",
+  "direction": "rtl",
+  "country": "SA",
+  "scope": "كامل النظام",
+  "target_stack": "Next.js + NestJS + PostgreSQL",
+  "authorization_confirmed_at": "2026-11-25 (تأكيد صريح من المستخدم في رسالة الطلب)",
+  "mode": "read-only",
+  "sandbox_confirmed_at": null,
+  "test_prefix": "اختبار-Claude-",
+  "note": "Never store usernames, passwords, OTP codes, cookies or tokens in this project.",
+  "identity": {
+    "terms": [
+      "SahlBooks",
+      "دفتر سهل"
+    ],
+    "colors": [
+      "#7B2CBF",
+      "#f3f0fa"
+    ],
+    "note": "recorded for scrub only"
+  }
+}

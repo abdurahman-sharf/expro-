@@ -22,8 +22,13 @@
   09-open-questions.md            ← الجميع يضيف؛ spec-writer يرتّب ويُنهي
   10-coverage-report.md           ← السكربت (coverage --write) + تعليق spec-writer
   11-test-records-ledger.md       ← analyzer يضيف فور كل إنشاء؛ spec-writer يُنهي (وضع التجربة فقط)
-  _private/                       ← لا يُسلَّم للمنفّذ: اسم النظام الأصلي ورابطه والوضع
-    project.json
+  ui/                             ← acs-ui-designer (المرحلة 8، اختيارية، غرفة نظيفة)
+    brand.md · tokens.json · kit/{tokens.css,proto.css,proto.js} · components.md
+    navigation.json · information-architecture.md · approvals.md · accessibility.md
+    archetypes/<type>.html · screens/<module>/<screen-id>.html + .map.md · print/*.html
+    coverage.md (يولّده uicheck) · open-questions.md · index.html (يولّده ui_kit.py index)
+  _private/                       ← لا يُسلَّم للمنفّذ، ولا يفتحه المصمِّم: اسم النظام الأصلي ورابطه والوضع
+    project.json                  ← ومعه identity: {terms, colors} لفحص scrub
 ```
 
 ## مخطط `01-sitemap.json`
@@ -112,6 +117,12 @@ skip_reason:          # إلزامي إن كانت partial أو skipped
 - `status`: `tested` | `untested` | `blocked` (مع `reason`: "وضع قراءة فقط"، "يحتاج إذناً خاصاً"، "الوحدة معطّلة"...).
 - `diff` غير فارغ ⇒ `anomaly_ref` يشير إلى بند في قسم التناقضات بـ `04-business-rules.md` (مثل `AN-03`).
 - السكربت: `acs_tool.py matrix` يلخّص الحالة، و`progress` و`coverage --write` يعرضانها.
+
+## ملف الربط `ui/screens/<module>/<screen-id>.map.md`
+
+يولّده `acs_tool.py uiscaffold` ويفحصه `uicheck`. أقسامه: "جدول الربط" (`| عنصر المواصفات | النوع | المكوّن في التصميم |
+ملاحظات |` — النوع: حقل/إجراء/حالة)، "عناصر غير مصممة" (`| العنصر | النوع | التبرير |`)، "الحالات المصممة"، "حسب
+الصلاحيات"، "التحسينات" (`[تحسين]` + السبب).
 
 ## `progress.md`
 

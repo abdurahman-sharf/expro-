@@ -1,0 +1,810 @@
+{
+  "schema_version": 1,
+  "mode": "read-only",
+  "cells": [
+    {
+      "id": "SM-001",
+      "document": "sales_invoice",
+      "variables": {
+        "item_type": "stock",
+        "payment": "none",
+        "status": "issued",
+        "currency": "base",
+        "tax": "exclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات (قيد فاتورة مماثلة موجودة قُرئ ويطابق المتوقع، لكنه ليس اختباراً مُنشأً)",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "clients",
+          "side": "debit",
+          "amount": "total"
+        },
+        {
+          "role": "sales",
+          "side": "credit",
+          "amount": "net"
+        },
+        {
+          "role": "vat_output",
+          "side": "credit",
+          "amount": "tax"
+        },
+        {
+          "role": "sales_cost",
+          "side": "debit",
+          "amount": "cost_fifo"
+        },
+        {
+          "role": "stores",
+          "side": "credit",
+          "amount": "cost_fifo"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-002",
+      "document": "sales_invoice",
+      "variables": {
+        "item_type": "service",
+        "payment": "none",
+        "status": "issued",
+        "currency": "base",
+        "tax": "exclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "clients",
+          "side": "debit",
+          "amount": "total"
+        },
+        {
+          "role": "sales",
+          "side": "credit",
+          "amount": "net"
+        },
+        {
+          "role": "vat_output",
+          "side": "credit",
+          "amount": "tax"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-003",
+      "document": "sales_invoice",
+      "variables": {
+        "item_type": "free_text",
+        "payment": "none",
+        "status": "issued",
+        "currency": "base",
+        "tax": "exclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "clients",
+          "side": "debit",
+          "amount": "total"
+        },
+        {
+          "role": "sales",
+          "side": "credit",
+          "amount": "net"
+        },
+        {
+          "role": "vat_output",
+          "side": "credit",
+          "amount": "tax"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-004",
+      "document": "sales_invoice",
+      "variables": {
+        "item_type": "stock",
+        "payment": "none",
+        "status": "draft",
+        "currency": "base",
+        "tax": "exclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-005",
+      "document": "sales_invoice",
+      "variables": {
+        "item_type": "stock",
+        "payment": "none",
+        "status": "issued",
+        "currency": "base",
+        "tax": "inclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "clients",
+          "side": "debit",
+          "amount": "total"
+        },
+        {
+          "role": "sales",
+          "side": "credit",
+          "amount": "total/(1+rate)"
+        },
+        {
+          "role": "vat_output",
+          "side": "credit",
+          "amount": "total-net"
+        },
+        {
+          "role": "sales_cost",
+          "side": "debit",
+          "amount": "cost_fifo"
+        },
+        {
+          "role": "stores",
+          "side": "credit",
+          "amount": "cost_fifo"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-006",
+      "document": "sales_invoice",
+      "variables": {
+        "item_type": "stock",
+        "payment": "none",
+        "status": "issued",
+        "currency": "base",
+        "tax": "zero_or_exempt",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "clients",
+          "side": "debit",
+          "amount": "net"
+        },
+        {
+          "role": "sales",
+          "side": "credit",
+          "amount": "net"
+        },
+        {
+          "role": "sales_cost",
+          "side": "debit",
+          "amount": "cost_fifo"
+        },
+        {
+          "role": "stores",
+          "side": "credit",
+          "amount": "cost_fifo"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-007",
+      "document": "sales_invoice",
+      "variables": {
+        "item_type": "stock",
+        "payment": "none",
+        "status": "issued",
+        "currency": "base",
+        "tax": "exclusive",
+        "discount": "document",
+        "opening_balance": "no",
+        "branch": "RYD"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "clients",
+          "side": "debit",
+          "amount": "(net-doc_discount)+tax"
+        },
+        {
+          "role": "sales",
+          "side": "credit",
+          "amount": "net-doc_discount"
+        },
+        {
+          "role": "vat_output",
+          "side": "credit",
+          "amount": "tax_after_discount"
+        },
+        {
+          "role": "sales_cost",
+          "side": "debit",
+          "amount": "cost_fifo"
+        },
+        {
+          "role": "stores",
+          "side": "credit",
+          "amount": "cost_fifo"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-008",
+      "document": "sales_invoice",
+      "variables": {
+        "item_type": "stock",
+        "payment": "none",
+        "status": "issued",
+        "currency": "foreign",
+        "tax": "exclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "clients",
+          "side": "debit",
+          "amount": "total_fc*rate_invoice"
+        },
+        {
+          "role": "sales",
+          "side": "credit",
+          "amount": "net_fc*rate_invoice"
+        },
+        {
+          "role": "vat_output",
+          "side": "credit",
+          "amount": "tax_fc*rate_invoice"
+        },
+        {
+          "role": "sales_cost",
+          "side": "debit",
+          "amount": "cost_fifo"
+        },
+        {
+          "role": "stores",
+          "side": "credit",
+          "amount": "cost_fifo"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-009",
+      "document": "receipt",
+      "variables": {
+        "item_type": "stock",
+        "payment": "partial",
+        "status": "issued",
+        "currency": "base",
+        "tax": "exclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "treasury",
+          "side": "debit",
+          "amount": "paid"
+        },
+        {
+          "role": "clients",
+          "side": "credit",
+          "amount": "paid"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-010",
+      "document": "receipt",
+      "variables": {
+        "item_type": "stock",
+        "payment": "full",
+        "status": "issued",
+        "currency": "foreign",
+        "tax": "exclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات؛ ونموذج السند بلا عملة/سعر (Q-03)",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "bank",
+          "side": "debit",
+          "amount": "paid_fc*rate_receipt"
+        },
+        {
+          "role": "clients",
+          "side": "credit",
+          "amount": "paid_fc*rate_invoice"
+        },
+        {
+          "role": "fx",
+          "side": "credit_or_debit",
+          "amount": "paid_fc*(rate_receipt-rate_invoice)"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-011",
+      "document": "receipt",
+      "variables": {
+        "item_type": "stock",
+        "payment": "full",
+        "status": "issued",
+        "currency": "base",
+        "tax": "exclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "treasury",
+          "side": "debit",
+          "amount": "paid"
+        },
+        {
+          "role": "clients",
+          "side": "credit",
+          "amount": "paid"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-012",
+      "document": "fx_revaluation",
+      "variables": {
+        "currency": "foreign",
+        "party": "customer"
+      },
+      "status": "blocked",
+      "reason": "يحتاج إذناً خاصاً (زر تنفيذ ينشئ قيداً دفعياً) + وضع القراءة",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "clients",
+          "side": "debit_if_gain",
+          "amount": "balance_fc*(rate_valuation-rate_book)"
+        },
+        {
+          "role": "fx_unrealized",
+          "side": "credit_if_gain",
+          "amount": "balance_fc*(rate_valuation-rate_book)"
+        },
+        {
+          "role": "reversal_next_period",
+          "side": "mirror",
+          "amount": "same"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-013",
+      "document": "purchase_invoice",
+      "variables": {
+        "item_type": "free_text",
+        "payment": "none",
+        "status": "issued",
+        "currency": "base",
+        "tax": "exclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "purchases",
+          "side": "debit",
+          "amount": "net"
+        },
+        {
+          "role": "vat_input",
+          "side": "debit",
+          "amount": "tax"
+        },
+        {
+          "role": "suppliers",
+          "side": "credit",
+          "amount": "total"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-014",
+      "document": "purchase_invoice",
+      "variables": {
+        "item_type": "stock",
+        "payment": "none",
+        "status": "issued",
+        "currency": "base",
+        "tax": "exclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "stores",
+          "side": "debit",
+          "amount": "net"
+        },
+        {
+          "role": "vat_input",
+          "side": "debit",
+          "amount": "tax"
+        },
+        {
+          "role": "suppliers",
+          "side": "credit",
+          "amount": "total"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-015",
+      "document": "purchase_invoice",
+      "variables": {
+        "item_type": "stock",
+        "payment": "none",
+        "status": "issued",
+        "currency": "base",
+        "tax": "exclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD",
+        "note": "first_vat_use"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات (التحقق من إنشاء حساب ضريبة المدخلات عند أول استخدام — AN-05)",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "stores",
+          "side": "debit",
+          "amount": "net"
+        },
+        {
+          "role": "vat_input",
+          "side": "debit",
+          "amount": "tax"
+        },
+        {
+          "role": "suppliers",
+          "side": "credit",
+          "amount": "total"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-016",
+      "document": "item_opening_balance",
+      "variables": {
+        "item_type": "stock",
+        "opening_balance": "yes"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "stores",
+          "side": "debit",
+          "amount": "qty*unit_cost"
+        },
+        {
+          "role": "opening_balance",
+          "side": "credit",
+          "amount": "qty*unit_cost"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-017",
+      "document": "stock_transfer",
+      "variables": {
+        "scope": "same_branch"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-018",
+      "document": "stock_transfer",
+      "variables": {
+        "scope": "inter_branch",
+        "stage": "send_then_receive"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات؛ وزر \"إرسال التحويل\" إجراء إرسال",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "branch_current:receiver",
+          "side": "debit",
+          "amount": "cost_fifo"
+        },
+        {
+          "role": "stores:sender",
+          "side": "credit",
+          "amount": "cost_fifo"
+        },
+        {
+          "role": "stores:receiver",
+          "side": "debit",
+          "amount": "cost_fifo"
+        },
+        {
+          "role": "branch_current:sender",
+          "side": "credit",
+          "amount": "cost_fifo"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-019",
+      "document": "manual_journal",
+      "variables": {
+        "status": "posted",
+        "currency": "base"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "account:any",
+          "side": "debit",
+          "amount": "amount"
+        },
+        {
+          "role": "account:any",
+          "side": "credit",
+          "amount": "amount"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-020",
+      "document": "sales_invoice",
+      "variables": {
+        "item_type": "stock",
+        "payment": "none",
+        "status": "issued",
+        "currency": "base",
+        "tax": "exclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "JED",
+        "note": "fifo_per_warehouse"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "clients",
+          "side": "debit",
+          "amount": "total"
+        },
+        {
+          "role": "sales",
+          "side": "credit",
+          "amount": "net"
+        },
+        {
+          "role": "vat_output",
+          "side": "credit",
+          "amount": "tax"
+        },
+        {
+          "role": "sales_cost",
+          "side": "debit",
+          "amount": "cost_fifo_jed_layers"
+        },
+        {
+          "role": "stores",
+          "side": "credit",
+          "amount": "cost_fifo_jed_layers"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-021",
+      "document": "sales_invoice+receipt",
+      "variables": {
+        "item_type": "stock",
+        "payment": "partial",
+        "status": "issued",
+        "currency": "foreign",
+        "tax": "exclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD"
+      },
+      "status": "blocked",
+      "reason": "وضع القراءة فقط — لا إذن بإنشاء سجلات",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "bank",
+          "side": "debit",
+          "amount": "paid_fc*rate_receipt"
+        },
+        {
+          "role": "clients",
+          "side": "credit",
+          "amount": "paid_fc*rate_invoice"
+        },
+        {
+          "role": "fx",
+          "side": "credit_or_debit",
+          "amount": "paid_fc*(rate_receipt-rate_invoice)"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    },
+    {
+      "id": "SM-022",
+      "document": "credit_note",
+      "variables": {
+        "item_type": "stock",
+        "payment": "none",
+        "status": "issued",
+        "currency": "base",
+        "tax": "exclusive",
+        "discount": "none",
+        "opening_balance": "no",
+        "branch": "RYD",
+        "note": "return_of_issued_invoice"
+      },
+      "status": "blocked",
+      "reason": "غير موجود في النظام المرجعي (لا شاشة إشعار دائن) — Q-21",
+      "test_record": null,
+      "expected_entry": [
+        {
+          "role": "sales",
+          "side": "debit",
+          "amount": "net"
+        },
+        {
+          "role": "vat_output",
+          "side": "debit",
+          "amount": "tax"
+        },
+        {
+          "role": "clients",
+          "side": "credit",
+          "amount": "total"
+        },
+        {
+          "role": "stores",
+          "side": "debit",
+          "amount": "cost_fifo"
+        },
+        {
+          "role": "sales_cost",
+          "side": "credit",
+          "amount": "cost_fifo"
+        }
+      ],
+      "actual_entry": null,
+      "diff": null,
+      "anomaly_ref": null
+    }
+  ]
+}

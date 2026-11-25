@@ -1,0 +1,855 @@
+{
+  "schema_version": 1,
+  "system": {
+    "label": "النظام المرجعي",
+    "base_url_pattern": "https://<host>"
+  },
+  "generated_at": "2026-11-25 08:50",
+  "modules": [
+    {
+      "id": "gl",
+      "name": "المحاسبة العامة",
+      "priority": 1,
+      "enabled": true,
+      "category": "المالية",
+      "sections": [
+        {
+          "id": "gl-masters",
+          "name": "البيانات الأساسية",
+          "screens": [
+            {
+              "id": "gl-coa",
+              "name": "دليل الحسابات",
+              "url_pattern": "/accounts",
+              "type": "list",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 1,
+              "status": "done",
+              "file": "02-screens/gl/gl-coa.md",
+              "skip_reason": null,
+              "menu_path": "المحاسبة > دليل الحسابات",
+              "notes": "شجرة مسطّحة بمسافات بادئة؛ عمود الدور النظامي ظاهر"
+            },
+            {
+              "id": "gl-account-form",
+              "name": "حساب جديد",
+              "url_pattern": "/accounts/new",
+              "type": "form",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 1,
+              "status": "done",
+              "file": "02-screens/gl/gl-account-form.md",
+              "skip_reason": null,
+              "menu_path": "المحاسبة > دليل الحسابات > + حساب جديد",
+              "notes": ""
+            }
+          ]
+        },
+        {
+          "id": "gl-docs",
+          "name": "القيود",
+          "screens": [
+            {
+              "id": "gl-journal-list",
+              "name": "القيود اليومية",
+              "url_pattern": "/journal",
+              "type": "list",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 2,
+              "status": "done",
+              "file": "02-screens/gl/gl-journal-list.md",
+              "skip_reason": null,
+              "menu_path": "المحاسبة > القيود اليومية",
+              "notes": ""
+            },
+            {
+              "id": "gl-journal-form",
+              "name": "قيد يدوي جديد",
+              "url_pattern": "/journal/new",
+              "type": "form",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 2,
+              "status": "done",
+              "file": "02-screens/gl/gl-journal-form.md",
+              "skip_reason": null,
+              "menu_path": "المحاسبة > القيود اليومية > + قيد يدوي",
+              "notes": "حفظ / ترحيل؛ مؤشر الفرق؛ قيد متكرر"
+            },
+            {
+              "id": "gl-journal-view",
+              "name": "عرض قيد",
+              "url_pattern": "/journal/view/{id}",
+              "type": "detail",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 2,
+              "status": "done",
+              "file": "02-screens/gl/gl-journal-view.md",
+              "skip_reason": null,
+              "menu_path": "المحاسبة > القيود اليومية > رقم القيد",
+              "notes": "المحتوى داخل iframe: /journal/view/{id}/frame"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tax",
+      "name": "الضرائب",
+      "priority": 1,
+      "enabled": true,
+      "category": "المالية",
+      "sections": [
+        {
+          "id": "tax-main",
+          "name": "الضرائب",
+          "screens": [
+            {
+              "id": "tax-list",
+              "name": "الضرائب",
+              "url_pattern": "/taxes",
+              "type": "list",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 1,
+              "status": "done",
+              "file": "02-screens/tax/tax-list.md",
+              "skip_reason": null,
+              "menu_path": "المحاسبة > الضرائب",
+              "notes": "يعرض إعداد 'الأسعار شاملة الضريبة افتراضياً'"
+            },
+            {
+              "id": "tax-form",
+              "name": "ضريبة جديدة",
+              "url_pattern": "/taxes/new",
+              "type": "form",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 1,
+              "status": "skipped",
+              "file": "02-screens/tax/tax-form.md",
+              "skip_reason": "الرابط ظاهر في الواجهة لكنه يعيد 404 (غير مطبّق في النظام المرجعي)",
+              "menu_path": "المحاسبة > الضرائب > + ضريبة جديدة",
+              "notes": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "customers",
+      "name": "العملاء",
+      "priority": 1,
+      "enabled": true,
+      "category": "المبيعات",
+      "sections": [
+        {
+          "id": "cust-main",
+          "name": "العملاء",
+          "screens": [
+            {
+              "id": "cust-list",
+              "name": "العملاء",
+              "url_pattern": "/customers",
+              "type": "list",
+              "rendering": "spa",
+              "extraction": "browse",
+              "visual_check": true,
+              "priority": 1,
+              "status": "done",
+              "file": "02-screens/customers/cust-list.md",
+              "skip_reason": null,
+              "menu_path": "المبيعات > العملاء",
+              "notes": "الجدول يُملأ بـ JS من GET /api/customers"
+            },
+            {
+              "id": "cust-form",
+              "name": "عميل جديد",
+              "url_pattern": "/customers/new",
+              "type": "form",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 1,
+              "status": "done",
+              "file": "02-screens/customers/cust-form.md",
+              "skip_reason": null,
+              "menu_path": "المبيعات > العملاء > + عميل جديد",
+              "notes": "حقل شرطي: الرقم الضريبي يختفي لنوع 'فرد'"
+            },
+            {
+              "id": "cust-detail",
+              "name": "بطاقة العميل",
+              "url_pattern": "/customers/{id}",
+              "type": "detail",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 1,
+              "status": "done",
+              "file": "02-screens/customers/cust-detail.md",
+              "skip_reason": null,
+              "menu_path": "المبيعات > العملاء > اسم العميل",
+              "notes": "تبويبات ?tab=invoices|receipts|statement"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sales",
+      "name": "المبيعات والفواتير",
+      "priority": 2,
+      "enabled": true,
+      "category": "المبيعات",
+      "sections": [
+        {
+          "id": "sales-invoices",
+          "name": "فواتير المبيعات",
+          "screens": [
+            {
+              "id": "sales-invoice-list",
+              "name": "فواتير المبيعات",
+              "url_pattern": "/sales/invoices",
+              "type": "list",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 2,
+              "status": "done",
+              "file": "02-screens/sales/sales-invoice-list.md",
+              "skip_reason": null,
+              "menu_path": "المبيعات > فواتير المبيعات",
+              "notes": "قائمة 'إجراءات' لكل صف فيها روابط GET (إلغاء التسليم، حذف) — لم تُطلب"
+            },
+            {
+              "id": "sales-invoice-form",
+              "name": "فاتورة مبيعات جديدة",
+              "url_pattern": "/sales/invoices/new",
+              "type": "form",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": true,
+              "priority": 2,
+              "status": "done",
+              "file": "02-screens/sales/sales-invoice-form.md",
+              "skip_reason": null,
+              "menu_path": "المبيعات > فواتير المبيعات > + فاتورة جديدة",
+              "notes": "حفظ كمسودة / حفظ وإصدار؛ نموذج مضمّن لعميل جديد"
+            },
+            {
+              "id": "sales-invoice-view",
+              "name": "عرض فاتورة مبيعات",
+              "url_pattern": "/sales/invoices/{id}",
+              "type": "detail",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": true,
+              "priority": 2,
+              "status": "done",
+              "file": "02-screens/sales/sales-invoice-view.md",
+              "skip_reason": null,
+              "menu_path": "المبيعات > فواتير المبيعات > رقم الفاتورة",
+              "notes": "القيد داخل iframe"
+            },
+            {
+              "id": "sales-invoice-print",
+              "name": "معاينة طباعة الفاتورة",
+              "url_pattern": "/sales/invoices/{id}/print",
+              "type": "detail",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 3,
+              "status": "skipped",
+              "file": "02-screens/sales/sales-invoice-print.md",
+              "skip_reason": "الرابط ظاهر في الواجهة لكنه يعيد 404 (غير مطبّق في النظام المرجعي)",
+              "menu_path": "عرض فاتورة > معاينة الطباعة",
+              "notes": ""
+            }
+          ]
+        },
+        {
+          "id": "sales-receipts",
+          "name": "التحصيل",
+          "screens": [
+            {
+              "id": "sales-receipt-form",
+              "name": "سند قبض",
+              "url_pattern": "/receipts/new",
+              "type": "form",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 2,
+              "status": "done",
+              "file": "02-screens/sales/sales-receipt-form.md",
+              "skip_reason": null,
+              "menu_path": "المبيعات > سند قبض",
+              "notes": "يُفتح أيضاً من 'تسجيل دفعة' في الفاتورة (?invoice={id})"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "purchases",
+      "name": "المشتريات والموردون",
+      "priority": 2,
+      "enabled": true,
+      "category": "المشتريات",
+      "sections": [
+        {
+          "id": "pur-suppliers",
+          "name": "الموردون",
+          "screens": [
+            {
+              "id": "supp-list",
+              "name": "الموردون",
+              "url_pattern": "/suppliers",
+              "type": "list",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 1,
+              "status": "done",
+              "file": "02-screens/purchases/supp-list.md",
+              "skip_reason": null,
+              "menu_path": "المشتريات > الموردون",
+              "notes": ""
+            },
+            {
+              "id": "supp-form",
+              "name": "مورد جديد",
+              "url_pattern": "/suppliers/new",
+              "type": "form",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 1,
+              "status": "done",
+              "file": "02-screens/purchases/supp-form.md",
+              "skip_reason": null,
+              "menu_path": "المشتريات > الموردون > + مورد جديد",
+              "notes": ""
+            }
+          ]
+        },
+        {
+          "id": "pur-invoices",
+          "name": "فواتير المشتريات",
+          "screens": [
+            {
+              "id": "pur-invoice-list",
+              "name": "فواتير المشتريات",
+              "url_pattern": "/purchases/invoices",
+              "type": "list",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 2,
+              "status": "done",
+              "file": "02-screens/purchases/pur-invoice-list.md",
+              "skip_reason": null,
+              "menu_path": "المشتريات > فواتير المشتريات",
+              "notes": "القائمة فارغة في شركة الديمو"
+            },
+            {
+              "id": "pur-invoice-form",
+              "name": "فاتورة مشتريات جديدة",
+              "url_pattern": "/purchases/invoices/new",
+              "type": "form",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 2,
+              "status": "done",
+              "file": "02-screens/purchases/pur-invoice-form.md",
+              "skip_reason": null,
+              "menu_path": "المشتريات > فواتير المشتريات > + فاتورة مشتريات",
+              "notes": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "inventory",
+      "name": "المخزون",
+      "priority": 1,
+      "enabled": true,
+      "category": "العمليات",
+      "sections": [
+        {
+          "id": "inv-items",
+          "name": "الأصناف",
+          "screens": [
+            {
+              "id": "item-list",
+              "name": "الأصناف",
+              "url_pattern": "/items",
+              "type": "list",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 1,
+              "status": "done",
+              "file": "02-screens/inventory/item-list.md",
+              "skip_reason": null,
+              "menu_path": "الأصناف > الأصناف",
+              "notes": ""
+            },
+            {
+              "id": "item-form",
+              "name": "صنف جديد",
+              "url_pattern": "/items/new",
+              "type": "form",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 1,
+              "status": "done",
+              "file": "02-screens/inventory/item-form.md",
+              "skip_reason": null,
+              "menu_path": "الأصناف > الأصناف > + صنف جديد",
+              "notes": "يتضمن الرصيد الافتتاحي للأصناف المخزنية"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reports",
+      "name": "التقارير",
+      "priority": 3,
+      "enabled": true,
+      "category": "عام",
+      "sections": [
+        {
+          "id": "rpt-main",
+          "name": "التقارير",
+          "screens": [
+            {
+              "id": "rpt-center",
+              "name": "مركز التقارير",
+              "url_pattern": "/reports",
+              "type": "list",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 3,
+              "status": "done",
+              "file": "02-screens/reports/rpt-center.md",
+              "skip_reason": null,
+              "menu_path": "التقارير > مركز التقارير",
+              "notes": "40 رابطاً = 4 تقارير × 5 أبعاد × وضعين + منشئ مخصص"
+            },
+            {
+              "id": "rpt-trial-balance",
+              "name": "ميزان المراجعة",
+              "url_pattern": "/reports/trial-balance",
+              "type": "report",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 3,
+              "status": "done",
+              "file": "02-screens/reports/rpt-trial-balance.md",
+              "skip_reason": null,
+              "menu_path": "التقارير > ميزان المراجعة",
+              "notes": "رابط الطباعة /reports/trial-balance/print يعيد 404"
+            },
+            {
+              "id": "rpt-income-statement",
+              "name": "قائمة الدخل",
+              "url_pattern": "/reports/income-statement",
+              "type": "report",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 3,
+              "status": "done",
+              "file": "02-screens/reports/rpt-income-statement.md",
+              "skip_reason": null,
+              "menu_path": "التقارير > قائمة الدخل",
+              "notes": ""
+            },
+            {
+              "id": "rpt-sales",
+              "name": "تقرير المبيعات",
+              "url_pattern": "/reports/sales?group_by={day|week|month|client|staff}&view={summary|details}",
+              "type": "report",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 3,
+              "status": "done",
+              "file": "02-screens/reports/rpt-sales.md",
+              "skip_reason": null,
+              "menu_path": "التقارير > مركز التقارير > تقرير المبيعات",
+              "notes": "10 روابط في المركز",
+              "report_variants": {
+                "group_by": [
+                  "day",
+                  "week",
+                  "month",
+                  "client",
+                  "staff"
+                ],
+                "view": [
+                  "summary",
+                  "details"
+                ]
+              }
+            },
+            {
+              "id": "rpt-purchases",
+              "name": "تقرير المشتريات",
+              "url_pattern": "/reports/purchases?group_by={..}&view={..}",
+              "type": "report",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 3,
+              "status": "done",
+              "file": "02-screens/reports/rpt-purchases.md",
+              "skip_reason": null,
+              "menu_path": "التقارير > مركز التقارير > تقرير المشتريات",
+              "notes": "10 روابط",
+              "report_variants": {
+                "group_by": [
+                  "day",
+                  "week",
+                  "month",
+                  "client",
+                  "staff"
+                ],
+                "view": [
+                  "summary",
+                  "details"
+                ]
+              }
+            },
+            {
+              "id": "rpt-payments",
+              "name": "تقرير المدفوعات",
+              "url_pattern": "/reports/payments?group_by={..}&view={..}",
+              "type": "report",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 3,
+              "status": "done",
+              "file": "02-screens/reports/rpt-payments.md",
+              "skip_reason": null,
+              "menu_path": "التقارير > مركز التقارير > تقرير المدفوعات",
+              "notes": "10 روابط",
+              "report_variants": {
+                "group_by": [
+                  "day",
+                  "week",
+                  "month",
+                  "client",
+                  "staff"
+                ],
+                "view": [
+                  "summary",
+                  "details"
+                ]
+              }
+            },
+            {
+              "id": "rpt-stock",
+              "name": "تقرير حركة المخزون",
+              "url_pattern": "/reports/stock?group_by={..}&view={..}",
+              "type": "report",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 3,
+              "status": "done",
+              "file": "02-screens/reports/rpt-stock.md",
+              "skip_reason": null,
+              "menu_path": "التقارير > مركز التقارير > تقرير حركة المخزون",
+              "notes": "10 روابط",
+              "report_variants": {
+                "group_by": [
+                  "day",
+                  "week",
+                  "month",
+                  "client",
+                  "staff"
+                ],
+                "view": [
+                  "summary",
+                  "details"
+                ]
+              }
+            },
+            {
+              "id": "rpt-builder",
+              "name": "منشئ التقارير المخصص",
+              "url_pattern": "/reports/builder",
+              "type": "form",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 3,
+              "status": "done",
+              "file": "02-screens/reports/rpt-builder.md",
+              "skip_reason": null,
+              "menu_path": "التقارير > مركز التقارير > منشئ التقارير المخصص",
+              "notes": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "system",
+      "name": "النظام والإعدادات (أساسي — خارج مدير الوحدات)",
+      "priority": 4,
+      "enabled": true,
+      "category": "النظام",
+      "sections": [
+        {
+          "id": "sys-home",
+          "name": "عام",
+          "screens": [
+            {
+              "id": "dashboard",
+              "name": "لوحة المعلومات",
+              "url_pattern": "/",
+              "type": "dashboard",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": true,
+              "priority": 4,
+              "status": "done",
+              "file": "02-screens/system/dashboard.md",
+              "skip_reason": null,
+              "menu_path": "لوحة المعلومات",
+              "notes": "زر 'تحديث الأرصدة' (POST) غير واضح الأثر — لم يُضغط"
+            },
+            {
+              "id": "audit-log",
+              "name": "سجل النشاط",
+              "url_pattern": "/audit-log",
+              "type": "list",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 4,
+              "status": "done",
+              "file": "02-screens/system/audit-log.md",
+              "skip_reason": null,
+              "menu_path": "المزيد… > سجل التدقيق",
+              "notes": ""
+            },
+            {
+              "id": "data-import",
+              "name": "استيراد البيانات",
+              "url_pattern": "/import",
+              "type": "form",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 4,
+              "status": "done",
+              "file": "02-screens/system/data-import.md",
+              "skip_reason": null,
+              "menu_path": "المزيد… > استيراد البيانات",
+              "notes": "قراءة النموذج فقط؛ الإرسال POST ممنوع"
+            }
+          ]
+        },
+        {
+          "id": "sys-settings",
+          "name": "الإعدادات (قائمة المستخدم)",
+          "screens": [
+            {
+              "id": "apps-manager",
+              "name": "إدارة التطبيقات",
+              "url_pattern": "/apps",
+              "type": "settings",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 4,
+              "status": "done",
+              "file": "02-screens/system/apps-manager.md",
+              "skip_reason": null,
+              "menu_path": "قائمة المستخدم > إدارة التطبيقات",
+              "notes": "روابط تفعيل/تعطيل GET /apps/toggle/{n} — لم تُطلب"
+            },
+            {
+              "id": "set-company",
+              "name": "إعدادات الشركة",
+              "url_pattern": "/settings/company",
+              "type": "settings",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 4,
+              "status": "done",
+              "file": "02-screens/system/set-company.md",
+              "skip_reason": null,
+              "menu_path": "قائمة المستخدم > إعدادات الشركة",
+              "notes": ""
+            },
+            {
+              "id": "set-account-routing",
+              "name": "توجيه الحسابات",
+              "url_pattern": "/settings/account-routing",
+              "type": "settings",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 1,
+              "status": "done",
+              "file": "02-screens/system/set-account-routing.md",
+              "skip_reason": null,
+              "menu_path": "قائمة المستخدم > توجيه الحسابات",
+              "notes": "3 تبويبات: المبيعات، المشتريات، المخزون"
+            },
+            {
+              "id": "set-numbering",
+              "name": "الترقيم",
+              "url_pattern": "/settings/numbering",
+              "type": "settings",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 4,
+              "status": "done",
+              "file": "02-screens/system/set-numbering.md",
+              "skip_reason": null,
+              "menu_path": "قائمة المستخدم > الترقيم",
+              "notes": ""
+            },
+            {
+              "id": "set-periods",
+              "name": "الفترات المالية",
+              "url_pattern": "/settings/periods",
+              "type": "settings",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 4,
+              "status": "done",
+              "file": "02-screens/system/set-periods.md",
+              "skip_reason": null,
+              "menu_path": "قائمة المستخدم > الفترات المالية",
+              "notes": "روابط GET إقفال/إعادة فتح — لم تُطلب"
+            },
+            {
+              "id": "set-roles",
+              "name": "المستخدمون والصلاحيات",
+              "url_pattern": "/settings/roles",
+              "type": "settings",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 4,
+              "status": "done",
+              "file": "02-screens/system/set-roles.md",
+              "skip_reason": null,
+              "menu_path": "قائمة المستخدم > المستخدمون والصلاحيات",
+              "notes": ""
+            },
+            {
+              "id": "set-role-form",
+              "name": "دور جديد",
+              "url_pattern": "/settings/roles/new",
+              "type": "form",
+              "rendering": "server",
+              "extraction": "browse",
+              "visual_check": false,
+              "priority": 4,
+              "status": "skipped",
+              "file": "02-screens/system/set-role-form.md",
+              "skip_reason": "الرابط ظاهر في الواجهة لكنه يعيد 404 (غير مطبّق في النظام المرجعي)",
+              "menu_path": "المستخدمون والصلاحيات > + دور جديد",
+              "notes": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "payroll",
+      "name": "الرواتب",
+      "priority": 9,
+      "enabled": false,
+      "category": "الموارد البشرية",
+      "sections": [],
+      "notes": "وحدة معطّلة — لا تظهر في القوائم؛ لم تُفعَّل (يحتاج قرار المستخدم)"
+    },
+    {
+      "id": "attendance",
+      "name": "الحضور والانصراف",
+      "priority": 9,
+      "enabled": false,
+      "category": "الموارد البشرية",
+      "sections": [],
+      "notes": "وحدة معطّلة — لا تظهر في القوائم؛ لم تُفعَّل (يحتاج قرار المستخدم)"
+    },
+    {
+      "id": "fixed-assets",
+      "name": "الأصول الثابتة",
+      "priority": 9,
+      "enabled": false,
+      "category": "المالية",
+      "sections": [],
+      "notes": "وحدة معطّلة — لا تظهر في القوائم؛ لم تُفعَّل (يحتاج قرار المستخدم)"
+    },
+    {
+      "id": "pos",
+      "name": "نقاط البيع",
+      "priority": 9,
+      "enabled": false,
+      "category": "المبيعات",
+      "sections": [],
+      "notes": "وحدة معطّلة — لا تظهر في القوائم؛ لم تُفعَّل (يحتاج قرار المستخدم)"
+    },
+    {
+      "id": "projects",
+      "name": "المشاريع وتتبّع الوقت",
+      "priority": 9,
+      "enabled": false,
+      "category": "العمليات",
+      "sections": [],
+      "notes": "وحدة معطّلة — لا تظهر في القوائم؛ لم تُفعَّل (يحتاج قرار المستخدم)"
+    },
+    {
+      "id": "contracts",
+      "name": "العقود والإيجارات",
+      "priority": 9,
+      "enabled": false,
+      "category": "العمليات",
+      "sections": [],
+      "notes": "وحدة معطّلة — لا تظهر في القوائم؛ لم تُفعَّل (يحتاج قرار المستخدم)"
+    },
+    {
+      "id": "ecommerce",
+      "name": "متجر إلكتروني",
+      "priority": 9,
+      "enabled": false,
+      "category": "المبيعات",
+      "sections": [],
+      "notes": "وحدة معطّلة — لا تظهر في القوائم؛ لم تُفعَّل (يحتاج قرار المستخدم)"
+    }
+  ],
+  "synced_at": "2026-11-25 09:10"
+}

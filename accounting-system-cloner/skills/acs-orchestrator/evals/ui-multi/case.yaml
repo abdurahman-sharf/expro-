@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: ui-multi
+expected_outcome: |
+  Clean-room UI design from the multi-branch multi-currency spec package for a new brand. The run never requests the reference
+  system (the link in the prompt is declined), records the written pre-approvals, builds tokens.json + components.md
+  (all mandatory components) + a re-organised navigation, archetypes, an interactive HTML prototype and a map file for
+  every studied screen (uicheck 100% or justified), print templates with QR and VAT number, an index page, passes
+  uicontrast (AA) and lint, contains no reference name/colours or real data, and updates the build brief to point at ui/.
+context:
+  scaffold_script: place-files.sh
