@@ -64,11 +64,11 @@ MATRIX_STATUSES = {"tested", "untested", "blocked"}
 ACTION_WORDS = [
     "delete", "remove", "destroy", "cancel", "void", "close", "post", "approve", "make_", "mark_", "send", "email",
     "sms", "submit", "sync", "revalue", "reverse", "undo", "toggle", "enable", "disable", "activate", "deactivate",
-    "reset", "run", "process", "import", "logout", "signout", "unpost", "unlock", "lock", "archive", "restore",
+    "reset", "run", "process", "logout", "signout", "unpost", "unlock", "lock", "archive", "restore",
     "duplicate", "clone", "convert", "pay", "refund", "deliver", "undeliver", "confirm", "reject", "execute",
 ]
 ACTION_WORDS_AR = ["حذف", "إلغاء", "الغاء", "إقفال", "اقفال", "ترحيل", "اعتماد", "إرسال", "ارسال", "تفعيل", "تعطيل",
-                   "تنفيذ", "معالجة", "خروج", "استيراد", "تأكيد", "رفض", "عكس", "مزامنة", "تحويل إلى", "أرشفة", "دفع"]
+                   "تنفيذ", "معالجة", "خروج", "تأكيد", "رفض", "عكس", "مزامنة", "تحويل إلى", "أرشفة", "دفع"]
 STATUS_BEGIN = "<!-- ACS:STATUS:BEGIN -->"
 STATUS_END = "<!-- ACS:STATUS:END -->"
 LOG_HEADER = "## السجل"
@@ -194,8 +194,9 @@ def iter_screens(sitemap: dict):
                 yield module, section, screen
 
 
-def validate_sitemap(sitemap: dict) -> list[str]:
+def validate_sitemap(sitemap: dict, warnings: list | None = None) -> list[str]:
     errors = []
+    warnings = warnings if warnings is not None else []
     if not isinstance(sitemap.get("modules"), list):
         return ["`modules` must be a list"]
     seen = set()
@@ -226,7 +227,8 @@ def validate_sitemap(sitemap: dict) -> list[str]:
                 if sc.get("rendering") not in (None, *RENDERINGS):
                     errors.append(f"{sid}: rendering `{sc.get('rendering')}` not in {sorted(RENDERINGS)}")
                 if sc.get("url_pattern") and is_action_url(str(sc["url_pattern"])):
-                    errors.append(f"{sid}: url_pattern looks like an action URL - never request it: {sc['url_pattern']}")
+                    warnings.append(f"{sid}: url_pattern looks like an action URL - keep the screen in the map but never "
+                                    f"request it (set \"never_request\": true): {sc['url_pattern']}")
                 if "url_pattern" not in sc:
                     errors.append(f"{sid}: missing url_pattern (use null if the screen has no own URL)")
                 if not isinstance(sc.get("priority", 1), int):
@@ -296,8 +298,9 @@ def cmd_matrix(args) -> None:
 
 def cmd_validate(args) -> None:
     root = project_path(args)
-    errors = validate_sitemap(load_json(root / "01-sitemap.json"))
-    print(json.dumps({"valid": not errors, "errors": errors}, ensure_ascii=False, indent=2))
+    warnings: list[str] = []
+    errors = validate_sitemap(load_json(root / "01-sitemap.json"), warnings)
+    print(json.dumps({"valid": not errors, "errors": errors, "warnings": warnings}, ensure_ascii=False, indent=2))
     sys.exit(1 if errors else 0)
 
 

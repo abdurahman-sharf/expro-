@@ -57,7 +57,7 @@ python3 scripts/acs_tool.py urlcheck "/owner/invoices/delete/1" --label "حذف"
 مقتطف استخراج دفعة صفحات (GET فقط، القائمة مُعدّة سلفاً من روابط التنقل):
 ```js
 async (urls) => {
-  const BAD = /(delete|remove|destroy|cancel|void|close|post|approve|make_|mark_|send|email|sms|submit|sync|revalue|reverse|undo|toggle|enable|disable|activate|deactivate|reset|run|process|import|logout)/i;
+  const BAD = /(delete|remove|destroy|cancel|void|close|post|approve|make_|mark_|send|email|sms|submit|sync|revalue|reverse|undo|toggle|enable|disable|activate|deactivate|reset|run|process|logout)/i;
   const out = [];
   for (const url of urls) {
     if (BAD.test(url)) { out.push({ url, skipped: 'action-like' }); continue; }
