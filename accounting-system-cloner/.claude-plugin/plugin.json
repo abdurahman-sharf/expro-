@@ -1,0 +1,7 @@
+{
+  "name": "accounting-system-cloner",
+  "version": "0.1.0",
+  "description": "Authorized, read-only functional reverse engineering of web accounting/ERP systems into a full spec package and a build brief for an implementing agent (new identity, no copied branding).",
+  "author": { "name": "expro" },
+  "keywords": ["accounting", "erp", "reverse-engineering", "specification", "zatca", "arabic"]
+}

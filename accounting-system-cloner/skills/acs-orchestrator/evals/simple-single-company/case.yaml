@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: simple-single-company
+expected_outcome: |
+  A complete read-only study of a small single-company Saudi accounting web app: a spec folder with
+  progress.md, 01-sitemap.md/json covering the hidden "More" and user-menu screens, one screen file per
+  screen, data model + ERD + PostgreSQL schema with [مُستنتج] tags, business rules incl. VAT/ZATCA,
+  roles, reports, executive summary, UX guidelines, build brief with phased MVP, acceptance criteria and
+  mandatory accounting tests, open questions and coverage report. No POST/PUT/DELETE request reached the
+  system, no real client data (names, VAT numbers, IBANs, emails) and no product name/branding in deliverables.
