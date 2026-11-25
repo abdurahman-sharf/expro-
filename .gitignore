@@ -96,3 +96,4 @@ auth.json
 # Backups made by tools/ops/backup.sh
 /backups/
 /state-after-failed-release/
+accounting-system-cloner/**/__pycache__/
