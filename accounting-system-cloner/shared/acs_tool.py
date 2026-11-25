@@ -10,7 +10,9 @@ Standard library only. Subcommands:
   coverage  Compute coverage; with --write, regenerate 10-coverage-report.md.
   progress  Regenerate the status block of progress.md (sync first).
   log       Append a timestamped line to the log section of progress.md.
-  scrub     Scan the deliverables for privacy / credential / brand leaks.
+  matrix    Summarise 04a-scenario-matrix.json (sandbox scenario matrix).
+  urlcheck  Refuse action-like URLs before any GET / fetch.
+  scrub     Scan the deliverables for privacy / credential / brand / raw-artifact leaks.
 
 Run `python3 acs_tool.py <cmd> --help` for options. All commands take
 --project <path-to-spec-folder> (default: current directory) except init.
@@ -30,27 +32,43 @@ STATUSES = {"pending", "in_progress", "done", "partial", "skipped"}
 PHASES = [
     ("0", "التحضير والتفويض", "acs-orchestrator"),
     ("1", "رسم الخريطة", "acs-explorer"),
+    ("1.5", "الوحدات والـ API", "acs-explorer"),
     ("2", "دراسة الشاشات", "acs-analyzer"),
     ("3", "نموذج البيانات", "acs-analyzer"),
     ("4", "المنطق المحاسبي وقواعد العمل", "acs-analyzer"),
+    ("4.5", "مصفوفة الاختبار (وضع التجربة فقط)", "acs-analyzer"),
     ("5", "الصلاحيات وسير العمل", "acs-analyzer"),
     ("6", "التقارير", "acs-analyzer"),
     ("7", "حزمة المواصفات والتعليمات للمنفّذ", "acs-spec-writer"),
 ]
 STUB_FILES = [
     "00-executive-summary.md",
+    "01-modules.md",
     "01-sitemap.md",
+    "01-api-map.md",
     "03-data-model.md",
     "03-erd.mmd",
     "03-schema.sql",
     "04-business-rules.md",
+    "04b-posting-matrix.md",
     "05-roles-permissions.md",
     "06-reports.md",
     "07-ux-guidelines.md",
     "08-build-brief.md",
     "09-open-questions.md",
     "10-coverage-report.md",
+    "11-test-records-ledger.md",
 ]
+RENDERINGS = {"server", "spa"}
+MATRIX_STATUSES = {"tested", "untested", "blocked"}
+ACTION_WORDS = [
+    "delete", "remove", "destroy", "cancel", "void", "close", "post", "approve", "make_", "mark_", "send", "email",
+    "sms", "submit", "sync", "revalue", "reverse", "undo", "toggle", "enable", "disable", "activate", "deactivate",
+    "reset", "run", "process", "import", "logout", "signout", "unpost", "unlock", "lock", "archive", "restore",
+    "duplicate", "clone", "convert", "pay", "refund", "deliver", "undeliver", "confirm", "reject", "execute",
+]
+ACTION_WORDS_AR = ["حذف", "إلغاء", "الغاء", "إقفال", "اقفال", "ترحيل", "اعتماد", "إرسال", "ارسال", "تفعيل", "تعطيل",
+                   "تنفيذ", "معالجة", "خروج", "استيراد", "تأكيد", "رفض", "عكس", "مزامنة", "تحويل إلى", "أرشفة", "دفع"]
 STATUS_BEGIN = "<!-- ACS:STATUS:BEGIN -->"
 STATUS_END = "<!-- ACS:STATUS:END -->"
 LOG_HEADER = "## السجل"
@@ -85,6 +103,8 @@ def project_path(args) -> Path:
 # ---------------------------------------------------------------- init
 
 def cmd_init(args) -> None:
+    if args.mode == "sandbox" and not args.sandbox_confirmed_at:
+        sys.exit("error: --mode sandbox requires --sandbox-confirmed-at (the user's explicit confirmation time)")
     slug = slugify(args.slug or args.system_name)
     root = Path(args.root).resolve() / f"{slug}-spec"
     if (root / "progress.md").exists() and not args.force:
@@ -108,7 +128,9 @@ def cmd_init(args) -> None:
         "scope": args.scope,
         "target_stack": args.stack,
         "authorization_confirmed_at": args.authorized_at,
-        "mode": "read-only",
+        "mode": args.mode,
+        "sandbox_confirmed_at": args.sandbox_confirmed_at,
+        "test_prefix": args.test_prefix,
         "note": "Never store usernames, passwords, OTP codes, cookies or tokens in this project.",
     }
     save_json(root / "_private" / "project.json", config)
@@ -134,12 +156,25 @@ def cmd_init(args) -> None:
             else:
                 target.write_text("-- stub: يُملأ في المرحلة 3\n", encoding="utf-8")
 
+    matrix = root / "04a-scenario-matrix.json"
+    if not matrix.exists() or args.force:
+        save_json(matrix, {"schema_version": 1, "mode": args.mode, "cells": []})
+    ledger = root / "11-test-records-ledger.md"
+    if ledger.read_text(encoding="utf-8").startswith("<!-- stub"):
+        ledger.write_text(
+            "# سجل السجلات التجريبية\n\n"
+            + (f"الوضع: تجربة · البادئة: `{args.test_prefix}`\n\n" if args.mode == "sandbox"
+               else "الوضع: قراءة فقط — لا يُنشأ أي سجل.\n\n")
+            + "| # | النوع | الاسم | الرقم | الرابط | القيود الناتجة | الآثار الجانبية | الوقت |\n|---|---|---|---|---|---|---|---|\n\n"
+            "## ترتيب الحذف المقترح\n\n(يُملأ في المرحلة 7: الدفعات ← المرتجعات/الإشعارات ← الفواتير ← الحركات ← الأطراف ← المنتجات)\n",
+            encoding="utf-8")
+    mode_label = (f"تجربة (Sandbox Write) — إذن {args.sandbox_confirmed_at}" if args.mode == "sandbox" else "قراءة فقط")
     progress = root / "progress.md"
     if not progress.exists() or args.force:
         phase_rows = "\n".join(f"| {p} | {n} | {s} | ⬜ لم تبدأ | |" for p, n, s in PHASES)
         progress.write_text(
             f"# تقدّم دراسة النظام المرجعي\n\n"
-            f"- أُنشئ: {now()}\n- الوضع: قراءة فقط\n"
+            f"- أُنشئ: {now()}\n- الوضع: {mode_label}\n"
             f"- التفويض: {'مؤكَّد ' + args.authorized_at if args.authorized_at else 'غير مؤكَّد — لا تبدأ'}\n"
             f"- البيئة التجريبية: {args.demo}\n- النطاق: {args.scope}\n\n"
             f"## المراحل\n\n| # | المرحلة | السكيل | الحالة | ملاحظات |\n|---|---|---|---|---|\n{phase_rows}\n\n"
@@ -168,6 +203,8 @@ def validate_sitemap(sitemap: dict) -> list[str]:
         for key in ("id", "name", "sections"):
             if key not in m:
                 errors.append(f"module missing `{key}`: {m.get('id', m)}")
+        if "enabled" in m and not isinstance(m["enabled"], bool):
+            errors.append(f"module {m.get('id')}: `enabled` must be true/false")
         for s in m.get("sections", []):
             for key in ("id", "name", "screens"):
                 if key not in s:
@@ -186,11 +223,75 @@ def validate_sitemap(sitemap: dict) -> list[str]:
                     errors.append(f"{sid}: type `{sc.get('type')}` not in {sorted(SCREEN_TYPES)}")
                 if sc.get("status", "pending") not in STATUSES:
                     errors.append(f"{sid}: status `{sc.get('status')}` not in {sorted(STATUSES)}")
+                if sc.get("rendering") not in (None, *RENDERINGS):
+                    errors.append(f"{sid}: rendering `{sc.get('rendering')}` not in {sorted(RENDERINGS)}")
+                if sc.get("url_pattern") and is_action_url(str(sc["url_pattern"])):
+                    errors.append(f"{sid}: url_pattern looks like an action URL - never request it: {sc['url_pattern']}")
                 if "url_pattern" not in sc:
                     errors.append(f"{sid}: missing url_pattern (use null if the screen has no own URL)")
                 if not isinstance(sc.get("priority", 1), int):
                     errors.append(f"{sid}: priority must be an integer")
     return errors
+
+
+def is_action_url(url: str, label: str = "") -> list[str]:
+    path = re.sub(r"^https?://[^/]+", "", url).lower()
+    tokens = re.split(r"[/?&=#._\-]+", path)
+    hits = [w for w in ACTION_WORDS if (w.endswith("_") and w in path) or w in tokens]
+    hits += [w for w in ACTION_WORDS_AR if w in label]
+    return hits
+
+
+def cmd_urlcheck(args) -> None:
+    hits = is_action_url(args.url, args.label or "")
+    print(json.dumps({"url": args.url, "allowed": not hits, "matched": hits,
+                      "note": ("لا تطلبه أبداً، ولا حتى بـ GET" if hits else
+                               "مسموح فقط إن ظهر في الواجهة كرابط تنقّل (ليس زر إجراء ولا داخل قائمة إجراءات)")},
+                     ensure_ascii=False))
+    sys.exit(1 if hits else 0)
+
+
+def load_matrix(root: Path) -> dict:
+    path = root / "04a-scenario-matrix.json"
+    return load_json(path) if path.exists() else {"cells": []}
+
+
+def matrix_stats(root: Path) -> dict:
+    cells = load_matrix(root).get("cells", [])
+    stats = {"total": len(cells), "tested": 0, "untested": 0, "blocked": 0, "diffs": 0, "diffs_without_anomaly": []}
+    for c in cells:
+        st = c.get("status", "untested")
+        stats[st if st in MATRIX_STATUSES else "untested"] += 1
+        if c.get("diff"):
+            stats["diffs"] += 1
+            if not c.get("anomaly_ref"):
+                stats["diffs_without_anomaly"].append(c.get("id"))
+    return stats
+
+
+def ledger_count(root: Path) -> int:
+    path = root / "11-test-records-ledger.md"
+    if not path.exists():
+        return 0
+    return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if re.match(r"\|\s*TR-\d+", line))
+
+
+def cmd_matrix(args) -> None:
+    root = project_path(args)
+    cells = load_matrix(root).get("cells", [])
+    errors = []
+    for c in cells:
+        if c.get("status") not in MATRIX_STATUSES:
+            errors.append(f"{c.get('id')}: status must be one of {sorted(MATRIX_STATUSES)}")
+        if c.get("status") in ("untested", "blocked") and not c.get("reason"):
+            errors.append(f"{c.get('id')}: untested/blocked cells need a reason")
+        if c.get("status") == "tested" and not c.get("actual_entry"):
+            errors.append(f"{c.get('id')}: tested cells need actual_entry")
+        if c.get("diff") and not c.get("anomaly_ref"):
+            errors.append(f"{c.get('id')}: has a diff but no anomaly_ref - add it to the anomalies section of 04-business-rules.md")
+    print(json.dumps({**matrix_stats(root), "test_records": ledger_count(root), "errors": errors},
+                     ensure_ascii=False, indent=2))
+    sys.exit(1 if errors else 0)
 
 
 def cmd_validate(args) -> None:
@@ -329,6 +430,19 @@ def cmd_coverage(args) -> None:
         "coverage_any": pct(t["done"] + t["partial"], t["total"]),
         "coverage_in_scope": pct(t["done"] + t["partial"], t["total"] - out_of_scope),
     }
+    mods = sitemap.get("modules", [])
+    disabled = [m for m in mods if m.get("enabled") is False]
+    summary["modules_total"] = len(mods)
+    summary["modules_enabled"] = len(mods) - len(disabled)
+    summary["modules_disabled"] = len(disabled)
+    studied_modules = [m for m in mods if any(sc.get("status") in ("done", "partial")
+                                            for sec in m.get("sections", []) for sc in sec.get("screens", []))]
+    summary["module_coverage"] = pct(len(studied_modules), len(mods))
+    fetch_only = [(m["name"], sc) for m, _, sc in iter_screens(sitemap)
+                  if sc.get("extraction") == "fetch" and not sc.get("visual_check")]
+    summary["fetch_only_screens"] = len(fetch_only)
+    mstats = matrix_stats(root)
+    summary["matrix"] = {k: mstats[k] for k in ("total", "tested", "untested", "blocked", "diffs")}
     if args.write:
         lines = [
             "# تقرير التغطية", "",
@@ -341,7 +455,12 @@ def cmd_coverage(args) -> None:
             f"| التغطية (كاملة + جزئية) | {summary['coverage_any']} |",
             f"| التغطية داخل النطاق (باستبعاد «خارج النطاق») | {summary['coverage_in_scope']} |",
             f"| متخطّاة | {t['skipped']} |",
-            f"| متبقية | {summary['remaining']} |", "",
+            f"| متبقية | {summary['remaining']} |",
+            f"| الوحدات (الإجمالي / المفعّلة / المعطّلة) | {len(mods)} / {len(mods) - len(disabled)} / {len(disabled)} |",
+            f"| تغطية الوحدات (من الإجمالي، بما فيها المعطّلة) | {summary['module_coverage']} |",
+            f"| شاشات قُرئت بـ fetch دون تحقق بصري | {len(fetch_only)} |",
+            f"| خلايا مصفوفة الاختبار (مختبرة / غير مختبرة / محجوبة) | {mstats['tested']} / {mstats['untested']} / {mstats['blocked']} |",
+            f"| فروق بين القيد المتوقع والفعلي | {mstats['diffs']} |", "",
             "## حسب الوحدة", "",
             "| الوحدة | الإجمالي | كاملة | جزئية | متخطّاة | متبقية | التغطية |",
             "|---|---|---|---|---|---|---|",
@@ -368,6 +487,20 @@ def cmd_coverage(args) -> None:
         lines += ["", "## الشاشات المدروسة جزئياً", ""]
         lines += ([f"- {mn}: {sc['name']} (`{sc['id']}`) — {sc.get('skip_reason') or 'راجع أسئلتها المفتوحة'}"
                    for mn, sc in partial] or ["لا يوجد."])
+        lines += ["", "## الوحدات المعطّلة التي لم تُدرس", ""]
+        lines += ([f"- {m['name']} (`{m['id']}`) — {m.get('category') or ''}" for m in disabled
+                   if m not in studied_modules] or ["لا يوجد."])
+        cells = [c for c in load_matrix(root).get("cells", []) if c.get("status") in ("untested", "blocked")]
+        lines += ["", "## خلايا مصفوفة الاختبار غير المختبرة", ""]
+        if cells:
+            lines += ["| الخلية | المستند | المتغيرات | الحالة | السبب |", "|---|---|---|---|---|"]
+            lines += [f"| {c.get('id')} | {c.get('document')} | "
+                      f"{', '.join(f'{k}={v}' for k, v in (c.get('variables') or {}).items())} | {c.get('status')} | "
+                      f"{c.get('reason') or 'غير مذكور'} |" for c in cells]
+        else:
+            lines.append("لا يوجد." if mstats["total"] else "لم تُبنَ مصفوفة اختبار (وضع القراءة فقط أو لم تُنفَّذ المرحلة 4.5).")
+        lines += ["", "## شاشات قُرئت بالاستخراج السريع (fetch) دون تحقق بصري", ""]
+        lines += ([f"- {mn}: {sc['name']} (`{sc['id']}`)" for mn, sc in fetch_only] or ["لا يوجد."])
         (root / "10-coverage-report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
         summary["written"] = "10-coverage-report.md"
     print(json.dumps(summary, ensure_ascii=False, indent=2))
@@ -388,6 +521,14 @@ def cmd_progress(args) -> None:
     for module, s in st["modules"]:
         block.append(f"| {module['name']} (`{module['id']}`) | {s['total']} | "
                      f"{s['done'] + s['partial'] + s['skipped']} | {s['pending'] + s['in_progress']} |")
+    mstats = matrix_stats(root)
+    mods = sitemap.get("modules", [])
+    block += ["", f"**الوحدات:** {len(mods)} (مفعّلة {sum(1 for m in mods if m.get('enabled') is not False)}، "
+                  f"معطّلة {sum(1 for m in mods if m.get('enabled') is False)})",
+              f"**مصفوفة الاختبار:** {mstats['total']} خلية · مختبرة {mstats['tested']} · غير مختبرة {mstats['untested']} · "
+              f"محجوبة {mstats['blocked']} · فروق {mstats['diffs']}"
+              + (f" · ⚠ فروق بلا بند تناقض: {', '.join(mstats['diffs_without_anomaly'])}" if mstats['diffs_without_anomaly'] else ""),
+              f"**السجلات التجريبية:** {ledger_count(root)}"]
     block.append(STATUS_END)
     path = root / "progress.md"
     text = path.read_text(encoding="utf-8")
@@ -429,6 +570,12 @@ LEAK_PATTERNS = [
         r"(?i)(?:password|passwd|pwd|كلمة\s*(?:المرور|السر)|otp)\s*[:=]\s*[^\s|`<>\-]{3,}")),
     ("api_key_param", re.compile(r"(?i)(?:api[_-]?key|access[_-]?token|session[_-]?id)=[A-Za-z0-9._-]{12,}")),
 ]
+TYPE_WORDS = {"string", "str", "text", "number", "int", "integer", "bigint", "float", "decimal", "numeric", "money",
+              "boolean", "bool", "date", "datetime", "timestamp", "time", "array", "object", "null", "uuid", "enum",
+              "id", "url", "email", "phone", "json", "nullable", "optional", "file", "any"}
+API_VALUE_RE = re.compile(r'"([\w.\-]+)"\s*:\s*("([^"]*)"|-?\d+(?:\.\d+)?|true|false)')
+RAW_SUFFIXES = {".html", ".htm", ".png", ".jpg", ".jpeg", ".webp", ".har", ".pdf", ".xlsx", ".csv"}
+ALLOWED_JSON = {"01-sitemap.json", "04a-scenario-matrix.json"}
 EXAMPLE_ALLOW = re.compile(r"x{3,}|example\.(?:com|org)|<[^>]+>|\.\.\.|\*{3,}", re.IGNORECASE)
 
 
@@ -446,6 +593,24 @@ def cmd_scrub(args) -> None:
             if host:
                 brands.append(host)
     findings = []
+    for path in sorted(root.rglob("*")):
+        if path.is_file() and "_private" not in path.parts:
+            rel = path.relative_to(root).as_posix()
+            if path.suffix.lower() in RAW_SUFFIXES or (path.suffix == ".json" and rel not in ALLOWED_JSON):
+                findings.append({"file": rel, "line": 0, "kind": "raw_artifact",
+                                 "match": "نسخة خام من النظام (HTML/لقطة/JSON) لا تُحفظ في المخرجات"})
+    api_map = root / "01-api-map.md"
+    if api_map.exists():
+        for lineno, line in enumerate(api_map.read_text(encoding="utf-8").splitlines(), 1):
+            for m in API_VALUE_RE.finditer(line):
+                value = (m.group(3) if m.group(3) is not None else m.group(2)).strip().lower()
+                words = set(re.split(r"[\s|,()<>\[\]/]+", value)) - {""}
+                if value.startswith(("enum(", "enum:", "one of")):
+                    continue
+                if value in ("true", "false") or not words or not words <= TYPE_WORDS:
+                    if not EXAMPLE_ALLOW.search(value):
+                        findings.append({"file": "01-api-map.md", "line": lineno, "kind": "api_map_value",
+                                         "match": m.group(0)[:60] + " — اكتب النوع لا القيمة"})
     for path in sorted(root.rglob("*")):
         if not path.is_file() or "_private" in path.parts or path.suffix not in {".md", ".json", ".sql", ".mmd", ".txt", ".csv"}:
             continue
@@ -484,6 +649,10 @@ def main() -> None:
     p.add_argument("--scope", default="كامل النظام")
     p.add_argument("--stack", default="يُترك للوكيل المنفّذ")
     p.add_argument("--authorized-at", default=None, help="timestamp of the user's authorization confirmation")
+    p.add_argument("--mode", default="read-only", choices=["read-only", "sandbox"],
+                   help="sandbox only after the user explicitly confirms a test system AND permits creating records")
+    p.add_argument("--sandbox-confirmed-at", default=None, help="timestamp of the sandbox confirmation")
+    p.add_argument("--test-prefix", default="اختبار-Claude-", help="fixed prefix for every test record")
     p.add_argument("--force", action="store_true")
     p.set_defaults(func=cmd_init)
 
@@ -505,6 +674,15 @@ def main() -> None:
     p.add_argument("--project", default=".")
     p.add_argument("--write", action="store_true", help="regenerate 10-coverage-report.md")
     p.set_defaults(func=cmd_coverage)
+
+    p = sub.add_parser("matrix", help="summarise and check 04a-scenario-matrix.json")
+    p.add_argument("--project", default=".")
+    p.set_defaults(func=cmd_matrix)
+
+    p = sub.add_parser("urlcheck", help="refuse action-like URLs before requesting them")
+    p.add_argument("url")
+    p.add_argument("--label", default="", help="visible text of the link/button")
+    p.set_defaults(func=cmd_urlcheck)
 
     p = sub.add_parser("log", help="append to the progress log")
     p.add_argument("--project", default=".")

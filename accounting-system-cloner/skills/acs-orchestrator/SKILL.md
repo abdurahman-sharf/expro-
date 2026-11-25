@@ -1,15 +1,15 @@
 ---
 name: acs-orchestrator
 description: >-
-  ALWAYS use this skill FIRST, before replying, whenever someone wants to study, document, map, spec out,
-  reverse-engineer or functionally clone a web accounting, invoicing, POS back-office, inventory, payroll or ERP
-  system a client already uses — e.g. "استنساخ نظام محاسبي"، "دراسة نظام محاسبي"، "هندسة عكسية لنظام ERP"،
-  "توثيق شاشات نظام"، "أبي مواصفات النظام اللي عند العميل ونبني نسختنا"، "map every screen of our client's ERP and
-  write a build brief"، أو "كمّل دراسة النظام" (resume a *-spec folder). Entry point of accounting-system-cloner:
-  checks authorization, user logs in themselves, read-only browsing, then explorer → analyzer → spec-writer produce
-  a full spec package and a Build Brief for building an equivalent system under a new identity. Trigger even if
-  the user only describes the goal. Not for designing a system with no reference system, real bookkeeping,
-  scraping client data, ZATCA coding in an existing app, or decompiling binaries.
+  يُستدعى بالاسم: /acs-orchestrator — entry point of the accounting-system-cloner pack. Use it FIRST whenever
+  someone wants to study, document, map, reverse-engineer or functionally clone a web accounting, invoicing,
+  POS back-office, inventory, payroll or ERP system a client already uses — e.g. "استنساخ نظام محاسبي"، "دراسة نظام
+  محاسبي"، "هندسة عكسية لنظام ERP"، "توثيق شاشات نظام"، "map every screen of our client's ERP and write a build
+  brief"، أو "كمّل دراسة النظام" (resume a *-spec folder). It checks authorization, has the user log in themselves,
+  sets read-only or sandbox-write mode, then runs explorer (modules, sitemap, API) → analyzer (screens, data model,
+  rules, scenario matrix) → spec-writer (posting matrix, Build Brief) for an equivalent system under a new identity.
+  Not for designing a system with no reference system, real bookkeeping, scraping client data, ZATCA coding in an
+  existing app, or decompiling binaries.
 ---
 
 # acs-orchestrator — المنسّق
@@ -20,9 +20,9 @@ description: >-
 
 | السكيل | المراحل | يُنتج |
 |---|---|---|
-| `acs-explorer` | 1 | `01-sitemap.md`، `01-sitemap.json` |
-| `acs-analyzer` | 2–6 | `02-screens/**`، `03-*`، `04`، `05`، `06` |
-| `acs-spec-writer` | 7 | `00`، `07`، `08`، `09`، `10` |
+| `acs-explorer` | 1، 1.5 | `01-modules.md`، `01-sitemap.md/json`، `01-api-map.md` |
+| `acs-analyzer` | 2–6، 4.5 | `02-screens/**`، `03-*`، `04`، `04a-scenario-matrix.json`، `05`، `06`، `11` (يضيف) |
+| `acs-spec-writer` | 7 | `00`، `04b-posting-matrix.md`، `07`، `08`، `09`، `10`، `11` (يُنهي) |
 
 إن لم تكن السكيلز الأخرى مثبتة كسكيلز مستقلة، فاقرأ ملف `SKILL.md` الخاص بكل منها من المجلد الشقيق
 (`../acs-explorer/SKILL.md` إلخ) واتبعه.
@@ -36,6 +36,12 @@ description: >-
 - **قراءة فقط:** مسموح التنقل والعرض والفلترة والبحث والمعاينة وفتح نموذج "جديد" لقراءته ثم "إلغاء".
   ممنوع الحفظ والترحيل والاعتماد والحذف والإلغاء المحاسبي والإرسال والاستيراد وتعديل الإعدادات وإقفال
   الفترات وأي زر غير واضح الأثر. أي عملية لازمة للفهم تُسجَّل سؤالاً مفتوحاً وتُنفَّذ فقط في الديمو وبإذن لكل عملية.
+- **وضع التجربة (Sandbox Write):** وضع ثانٍ لا يُفعَّل إلا إذا أكد المستخدم صراحة أن النظام/الشركة تجريبية **وأذن**
+  بإنشاء سجلات. يُسمح فيه بإنشاء عملاء وموردين ومنتجات وفواتير بيع وشراء ودفعات ومرتجعات وإشعارات وسندات وقيود يدوية
+  وحركات مخزون — عبر النماذج وزر الحفظ فقط، عملية واحدة في كل مرة، ببادئة `اختبار-Claude-`. يبقى ممنوعاً إلا بإذن
+  خاص لكل عملية: إقفال الفترات/السنوات، تعديل الإعدادات العامة أو الضرائب أو دليل الحسابات الأساسي، الحذف الجماعي،
+  تفعيل/تعطيل الوحدات، أي إرسال خارجي (بريد، SMS، منصة الفوترة الإلكترونية)، وأي إجراء بلا نموذج.
+  **لا يُطلب رابط إجراء مباشرة في أي وضع، ولا حتى بـ GET** (`acs_tool.py urlcheck`).
 - **الخصوصية:** لا تنقل بيانات العميل الفعلية إلى المخرجات؛ استبدلها ببيانات وهمية تحافظ على الشكل
   (`عميل-001`، `3000xxxxxx00003`). لا تفتح بيانات شركات أو مستأجرين آخرين.
 - **حدود الاستنساخ:** انسخ الوظيفة لا الهوية: لا شعار ولا ألوان ولا أيقونات ولا صور ولا نصوص تسويقية ولا
@@ -61,11 +67,16 @@ description: >-
    - النطاق: كل النظام أم وحدات محددة؟
    - التقنية المستهدفة (مثل Next.js + NestJS + PostgreSQL) أو تُترك للوكيل المنفّذ.
    - أداة المتصفح المتاحة (انظر `references/browser-tools.md`).
+   - **هل النظام (أو الشركة) تجريبي، وهل تأذن بإنشاء سجلات تجريبية؟** اشرح باختصار الفرق: وضع القراءة فقط يوثّق
+     ما يظهر، ووضع التجربة يكشف منطق الترحيل الآلي والقيود والحسابات التي تُنشأ خلف الشاشات (المرحلة 4.5) — وهو
+     أهم ما يحتاجه المنفّذ. **حدّد الوضع من الإجابة:** "تجربة" فقط إن قال صراحة إنه تجريبي **و** أذن بالإنشاء؛
+     أي إجابة أخرى (أو بيانات تبدو حقيقية) = "قراءة فقط".
 3. **أنشئ المشروع** بالسكربت (يستخدم مكتبة Python القياسية فقط):
    ```bash
    python3 <skill-dir>/scripts/acs_tool.py init --root <parent-dir> --system-name "<الاسم>" \
      --slug <اسم-رمزي-محايد> --url "<الرابط>" --demo "<نعم/لا/اسم الشركة>" --language ar \
-     --direction rtl --country SA --scope "<النطاق>" --stack "<التقنية>" --authorized-at "<التاريخ والوقت>"
+     --direction rtl --country SA --scope "<النطاق>" --stack "<التقنية>" --authorized-at "<التاريخ والوقت>" \
+     --mode read-only            # أو: --mode sandbox --sandbox-confirmed-at "<وقت تأكيد المستخدم>"
    ```
    - **اسم المجلد:** إن سمّى المستخدم المجلد فاستخدم اسمه كما هو في `--slug` — قراره مقدَّم. إن لم يسمّه، فاختر اسماً
      رمزياً محايداً (مثل `ledger-x`) لأن المجلد سيُسلَّم للوكيل المنفّذ. إن كان الاسم الذي اختاره يحمل اسم المنتج،
@@ -83,9 +94,11 @@ description: >-
 | المرحلة | السكيل | شرط البدء | شرط الإغلاق |
 |---|---|---|---|
 | 1 الخريطة | acs-explorer | تفويض + دخول المستخدم | `acs_tool.py validate` يمر، والمستخدم راجع ملخص الخريطة |
+| 1.5 الوحدات والـ API | acs-explorer | بدأت الخريطة (مدير الوحدات يُقرأ أولاً) | `01-modules.md` بكل الوحدات (مفعّلة/معطّلة) + سؤال التفعيل للمستخدم؛ `01-api-map.md` بالبنية فقط مع تحقق الترقيم؛ كتالوج التقارير مجمّع |
 | 2 الشاشات | acs-analyzer | الخريطة جاهزة | كل شاشات النطاق `done/partial/skipped` |
 | 3 نموذج البيانات | acs-analyzer | ≥ وحدة كاملة مدروسة (يُحدَّث تراكمياً) | ERD + schema + وسوم [مُستنتج] |
 | 4 قواعد العمل | acs-analyzer | شاشات المستندات مدروسة | كل بنود `accounting-checklist.md` موثّقة أو مُعلّمة "غير موجود/غير متحقق" |
+| 4.5 مصفوفة الاختبار | acs-analyzer | **وضع التجربة فقط** + المرحلة 4 لوحدة المستندات | كل خلية `tested`/`untested`/`blocked` بسبب؛ `acs_tool.py matrix` بلا أخطاء؛ كل فرق ← `AN-xx`؛ كل سجل في `11` — وفي وضع القراءة: المصفوفة بخلايا `blocked` فقط |
 | 5 الصلاحيات | acs-analyzer | شاشات الإعدادات مدروسة | مصفوفة الصلاحيات |
 | 6 التقارير | acs-analyzer | — | كل تقرير بمعادلاته |
 | 7 الحزمة | acs-spec-writer | 2–6 مكتملة أو المستخدم طلب حزمة جزئية | `scrub` نظيف + `coverage --write` |
@@ -99,6 +112,8 @@ description: >-
 3. في نهاية الوحدة: حدّث نقطة الاستئناف في `progress.md`، واعرض على المستخدم ملخصاً قصيراً (عدد الشاشات،
    أهم الاكتشافات، الأسئلة المفتوحة الجديدة)، واسأل: نكمل الوحدة التالية؟
 4. بعد كل وحدة شغّل `acs_tool.py scrub`؛ أي نتيجة = أصلحها فوراً قبل المتابعة.
+5. **في وضع التجربة:** بعد كل سجل تجريبي شغّل `acs_tool.py matrix` و`acs_tool.py progress` — كتلة الحالة في
+   `progress.md` تتتبع خلايا المصفوفة (مختبرة/غير مختبرة/محجوبة/فروق) وعدد السجلات التجريبية، فيُستأنف من آخر خلية.
 
 ## الاستئناف بعد الانقطاع
 
@@ -108,6 +123,8 @@ description: >-
 3. **أعد تأكيد التفويض بإيجاز** إن كانت محادثة جديدة ("ما زال التفويض قائماً؟")، و**اطلب من المستخدم الدخول
    من جديد** — الجلسة السابقة غالباً انتهت، ولم تُحفظ أي بيانات دخول (وهذا مقصود).
 4. إن وُجد ملف شاشة بحالة `in_progress`، أكمله أولاً (لا تبدأ من الصفر).
+5. في وضع التجربة: اقرأ آخر سطر في `11-test-records-ledger.md` وآخر خلية في `04a-scenario-matrix.json` — إن وُجد سجل
+   بلا خلية أو خلية بلا "بعد"، أكمل التقاط آثاره قبل أي إنشاء جديد. **أعد تأكيد** أن الشركة ما زالت تجريبية والإذن قائم.
 5. أخبر المستخدم بسطرين: أين توقفنا، وما الخطوة التالية.
 
 ## أوامر السكربت (`scripts/acs_tool.py`)
@@ -121,17 +138,22 @@ description: >-
 | `progress` | بعد كل شاشة |
 | `log "رسالة"` | بعد كل خطوة ذات معنى |
 | `coverage [--write]` | لمعرفة نسبة التغطية، و`--write` يكتب `10-coverage-report.md` |
-| `scrub` | قبل تسليم أي مرحلة: يكشف بريداً/IBAN/أرقاماً ضريبية/رموز جلسة/اسم المنتج |
+| `matrix` | وضع التجربة: يلخّص `04a-scenario-matrix.json` ويرفض فرقاً بلا بند تناقض |
+| `urlcheck "<url>" --label "<نص>"` | قبل طلب أي رابط مباشرة (navigate/fetch): يرفض روابط الأفعال |
+| `scrub` | قبل تسليم أي مرحلة: يكشف بريداً/IBAN/أرقاماً ضريبية/رموز جلسة/اسم المنتج، وقيماً في `01-api-map.md`، ونسخاً خاماً (HTML/لقطات/JSON) |
 
 كل الأوامر عدا `init` تأخذ `--project <مسار مجلد -spec>`.
 
 ## التسليم النهائي
 
 بعد المرحلة 7: شغّل `scrub` و`coverage --write`، ثم اعرض للمستخدم: مسار المجلد، حجم النظام (شاشات/كيانات/
-تقارير)، نسبة التغطية، أهم 5 أسئلة مفتوحة، وتذكيراً بأن `_private/` لا يُسلَّم للوكيل المنفّذ.
+تقارير)، نسبة التغطية (الشاشات والوحدات من الإجمالي)، حالة مصفوفة الاختبار والتناقضات المكتشفة، أهم 5 أسئلة مفتوحة،
+وتذكيراً بأن `_private/` لا يُسلَّم للوكيل المنفّذ — وفي وضع التجربة: أن السجلات التجريبية باقية في النظام وترتيب حذفها
+في `11-test-records-ledger.md`.
 
 ## ملفات مرجعية
 
 - `references/guardrails.md` — القواعد الكاملة مع أسبابها وجدول البدائل الوهمية. اقرأه في المرحلة 0.
 - `references/output-structure.md` — هيكل المجلد ومن يكتب كل ملف وحالات `progress.md`.
 - `references/browser-tools.md` — استخدام أدوات المتصفح بأمان وكيف تميّز زر التنقل من زر الإجراء.
+- `CHANGELOG.md` — سجل تعديلات الحزمة.

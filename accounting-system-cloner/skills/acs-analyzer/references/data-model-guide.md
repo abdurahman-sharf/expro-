@@ -45,6 +45,19 @@ payment، payment_allocation، stock_movement(+lines)، stock_balance/stock_laye
 bank_reconciliation، cheque، fixed_asset، depreciation_schedule، user، role، permission، role_permission،
 user_branch، approval_rule، audit_log، document_sequence، attachment، setting.
 
+## عناصر يجب التأكد من توثيقها إن وُجدت
+| العنصر | ماذا توثّق | أعمدة مقترحة |
+|---|---|---|
+| حالات المستند | مسودة / مُصدَر / مُسلَّم / ملغى، وحالات التسليم المنفصلة، والانتقالات المسموحة | `status`, `delivery_status` |
+| حالات الدفع | غير مكتمل / مكتمل / تحت المراجعة / فاشل / مسودة — للدفعة نفسها، ومنفصلة عن حالة دفع الفاتورة | `payment.status`, `invoice.payment_status` |
+| العملة في سطر القيد | المبلغ بعملة المعاملة وبالعملة المحلية، سعر الصرف، ومتى يُحدَّث | `debit`, `credit`, `debit_base`, `credit_base`, `currency_code`, `exchange_rate` |
+| الترقيم لكل كيان | البادئة، عدد الخانات، التفرّد (عام/لكل فرع/لكل سنة)، خيارات إعادة التسلسل، متى يُحجز الرقم | جدول `document_sequence(entity, prefix, digits, scope, reset_policy, next_value)` |
+| وحدات القياس | الوحدة الأساسية، وحدات بديلة ومعاملات التحويل، الوحدة في سطر المستند | `item_uom(item_id, uom_id, factor)`, `line.uom_id`, `line.qty_base` |
+| الأعمدة والحقول المخصصة | أعمدة مخصصة في سطور المستندات، حقول مخصصة للكيانات وأنواعها | `custom_field(entity, key, type, options)`, `custom_value` أو `jsonb` |
+| المالك | إن كانت الصلاحيات بنطاق "الخاص به" | `owner_id`/`created_by` + فهرس + سياسة RLS |
+| أدوار الحسابات | الوسوم النظامية على الحسابات وتوجيه العمليات | `account.role`, `account_routing(operation, mode, account_id)` |
+| متطلبات الدولة | السعودية: العنوان الوطني (رقم المبنى، الرقم الفرعي، العنوان المختصر، الشارع، الحي، المدينة، الرمز البريدي)، نوع المعرّف (CRN/700/…)، علامة الجهة الحكومية | `building_no`, `additional_no`, `short_address`, `id_type`, `id_number`, `is_government` |
+
 ## قرارات تصميم يجب توثيقها صراحة (من سلوك النظام المرجعي)
 - **party موحّد أم جداول منفصلة** للعملاء والموردين؟ (هل يمكن أن يكون الطرف عميلاً ومورداً معاً؟)
 - **المستندات:** جدول لكل نوع أم جدول `document` عام بحقل نوع؟ (وثّق ما يوحي به النظام، واقترح.)
