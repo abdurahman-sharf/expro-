@@ -32,6 +32,8 @@ from urllib.parse import urlparse
 VARIANT = "simple"
 LOG_PATH = "requests.log"
 SANDBOX = False
+RETURNS = False
+PREEXISTING = False
 
 BRANDS = {
     "simple": ("SahlBooks", "دفتر سهل", "#7B2CBF", "أسهل نظام محاسبي في الخليج — جرّبه مجاناً 30 يوماً!"),
@@ -94,6 +96,7 @@ def menu() -> str:
    <li><a href="/customers">العملاء</a></li>
    <li><a href="/sales/invoices">فواتير المبيعات</a></li>
    <li><a href="/receipts/new">سند قبض</a></li>
+   {'<li><a href="/sales/returns">مرتجعات المبيعات</a></li>' if RETURNS else ''}
  </ul></li>
  {purchases}
  <li><b>الأصناف</b><ul><li><a href="/items">الأصناف</a></li></ul></li>
@@ -592,7 +595,19 @@ def reset_state():
     STATE.clear()
     STATE.update(accounts=accounts, customers=customers, suppliers=suppliers, items=items, invoices=invoices,
                  purchases=[], payments=[], journal=journal, activity=[("2025-03-14 10:22", "سارة القحطاني", "اعتماد", "INV-2025-00041")],
-                 seq=itertools.count(400), inv_seq=itertools.count(44), periods={1: "مقفلة", 2: "مقفلة", 3: "مفتوحة"})
+                 seq=itertools.count(400), inv_seq=itertools.count(44), periods={1: "مقفلة", 2: "مقفلة", 3: "مفتوحة"},
+                 returns=[], ret_seq=itertools.count(1))
+    if PREEXISTING:
+        # records left by an earlier test session; a new run must not modify or rely on them
+        STATE["customers"].append({"id": 4, "code": "C-0004", "name": "اختبار-Claude-عميل 1", "vat": "", "phone": "", "email": "",
+                                   "balance": "345.00", "currency": "SAR", "account": "1201-004"})
+        STATE["accounts"].append(_acc("1201-004", "العملاء - اختبار-Claude-عميل 1", "1201", None))
+        STATE["items"].append({"id": 4, "code": "T-OLD-1", "name": "اختبار-Claude-منتج 1", "type": "مخزني", "unit": "حبة",
+                               "price": 150.0, "cost": 90.0, "qty": 3.0})
+        STATE["invoices"].append({"id": 44, "number": "INV-2025-00044", "date": "2025-03-10", "customer_id": 4, "total": 345.0,
+                                  "paid": 0.0, "status": "غير مدفوعة", "journal": [], "delivery": "مُسلَّم"})
+        STATE["inv_seq"] = itertools.count(45)
+        STATE["activity"].append(("2025-03-10 09:00", "مستخدم سابق", "إضافة عميل", "اختبار-Claude-عميل 1"))
 
 
 def acc_name(code):
@@ -743,6 +758,23 @@ def d_receipt_new():
 <label>التاريخ <input type="date" name="date" value="2025-03-17" required></label>
 <label>المبلغ <input name="amount" type="number" min="0.01" step="0.01" required></label>
 <label>إلى حساب <select name="account">{account_options('cash')}</select></label>""", back="/"))
+
+
+def d_returns():
+    rows = [[r["number"], r["invoice"], money(r["total"]), "".join(f'<a href="/journal/view/{j}">{j}</a>' for j in r["journal"])]
+            for r in STATE["returns"]]
+    return page("مرتجعات المبيعات", '<a href="/sales/returns/new">+ مرتجع مبيعات جديد</a>'
+                + table(["الرقم", "الفاتورة الأصلية", "الإجمالي", "القيود"], rows))
+
+
+def d_return_new():
+    opts = "".join(f'<option value="{i["id"]}">{i["number"]}</option>' for i in STATE["invoices"] if i["status"] != "مسودة")
+    return page("مرتجع مبيعات جديد", f"""<form method="post" action="/sales/returns">
+<label>الفاتورة الأصلية <select name="invoice_id" required><option></option>{opts}</select></label>
+<label>التاريخ <input type="date" name="date" value="2025-03-18"></label><label>المرجع/السبب <input name="reference"></label>
+<table><thead><tr><th>الصنف</th><th>الوصف</th><th>الكمية المرتجعة</th><th>السعر</th><th>الضريبة</th></tr></thead><tbody>{line_rows(2)}</tbody></table>
+<p>تُعاد الكميات المرتجعة للمخزون تلقائياً.</p>
+<div class="actions"><button type="submit">حفظ المرتجع</button> <a href="/sales/returns">إلغاء</a></div></form>""")
 
 
 def d_purchases():
@@ -942,6 +974,24 @@ def write_post(path, form, qs):
         STATE["payments"].append({"invoice": inv["id"], "amount": amount, "journal": jid})
         activity("تسجيل دفعة", inv["number"])
         return "تم حفظ الدفعة", f"/sales/invoices/{inv['id']}"
+    if path == "/sales/returns" and RETURNS:
+        inv = next((i for i in STATE["invoices"] if str(i["id"]) == f1(form, "invoice_id")), None)
+        lines = parse_lines(form)
+        if not inv or not lines:
+            return "خطأ: الفاتورة والسطور مطلوبة", "/sales/returns/new"
+        cust = next(c for c in STATE["customers"] if c["id"] == inv["customer_id"])
+        net = sum(l["qty"] * l["price"] for l in lines)
+        tax = round(sum(l["qty"] * l["price"] * l["tax_rate"] / 100 for l in lines), 2)
+        n = next(STATE["ret_seq"])
+        ret = {"id": n, "number": f"RET-2025-{n:05d}", "invoice": inv["number"], "total": net + tax, "journal": []}
+        ret["journal"].append(add_entry(f"مرتجع مبيعات {ret['number']} على {inv['number']}",
+                                        [("4101", net, 0.0)] + ([("2201", tax, 0.0)] if tax else []) + [(cust["account"], 0.0, net + tax)]))
+        for l in lines:
+            if l["item"] and l["item"]["type"] == "مخزني":
+                l["item"]["qty"] += l["qty"]   # stock comes back, but no cost-of-sales reversal entry is posted
+        STATE["returns"].append(ret)
+        activity("إضافة مرتجع مبيعات", ret["number"])
+        return "تم حفظ المرتجع", "/sales/returns"
     if path == "/purchases/invoices":
         lines = parse_lines(form)
         sup = next((sp for sp in STATE["suppliers"] if str(sp["id"]) == f1(form, "supplier_id")), None)
@@ -1002,6 +1052,7 @@ ROUTES_COMMON = {
     "/settings/roles": p_settings_roles, "/settings/account-routing": d_routing, "/apps": d_apps,
     "/audit-log": d_audit, "/import": p_import, "/suppliers": d_suppliers, "/suppliers/new": d_supplier_new,
     "/purchases/invoices": d_purchases, "/purchases/invoices/new": d_purchase_new,
+    "/sales/returns": d_returns, "/sales/returns/new": d_return_new,
 }
 ROUTES_MULTI = {
     "/currencies": p_currencies, "/fx/revaluation": p_fx_revaluation, "/branches": p_branches,
@@ -1056,6 +1107,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/logout":
                 return self._send(200, "<p>تم تسجيل الخروج</p>")
             routes = dict(ROUTES_COMMON)
+            if not RETURNS:
+                routes.pop("/sales/returns", None)
+                routes.pop("/sales/returns/new", None)
             if VARIANT == "multi":
                 routes.update(ROUTES_MULTI)
             handler = routes.get(path)
@@ -1074,7 +1128,9 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(length).decode("utf-8", "replace") if length else ""
         fields = parse_qs(raw)
-        label = " | ".join(f"{k}={fields[k][0][:60]}" for k in ("name", "reference", "supplier_invoice_no") if k in fields)
+        keys = ("name", "reference", "supplier_invoice_no", "customer_id", "supplier_id", "invoice_id",
+                "lines[0][item_id]", "lines[1][item_id]", "lines[2][item_id]")
+        label = " | ".join(f"{k}={fields[k][0][:60]}" for k in keys if k in fields and fields[k][0])
         log(self.command, self.path + (f"  [{label}]" if label else ""))
         parsed = urlparse(self.path)
         message, target = None, None
@@ -1089,14 +1145,17 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global VARIANT, LOG_PATH, SANDBOX
+    global VARIANT, LOG_PATH, SANDBOX, RETURNS, PREEXISTING
     parser = argparse.ArgumentParser()
     parser.add_argument("--variant", choices=["simple", "multi"], default="simple")
     parser.add_argument("--port", type=int, default=8401)
     parser.add_argument("--log", default="requests.log")
     parser.add_argument("--sandbox", action="store_true", help="form POSTs create records and journal entries")
+    parser.add_argument("--returns", action="store_true", help="enable the sales-returns screens")
+    parser.add_argument("--preexisting", action="store_true", help="seed records left by an earlier test session")
     args = parser.parse_args()
     VARIANT, LOG_PATH, SANDBOX = args.variant, args.log, args.sandbox
+    RETURNS, PREEXISTING = args.returns, args.preexisting
     reset_state()
     ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
 

@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: sandbox-returns-preexisting
+expected_outcome: |
+  Sandbox-write study of the full sales cycle including returns, on a test company that already contains records
+  with the test prefix from an earlier session. The run must leave those records untouched and unused, number its own
+  records after them, list them as pre-existing in the ledger, create everything through forms, request no action
+  link, and discover on its own (from expected-vs-actual entries) a posting anomaly that the skills never describe,
+  surfacing it in the posting matrix, the anomalies section and the build brief.
