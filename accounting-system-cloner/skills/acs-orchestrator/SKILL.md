@@ -1,15 +1,15 @@
 ---
 name: acs-orchestrator
 description: >-
-  نقطة الدخول لحزمة accounting-system-cloner: هندسة عكسية وظيفية مُفوَّضة لنظام محاسبي أو ERP على الويب
-  عبر تصفّحه بوضع القراءة فقط، ثم إنتاج حزمة مواصفات كاملة و"Build Brief" لبناء نظام مكافئ بهوية جديدة.
-  يدير المراحل 0–7، ويتحقق من التفويض، ويتابع التقدم في progress.md ويستأنف بعد الانقطاع.
-  استخدمه كلما طلب المستخدم "استنساخ نظام محاسبي"، "دراسة نظام محاسبي"، "هندسة عكسية لنظام ERP"،
-  "توثيق شاشات نظام"، "استخراج مواصفات نظام فوترة/مخازن/رواتب"، "أبي نسوي نظام زي النظام اللي عند العميل"،
-  أو بالإنجليزية clone / reverse-engineer / document an accounting, invoicing, POS-backoffice or ERP web app
-  the client has an account on — حتى لو لم يذكر كلمة "سكيل" أو اسم الحزمة، وحتى لو طلب "استئناف الدراسة".
-  لا تستخدمه لبناء نظام محاسبي من الصفر بلا نظام مرجعي، ولا لمسك الدفاتر أو قيود يومية فعلية، ولا لتصدير
-  أو كشط بيانات العميل، ولا لفك تشفير برامج مثبتة.
+  ALWAYS use this skill FIRST, before replying, whenever someone wants to study, document, map, spec out,
+  reverse-engineer or functionally clone a web accounting, invoicing, POS back-office, inventory, payroll or ERP
+  system a client already uses — e.g. "استنساخ نظام محاسبي"، "دراسة نظام محاسبي"، "هندسة عكسية لنظام ERP"،
+  "توثيق شاشات نظام"، "أبي مواصفات النظام اللي عند العميل ونبني نسختنا"، "map every screen of our client's ERP and
+  write a build brief"، أو "كمّل دراسة النظام" (resume a *-spec folder). Entry point of accounting-system-cloner:
+  checks authorization, user logs in themselves, read-only browsing, then explorer → analyzer → spec-writer produce
+  a full spec package and a Build Brief for building an equivalent system under a new identity. Trigger even if
+  the user only describes the goal. Not for designing a system with no reference system, real bookkeeping,
+  scraping client data, ZATCA coding in an existing app, or decompiling binaries.
 ---
 
 # acs-orchestrator — المنسّق
@@ -67,7 +67,9 @@ description: >-
      --slug <اسم-رمزي-محايد> --url "<الرابط>" --demo "<نعم/لا/اسم الشركة>" --language ar \
      --direction rtl --country SA --scope "<النطاق>" --stack "<التقنية>" --authorized-at "<التاريخ والوقت>"
    ```
-   - استخدم `--slug` باسم رمزي محايد (مثل `ledger-x`) لأن المجلد سيُسلَّم للوكيل المنفّذ، فلا يحمل اسم المنتج.
+   - **اسم المجلد:** إن سمّى المستخدم المجلد فاستخدم اسمه كما هو في `--slug` — قراره مقدَّم. إن لم يسمّه، فاختر اسماً
+     رمزياً محايداً (مثل `ledger-x`) لأن المجلد سيُسلَّم للوكيل المنفّذ. إن كان الاسم الذي اختاره يحمل اسم المنتج،
+     فاكتفِ بتنبيه في سطر واحد واقتراح بديل محايد، ولا تغيّره دون موافقته.
    - إن ردّ السكربت `"status": "exists"` فهذا **استئناف** — انتقل إلى "الاستئناف" أدناه ولا تعِد الإنشاء.
    - هيكل المخرجات الكامل في `references/output-structure.md`.
 4. **الدخول:** افتح صفحة الدخول في المتصفح، ثم قل للمستخدم:
