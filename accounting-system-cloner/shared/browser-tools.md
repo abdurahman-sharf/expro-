@@ -47,20 +47,26 @@
 سجّل النوع لكل شاشة في الخريطة: `"rendering": "server" | "spa"`، وسجّل `"extraction": "fetch" | "browse"` و
 `"visual_check": true | false` (هل تحققت بلقطة شاشة؟). تقرير التغطية يعرض الشاشات المقروءة بـ fetch دون تحقق بصري.
 
-**قيود fetch (من `guardrails.md` §2.1):** قائمة روابط محددة ظهرت في الواجهة **كروابط تنقّل** فقط؛ لا كلمات أفعال في
-الرابط أو نص الزر؛ لا تتبّع متكرر. افحص كل رابط بالسكربت قبل طلبه:
+**قيود fetch (من `guardrails.md` §2.1):** قائمة روابط محددة ظهرت في الواجهة **كروابط تنقّل**؛ كل رابط يمر بقائمة
+السماح قبل طلبه؛ لا تتبّع متكرر. افحص بالسكربت:
 ```bash
-python3 scripts/acs_tool.py urlcheck "/owner/clients/view/12" --label "عرض"        # allowed
-python3 scripts/acs_tool.py urlcheck "/owner/invoices/delete/1" --label "حذف"      # forbidden
+python3 scripts/acs_tool.py urlcheck "/owner/clients/view/12" --label "عرض" --context list-row   # allowed: leaf:view
+python3 scripts/acs_tool.py urlcheck "/owner/journal_cats/hide/15" --label "إخفاء"               # refused: action-verb
+python3 scripts/acs_tool.py urlcheck "/owner/clients/index?reset=1" --context nav                # allowed: leaf:index
 ```
 
-مقتطف استخراج دفعة صفحات (GET فقط، القائمة مُعدّة سلفاً من روابط التنقل):
+**داخل المتصفح استخدم الدالة المولّدة، لا regex يدوياً.** اطبعها مرة واحدة ثم ألصق ناتجها في أول المقتطف:
+```bash
+python3 scripts/acs_tool.py urlrules --format js      # يطبع ACS_URL_RULES و acsUrlCheck(url, label, context)
+```
+مقتطف استخراج دفعة صفحات (GET فقط). `links` قائمة أعددتها من روابط التنقل: `[{url, label, context}]`:
 ```js
-async (urls) => {
-  const BAD = /(delete|remove|destroy|cancel|void|close|post|approve|make_|mark_|send|email|sms|submit|sync|revalue|reverse|undo|toggle|enable|disable|activate|deactivate|reset|run|process|logout)/i;
+// <<< ألصق هنا ناتج: acs_tool.py urlrules --format js >>>
+async (links) => {
   const out = [];
-  for (const url of urls) {
-    if (BAD.test(url)) { out.push({ url, skipped: 'action-like' }); continue; }
+  for (const { url, label = "", context = "" } of links) {
+    const verdict = acsUrlCheck(url, label, context);
+    if (!verdict.allowed) { out.push({ url, skipped: verdict.reason }); continue; }
     const res = await fetch(url, { method: 'GET', credentials: 'same-origin' });
     const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
     const spa = doc.body && doc.body.innerText.trim().length < 200 && doc.querySelector('#root, #app, [data-reactroot]');
@@ -70,13 +76,18 @@ async (urls) => {
       fields: [...doc.querySelectorAll('input, select, textarea')].filter(e => e.type !== 'hidden' && e.type !== 'password')
         .map(e => ({ name: e.name, tag: e.tagName.toLowerCase(), type: e.type, required: e.required,
                      maxlength: e.maxLength > 0 ? e.maxLength : null, pattern: e.pattern || null })),
-      navLinks: [...doc.querySelectorAll('nav a[href], .menu a[href], table a[href]')].map(a => ({ href: a.getAttribute('href'), text: a.textContent.trim() })),
+      // روابط الصفحة تُعاد مع سياقها ليُفحص كل منها لاحقاً — لا تُتبَّع تلقائياً
+      links: [...doc.querySelectorAll('a[href]')].map(a => ({ url: a.getAttribute('href'), label: a.textContent.trim(),
+        context: a.closest('nav, .menu, aside') ? 'nav' : a.closest('details, [class*="action"], [class*="dropdown"], [role="menu"]') ? 'actions-menu'
+               : a.closest('td, tr') ? 'list-row' : 'toolbar' })),
       iframes: [...doc.querySelectorAll('iframe[src]')].map(f => f.getAttribute('src')),
     });
   }
   return out;
 }
 ```
+تصنيف السياق في المقتطف تقريبي: أي عنصر داخل `<details>` أو قائمة منسدلة أو صنف فيه "action" يُعدّ قائمة إجراءات —
+والخطأ في هذا الاتجاه آمن. رابط السجل في صف قائمة هو **عنوان/رقم السجل نفسه**، لا أي رابط آخر في الصف.
 لا تحفظ HTML الخام في المخرجات؛ استخرج البنية واترك الخام.
 
 ## 4. مقتطف قراءة نموذج مفتوح (DOM)

@@ -88,12 +88,14 @@ def menu() -> str:
 <nav class="side"><ul>
  <li><a href="/">لوحة المعلومات</a></li>
  <li><b>المحاسبة</b><ul>
-   <li><a href="/accounts">دليل الحسابات</a></li>
-   <li><a href="/journal">القيود اليومية</a></li>
+   <li><a href="/accounts?reset=1">دليل الحسابات</a></li>
+   <li><a href="/journal?reset=1">القيود اليومية</a></li>
+   <li><a href="/closed_periods/index">الفترات المقفلة</a></li>
    <li><a href="/taxes">الضرائب</a></li>{fx}
  </ul></li>
  <li><b>المبيعات</b><ul>
-   <li><a href="/customers">العملاء</a></li>
+   <li><a href="/customers?reset=1">العملاء</a></li>
+   <li><a href="/refunds/index">المرتجعات والمبالغ المستردة</a></li>
    <li><a href="/sales/invoices">فواتير المبيعات</a></li>
    <li><a href="/receipts/new">سند قبض</a></li>
    {'<li><a href="/sales/returns">مرتجعات المبيعات</a></li>' if RETURNS else ''}
@@ -126,6 +128,7 @@ def header() -> str:
    <li><a href="/apps">إدارة التطبيقات</a></li>
    <li><a href="/settings/company">إعدادات الشركة</a></li>
    <li><a href="/settings/account-routing">توجيه الحسابات</a></li>
+   <li><a href="/email_templates/index">قوالب البريد</a></li>
    <li><a href="/settings/numbering">الترقيم</a></li>
    <li><a href="/settings/periods">الفترات المالية</a></li>
    <li><a href="/settings/roles">المستخدمون والصلاحيات</a></li>
@@ -245,6 +248,7 @@ def p_customer_detail():
 <nav>تبويبات: <a href="/customers/1?tab=invoices">الفواتير</a> · <a href="/customers/1?tab=receipts">السندات</a> ·
 <a href="/customers/1?tab=statement">كشف الحساب</a></nav>
 {table(['التاريخ', 'المستند', 'مدين', 'دائن', 'الرصيد'], [['2025-03-14', 'INV-2025-00041', '11,500.00', '', '11,500.00']])}
+<a class="btn action" href="/clients/set_default/1">تعيين كعميل افتراضي</a>
 {post_button('/customers/1/delete', 'حذف العميل', 'هل أنت متأكد؟')} {post_button('/customers/1/send-statement', 'إرسال كشف الحساب بالبريد')}""")
 
 
@@ -551,7 +555,8 @@ import threading
 from urllib.parse import parse_qs
 
 LOCK = threading.Lock()
-ACTION_MARKERS = ("/delete/", "/make_undelivered/", "/make_delivered/", "/close/", "/reopen/", "/toggle/", "/send/")
+ACTION_MARKERS = ("/delete/", "/make_undelivered/", "/make_delivered/", "/close/", "/reopen/", "/toggle/", "/send/",
+                  "/hide/", "/suspend/", "/archive/", "/lock/", "/duplicate/", "/set_default/", "/stock/recalculate/")
 
 
 def _acc(code, name, parent, role=None, kind="حركة"):
@@ -642,8 +647,35 @@ def num(form, key):
 # ---- dynamic pages
 
 def d_accounts():
-    rows = [[a["code"], ("— " if a["parent_code"] else "") + a["name"], a["kind"], a["role"] or ""] for a in STATE["accounts"]]
-    return page("دليل الحسابات", '<a href="/accounts/new">+ حساب جديد</a>' + table(["الرمز", "اسم الحساب", "المستوى", "الدور"], rows))
+    def more(a):
+        return (f'<details class="row-menu"><summary aria-label="المزيد">⋯</summary>'
+                f'<a href="/accounts/edit/{a["id"]}">تعديل</a> · <a href="/accounts/hide/{a["id"]}">إخفاء</a> · '
+                f'<a href="/accounts/suspend/{a["id"]}">تعليق</a> · <a href="/accounts/archive/{a["id"]}">أرشفة</a></details>')
+    rows = [[a["code"], ("— " if a["parent_code"] else "") + a["name"], a["kind"], a["role"] or "",
+             a.get("state", "نشط"), more(a)] for a in STATE["accounts"]]
+    return page("دليل الحسابات", '<a href="/accounts/new">+ حساب جديد</a>'
+                + table(["الرمز", "اسم الحساب", "المستوى", "الدور", "الحالة", ""], rows))
+
+
+def d_account_edit(_id):
+    return p_account_new().replace("حساب جديد", "تعديل حساب")
+
+
+def d_refunds():
+    return page("المرتجعات والمبالغ المستردة", table(["الرقم", "الفاتورة", "العميل", "المبلغ", "الحالة"],
+                                                    [["RF-2025-00003", "INV-2025-00041", "مؤسسة النور للتجارة", "230.00", "مكتمل"]])
+                + "<p>الفلاتر: الفترة، العميل، الحالة.</p>")
+
+
+def d_email_templates():
+    return page("قوالب البريد", table(["القالب", "الحدث", "اللغة", "مفعّل"],
+                                      [["فاتورة جديدة", "عند إصدار الفاتورة", "العربية", "نعم"], ["تذكير بالسداد", "بعد الاستحقاق بـ 7 أيام", "العربية", "لا"]])
+                + '<a href="/email_templates/edit/1">تعديل</a>')
+
+
+def d_closed_periods():
+    return page("الفترات المقفلة", table(["الفترة", "أُقفلت في", "أقفلها"], [["يناير 2025", "2025-02-03", "مدير مالي"], ["فبراير 2025", "2025-03-02", "مدير مالي"]])
+                + "<p>لا يمكن ترحيل أو تعديل مستند بتاريخ داخل فترة مقفلة.</p>")
 
 
 def d_customers():
@@ -671,7 +703,8 @@ def d_supplier_new():
 
 def d_items():
     rows = [[i["code"], i["name"], i["type"], i["unit"], money(i["price"]), money(i["cost"]), f'{i["qty"]:g}'] for i in STATE["items"]]
-    return page("الأصناف", '<a href="/items/new">+ صنف جديد</a>' + table(["الرمز", "الاسم", "النوع", "الوحدة", "سعر البيع", "التكلفة", "الكمية"], rows))
+    return page("الأصناف", '<a href="/items/new">+ صنف جديد</a> <a class="btn action" href="/stock/recalculate">إعادة حساب التكلفة</a>'
+                + table(["الرمز", "الاسم", "النوع", "الوحدة", "سعر البيع", "التكلفة", "الكمية"], rows))
 
 
 def d_item_new():
@@ -708,6 +741,8 @@ def d_invoices():
         cust = next((c["name"] for c in STATE["customers"] if c["id"] == inv["customer_id"]), "")
         number = ("RYD-" + inv["number"]) if VARIANT == "multi" and inv["number"] != "—" else inv["number"]
         actions = (f'<details><summary>إجراءات</summary><a href="/sales/invoices/{inv["id"]}">عرض</a> · '
+                   f'<a class="btn action" href="/invoices/lock/{inv["id"]}">قفل</a> · '
+                   f'<a class="btn action" href="/invoices/duplicate/{inv["id"]}">نسخ الفاتورة</a> · '
                    f'<a class="btn action" href="/sales/invoices/make_undelivered/{inv["id"]}">إلغاء التسليم</a> · '
                    f'<a class="btn action danger" href="/sales/invoices/delete/{inv["id"]}">حذف</a></details>')
         rows.append([f'<a href="/sales/invoices/{inv["id"]}">{number}</a>', inv["date"], cust, money(inv["total"]), inv["status"], actions])
@@ -1034,6 +1069,11 @@ def action_get(path):
         for i in STATE["invoices"]:
             if i["id"] == target:
                 i["delivery"] = "غير مُسلَّم"
+    elif "/accounts/" in path and target is not None:
+        state = {"hide": "مخفي", "suspend": "معلّق", "archive": "مؤرشف"}.get(parts[-2])
+        for a in STATE["accounts"]:
+            if a["id"] == target and state:
+                a["state"] = state
     elif "/settings/periods/close/" in path and target in STATE["periods"]:
         STATE["periods"][target] = "مقفلة"
     elif "/settings/periods/reopen/" in path and target in STATE["periods"]:
@@ -1052,6 +1092,7 @@ ROUTES_COMMON = {
     "/settings/roles": p_settings_roles, "/settings/account-routing": d_routing, "/apps": d_apps,
     "/audit-log": d_audit, "/import": p_import, "/suppliers": d_suppliers, "/suppliers/new": d_supplier_new,
     "/purchases/invoices": d_purchases, "/purchases/invoices/new": d_purchase_new,
+    "/refunds/index": d_refunds, "/email_templates/index": d_email_templates, "/closed_periods/index": d_closed_periods,
     "/sales/returns": d_returns, "/sales/returns/new": d_return_new,
 }
 ROUTES_MULTI = {
@@ -1062,6 +1103,7 @@ ROUTES_MULTI = {
 }
 DYNAMIC = [
     (r"^/sales/invoices/(\d+)$", d_invoice_detail), (r"^/purchases/invoices/(\d+)$", d_purchase_detail),
+    (r"^/accounts/edit/(\d+)$", d_account_edit), (r"^/email_templates/edit/(\d+)$", lambda _i: page("تعديل قالب", "<label>الموضوع <input name=subject></label>")),
     (r"^/journal/view/(\d+)$", d_journal_view), (r"^/journal/view/(\d+)/frame$", d_journal_frame),
     (r"^/reports/(sales|purchases|payments|stock)$", d_report),
 ]

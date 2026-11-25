@@ -11,7 +11,8 @@ Standard library only. Subcommands:
   progress  Regenerate the status block of progress.md (sync first).
   log       Append a timestamped line to the log section of progress.md.
   matrix    Summarise 04a-scenario-matrix.json (sandbox scenario matrix).
-  urlcheck  Refuse action-like URLs before any GET / fetch.
+  urlcheck  Allowlist check before any GET / fetch: allowed only for known read patterns.
+  urlrules  Print the same rules as JavaScript (--format js) or self-test Python vs JS on a case file.
   scrub     Scan the deliverables for privacy / credential / brand / raw-artifact leaks.
   uiscaffold  Write a ui/screens/<module>/<screen>.map.md skeleton listing every spec element.
   uicheck     Compare every spec screen with its UI map; write ui/coverage.md; fail on gaps.
@@ -65,14 +66,47 @@ STUB_FILES = [
 ]
 RENDERINGS = {"server", "spa"}
 MATRIX_STATUSES = {"tested", "untested", "blocked"}
-ACTION_WORDS = [
-    "delete", "remove", "destroy", "cancel", "void", "close", "post", "approve", "make_", "mark_", "send", "email",
-    "sms", "submit", "sync", "revalue", "reverse", "undo", "toggle", "enable", "disable", "activate", "deactivate",
-    "reset", "run", "process", "logout", "signout", "unpost", "unlock", "lock", "archive", "restore",
-    "duplicate", "clone", "convert", "pay", "refund", "deliver", "undeliver", "confirm", "reject", "execute",
-]
-ACTION_WORDS_AR = ["حذف", "إلغاء", "الغاء", "إقفال", "اقفال", "ترحيل", "اعتماد", "إرسال", "ارسال", "تفعيل", "تعطيل",
-                   "تنفيذ", "معالجة", "خروج", "تأكيد", "رفض", "عكس", "مزامنة", "تحويل إلى", "أرشفة"]
+# ---- URL rules: ONE source for urlcheck (Python) and `urlrules --format js` (generated JavaScript).
+# Allowlist first: a URL is requestable only if it matches a known read pattern. Everything else is refused
+# ("unknown-pattern") unless the link's UI context confirms it is navigation. The verb denylist is a second
+# layer that also applies to allowlisted URLs. A denylist alone can never be complete (hide, suspend, pin...).
+URL_RULES = {
+    "prefixes": ["owner", "admin", "app", "portal", "panel", "backend", "v1", "v2", "v3", "ar", "en"],
+    "allow_leaf": ["index", "list", "view", "show", "details", "add", "new", "create", "edit", "preview", "print",
+                   "search"],
+    "allow_container": ["settings", "report", "reports", "dashboard"],
+    "view_edit_leaf": ["view", "show", "details", "edit"],
+    "deny_verbs": [
+        "delete", "remove", "destroy", "cancel", "void", "close", "reopen", "open", "post", "unpost", "approve",
+        "reject", "send", "resend", "email", "sms", "submit", "sync", "revalue", "reverse", "undo", "toggle",
+        "enable", "disable", "activate", "deactivate", "reset", "run", "process", "execute", "logout", "signout",
+        "hide", "unhide", "suspend", "unsuspend", "archive", "unarchive", "lock", "unlock", "restore", "duplicate",
+        "clone", "copy", "convert", "assign", "unassign", "pin", "unpin", "recalc", "recalculate", "refresh", "clear",
+        "import", "export", "download", "backup", "switch", "confirm", "deliver", "undeliver", "onboard", "merge",
+        "generate", "regenerate", "publish", "unpublish", "notify", "remind", "pay", "settle", "apply",
+    ],
+    "nounish_verbs": ["email", "sms", "post", "process", "copy", "export", "import", "lock", "pin", "archive",
+                      "open", "close", "clear", "download", "backup", "pay", "apply"],
+    "deny_prefix_tokens": ["make", "mark", "set", "do", "bulk", "mass", "force"],
+    "safe_params": ["page", "per_page", "limit", "offset", "sort", "order", "filter", "q", "search", "reset",
+                    "group_by", "date_from", "date_to", "from", "to", "summary", "is_summary", "details", "type",
+                    "report_type", "currency", "show_report", "view", "tab", "lang", "id", "status", "period",
+                    "branch", "level"],
+    "deny_params": ["action", "do", "op", "method", "_method", "cmd", "task", "act", "operation", "execute"],
+    "download_ext": ["xlsx", "xls", "csv", "pdf", "zip", "xml", "doc", "docx"],
+    "label_deny": ["حذف", "إلغاء", "إقفال", "قفل", "فتح", "ترحيل", "اعتماد", "إرسال", "تفعيل", "تعطيل", "تنفيذ",
+                   "معالجة", "تأكيد", "رفض", "عكس", "مزامنة", "أرشفة", "إخفاء", "تعليق", "استعادة", "نسخ", "تحويل",
+                   "تعيين", "تثبيت", "تصدير", "استيراد", "خروج", "إعادة حساب", "إعادة ضبط", "إعادة فتح",
+                   "تحديث الأرصدة", "دمج",
+                   "delete", "remove", "cancel", "void", "close", "post", "approve", "reject", "send", "sync",
+                   "enable", "disable", "activate", "deactivate", "hide", "suspend", "archive", "lock", "unlock",
+                   "restore", "duplicate", "copy", "convert", "assign", "pin", "recalculate", "export", "import",
+                   "logout", "sign out", "log out", "confirm", "run", "merge"],
+    "label_logout": ["خروج", "logout", "sign out", "log out"],
+    "label_view_edit": ["عرض", "تعديل", "تفاصيل", "معاينة", "view", "edit", "details", "show", "preview"],
+    "contexts": ["nav", "list-row", "toolbar", "actions-menu", "iframe"],
+    "confirming_contexts": ["nav", "list-row", "iframe"],
+}
 STATUS_BEGIN = "<!-- ACS:STATUS:BEGIN -->"
 STATUS_END = "<!-- ACS:STATUS:END -->"
 LOG_HEADER = "## السجل"
@@ -109,7 +143,16 @@ def project_path(args) -> Path:
 def cmd_init(args) -> None:
     if args.mode == "sandbox" and not args.sandbox_confirmed_at:
         sys.exit("error: --mode sandbox requires --sandbox-confirmed-at (the user's explicit confirmation time)")
-    slug = slugify(args.slug or args.system_name)
+    real_name = (args.real_product_name or "").strip()
+    placeholder = norm_label_text(real_name) in ("", norm_label_text("النظام المرجعي"), "reference system", "the reference system")
+    if placeholder:
+        print("warning: --real-product-name is empty or the neutral label. It must be the REAL product name of the "
+              "system being studied (kept in _private/ only, used by scrub to make sure it never leaks). "
+              "No brand check will run until it is set in _private/project.json.", file=sys.stderr)
+        real_name = ""
+    if not args.slug and not real_name:
+        sys.exit("error: pass --slug (a neutral folder name) when --real-product-name is not given")
+    slug = slugify(args.slug or real_name)
     root = Path(args.root).resolve() / f"{slug}-spec"
     if (root / "progress.md").exists() and not args.force:
         print(json.dumps({"status": "exists", "project": str(root),
@@ -123,7 +166,7 @@ def cmd_init(args) -> None:
         "schema_version": 1,
         "created_at": now(),
         "system_label": "النظام المرجعي",
-        "system_name_private": args.system_name,
+        "system_name_private": real_name or None,
         "base_url": args.url,
         "demo_environment": args.demo,
         "language": args.language,
@@ -236,7 +279,7 @@ def validate_sitemap(sitemap: dict, warnings: list | None = None) -> list[str]:
                     errors.append(f"{sid}: status `{sc.get('status')}` not in {sorted(STATUSES)}")
                 if sc.get("rendering") not in (None, *RENDERINGS):
                     errors.append(f"{sid}: rendering `{sc.get('rendering')}` not in {sorted(RENDERINGS)}")
-                if sc.get("url_pattern") and is_action_url(str(sc["url_pattern"])):
+                if sc.get("url_pattern") and is_action_url(str(sc["url_pattern"])) and not sc.get("never_request"):
                     warnings.append(f"{sid}: url_pattern looks like an action URL - keep the screen in the map but never "
                                     f"request it (set \"never_request\": true): {sc['url_pattern']}")
                 if "url_pattern" not in sc:
@@ -246,21 +289,235 @@ def validate_sitemap(sitemap: dict, warnings: list | None = None) -> list[str]:
     return errors
 
 
+def norm_label_text(text: str) -> str:
+    text = re.sub("[\u064B-\u0652\u0640]", "", text or "")
+    for src, dst in (("أ", "ا"), ("إ", "ا"), ("آ", "ا"), ("ى", "ي"), ("ة", "ه")):
+        text = text.replace(src, dst)
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _label_words(label_norm: str) -> list[str]:
+    words = [w for w in re.split(r"[^0-9a-z\u0600-\u06FF]+", label_norm) if w]
+    return words + [w[2:] for w in words if w.startswith("ال") and len(w) > 3]
+
+
+def _is_id(seg: str) -> bool:
+    return bool(re.fullmatch(r"\d+|\{[^}]*\}|:[a-z_]+|[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}", seg))
+
+
+def url_decision(url: str, label: str = "", context: str = "") -> dict:
+    """Allowlist-first decision. Mirrored exactly by the JavaScript printed by `urlrules --format js`."""
+    r = URL_RULES
+    deny_verbs, nounish = set(r["deny_verbs"]), set(r["nounish_verbs"])
+    strong = deny_verbs - nounish
+    rest = re.sub(r"^[a-z][a-z0-9+.-]*://[^/?#]*", "", (url or "").strip(), flags=re.I)
+    rest = rest.split("#")[0]
+    path, _, query = rest.partition("?")
+    segs = [x for x in path.lower().split("/") if x]
+
+    def out(allowed, reason, matched=None):
+        return {"url": url, "allowed": allowed, "reason": reason, "matched": matched or []}
+
+    if segs and "." in segs[-1] and segs[-1].rsplit(".", 1)[1] in r["download_ext"]:
+        return out(False, "download", [segs[-1].rsplit(".", 1)[1]])
+    for pair in [x for x in query.split("&") if x]:
+        key = pair.split("=")[0].lower()
+        base = key.split("[")[0]
+        if base in r["safe_params"]:
+            continue
+        if base in r["deny_params"] or base in deny_verbs:
+            return out(False, "action-param", [key])
+    core = list(segs)
+    had_id = False
+    while core and _is_id(core[-1]):
+        core.pop()
+        had_id = True
+    hits = []
+    for i, seg in enumerate(core):
+        last = i == len(core) - 1
+        tokens = [t for t in re.split(r"[_-]", seg) if t]
+        if last and seg in deny_verbs:
+            hits.append(seg)
+        elif not last and seg in strong:
+            hits.append(seg)
+        elif last and len(tokens) > 1:
+            if tokens[0] in r["deny_prefix_tokens"]:
+                hits.append(seg)
+            else:
+                hits += [t for t in tokens if t in strong]
+    if hits:
+        return out(False, "action-verb", hits)
+    lab = norm_label_text(label)
+    if lab:
+        words = _label_words(lab)
+        if context == "nav":
+            logout = [norm_label_text(w) for w in r["label_logout"]]
+            verbs = [norm_label_text(w) for w in r["label_deny"]]
+            stripped = re.sub(r"\s+(الان|now)$", "", lab)
+            if stripped in verbs or any(w in lab for w in logout):
+                return out(False, "label-verb", [label])
+        else:
+            for raw in r["label_deny"]:
+                verb = norm_label_text(raw)
+                if (" " in verb and verb in lab) or (" " not in verb and verb in words):
+                    return out(False, "label-verb", [raw])
+    noprefix = list(core)
+    while noprefix and noprefix[0] in r["prefixes"]:
+        noprefix.pop(0)
+    pattern = None
+    if not core:
+        pattern = "root"
+    elif core[-1] in r["allow_leaf"]:
+        pattern = "leaf:" + core[-1]
+    elif "api" in noprefix[:2]:
+        pattern = "api"
+    elif noprefix and noprefix[0] in r["allow_container"] and len(noprefix) <= 2:
+        pattern = "container:" + noprefix[0]
+    elif had_id and len(noprefix) == 1:
+        pattern = "entity-id"
+    if context == "actions-menu":
+        view_edit = [norm_label_text(w) for w in r["label_view_edit"]]
+        ok = pattern is not None and ((core and core[-1] in r["view_edit_leaf"]) or
+                                      any(w in view_edit for w in _label_words(lab)))
+        return out(ok, pattern if ok else "actions-menu")
+    if pattern:
+        return out(True, pattern)
+    if context in r["confirming_contexts"]:
+        return out(True, "context-confirmed")
+    return out(False, "unknown-pattern")
+
+
 def is_action_url(url: str, label: str = "") -> list[str]:
-    path = re.sub(r"^https?://[^/]+", "", url).lower()
-    tokens = re.split(r"[/?&=#._\-]+", path)
-    hits = [w for w in ACTION_WORDS if (w.endswith("_") and w in path) or w in tokens]
-    hits += [w for w in ACTION_WORDS_AR if w in label]
-    return hits
+    d = url_decision(url, label)
+    return d["matched"] or [d["reason"]] if d["reason"] in ("action-verb", "action-param", "download", "label-verb") else []
+
+
+URL_NOTES = {
+    "download": "تنزيل ملف قد يحمل بيانات حقيقية — لا تطلبه.",
+    "action-param": "معامل ينفّذ إجراءً — لا تطلبه أبداً.",
+    "action-verb": "رابط إجراء — لا تطلبه أبداً، ولا حتى بـ GET.",
+    "label-verb": "نص الرابط فعل تنفيذي — الرفض نهائي حتى لو بدا المسار آمناً.",
+    "actions-menu": "عنصر في قائمة إجراءات/⋯ — لا يُفتح منها إلا «عرض» و«تعديل» المطابقان لنمط قراءة.",
+    "unknown-pattern": "لا يطابق أي نمط قراءة معروف — مرفوض افتراضياً. إن كان رابط تنقّل ظاهراً في القائمة الرئيسية "
+                       "أو رابط السجل في صف قائمة فأعد الفحص بـ --context nav أو list-row؛ وإلا سجّله سؤالاً مفتوحاً.",
+    "context-confirmed": "نمط غير معروف لكن سياقه رابط تنقّل مؤكد — افتحه بالنقر عليه في الواجهة.",
+}
 
 
 def cmd_urlcheck(args) -> None:
-    hits = is_action_url(args.url, args.label or "")
-    print(json.dumps({"url": args.url, "allowed": not hits, "matched": hits,
-                      "note": ("لا تطلبه أبداً، ولا حتى بـ GET" if hits else
-                               "مسموح فقط إن ظهر في الواجهة كرابط تنقّل (ليس زر إجراء ولا داخل قائمة إجراءات)")},
-                     ensure_ascii=False))
-    sys.exit(1 if hits else 0)
+    d = url_decision(args.url, args.label or "", args.context or "")
+    d["note"] = URL_NOTES.get(d["reason"], "نمط قراءة معروف — مسموح بطلب GET.")
+    print(json.dumps(d, ensure_ascii=False))
+    sys.exit(0 if d["allowed"] else 1)
+
+
+JS_TEMPLATE = r"""// generated by `acs_tool.py urlrules --format js` - do not edit; same rules as `acs_tool.py urlcheck`
+const ACS_URL_RULES = __RULES__;
+function acsUrlCheck(url, label = "", context = "") {
+  const r = ACS_URL_RULES;
+  const denyVerbs = new Set(r.deny_verbs), nounish = new Set(r.nounish_verbs);
+  const strong = new Set(r.deny_verbs.filter(v => !nounish.has(v)));
+  const norm = t => { t = (t || "").replace(/[ً-ْـ]/g, "");
+    t = t.replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه"); return t.replace(/\s+/g, " ").trim().toLowerCase(); };
+  const labelWords = l => { const w = l.split(/[^0-9a-z؀-ۿ]+/).filter(Boolean);
+    return w.concat(w.filter(x => x.startsWith("ال") && x.length > 3).map(x => x.slice(2))); };
+  const isId = s => /^(\d+|\{[^}]*\}|:[a-z_]+|[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12})$/.test(s);
+  const out = (allowed, reason, matched) => ({ url, allowed, reason, matched: matched || [] });
+  let rest = (url || "").trim().replace(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i, "").split("#")[0];
+  const qi = rest.indexOf("?");
+  const path = qi < 0 ? rest : rest.slice(0, qi), query = qi < 0 ? "" : rest.slice(qi + 1);
+  const segs = path.toLowerCase().split("/").filter(Boolean);
+  if (segs.length && segs[segs.length - 1].includes(".")) {
+    const ext = segs[segs.length - 1].split(".").pop();
+    if (r.download_ext.includes(ext)) return out(false, "download", [ext]);
+  }
+  for (const pair of query.split("&").filter(Boolean)) {
+    const key = pair.split("=")[0].toLowerCase(), base = key.split("[")[0];
+    if (r.safe_params.includes(base)) continue;
+    if (r.deny_params.includes(base) || denyVerbs.has(base)) return out(false, "action-param", [key]);
+  }
+  const core = segs.slice(); let hadId = false;
+  while (core.length && isId(core[core.length - 1])) { core.pop(); hadId = true; }
+  let hits = [];
+  core.forEach((seg, i) => {
+    const last = i === core.length - 1, tokens = seg.split(/[_-]/).filter(Boolean);
+    if (last && denyVerbs.has(seg)) hits.push(seg);
+    else if (!last && strong.has(seg)) hits.push(seg);
+    else if (last && tokens.length > 1) {
+      if (r.deny_prefix_tokens.includes(tokens[0])) hits.push(seg);
+      else hits = hits.concat(tokens.filter(t => strong.has(t)));
+    }
+  });
+  if (hits.length) return out(false, "action-verb", hits);
+  const lab = norm(label);
+  if (lab) {
+    const words = labelWords(lab);
+    if (context === "nav") {
+      const logout = r.label_logout.map(norm), verbs = r.label_deny.map(norm);
+      const stripped = lab.replace(/\s+(الان|now)$/, "");
+      if (verbs.includes(stripped) || logout.some(w => lab.includes(w))) return out(false, "label-verb", [label]);
+    } else {
+      for (const raw of r.label_deny) { const verb = norm(raw);
+        if ((verb.includes(" ") && lab.includes(verb)) || (!verb.includes(" ") && words.includes(verb))) return out(false, "label-verb", [raw]); }
+    }
+  }
+  const noprefix = core.slice();
+  while (noprefix.length && r.prefixes.includes(noprefix[0])) noprefix.shift();
+  let pattern = null;
+  if (!core.length) pattern = "root";
+  else if (r.allow_leaf.includes(core[core.length - 1])) pattern = "leaf:" + core[core.length - 1];
+  else if (noprefix.slice(0, 2).includes("api")) pattern = "api";
+  else if (noprefix.length && r.allow_container.includes(noprefix[0]) && noprefix.length <= 2) pattern = "container:" + noprefix[0];
+  else if (hadId && noprefix.length === 1) pattern = "entity-id";
+  if (context === "actions-menu") {
+    const viewEdit = r.label_view_edit.map(norm);
+    const ok = pattern !== null && ((core.length && r.view_edit_leaf.includes(core[core.length - 1])) || labelWords(lab).some(w => viewEdit.includes(w)));
+    return out(ok, ok ? pattern : "actions-menu");
+  }
+  if (pattern) return out(true, pattern);
+  if (r.confirming_contexts.includes(context)) return out(true, "context-confirmed");
+  return out(false, "unknown-pattern");
+}
+"""
+
+
+def url_rules_js() -> str:
+    return JS_TEMPLATE.replace("__RULES__", json.dumps(URL_RULES, ensure_ascii=False))
+
+
+def cmd_urlrules(args) -> None:
+    if args.format == "js":
+        print(url_rules_js())
+        return
+    if args.format == "json":
+        print(json.dumps(URL_RULES, ensure_ascii=False, indent=2))
+        return
+    cases = json.loads(Path(args.cases).read_text(encoding="utf-8"))
+    import shutil
+    import subprocess
+    py = [url_decision(c["url"], c.get("label", ""), c.get("context", "")) for c in cases]
+    js = None
+    if shutil.which("node"):
+        script = url_rules_js() + "\nconst cases = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));\n" \
+            "console.log(JSON.stringify(cases.map(c => acsUrlCheck(c.url, c.label || '', c.context || ''))));"
+        res = subprocess.run(["node", "-e", script, args.cases], capture_output=True, text=True)
+        js = json.loads(res.stdout) if res.returncode == 0 else None
+        if js is None:
+            sys.exit("error: node run failed: " + res.stderr[-300:])
+    rows, bad = [], 0
+    for i, c in enumerate(cases):
+        row = {"url": c["url"], "label": c.get("label", ""), "context": c.get("context", ""),
+               "allowed": py[i]["allowed"], "reason": py[i]["reason"]}
+        if "expect" in c and c["expect"] != py[i]["allowed"]:
+            row["mismatch_expected"] = c["expect"]
+            bad += 1
+        if js is not None and (js[i]["allowed"] != py[i]["allowed"] or js[i]["reason"] != py[i]["reason"]):
+            row["js_differs"] = js[i]
+            bad += 1
+        rows.append(row)
+    print(json.dumps({"cases": len(cases), "js_checked": js is not None, "failures": bad, "rows": rows},
+                     ensure_ascii=False, indent=2))
+    sys.exit(1 if bad else 0)
 
 
 def load_matrix(root: Path) -> dict:
@@ -630,7 +887,7 @@ def cmd_scrub(args) -> None:
     if config_path.exists() and not args.no_config_brand:
         cfg = load_json(config_path)
         for key in ("system_name_private",):
-            if cfg.get(key):
+            if cfg.get(key) and norm_label_text(cfg[key]) != norm_label_text(cfg.get("system_label", "النظام المرجعي")):
                 brands.append(cfg[key])
         if cfg.get("base_url"):
             host = re.sub(r"^https?://", "", cfg["base_url"]).split("/")[0]
@@ -968,8 +1225,11 @@ def main() -> None:
 
     p = sub.add_parser("init", help="create the spec project folder")
     p.add_argument("--root", default=".", help="parent directory for <slug>-spec/")
-    p.add_argument("--system-name", required=True, help="original system name (kept in _private only)")
-    p.add_argument("--slug", help="folder slug; defaults to a slug of --system-name. Use a neutral codename "
+    p.add_argument("--real-product-name", "--system-name", dest="real_product_name", default="",
+                   help="the REAL product name of the reference system (e.g. the vendor's brand). Stored only in "
+                        "_private/project.json so scrub can verify it never appears in deliverables. NOT the label "
+                        "used in the outputs (that is always «النظام المرجعي»). --system-name is a deprecated alias.")
+    p.add_argument("--slug", help="folder slug; defaults to a slug of --real-product-name. Use a neutral codename "
                                   "if the folder will be shared with the implementing agent.")
     p.add_argument("--url", default=None)
     p.add_argument("--demo", default="غير معروف")
@@ -1009,10 +1269,18 @@ def main() -> None:
     p.add_argument("--project", default=".")
     p.set_defaults(func=cmd_matrix)
 
-    p = sub.add_parser("urlcheck", help="refuse action-like URLs before requesting them")
+    p = sub.add_parser("urlcheck", help="allowlist check: is this URL a known read pattern?")
     p.add_argument("url")
     p.add_argument("--label", default="", help="visible text of the link/button")
+    p.add_argument("--context", default="", choices=["", *URL_RULES["contexts"]],
+                   help="where the link appeared: nav (main menu), list-row (a record's own link in a list), "
+                        "toolbar, actions-menu (an actions / ⋯ menu, or next to a delete icon), iframe")
     p.set_defaults(func=cmd_urlcheck)
+
+    p = sub.add_parser("urlrules", help="print the URL rules as JS/JSON, or self-test Python vs JS on a case file")
+    p.add_argument("--format", default="js", choices=["js", "json", "selftest"])
+    p.add_argument("--cases", default=None, help="JSON case file for --format selftest")
+    p.set_defaults(func=cmd_urlrules)
 
     p = sub.add_parser("uiscaffold", help="write UI map skeletons from the screen specs")
     p.add_argument("--project", default=".")
