@@ -181,7 +181,7 @@ def cmd_index(args) -> None:
         nav_html.append(f"<section class='panel'><h3>شاشات خارج التنقل</h3><ul>{''.join(screen_link(s) for s in orphan)}</ul></section>")
 
     swatches = "".join(
-        f"<div class='swatch'><span style='background:var(--color-{e(k)})'></span><code>{e(k)}</code><small class='muted'>{e(str(v))}</small></div>"
+        f"<div class='swatch'><span style='background:var(--color-{e(k)})'></span><code dir='ltr'>{e(k)}</code><small class='muted' dir='ltr'>{e(str(v))}</small></div>"
         for k, v in tokens.get("color", {}).items())
     arche = "".join(f"<li><a href='archetypes/{e(p.name)}'>{e(p.stem)}</a></li>" for p in sorted((ui / "archetypes").glob("*.html")))
     prints = "".join(f"<li><a href='print/{e(p.name)}'>{e(p.stem)}</a></li>" for p in sorted((ui / "print").glob("*.html")))
