@@ -68,7 +68,7 @@ ACTION_WORDS = [
     "duplicate", "clone", "convert", "pay", "refund", "deliver", "undeliver", "confirm", "reject", "execute",
 ]
 ACTION_WORDS_AR = ["حذف", "إلغاء", "الغاء", "إقفال", "اقفال", "ترحيل", "اعتماد", "إرسال", "ارسال", "تفعيل", "تعطيل",
-                   "تنفيذ", "معالجة", "خروج", "تأكيد", "رفض", "عكس", "مزامنة", "تحويل إلى", "أرشفة", "دفع"]
+                   "تنفيذ", "معالجة", "خروج", "تأكيد", "رفض", "عكس", "مزامنة", "تحويل إلى", "أرشفة"]
 STATUS_BEGIN = "<!-- ACS:STATUS:BEGIN -->"
 STATUS_END = "<!-- ACS:STATUS:END -->"
 LOG_HEADER = "## السجل"
