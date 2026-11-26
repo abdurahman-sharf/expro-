@@ -86,7 +86,7 @@ return [
     'search'                  => 'Number or note',
     'setting_requests'        => 'Stock requests between locations',
     'setting_transfer_permit' => 'Transfer permit between stock locations',
-    'settings_note'           => 'Both are off until turned on. How the reference system turns them on was not observed, so this is a design assumption. Add and issue permits and the stocktake need no setting.',
+    'settings_note'           => 'Both are off until turned on. Add and issue permits and the stocktake need no setting.',
     'settings_saved'          => 'The settings were saved.',
     'settings_title'          => 'Settings of the stock documents',
     'started_at'              => 'Count started',

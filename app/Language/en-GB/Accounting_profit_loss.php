@@ -7,7 +7,7 @@ return [
     'basis_cash'         => 'Cash (on the movements of the treasuries and banks)',
     'basis_note_accrual' => 'Revenue and expenses as the books hold them, in months, quarters or years. The journals that close a year are left out.',
     'basis_note_cash'    => 'Revenue and expenses counted on the day money moved through a treasury or a bank. Whatever else moved through them is listed apart and never enters the profit.',
-    'cash_assumptions'   => 'Assumptions: purchases are what was paid to suppliers net of what they paid back, and the tax paid on expenses is a line of its own; the figure of the reference system for purchases was not explained by this rule, so this report is not said to match it. Tax collected on money received against a revenue account is among the other movements. The two bases of the day an invoice is issued are not built. The cash basis shows the whole range as one column.',
+    'cash_assumptions'   => 'Purchases are what was paid to suppliers net of what they paid back, and the tax paid on expenses is a line of its own. Tax collected on money received against a revenue account is among the other movements. The two bases of the day an invoice is issued are not available. The cash basis shows the whole range as one column.',
     'cash_change'        => 'Change of the treasuries and banks in the range',
     'catalog_link'       => 'Profit and loss, by accrual or by cash',
     'csv_range'          => 'Range',

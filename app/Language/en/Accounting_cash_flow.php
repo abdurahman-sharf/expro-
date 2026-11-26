@@ -19,7 +19,7 @@ return [
     'line_depreciation_expense'      => 'Depreciation expense',
     'line_inventory'                 => 'Increase in inventory',
     'line_net_income'                => 'Net income',
-    'note'                           => 'Each line is the change of its accounts in the range. What no line takes from, such as the tax on sales, is set out account by account under other changes, so the total change is always the change of the treasuries and banks: this differs on purpose from the reference system, whose total differs from the money held as soon as an account with no line moves. Without a first day the range starts on the first of January. The journals that close a year are left out.',
+    'note'                           => 'Each line is the change of its accounts in the range. What no line takes from, such as the tax on sales, is set out account by account under other changes, so the total change is always the change of the treasuries and banks. Without a first day the range starts on the first of January. The journals that close a year are left out.',
     'other_changes'                  => 'Other changes',
     'other_none'                     => 'No account without a line moved in this range.',
     'other_total'                    => 'Total other changes',

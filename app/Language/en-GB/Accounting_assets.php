@@ -117,7 +117,7 @@ return [
     'interval_day'                 => 'Day',
     'interval_month'               => 'Month',
     'interval_week'                => 'Week',
-    'intro'                        => 'The register of fixed assets: what each asset cost, what it has depreciated by and what is left of it. The columns are the ones this application chose; the reference system showed none.',
+    'intro'                        => 'The register of fixed assets: what each asset cost, what it has depreciated by and what is left of it.',
     'journal'                      => 'Journal',
     'kind_sale'                    => 'Sale',
     'kind_write_off'               => 'Write-off',

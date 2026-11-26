@@ -93,7 +93,7 @@ return [
     'period_to'                => 'Up to {0}',
     'previous'                 => 'Previous',
     'reset'                    => 'Reset',
-    'review_note'              => 'Drawn in the shape of the review of accounts seen in the reference system. It has not been compared with it on identical entries yet, so it does not carry its name.',
+    'review_note'              => 'Starts from what each side had added up to when the period opened and ends at what each side adds up to now.',
     'scope_company'            => 'The whole company: every branch is added up.',
     'scope_partial'            => 'Only the branches you work in are added up: {0}. This is not the total of the company.',
     'scope_selected'           => 'Only the branches chosen are added up: {0}.',

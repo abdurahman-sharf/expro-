@@ -29,7 +29,10 @@ use App\Libraries\Roles\RoleError;
 use App\Libraries\Stock\StockPermissions;
 use App\Libraries\Stock\StockUnitPermissions;
 use CodeIgniter\Test\CIUnitTestCase;
+use FilesystemIterator;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 
 class LanguageFilesTest extends CIUnitTestCase
 {
@@ -845,5 +848,28 @@ class LanguageFilesTest extends CIUnitTestCase
         foreach (['employee_session', 'employee', 'security_settings'] as $entity) {
             $this->assertNotSame('', $audit['entity_' . $entity] ?? '', "{$locale} lacks the audit record kind {$entity}");
         }
+    }
+
+    public function testApplicationFile_NamesNoOtherSystemInItsCodeItsTextsOrItsResources(): void
+    {
+        $found = [];
+
+        foreach ([APPPATH, ROOTPATH . 'resources/'] as $directory) {
+            if (! is_dir($directory)) {
+                continue;
+            }
+
+            foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS)) as $file) {
+                if (! $file->isFile() || $file->getSize() > 2_000_000 || preg_match('/\\.(php|js|mjs|css|scss|html|json|md|txt|svg|xml|ya?ml)$/i', $file->getFilename()) !== 1) {
+                    continue;
+                }
+
+                if (preg_match('/reference\\s+system|النظام\\s+المرجعي|نظام\\s+مرجعي/iu', (string) file_get_contents($file->getPathname())) === 1) {
+                    $found[] = str_replace(ROOTPATH, '', $file->getPathname());
+                }
+            }
+        }
+
+        $this->assertSame([], $found);
     }
 }
