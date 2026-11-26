@@ -130,7 +130,7 @@ class EntityAccountServiceTest extends CIUnitTestCase
         $accountId = $this->service->ensure(EntityAccountService::SUPPLIER, $this->insertSupplier(), 'Gulf Supplies');
         $account   = $this->accountRow($accountId);
 
-        $this->assertSame('2211001', $account->code);
+        $this->assertSame('2111001', $account->code);
         $this->assertSame('liability', $account->account_type);
         $this->assertSame('credit', $account->normal_balance);
     }
@@ -607,7 +607,7 @@ class EntityAccountServiceTest extends CIUnitTestCase
             $this->accountRow((int) $this->service->accountFor(EntityAccountService::STOCK_LOCATION, $locationId))->code,
         ];
 
-        $this->assertSame(['12041001', '2211001', '1203001'], $codes);
+        $this->assertSame(['12041001', '2111001', '1203001'], $codes);
 
         $person['first_name'] = 'Renamed';
         $customer->save_customer($person, $customerData, $customerId);

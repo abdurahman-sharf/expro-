@@ -70,9 +70,9 @@ final class ShippingCompaniesTest extends CIUnitTestCase
         $this->fail('Expected the failure ' . $expected->value . '.');
     }
 
-    private function payable(string $code = '22121', string $name = 'Owed to Fast Ship'): int
+    private function payable(string $code = '21121', string $name = 'Owed to Fast Ship'): int
     {
-        return $this->customAccount('2212', $code, $name);
+        return $this->customAccount('2112', $code, $name);
     }
 
     private function manager(?array $branchIds = null): int
@@ -150,7 +150,7 @@ final class ShippingCompaniesTest extends CIUnitTestCase
         $this->accountingDb()->table('accounting_accounts')->where('account_id', $inactive)->update(['active' => 0]);
         $this->companies->create(['name' => 'Fast Ship', 'account_id' => $owed]);
 
-        foreach ([$this->accountId('cash'), $this->accountIdByCode('2212'), $inactive, 999999, $owed] as $account) {
+        foreach ([$this->accountId('cash'), $this->accountIdByCode('2112'), $inactive, 999999, $owed] as $account) {
             $this->assertFailsWith(AccountingError::ShippingAccountInvalid, fn () => $this->companies->create(['name' => 'Another' . $account, 'account_id' => $account]));
         }
 
@@ -285,7 +285,7 @@ final class ShippingCompaniesTest extends CIUnitTestCase
         $this->assertArrayHasKey($owed, $choices);
         $this->assertArrayNotHasKey($inactive, $choices);
         $this->assertArrayNotHasKey($this->accountId('cash'), $choices);
-        $this->assertArrayNotHasKey($this->accountIdByCode('2212'), $choices);
+        $this->assertArrayNotHasKey($this->accountIdByCode('2112'), $choices);
         $this->assertSame('22121 - Owed to Fast Ship', $choices[$owed]);
     }
 

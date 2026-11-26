@@ -94,12 +94,27 @@ class AccountServiceTest extends CIUnitTestCase
         $this->assertSame((string) $this->accountIdByCode('11'), (string) $account->parent_id);
     }
 
-    public function testCreate_AcceptsACodeThatDoesNotStartWithTheCodeOfItsParent(): void
+    public function testCreate_RejectsACodeThatDoesNotStartWithTheCodeOfItsParent(): void
     {
-        $accountId = $this->service->create(['parent_id' => $this->accountIdByCode('11'), 'code' => '9990', 'name' => 'Petty cash']);
+        $before = $this->countRows('accounting_accounts');
 
-        $this->assertSame('9990', $this->account($accountId)->code);
-        $this->assertSame((string) $this->accountIdByCode('11'), (string) $this->account($accountId)->parent_id);
+        foreach (['9990', '11', '1'] as $code) {
+            $this->assertFailsWith(AccountingError::CodeOutsideParent, fn () => $this->service->create(['parent_id' => $this->accountIdByCode('11'), 'code' => $code, 'name' => 'Petty cash ' . $code]));
+        }
+
+        $this->assertSame($before, $this->countRows('accounting_accounts'));
+    }
+
+    public function testUpdate_RejectsANewCodeThatDoesNotStartWithTheCodeOfItsParent(): void
+    {
+        $accountId = $this->service->create(['parent_id' => $this->accountIdByCode('11'), 'code' => '1110', 'name' => 'Petty cash']);
+
+        $this->assertFailsWith(AccountingError::CodeOutsideParent, fn () => $this->service->update($accountId, ['code' => '9990']));
+        $this->assertSame('1110', $this->account($accountId)->code);
+
+        $this->service->update($accountId, ['code' => '1119']);
+
+        $this->assertSame('1119', $this->account($accountId)->code);
     }
 
     public function testCreate_DerivesTheDirectionFromTheTypeOfTheParent(): void
@@ -170,7 +185,7 @@ class AccountServiceTest extends CIUnitTestCase
     public function testCreate_RejectsACodeThatIsAlreadyUsed(): void
     {
         $this->assertFailsWith(AccountingError::CodeTaken, fn () => $this->service->create([
-            'parent_id' => $this->accountIdByCode('11'),
+            'parent_id' => $this->accountIdByCode('1201'),
             'code'      => '120101',
             'name'      => 'Another cash',
         ]));
@@ -180,7 +195,7 @@ class AccountServiceTest extends CIUnitTestCase
     {
         $this->assertFailsWith(AccountingError::NameTaken, fn () => $this->service->create([
             'parent_id' => $this->accountIdByCode('1201'),
-            'code'      => '1190',
+            'code'      => '120190',
             'name'      => 'الخزينة الأساسية',
         ]));
     }

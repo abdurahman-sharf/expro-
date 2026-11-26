@@ -125,7 +125,7 @@ final class ShippingCompaniesMigrationTest extends CIUnitTestCase
 
     public function testUp_KeepsTheAccountOwedToACompanyFromBeingDeleted(): void
     {
-        $account = $this->customAccount('2212', '22121', 'Owed to Fast Ship');
+        $account = $this->customAccount('2112', '21121', 'Owed to Fast Ship');
 
         (new ShippingCompanies())->create(['name' => 'Fast Ship', 'account_id' => $account]);
 

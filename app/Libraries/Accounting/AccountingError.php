@@ -12,6 +12,7 @@ enum AccountingError: string
     case AccountNotFound     = 'account_not_found';
     case InvalidCode         = 'invalid_code';
     case CodeTaken           = 'code_taken';
+    case CodeOutsideParent   = 'code_outside_parent';
     case InvalidName         = 'invalid_name';
     case NameTaken           = 'name_taken';
     case ParentInvalid       = 'parent_invalid';

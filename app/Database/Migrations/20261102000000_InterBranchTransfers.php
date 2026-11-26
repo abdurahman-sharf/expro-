@@ -15,7 +15,7 @@ class InterBranchTransfers extends Migration
 {
     private const ACCOUNTS = [
         'branches_receivable' => ['routing' => 'branches.receivable', 'name' => 'ذمم بين الفروع (مدينة)', 'type' => 'asset', 'normal' => 'debit', 'parent' => '1204', 'codes' => ['12044', '12045', '12046', '12047', '12048', '12049']],
-        'branches_payable'    => ['routing' => 'branches.payable', 'name' => 'ذمم بين الفروع (دائنة)', 'type' => 'liability', 'normal' => 'credit', 'parent' => '211', 'codes' => ['2214', '2215', '2216', '2217', '2218', '2219']],
+        'branches_payable'    => ['routing' => 'branches.payable', 'name' => 'ذمم بين الفروع (دائنة)', 'type' => 'liability', 'normal' => 'credit', 'parent' => '211', 'codes' => ['2114', '2115', '2116', '2117', '2118', '2119']],
     ];
 
     public function up(): void

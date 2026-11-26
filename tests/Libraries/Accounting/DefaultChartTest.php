@@ -48,15 +48,25 @@ class DefaultChartTest extends CIUnitTestCase
         $this->assertSame([AccountType::Asset->value, NormalBalance::Debit->value], [$cashGap->account_type, $cashGap->normal_balance], 'The surplus and shortage of the till is an asset here and a credit in the reference chart (G-102)');
     }
 
-    public function testInstall_HoldsTheOpeningBalancesAmongTheCurrentLiabilitiesAndTheSuppliersUnderACodeTheirsDoesNotStartWith(): void
+    public function testInstall_HoldsTheOpeningBalancesInTheEquityNotAmongTheLiabilities(): void
     {
-        $db = $this->accountingDb();
+        $db      = $this->accountingDb();
+        $opening = $db->table('accounting_accounts')->where('system_key', 'opening_balance')->get()->getRow();
 
-        $opening   = $db->table('accounting_accounts')->where('system_key', 'opening_balance')->get()->getRow();
-        $suppliers = $db->table('accounting_accounts')->where('system_key', 'payables')->get()->getRow();
+        $this->assertSame([AccountType::Equity->value, NormalBalance::Credit->value, '33', '3'], [$opening->account_type, $opening->normal_balance, $opening->code, $db->table('accounting_accounts')->where('account_id', $opening->parent_id)->get()->getRow()->code]);
+    }
 
-        $this->assertSame([AccountType::Liability->value, '214', '21'], [$opening->account_type, $opening->code, $db->table('accounting_accounts')->where('account_id', $opening->parent_id)->get()->getRow()->code]);
-        $this->assertSame(['2211', '211'], [$suppliers->code, $db->table('accounting_accounts')->where('account_id', $suppliers->parent_id)->get()->getRow()->code]);
+    public function testInstall_StartsTheCodeOfEveryAccountWithTheCodeOfItsParent(): void
+    {
+        $db       = $this->accountingDb();
+        $accounts = $db->table('accounting_accounts')->select('account_id, parent_id, code')->get()->getResult();
+        $codes    = array_column($accounts, 'code', 'account_id');
+
+        foreach ($accounts as $account) {
+            if ($account->parent_id !== null) {
+                $this->assertTrue(str_starts_with($account->code, $codes[$account->parent_id]) && strlen($account->code) > strlen($codes[$account->parent_id]), "Account {$account->code} is not under {$codes[$account->parent_id]}");
+            }
+        }
     }
 
     public function testInstall_DoesNothingWhenTheChartAlreadyHasAccounts(): void
@@ -183,16 +193,16 @@ class DefaultChartTest extends CIUnitTestCase
             ['21', 'الخصوم المتداولة', '2', true],
             ['211', 'الدائنون', '21', true],
             ['212', 'أوراق الدفع', '21', true],
-            ['214', 'أرصدة افتتاحية', '21', false],
             ['215', 'القيمة المضافة المطلوبة', '21', true],
             ['215001', 'القيمة المضافة المحصلة', '215', false],
             ['215002', 'القيمة المضافة المدفوعة', '215', false],
             ['22', 'الخصوم طويلة الأجل', '2', true],
-            ['2211', 'الموردون', '211', true],
-            ['2212', 'شركات الشحن', '211', true],
-            ['2213', 'أطراف دائنة أخرى', '211', false],
+            ['2111', 'الموردون', '211', true],
+            ['2112', 'شركات الشحن', '211', true],
+            ['2113', 'أطراف دائنة أخرى', '211', false],
             ['31', 'رأس المال', '3', false],
             ['32', 'أرباح وخسائر مرحلة', '3', false],
+            ['33', 'أرصدة افتتاحية', '3', false],
             ['41', 'إيرادات المبيعات', '4', true],
             ['411', 'المبيعات', '41', false],
             ['412', 'مردودات المبيعات', '41', false],
@@ -238,7 +248,7 @@ class DefaultChartTest extends CIUnitTestCase
         $codes    = array_column($this->accountingDb()->table('accounting_accounts')->select('code')->get()->getResultArray(), 'code');
         $observed = array_merge(['1', '2', '3', '4', '5'], array_column(self::observedChartProvider(), 0));
 
-        $this->assertEqualsCanonicalizing([...$observed, '216', '12043', '12044', '2214', '120601', '120602', '212001', '546', '4204', '4208', '4209', '4213', '215010', '5410', '111006', '112006', '5301', '5420'], $codes);
+        $this->assertEqualsCanonicalizing([...$observed, '216', '12043', '12044', '2114', '120601', '120602', '212001', '546', '4204', '4208', '4209', '4213', '215010', '5410', '111006', '112006', '5301', '5420'], $codes);
     }
 
     public function testInstall_PutsInputTaxAmongTheLiabilitiesBesideOutputTax(): void

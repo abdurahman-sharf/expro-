@@ -90,7 +90,7 @@ class SupplierTest extends CIUnitTestCase
 
         $this->assertNotNull($account);
         $this->assertSame('Gulf Supplies', $account->name);
-        $this->assertSame('2211001', $account->code);
+        $this->assertSame('2111001', $account->code);
         $this->assertSame('liability', $account->account_type);
     }
 

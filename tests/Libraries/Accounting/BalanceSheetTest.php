@@ -192,7 +192,7 @@ class BalanceSheetTest extends CIUnitTestCase
 
         $this->assertSame('355.5000', $this->amountOfAccount($sheet->liabilities, $owed));
         $this->assertSame('-50.0000', $this->amountOfAccount($sheet->liabilities, $debited), 'A debit balance inside the liabilities is a minus, not moved to the assets');
-        $this->assertSame('305.5000', $this->amountOf($sheet->liabilities, '2211'), 'The payables are reduced by it');
+        $this->assertSame('305.5000', $this->amountOf($sheet->liabilities, '2111'), 'The payables are reduced by it');
         $this->assertSame('-37.2000', $this->amountOf($sheet->liabilities, '215002'));
         $this->assertSame('1216.8000', $this->amountOf($sheet->liabilities, '215001'));
         $this->assertSame('1179.6000', $this->amountOf($sheet->liabilities, '215'));
@@ -482,7 +482,7 @@ class BalanceSheetTest extends CIUnitTestCase
         }
 
         $this->assertSame('340.0000', $sum, '300 less 60 and 100 for the first supplier, and 200 for the other');
-        $this->assertSame($sum, $this->amountOf($sheet->liabilities, '2211'));
+        $this->assertSame($sum, $this->amountOf($sheet->liabilities, '2111'));
     }
 
     public function testBuild_HoldsInTheStockAccountsWhatTheMovementsOfEveryLocationAreWorth(): void
@@ -543,7 +543,7 @@ class BalanceSheetTest extends CIUnitTestCase
         $sheet = $this->sheet('2099-12-31', level: 4);
 
         $this->assertSame('350.0000', $this->amountOf($sheet->assets, '12044'), '150 of money and 200 of stock sent out of the first branch');
-        $this->assertSame('350.0000', $this->amountOf($sheet->liabilities, '2214'));
+        $this->assertSame('350.0000', $this->amountOf($sheet->liabilities, '2114'));
         $this->assertSame('0.0000', $sheet->interBranchDifference);
     }
 

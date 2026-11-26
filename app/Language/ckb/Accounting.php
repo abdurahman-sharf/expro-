@@ -451,6 +451,7 @@ return [
     'error_closing_in_future'                    => '',
     'error_closing_not_after_previous'           => '',
     'error_closing_outside_fiscal_year'          => '',
+    'error_code_outside_parent'                  => '',
     'error_code_taken'                           => '',
     'error_contact_email_invalid'                => '',
     'error_contact_field_too_long'               => '',

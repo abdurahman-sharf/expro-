@@ -1563,7 +1563,7 @@ use ItemFixtureTrait;
 
     public function testInvoice_CreditsTheShippingToTheAccountOfTheShippingCompanyTheDocumentNamesAndToTheRoutedRevenueWhenItNamesNone(): void
     {
-        $owed = $this->customAccount('2212', '22121', 'Owed to Fast Ship');
+        $owed = $this->customAccount('2112', '21121', 'Owed to Fast Ship');
 
         $named = $this->sale([$this->line('1', '100')], charges: new ResolvedCharges(shipping: '20.0000', shippingCompanyId: 7, shippingAccountId: $owed));
         $plain = $this->sale([$this->line('1', '100')], charges: new ResolvedCharges(shipping: '20.0000', shippingCompanyId: 7));

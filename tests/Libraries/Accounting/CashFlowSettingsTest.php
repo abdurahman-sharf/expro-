@@ -283,7 +283,7 @@ final class CashFlowSettingsTest extends CIUnitTestCase
     {
         $this->assertRefused(AccountingError::CashFlowAccountInvalid, ['key' => 'inventory', 'accounts' => [$this->accountIdByCode('12'), $this->accountIdByCode('1203')]]);
 
-        $this->saveRow(['key' => 'inventory', 'accounts' => [$this->accountIdByCode('1203'), $this->accountIdByCode('2211')]]);
+        $this->saveRow(['key' => 'inventory', 'accounts' => [$this->accountIdByCode('1203'), $this->accountIdByCode('2111')]]);
 
         $this->assertCount(2, $this->line('inventory')->accountIds, 'Two accounts that are not one above the other are kept');
     }

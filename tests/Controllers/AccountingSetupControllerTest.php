@@ -1376,7 +1376,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
     public function testGetIndex_ShowsTheShippingCompaniesCardWithTheCompaniesAndTheAccountsTheyMayTake(): void
     {
         $this->manager();
-        $account = $this->customAccount('2212', '22121', 'Owed to Fast Ship');
+        $account = $this->customAccount('2112', '21121', 'Owed to Fast Ship');
         $company = (new ShippingCompanies())->create(['name' => 'Fast Ship', 'account_id' => $account]);
 
         $page = $this->get('/accounting_settings')->response()->getBody();
@@ -1384,7 +1384,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('id="shipping_switch_form"', $page);
         $this->assertStringContainsString('id="shipping_company_form"', $page);
         $this->assertStringContainsString('Fast Ship', $page);
-        $this->assertStringContainsString('22121', $page);
+        $this->assertStringContainsString('21121', $page);
         $this->assertStringContainsString('data-id="' . $company . '"', $page);
         $this->assertStringContainsString('>' . lang('Accounting_settings.shipping_company_edit') . '</button>', $page);
         $this->assertStringContainsString('<option value="' . $account . '">22121 - Owed to Fast Ship</option>', $page);
@@ -1421,7 +1421,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
     public function testPostSaveShippingCompany_AddsAndChangesACompanyWithItsAccount(): void
     {
         $manager = $this->manager();
-        $account = $this->customAccount('2212', '22121', 'Owed to Fast Ship');
+        $account = $this->customAccount('2112', '21121', 'Owed to Fast Ship');
 
         $added = $this->jsonOf($this->post('/accounting_settings/save_shipping_company', ['name' => 'Fast Ship', 'account_id' => (string) $account]));
 

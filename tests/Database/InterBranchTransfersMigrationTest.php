@@ -103,7 +103,7 @@ class InterBranchTransfersMigrationTest extends CIUnitTestCase
 
         $this->assertTrue($this->hasColumn());
         $this->assertSame(['12044', '1204', 'asset', 'debit'], [$receivable->code, $this->parentCode($receivable), $receivable->account_type, $receivable->normal_balance]);
-        $this->assertSame(['2214', '211', 'liability', 'credit'], [$payable->code, $this->parentCode($payable), $payable->account_type, $payable->normal_balance]);
+        $this->assertSame(['2114', '211', 'liability', 'credit'], [$payable->code, $this->parentCode($payable), $payable->account_type, $payable->normal_balance]);
         $this->assertSame((string) $receivable->account_id, $this->routedTo('branches.receivable'));
         $this->assertSame((string) $payable->account_id, $this->routedTo('branches.payable'));
         $this->assertSame('1', (string) $receivable->is_system);

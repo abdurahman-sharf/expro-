@@ -178,7 +178,7 @@ class StatementFiguresTest extends CIUnitTestCase
 
         $codes = $this->codes($this->figures(), AccountType::Liability, 4, StatementDisplay::HideZero);
 
-        $this->assertSame(['2', '21', '211', '2214', '215', '215002'], $codes, 'Under 211 comes its own account and then the accounts of 215, not the accounts that sort between them');
+        $this->assertSame(['2', '21', '211', '2114', '215', '215002'], $codes, 'Under 211 comes its own account and then the accounts of 215, not the accounts that sort between them');
     }
 
     public function testSection_ReadsEachSectionInItsOwnDirection(): void
@@ -191,7 +191,7 @@ class StatementFiguresTest extends CIUnitTestCase
         $figures = $this->figures();
 
         $this->assertSame('65.0000', $this->amount($figures, AccountType::Asset, '120101'), 'An asset is what was debited less what was credited');
-        $this->assertSame('15.0000', $this->amount($figures, AccountType::Liability, '2213'), 'A liability is what was credited less what was debited');
+        $this->assertSame('15.0000', $this->amount($figures, AccountType::Liability, '2113'), 'A liability is what was credited less what was debited');
         $this->assertSame('100.0000', $this->amount($figures, AccountType::Revenue, '411'));
         $this->assertSame('-30.0000', $this->amount($figures, AccountType::Revenue, '412'), 'A debit balance in the revenue is a minus');
         $this->assertSame('20.0000', $this->amount($figures, AccountType::Expense, '511'));

@@ -40,6 +40,7 @@ final class AccountService
         $code   = $this->normalizeCode((string) ($input['code'] ?? ''));
         $name   = $this->normalizeName((string) ($input['name'] ?? ''));
 
+        $this->assertCodeUnder($code, (string) $parent->code);
         $this->assertCodeFree($code, null);
         $this->assertNameFree($name, (int) $parent->account_id, null);
 
@@ -110,6 +111,10 @@ final class AccountService
 
                 if ($used) {
                     throw new AccountingException(AccountingError::AccountInUse, 'The code of an account with journal lines cannot change.');
+                }
+
+                if ($account->parent_id !== null) {
+                    $this->assertCodeUnder($code, (string) $this->requireAccount((int) $account->parent_id)->code);
                 }
 
                 $this->assertCodeFree($code, $accountId);
@@ -387,13 +392,19 @@ final class AccountService
         $parent = $this->requireAccount($parentId);
 
         $siblings = $this->db->table('accounting_accounts')->select('code')->where('parent_id', $parentId)->get()->getResultArray();
-        $numeric  = array_filter(array_column($siblings, 'code'), static fn (string $code): bool => ctype_digit($code));
+        $numeric  = array_filter(array_column($siblings, 'code'), static fn (string $code): bool => ctype_digit($code) && strlen($code) > strlen($parent->code) && str_starts_with($code, $parent->code));
 
         $candidate = $numeric === []
             ? $parent->code . (strlen($parent->code) === 1 ? '1' : '01')
             : (string) (max(array_map('intval', $numeric)) + 1);
 
-        while ($this->codeExists($candidate)) {
+        while ($this->codeExists($candidate) || ! str_starts_with($candidate, $parent->code)) {
+            if (! str_starts_with($candidate, $parent->code)) {
+                $candidate = $parent->code . str_repeat('0', strlen($candidate) - strlen($parent->code)) . '1';
+
+                continue;
+            }
+
             $candidate = (string) ((int) $candidate + 1);
         }
 
@@ -490,6 +501,19 @@ final class AccountService
         }
 
         return $parent;
+    }
+
+    /**
+     * The code of an account starts with the code of its parent and goes on after it, which is what
+     * the order of the chart and the totals of its groups in the reports rest on.
+     *
+     * @throws AccountingException
+     */
+    private function assertCodeUnder(string $code, string $parentCode): void
+    {
+        if (strlen($code) <= strlen($parentCode) || ! str_starts_with($code, $parentCode)) {
+            throw new AccountingException(AccountingError::CodeOutsideParent, "The code {$code} does not start with the code {$parentCode} of its parent.", ['code' => $code, 'name' => $parentCode]);
+        }
     }
 
     private function normalizeCode(string $code): string

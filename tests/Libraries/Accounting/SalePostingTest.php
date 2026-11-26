@@ -7850,7 +7850,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->turnOnHeaderCharges();
 
         $companies = new ShippingCompanies();
-        $account   = $withAccount ? $this->customAccount('2212', '22121', 'Owed to ' . $name) : null;
+        $account   = $withAccount ? $this->customAccount('2112', '21121', 'Owed to ' . $name) : null;
 
         $companies->setEnabled(true);
 

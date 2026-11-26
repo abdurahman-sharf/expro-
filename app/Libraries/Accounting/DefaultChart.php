@@ -89,7 +89,9 @@ final class DefaultChart
     }
 
     /**
-     * The chart of the reference system as observed in a fresh account, plus the accounts only
+     * The code of every account starts with the code of its parent, and the opening balances are held
+     * in the equity until they are closed out, not among the liabilities. Otherwise it is the
+     * chart of the reference system as observed in a fresh account, plus the accounts only
      * this application needs: unused gift cards (216), the customers of sales made without naming
      * one (12043), the leaf accounts of the cheque cycle under the two groups of notes (120601,
      * 120602 and 212001) and the deposit fees (546), and the adjustments and the shipping charged on
@@ -143,13 +145,12 @@ final class DefaultChart
 
             ['21', 'الخصوم المتداولة', AccountType::Liability, '2', true, null, false],
             ['211', 'الدائنون', AccountType::Liability, '21', true, null, false],
-            ['2211', 'الموردون', AccountType::Liability, '211', true, 'payables', false],
-            ['2212', 'شركات الشحن', AccountType::Liability, '211', true, null, false],
-            ['2213', 'أطراف دائنة أخرى', AccountType::Liability, '211', false, 'other_payables', false],
-            ['2214', 'ذمم بين الفروع (دائنة)', AccountType::Liability, '211', false, 'branches_payable', false],
+            ['2111', 'الموردون', AccountType::Liability, '211', true, 'payables', false],
+            ['2112', 'شركات الشحن', AccountType::Liability, '211', true, null, false],
+            ['2113', 'أطراف دائنة أخرى', AccountType::Liability, '211', false, 'other_payables', false],
+            ['2114', 'ذمم بين الفروع (دائنة)', AccountType::Liability, '211', false, 'branches_payable', false],
             ['212', 'أوراق الدفع', AccountType::Liability, '21', true, null, false],
             ['212001', 'أوراق الدفع', AccountType::Liability, '212', false, 'notes_payable', false],
-            ['214', 'أرصدة افتتاحية', AccountType::Liability, '21', false, 'opening_balance', false],
             ['215', 'القيمة المضافة المطلوبة', AccountType::Liability, '21', true, null, false],
             ['215001', 'القيمة المضافة المحصلة', AccountType::Liability, '215', false, 'tax_output', false],
             ['215002', 'القيمة المضافة المدفوعة', AccountType::Liability, '215', false, 'tax_input', false],
@@ -159,6 +160,7 @@ final class DefaultChart
 
             ['31', 'رأس المال', AccountType::Equity, '3', false, null, false],
             ['32', 'أرباح وخسائر مرحلة', AccountType::Equity, '3', false, 'retained_earnings', false],
+            ['33', 'أرصدة افتتاحية', AccountType::Equity, '3', false, 'opening_balance', false],
 
             ['41', 'إيرادات المبيعات', AccountType::Revenue, '4', true, null, false],
             ['411', 'المبيعات', AccountType::Revenue, '41', false, 'sales_revenue', false],

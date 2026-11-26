@@ -63,7 +63,7 @@ class SaleLoaderTest extends CIUnitTestCase
         $this->setConfigValue('accounting_sales_shipping', '1');
 
         $companies = new ShippingCompanies();
-        $account   = $this->customAccount('2212', '22121', 'Owed to Fast Ship');
+        $account   = $this->customAccount('2112', '21121', 'Owed to Fast Ship');
 
         $companies->setEnabled(true);
 
