@@ -476,14 +476,16 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame(PaymentType::Due, PaymentType::fromLabel((string) $done['receiving']->payment_type));
     }
 
-    public function testPostComplete_BooksTheWholePurchaseAsPaidWhenNoAmountIsTyped(): void
+    public function testPostComplete_LeavesThePurchaseUnpaidAndPostsNoPaymentWhenNoAmountIsTyped(): void
     {
         $done = $this->completeAPurchaseOf300(lang('Sales.cash'), '');
 
-        $this->assertSame('0.00', $this->balance($this->supplierAccount()));
-        $this->assertSame('-300.00', $this->balance($this->accountId('cash')));
+        $this->assertSame('-300.00', $this->balance($this->supplierAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('cash')));
         $this->assertSame([], $done['payments']);
-        $this->assertSame(PaymentType::Cash, PaymentType::fromLabel((string) $done['receiving']->payment_type));
+        $this->assertSame(PaymentType::Due, PaymentType::fromLabel((string) $done['receiving']->payment_type));
+        $this->assertNull($done['receiving']->treasury_id);
+        $this->assertSame('300.0000', (new SupplierLedger())->position($this->supplierId)->open());
     }
 
     public function testPostComplete_BooksTheWholePurchaseAsPaidAndShowsTheChangeWhenMoreIsTyped(): void

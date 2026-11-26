@@ -709,10 +709,11 @@ class Receivings extends Secure_Controller
     }
 
     /**
-     * What was typed in the box of the amount tendered, which is what the purchase is paid with: null when
-     * the box was left empty or the purchase is left on account, so that the whole purchase is paid with
-     * the way of payment chosen, as it always was. A refund of a return is received whole or not at all.
-     * An amount that cannot be taken is returned as the error to show.
+     * What was typed in the box of the amount tendered, which is what the purchase is paid with. A purchase
+     * whose box was left empty is paid nothing and stays owed to its supplier: money leaves a treasury only
+     * for an amount somebody typed. Null when the way of payment takes no money from a treasury, and for a
+     * return whose box was left empty, whose refund is received whole or not at all. An amount that cannot
+     * be taken is returned as the error to show.
      *
      * @return array{error: string}|numeric-string|null
      */
@@ -721,8 +722,12 @@ class Receivings extends Secure_Controller
         $typed = trim((string) $this->request->getPost('amount_tendered'));
         $way   = $paymentType === null ? null : PaymentType::fromLabel($paymentType);
 
-        if ($typed === '' || $way === null || ! $way->usesTreasury()) {
+        if ($way === null || ! $way->usesTreasury()) {
             return null;
+        }
+
+        if ($typed === '') {
+            return $mode === 'receive' ? '0.0000' : null;
         }
 
         $parsed = parse_decimals($typed);
