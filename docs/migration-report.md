@@ -1,65 +1,148 @@
 # تقرير الهجرة والمطابقة
 
-يُحدَّث بعد كل مرحلة من خطة `docs/gap-analysis.md`.
+يُحدَّث بعد كل مرحلة من خطة `docs/gap-analysis.md`. قواعد الترحيل والاختبارات يُشار إليها بأرقامها (P-xx، T-xx، T-AN-xx).
 
-## المرحلة 0 — خط الأساس (2026-11-26)
+**قاعدة ثابتة:** لم تُشغَّل أي هجرة على قاعدة بيانات حقيقية. كل ما هنا اختُبر على قاعدة الاختبار فقط (MariaDB 10.11، PHP 8.3). CI معطّل حالياً على مستوى الحساب، فكل الأعداد أدناه من تشغيل محلي.
 
-لم يتغير أي سلوك ولا أي جدول في هذه المرحلة.
-
-### ما أُضيف
-| الملف | الغرض |
-|---|---|
-| `app/Libraries/Accounting/BooksSnapshot.php` | لقطة: مدين ودائن كل حساب على القيود المرحّلة، المجاميع، ولكل موقع مخزون رصيد حسابه مقابل قيمة حركاته. ومقارنة لقطتين حساباً حساباً بمعرّف الحساب لا برمزه |
-| `app/Commands/AccountingBooksSnapshot.php` | `php spark accounting:books_snapshot FILE` |
-| `app/Commands/AccountingBooksCompare.php` | `php spark accounting:books_compare BEFORE.json AFTER.json` (يخرج 1 عند أي فرق) |
-| اختبارات الثلاثة | `tests/Libraries/Accounting/BooksSnapshotTest.php`، `tests/Commands/AccountingBooksSnapshotTest.php`، `tests/Commands/AccountingBooksCompareTest.php` |
-| اختباران لخط الأساس | في `AccountServiceTest` و`DefaultChartTest` (AN-01) |
-| `.gitignore` | يستثني `ledger-x-spec/`؛ الحزمة تُقرأ من `ACS_SPEC_DIR` |
-
-### سلوك النظام الحالي في AN-01..AN-09
-
-كل سطر مثبت باختبار يمر على الكود الحالي. الاختبارات التي تثبّت سلوكاً سيُصحَّح تُقلب في المرحلة A أو B أو C مع التصحيح.
-
-| # | السلوك الحالي | يقع فيه؟ | الاختبار المثبِت |
-|---|---|---|---|
-| AN-01 | حساب برمز `9990` يُقبل تحت الأب `11`. «أرصدة افتتاحية» `214` خصم متداول تحت `21`. الموردون `2211` تحت `211` | نعم | `AccountServiceTest::testCreate_AcceptsACodeThatDoesNotStartWithTheCodeOfItsParent` · `DefaultChartTest::testInstall_HoldsTheOpeningBalancesAmongTheCurrentLiabilitiesAndTheSuppliersUnderACodeTheirsDoesNotStartWith` |
-| AN-02 | بند غير مخزني 80: مدين تكلفة المبيعات 80 / دائن المورد 80 | نعم | `ReceivingPostingBuilderTest::testPurchase_PostsAServiceAsACostAndMovesNoStock` |
-| AN-03 | المخزون الافتتاحي: مدين الموقع / دائن حساب الأرصدة الافتتاحية (صحيح). إذن إضافة بلا حساب: دائن «أطراف دائنة أخرى» | جزئياً | `OpeningStockTest::testPost_PostsADebitToTheLocationAndACreditToTheOpeningEquityAndAValuedMovementForEachItem` · `StockPermitBuilderTest::testPlan_PutsEachLineOfAnAddPermitInAtItsCostAndCreditsTheAutomaticAccountOnce` |
-| AN-04 | فاتورة شراء 300 بطريقة الدفع الافتراضية والمبلغ المدفوع فارغ: المورد 0.00 والنقد −300.00 | نعم | `ReceivingsControllerTest::testPostComplete_BooksTheWholePurchaseAsPaidWhenNoAmountIsTyped` |
-| AN-05 | قيد التكلفة يُبنى مع الفاتورة ويؤجَّل إلى التسليم. إلغاء صف التكلفة في التوجيه: لا قيد ولا حركة | لا، عدا حالة الإلغاء | `SalePostingBuilderTest::testCost_DebitsCostOfSalesAndCreditsTheStockOfTheLocation` · `::testCost_WaitsForTheDelivery` · `::testCost_PostsNothingWhenTheCostOfSalesRowIsCancelled` |
-| AN-06 | التسوية الموجبة والسالبة على حساب تسويات مستقل، لا على المبيعات | لا | `SalePostingBuilderTest::testInvoice_PostsShippingAndANegativeAdjustmentToTheirOwnAccounts` · `::testInvoice_CreditsAPositiveAdjustmentToTheAdjustmentAccount` |
-| AN-07 | مصروف 230 من خزينة رصيدها صفر يُقبل، والرصيد −230.00 | نعم | `ExpensePostingTest::testSaveValue_TakesTheMoneyOutOfTheTreasuryAndItsBalanceEqualsItsAccount` |
-| AN-08 | عمر سنتين من 2026-01-01: تاريخ الانتهاء 2028-01-01 محسوب | لا | `AssetInputTest::testPrepare_SpreadsWhatIsToBeDepreciatedOverTheLifeWhenTheFormGivesTheLifeAndNoAmount` |
-| AN-09 | لا إهلاك يدوي لأصل مفرد. جدول الإهلاك مسقوف بالتكلفة ناقص الخردة | لا ينطبق | `DepreciationScheduleTest::testEvents_FixedEndsWithAPeriodCutToCostLessSalvage` · `::testEvents_DecliningNeverPassesCostLessSalvage` |
-
-**النتيجة:** 79 حالة اختبار (منها صفوف جدول الدليل الافتراضي) و331 تحققاً، كلها ناجحة، على MariaDB 10.11 وPHP 8.3.
-
-**ما تغيّر عن تقرير الفجوات:** AN-04 كان غير محسوم وتبيّن أن النظام يقع فيه. AN-08 كان غير محسوم وتبيّن أنه لا يقع فيه حين يُعطى العمر. الباقي كما قُرئ من الكود.
-
-**ما لم يُثبَت باختبار واحد من طرف إلى طرف:** ذرّية فاتورة البيع مع قيد تكلفتها وحركة المخزون في معاملة واحدة (AN-05) مثبتة بقراءة الكود وباختبارات `SalePostingTest` القائمة، لا باختبار مسمّى لهذا التناقض. يُضاف T-AN-05 في بند A8.
-
-### اختبارات أداة اللقطة
-`BooksSnapshotTest` و`AccountingBooksSnapshotTest` و`AccountingBooksCompareTest`: 14 اختباراً و48 تحققاً، ناجحة. مع `AccountServiceTest` و`DefaultChartTest` كاملين: 176 اختباراً و1029 تحققاً، ناجحة.
-
-### لقطة ميزان المراجعة ومطابقة المخزون
-
-**لم تؤخذ بعد على بياناتك.** بيئة العمل لا تحوي قاعدة بياناتك؛ فيها قاعدة اختبار فارغة فقط. الأداة جاهزة ومختبرة، وتؤخذ اللقطة على نسخة من قاعدتك هكذا:
+## كيف تُطابَق الأرصدة قبل الهجرة وبعدها
 
 ```bash
-php spark accounting:books_snapshot writable/books-before.json
+php spark accounting:books_snapshot writable/books-before.json --all-companies
 ```
 
-السطر المطبوع يذكر عدد الحسابات ذات الحركة ومجموعي المدين والدائن وعدد مواقع المخزون وكم منها لا يطابق حسابُه قيمةَ حركاته. بعد كل هجرة:
+ثم تُشغَّل الهجرات على نسخة من القاعدة، ثم:
 
 ```bash
-php spark accounting:books_snapshot writable/books-after.json
+php spark accounting:books_snapshot writable/books-after.json --all-companies
 ```
 
 ```bash
 php spark accounting:books_compare writable/books-before.json writable/books-after.json
 ```
 
-اللقطة تقرأ فقط ولا تكتب إلا الملف. الفحص الأشمل القائم `accounting:readiness --json` (توازن كل قيد، روابط العملاء والموردين والخزائن والمخزون) يبقى مكمّلاً لها.
+اللقطة تسجّل لكل شركة: مدين ودائن كل حساب إجمالاً ولكل فرع، المجاميع، ولكل موقع مخزون رصيد حسابه مقابل قيمة حركاته. المقارنة بمعرّف الحساب لا برمزه، فتصمد أمام إعادة الترميز، وتخرج بالرمز 1 عند أي فرق. اللقطة تقرأ فقط ولا تكتب إلا الملف.
 
-### ما أُجّل من المرحلة 0
-اختبارات T-01..T-11 كانت في خطة المرحلة 0 ونُقلت إلى المرحلة A: كل واحد منها يُكتب مع البند الذي يخصه، لأن أغلبها مغطى باختبارات قائمة بأسماء أخرى وحصرها يتبع تصحيحات A4–A8.
+**لم تؤخذ لقطة على بيانات المالك بعد:** بيئة العمل لا تحوي قاعدته.
+
+---
+
+## المرحلة 0 — خط الأساس
+
+لم يتغير فيها سلوك ولا جدول. أُضيفت أداة اللقطة والمقارنة واختبارات تثبّت السلوك قبل التصحيح.
+
+| # | السلوك قبل التصحيح | يقع فيه النظام؟ | حالته الآن |
+|---|---|---|---|
+| T-AN-01 | حساب برمز لا يبدأ برمز أبيه يُقبل؛ الأرصدة الافتتاحية خصم متداول | نعم | صُحّح (A4) |
+| T-AN-02 | بند شراء غير مخزني يُحمَّل على تكلفة المبيعات | نعم | صُحّح (A5) |
+| T-AN-03 | المخزون الافتتاحي صحيح؛ إذن إضافة بلا حساب مقابل يذهب إلى «أطراف دائنة أخرى» | جزئياً | مؤجل إلى المرحلة C |
+| T-AN-04 | شراء بلا مبلغ مدفوع مكتوب يُسجَّل مدفوعاً كاملاً | نعم | صُحّح (A9) |
+| T-AN-05 | قيد التكلفة ذرّي؛ إلغاء صف التكلفة في التوجيه يُسقط القيد والحركة | حالة الإلغاء فقط | صُحّح (A8) |
+| T-AN-06 | التسوية على حساب مستقل خارج الضريبة | لا | الخيار المعتمد، يبقى |
+| T-AN-07 | صرف من خزينة بلا رصيد كافٍ يُقبل | نعم | مؤجل إلى المرحلة B |
+| T-AN-08 | تاريخ انتهاء الإهلاك يُحسب من بداية الخدمة والعمر | لا | — |
+| T-AN-09 | لا إهلاك يدوي لأصل مفرد؛ الجدول مسقوف | لا ينطبق | المرحلة E |
+
+نتيجة اختبارات خط الأساس وقت المرحلة 0: 79 حالة و331 تحققاً، ناجحة.
+
+---
+
+## المرحلة A — التصحيحات A4 إلى A9
+
+نُفّذت بالترتيب: A9، A5، A8، A6، A7، A4. محرك الترحيل (A1 إلى A3) لم يبدأ.
+
+### A9 — فاتورة الشراء بلا مبلغ مدفوع مكتوب تبقى غير مدفوعة (T-AN-04)
+
+- **السلوك الجديد:** ترك «المبلغ المدفوع» فارغاً في فاتورة شراء يتركها ديناً على المورد بلا قيد دفع. يُرحَّل الدفع فقط لمبلغ كُتب.
+- **لم يتغير:** مرتجع الشراء بمبلغ فارغ ما زال يُستردّ كاملاً أو لا يُستردّ. فاتورة شراء بلا مورد ما زالت تُدفع فوراً، إذ لا طرف تُقيَّد عليه.
+- **الملفات:** `app/Controllers/Receivings.php`؛ جديد: `app/Libraries/Accounting/PresumedPaidPurchases.php`، `app/Commands/AccountingReportPresumedPaidPurchases.php`.
+- **اختبار قُلب:** `ReceivingsControllerTest::testPostComplete_BooksTheWholePurchaseAsPaidWhenNoAmountIsTyped` صار `testPostComplete_LeavesThePurchaseUnpaidAndPostsNoPaymentWhenNoAmountIsTyped`.
+- **اختبارات أُضيفت:** `PresumedPaidPurchasesTest` (3)، `AccountingReportPresumedPaidPurchasesTest` (3).
+- **الاختبارات المتأثرة:** `ReceivingsControllerTest` 280 اختباراً و2366 تحققاً؛ مع الجديدة و`Purchase_ordersControllerTest` 67 اختباراً و670 تحققاً. كلها ناجحة.
+- **أمر المراجعة (قراءة فقط):**
+
+```bash
+php spark accounting:report_presumed_paid_purchases --csv --no-header
+```
+
+يسرد فواتير الشراء المقيَّدة مدفوعة كاملة لحظة حفظها بلا دفعة مستقلة: الرقم، التاريخ، المورد، المبلغ، الخزينة، طريقة الدفع. **حدّه:** لا يميّز فاتورة تُرك مبلغها فارغاً من فاتورة كُتب لها مبلغ يغطيها؛ الحالتان خُزّنتا بالشكل نفسه، فالقائمة تضم الاثنتين.
+
+### A5 — بند الشراء غير المخزني إلى المشتريات لا تكلفة المبيعات (P-30، T-AN-02)
+
+- **السلوك الجديد:** سطر الشراء غير المخزني يُحمَّل على الحساب الموجَّه للمشتريات، ويخرج منه عند إرجاعه. فرق سعر مرتجع الشراء عن قيمة البضاعة في المخزون يمر بصف توجيه مستقل `purchases.price_variance`، افتراضيه حساب تكلفة المبيعات الحالي، فلا يتحرك شيء حتى يُغيَّر الصف (P-35، P-36).
+- **للمستقبل فقط:** القيود السابقة لا تُعدَّل.
+- **الملفات:** `app/Libraries/Accounting/ReceivingPostingBuilder.php`، `RoutingKey.php`، `FamilyReports/JournalSources.php`؛ ملفات اللغة `Accounting_routing.php` و`Accounting.php` (مفتاحان جديدان في كل اللغات)؛ جديد: `PurchaseCostReclass.php`، `app/Commands/AccountingReclassifyPurchaseCosts.php`.
+- **هجرة:** `20274700000000_PurchasePriceVarianceRouting` تضيف صف التوجيه فقط، على الحساب الموجَّه لتكلفة المبيعات. `down` يحذف الصف. لا حساب ولا قيد ولا رصيد يُمس.
+- **اختبارات قُلبت:** `ReceivingPostingBuilderTest::testPurchase_PostsAServiceAsACostAndMovesNoStock` صار `testPurchase_PostsWhatIsNotKeptInStockToPurchasesNotToTheCostOfSalesAndMovesNoStock`؛ `ReceivingPostingTest::testPostCompleted_PostsAServiceAsACostAndMovesNoStock` صار `testPostCompleted_PostsAServiceToPurchasesNotToTheCostOfSalesAndMovesNoStock`؛ وسطر واحد في ملف الأساس الذهبي للمشتريات.
+- **اختبارات أُضيفت:** ضريبة البند غير المخزني، فرق السعر على حساب موجَّه آخر، `PurchasePriceVarianceRoutingMigrationTest` (5)، `PurchaseCostReclassTest` (5)، `AccountingReclassifyPurchaseCostsTest` (3).
+- **الاختبارات المتأثرة:** البنّاء والتوجيه واللغات 4726 اختباراً؛ مجموعة المشتريات (الترحيل، النموذج، الترحيل بأثر رجعي، الجاهزية، الدائنون) 1294 اختباراً. بعد تحديث ما كان يثبّت السلوك القديم بقي فشل واحد لا علاقة له بالتغيير (انظر «إخفاق قائم» أدناه).
+- **تقرير القيود السابقة وقيد إعادة التبويب الاختياري:**
+
+```bash
+php spark accounting:reclassify_purchase_costs
+```
+
+يسرد قيود الشراء القائمة التي حمّلت تكلفة المبيعات، وما بقي للنقل لكل فرع من قيود السنة المالية المفتوحة اليوم. لا يكتب شيئاً. مع `--post` يرحّل قيداً واحداً لكل فرع بتاريخ اليوم ينقل المبلغ من تكلفة المبيعات إلى المشتريات؛ القيود القديمة لا تُمس، وإعادة التشغيل تنقل ما لم يُنقل فقط. **حدّه:** يستثني مرتجعات الشراء، لأن ما خصمته من تكلفة المبيعات لا يُفصل عن فرق السعر.
+
+### A8 — قيد تكلفة المبيعات لا يسقط أبداً (P-10، T-AN-05)
+
+- **السلوك الجديد:** صف تكلفة المبيعات المضبوط على «بلا توجيه» كان يُسقط قيد التكلفة وحركة المخزون المقيَّمة معاً. الآن تُرحَّل التكلفة إلى حساب تكلفة المبيعات في الدليل مع حركتها، في حفظ الفاتورة نفسه.
+- **لم يتغير:** تأجيل التكلفة إلى التسليم؛ البضاعة وقيد تكلفتها يتحركان معاً.
+- **الملفات:** `app/Libraries/Accounting/SalePostingBuilder.php`.
+- **اختبار قُلب:** `SalePostingBuilderTest::testCost_PostsNothingWhenTheCostOfSalesRowIsCancelled` صار `testCostPlan_PostsTheCostToTheAccountOfTheChartAndKeepsTheMovementsWhenTheCostOfSalesRowSetsNone`.
+- **اختبار أُضيف (T-AN-05):** `SalePostingTest::testPostCompleted_PostsTheCostOfStockSoldRightAfterItsOpeningBalanceInTheSameSaveAndTheStockTies`: منتج برصيد افتتاحي 10 بتكلفة 60، بيع 2 فوراً، قيد التكلفة 120 موجود، والمخزون 8 بقيمة 480 يطابق حسابه.
+- **الاختبارات المتأثرة:** 33 اختباراً و107 تحققات، ناجحة.
+
+### A6 — ضريبة سطر القيد اليدوي تُرحَّل سطراً مستقلاً (P-05، T-18)
+
+- **السلوك الجديد:** ترحيل قيد يدوي يضيف لكل سطر عليه ضريبة سطراً بعده وفي جانبه: على حساب ضريبة المدخلات للمدين، وضريبة المخرجات للدائن. الطرف الآخر يجب أن يغطي الضريبة وإلا رُفض القيد لعدم التوازن. الضريبة المتضمنة في مبلغ سطرها تُفصل منه. المسودة تبقي الضريبة ملاحظة حتى الترحيل. السطور المضافة موسومة `is_auto_tax`.
+- **الملفات:** `JournalService.php`، `PostingService.php`، `JournalLineDraft.php`، `JournalLineTax.php`؛ نص التلميح في `Accounting_journals.php` (en، en-GB، ar-EG، ar-LB).
+- **هجرة:** `20274700000001_JournalAutoTaxLines` تضيف العمود `is_auto_tax` (افتراضيه 0) إلى سطور القيود. `down` يحذف العمود. لا قيد ولا رصيد يُمس.
+- **اختبار قُلب:** `JournalServiceTest::testPostNew_NotesTheTaxOfALineWithoutPostingTaxOrChangingTheJournal` صار `testPostNew_TakesATaxThatIsInTheAmountOfItsLineOutOfItAndLeavesTheJournalAtItsTotal`.
+- **اختبارات أُضيفت:** T-18 (`testPostNew_AddsALineForTheTaxOfADebitLineOnTheTaxPaidAndTheOtherSideCoversIt`: مدين 100 بضريبة 15% ← سطر آلي مدين 15، دائن 115)، رفض القيد الذي لا يغطي طرفه الآخر الضريبة، ضريبة السطر الدائن، والمسودة.
+- **الاختبارات المتأثرة:** `JournalServiceTest` و`PostingServiceTest` و`JournalLineAnalysisTest` 353 اختباراً؛ `AccountingJournalsControllerTest` 182 اختباراً؛ ملفات اللغة 4228 اختباراً. كلها ناجحة.
+- **معلوم:** فحص التوازن في نموذج القيد بالمتصفح لم يُحدَّث ليحسب سطر الضريبة؛ الرفض يأتي من الخادم برسالة تذكر الفرق.
+
+### A7 — كل كتابة في جداول القيود عبر خدمة الترحيل
+
+- **السلوك:** لا تغيير على المستخدم. مسودات القيود اليدوية، ترحيل المسودة، تعديل نص قيد مرحَّل، ووسم القيد المعكوس كانت تُكتب من أصناف أخرى. صارت كلها في `PostingService` مع فحوصه: لا تُستبدل ولا تُحذف إلا مسودة، والمسودة تُرحَّل بفحوص القيد الجديد كلها، ولا يُغيَّر مبلغ أو حساب أو تاريخ أو رقم قيد مرحَّل. رسالة القيد غير المتوازن تذكر مقدار الفرق (T-02).
+- **الملفات:** `PostingService.php`، `JournalService.php`، `YearEndClosing.php`، `JournalLineAnalysis.php`؛ رسالة `posting_unbalanced` في ملفات اللغة.
+- **اختبارات أُضيفت في `PostingServiceTest` (10):** المسودة، رفض استبدال أو حذف قيد مرحَّل، ترحيل المسودة، رفض غير المتوازن مع الفرق 10.0000، رفض الفترة المقفلة، رفض تغيير مبلغ قيد مرحَّل، واختبار حارس يفشل إن كتب أي صنف آخر في التطبيق في جدولي القيود.
+- **الاختبارات المتأثرة:** 607 اختبارات ثم 225 بعد نقل آخر ثلاث كتابات، كلها ناجحة.
+
+### A4 — رمز كل حساب يبدأ برمز أبيه (T-AN-01)
+
+- **السلوك الجديد:** إضافة حساب أو تغيير رمزه يُرفض ما لم يبدأ الرمز برمز الأب ويزد عليه. الدليل الجديد يفتح الحسابات الأربعة تحت «الدائنون» برموز `2111` إلى `2114`، ويضع «أرصدة افتتاحية» في حقوق الملكية برمز `33`. اقتراح الرمز التالي يتجاهل الإخوة الخارجين عن القاعدة.
+- **الملفات:** `AccountService.php`، `AccountingError.php`، `DefaultChart.php`، الهجرة القديمة `20261102000000_InterBranchTransfers.php` (قائمة الرموز المرشحة فقط، لمن لم يشغّلها بعد)، رسالة جديدة في `Accounting.php` لكل اللغات.
+- **هجرة:** `20274700000002_ChartCodeHierarchy`، للشركات التي لها دليل قائم:
+  1. تضيف العمود `legacy_code` إلى الحسابات.
+  2. تعطي الحسابات `2211` إلى `2214` (إن كانت ما زالت تحت `211`) الرموز `2111` إلى `2114`، وتنقل كل حساب تحتها معها محتفظاً بما بعد الرمز القديم (حسابات الموردين الفرعية وشركات الشحن).
+  3. تنقل حساب الأرصدة الافتتاحية من الخصوم المتداولة إلى حقوق الملكية بأول رمز حر تحتها.
+  4. تحفظ الرمز السابق لكل حساب في `legacy_code`.
+  - **ما لا تمسه:** معرّفات الحسابات، القيود، السطور، صفوف التوجيه، الأرصدة، وعدّاد الحسابات الفرعية (مربوط بمعرّف الأب).
+  - **عند التعارض:** حساب رمزه الجديد مستخدم يُترك كما هو مع ملاحظة في السجل.
+  - **`down`:** يعيد كل رمز من `legacy_code`، ويعيد الأرصدة الافتتاحية إلى مجموعة الخصوم ونوعها، ثم يحذف العمود.
+  - **آمنة للتكرار.**
+- **ما يعتمد الرمز:** فُحص الكود: لا تقرير ولا تصدير ولا XML للفوترة يبحث عن هذه الحسابات بأرقامها؛ الكل يصل إليها بمفتاح النظام أو صف التوجيه. الرمز يظهر نصاً في التقارير والتصديرات، فتتغير الأرقام المطبوعة للحسابات المعاد ترميزها، ويتغير تبويب الأرصدة الافتتاحية في الميزانية من الخصوم إلى حقوق الملكية.
+- **اختبارات قُلبت:** `AccountServiceTest::testCreate_AcceptsACodeThatDoesNotStartWithTheCodeOfItsParent` صار `testCreate_RejectsACodeThatDoesNotStartWithTheCodeOfItsParent`؛ `DefaultChartTest::testInstall_HoldsTheOpeningBalancesAmongTheCurrentLiabilities…` صار `testInstall_HoldsTheOpeningBalancesInTheEquityNotAmongTheLiabilities`.
+- **اختبارات أُضيفت:** `testUpdate_RejectsANewCodeThatDoesNotStartWithTheCodeOfItsParent`، `testInstall_StartsTheCodeOfEveryAccountWithTheCodeOfItsParent`، و`ChartCodeHierarchyMigrationTest` (8): الرموز الجديدة، الحسابات الفرعية، نقل الأرصدة الافتتاحية، **تطابق لقطة الأرصدة قبل وبعد لكل حساب وفرع**، لا رمز يتغير خارج المستهدف، التعارض، التكرار، و`down` يعيد كل شيء مع تطابق اللقطة.
+- **الاختبارات المتأثرة:** 228 اختباراً و1224 تحققاً؛ بعد تحديث أربعة اختبارات كانت تثبّت الرموز القديمة.
+
+### تشغيل مجموعة الاختبارات الكاملة في نهاية التصحيحات
+
+المجموعة الكاملة 23,556 اختباراً. بدأ تشغيلها محلياً بعد A4 ولم تنتهِ وقت كتابة هذا السطر؛ تُسجَّل النتيجة هنا عند اكتمالها. حتى ذلك الحين، المثبت هو نتائج الاختبارات المتأثرة المذكورة مع كل بند.
+
+**إخفاق قائم لا علاقة له بالتصحيحات:** `ReceivingTest::testCreateTempTable_ReadsTheReceivingsOfADayWithoutWaitingForAPurchaseThatIsBeingSaved` يفشل محلياً على MariaDB 10.11. يختبر قراءة تقرير أثناء حفظ غير ملتزم على اتصال آخر، ولا يمر بأي كود غُيّر هنا. لم أستطع تأكيد أنه كان يفشل قبل التصحيحات على قاعدة نظيفة.
+
+### ما يلزم المالك قبل تشغيل الهجرات على نسخة من قاعدته
+
+1. لقطة قبل: `accounting:books_snapshot … --all-companies`.
+2. تشغيل الهجرات الثلاث الجديدة.
+3. لقطة بعد ثم `accounting:books_compare`: المتوقع صفر فروق.
+4. مراجعة `accounting:report_presumed_paid_purchases` و`accounting:reclassify_purchase_costs` (بلا `--post`).
+5. `accounting:readiness --json` للفحوص الأشمل القائمة.
+
+### ما أُجّل
+
+- T-AN-03 (افتراضي إذن الإضافة) إلى المرحلة C، وT-AN-07 (الخزينة السالبة) إلى المرحلة B، كما في الخطة.
+- اختبارات T-01 وT-03 إلى T-11 بأسمائها لم تُكتب كمجموعة مستقلة: T-02 وT-18 وT-AN-01/02/04/05 أُضيفت مع بنودها، والباقي مغطى باختبارات قائمة بأسماء أخرى ويُحصر مع مولّد T-PM في A1 إلى A3.
+- تحديث فحص التوازن في نموذج القيد بالمتصفح (A6).
