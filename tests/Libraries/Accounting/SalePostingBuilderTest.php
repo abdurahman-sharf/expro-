@@ -1045,11 +1045,15 @@ use ItemFixtureTrait;
         $this->assertNull($this->builder->cost($this->sale([$this->line('1', '100', cost: '40')], delivered: false), 1));
     }
 
-    public function testCost_PostsNothingWhenTheCostOfSalesRowIsCancelled(): void
+    public function testCostPlan_PostsTheCostToTheAccountOfTheChartAndKeepsTheMovementsWhenTheCostOfSalesRowSetsNone(): void
     {
         $this->setRouting(RoutingKey::CostOfGoodsSold, RoutingType::Cancelled);
 
-        $this->assertNull($this->builder->cost($this->sale([$this->line('1', '100', cost: '40')]), 1));
+        $plan = $this->builder->costPlan($this->sale([$this->line('1', '100', cost: '40')]), 1);
+
+        $this->assertSame([$this->accountId('cogs') . ':40.00:0.00', $this->locationAccount() . ':0.00:40.00'], $this->shape($plan->journal));
+        $this->assertCount(1, $plan->movements);
+        $this->assertSame(['-1.000', '-40.0000'], [$plan->movements[0]->quantity, $plan->movements[0]->value]);
     }
 
     public function testCost_TakesAReturnedItemBackAtTheCostOfTheOriginalSale(): void

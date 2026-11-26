@@ -23,6 +23,7 @@ use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\ReturnOverride;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
+use App\Libraries\Accounting\OpeningStock;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Accounting\StockLedger;
@@ -1071,6 +1072,24 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '2', '50', '20.00')], [], [$this->payment(lang('Sales.cash'), '60.00')], SALE_TYPE_POS, null));
         $this->assertSame($sales, $this->countSales());
         $this->assertSame(PostingError::CreditNeedsCustomer, $this->failure()->error);
+    }
+
+    public function testPostCompleted_PostsTheCostOfStockSoldRightAfterItsOpeningBalanceInTheSameSaveAndTheStockTies(): void
+    {
+        $itemId = $this->item('60.00');
+        $this->putOnShelf($itemId, '10');
+        (new OpeningStock())->post([self::LOCATION_ID], null);
+
+        $saleId = $this->save([$this->line($itemId, 1, '2', '100', '60')]);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame([$this->accountId('cogs') . ':120.00:0.00', $this->stockAccount() . ':0.00:120.00'], $this->standing($saleId, 'cogs')[0]['lines']);
+        $this->assertSame(['quantity' => '8.000', 'value' => '480.0000'], (new StockLedger())->position($itemId, self::LOCATION_ID));
+        $this->assertSame([], (new StockLedger())->mismatchedJournals());
+
+        foreach ((new StockLedger())->reconcile([self::LOCATION_ID]) as $location) {
+            $this->assertSame(['480.0000', '0.0000'], [$location['account_balance'], $location['unattributed']]);
+        }
     }
 
     public function testPostCompleted_RunAgainWritesNothingMore(): void

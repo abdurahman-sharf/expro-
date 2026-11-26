@@ -157,8 +157,7 @@ final class SalePostingBuilder
 
     /**
      * The cost of the goods that left (or, for a return, came back), or null when there is
-     * none to post: the sale has not been delivered, the cost of sales row is cancelled, or the
-     * goods cost nothing.
+     * none to post: the sale has not been delivered, or the goods cost nothing.
      *
      * @throws PostingException
      */
@@ -169,9 +168,8 @@ final class SalePostingBuilder
 
     /**
      * The cost journal of a sale with the stock movements that give it its stock lines. The
-     * movements are empty when nothing is posted: the sale has not been delivered, or the cost
-     * of sales row is cancelled, so that no stock reaches the books without its journal. Goods
-     * that cost nothing are movements without a journal.
+     * movements are empty while the sale has not been delivered, so that the goods and their cost
+     * move together. Goods that cost nothing are movements without a journal.
      *
      * @throws PostingException
      */
@@ -183,11 +181,9 @@ final class SalePostingBuilder
             return new StockPostingPlan(null, []);
         }
 
-        $cogs = $this->resolver->accountFor(RoutingKey::CostOfGoodsSold);
-
-        if ($cogs === null) {
-            return new StockPostingPlan(null, []);
-        }
+        // A cost of sales row that names no account sets nothing of its own, so the cost goes to the
+        // account the chart opened for it: goods never leave the stock without their cost.
+        $cogs = $this->resolver->accountFor(RoutingKey::CostOfGoodsSold) ?? $this->resolver->systemAccount((string) RoutingKey::CostOfGoodsSold->defaultSystemKey());
 
         $movements  = [];
         $byLocation = [];
