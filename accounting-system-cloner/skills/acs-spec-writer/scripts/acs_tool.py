@@ -14,6 +14,10 @@ Standard library only. Subcommands:
   urlcheck  Allowlist check before any GET / fetch: allowed only for known read patterns.
   urlrules  Print the same rules as JavaScript (--format js) or self-test Python vs JS on a case file.
   scrub     Scan the deliverables for privacy / credential / brand / raw-artifact leaks.
+  mark      Record that a screen was verified visually / how it was extracted.
+  lint      Warn about leftover stubs, phase-table drift and module-table drift.
+  expected-tb  Expected trial balance by account role from the tested scenario cells.
+  package   Zip the project for hand-over without _private/.
   uiscaffold  Write a ui/screens/<module>/<screen>.map.md skeleton listing every spec element.
   uicheck     Compare every spec screen with its UI map; write ui/coverage.md; fail on gaps.
   uicontrast  Check WCAG contrast of ui/tokens.json contrast_pairs (light and dark).
@@ -72,8 +76,16 @@ MATRIX_STATUSES = {"tested", "untested", "blocked"}
 # layer that also applies to allowlisted URLs. A denylist alone can never be complete (hide, suspend, pin...).
 URL_RULES = {
     "prefixes": ["owner", "admin", "app", "portal", "panel", "backend", "v1", "v2", "v3", "ar", "en"],
-    "allow_leaf": ["index", "list", "view", "show", "details", "add", "new", "create", "edit", "preview", "print",
-                   "search"],
+    "allow_leaf": ["index", "list", "view", "show", "details", "add", "edit", "preview", "print", "search",
+                   "statement", "templates", "dashboard", "settings"],
+    "create_leaf": ["create", "new"],
+    "create_contexts": ["nav", "toolbar"],
+    "generator_segments": ["custom_data", "local_entities", "builder", "generate", "init", "setup", "install",
+                           "entity"],
+    "read_form_leaf": ["sell", "write_off", "re_evaluate", "revaluate", "dispose", "depreciate"],
+    "allow_leaf_prefix": ["add_"],
+    "allow_leaf_suffix": ["_settings"],
+    "context_leaf_prefix": ["edit_"],
     "allow_container": ["settings", "report", "reports", "dashboard"],
     "view_edit_leaf": ["view", "show", "details", "edit"],
     "deny_verbs": [
@@ -94,18 +106,27 @@ URL_RULES = {
                     "branch", "level"],
     "deny_params": ["action", "do", "op", "method", "_method", "cmd", "task", "act", "operation", "execute"],
     "download_ext": ["xlsx", "xls", "csv", "pdf", "zip", "xml", "doc", "docx"],
+    "inline_preview_ext": ["pdf"],
     "label_deny": ["حذف", "إلغاء", "إقفال", "قفل", "فتح", "ترحيل", "اعتماد", "إرسال", "تفعيل", "تعطيل", "تنفيذ",
                    "معالجة", "تأكيد", "رفض", "عكس", "مزامنة", "أرشفة", "إخفاء", "تعليق", "استعادة", "نسخ", "تحويل",
                    "تعيين", "تثبيت", "تصدير", "استيراد", "خروج", "إعادة حساب", "إعادة ضبط", "إعادة فتح",
-                   "تحديث الأرصدة", "دمج",
+                   "تحديث الأرصدة", "دمج", "تكهين", "إعادة تقييم", "إهلاك", "إصدار", "تسوية",
                    "delete", "remove", "cancel", "void", "close", "post", "approve", "reject", "send", "sync",
                    "enable", "disable", "activate", "deactivate", "hide", "suspend", "archive", "lock", "unlock",
                    "restore", "duplicate", "copy", "convert", "assign", "pin", "recalculate", "export", "import",
                    "logout", "sign out", "log out", "confirm", "run", "merge"],
+    "label_imperative": ["فعل", "عطل", "ارسل", "اصدر", "اعتمد", "رحل", "الغ", "احذف", "امسح", "انسخ", "اقفل",
+                         "استورد", "زامن", "ادفع", "سدد", "حول", "ارجع", "كهن", "بع", "قيم", "نفذ", "اكد", "ارفض"],
+    "label_imperative_phrases": ["افتح الفترة", "اقفل الفترة"],
+    "label_deny_asset": ["بيع"],
+    "label_read": ["عرض", "طباعة", "معاينة", "تقرير", "إعدادات", "تفاصيل", "view", "print", "preview", "report",
+                   "settings", "details", "statement"],
+    "label_read_phrases": ["كشف حساب"],
     "label_logout": ["خروج", "logout", "sign out", "log out"],
     "label_view_edit": ["عرض", "تعديل", "تفاصيل", "معاينة", "view", "edit", "details", "show", "preview"],
     "contexts": ["nav", "list-row", "toolbar", "actions-menu", "iframe"],
     "confirming_contexts": ["nav", "list-row", "iframe"],
+    "label_confirming_contexts": ["toolbar"],
 }
 STATUS_BEGIN = "<!-- ACS:STATUS:BEGIN -->"
 STATUS_END = "<!-- ACS:STATUS:END -->"
@@ -143,15 +164,16 @@ def project_path(args) -> Path:
 def cmd_init(args) -> None:
     if args.mode == "sandbox" and not args.sandbox_confirmed_at:
         sys.exit("error: --mode sandbox requires --sandbox-confirmed-at (the user's explicit confirmation time)")
-    real_name = (args.real_product_name or "").strip()
-    placeholder = norm_label_text(real_name) in ("", norm_label_text("النظام المرجعي"), "reference system", "the reference system")
-    if placeholder:
-        print("warning: --real-product-name is empty or the neutral label. It must be the REAL product name of the "
-              "system being studied (kept in _private/ only, used by scrub to make sure it never leaks). "
-              "No brand check will run until it is set in _private/project.json.", file=sys.stderr)
-        real_name = ""
+    display_name = (args.display_name or "النظام المرجعي").strip()
+    real_name = (args.private_name or "").strip()
+    if real_name and norm_label_text(real_name) == norm_label_text(display_name):
+        sys.exit("error: --private-name equals --display-name. --private-name is the REAL product name of the system "
+                 "being studied (kept in _private/ only); --display-name is the neutral label used in the outputs.")
+    if not real_name:
+        print("warning: --private-name not given. scrub cannot check that the real product name stays out of the "
+              "deliverables until it is set in _private/project.json (system_name_private).", file=sys.stderr)
     if not args.slug and not real_name:
-        sys.exit("error: pass --slug (a neutral folder name) when --real-product-name is not given")
+        sys.exit("error: pass --slug (a neutral folder name) when --private-name is not given")
     slug = slugify(args.slug or real_name)
     root = Path(args.root).resolve() / f"{slug}-spec"
     if (root / "progress.md").exists() and not args.force:
@@ -165,7 +187,7 @@ def cmd_init(args) -> None:
     config = {
         "schema_version": 1,
         "created_at": now(),
-        "system_label": "النظام المرجعي",
+        "system_label": display_name,
         "system_name_private": real_name or None,
         "base_url": args.url,
         "demo_environment": args.demo,
@@ -178,7 +200,7 @@ def cmd_init(args) -> None:
         "mode": args.mode,
         "sandbox_confirmed_at": args.sandbox_confirmed_at,
         "test_prefix": args.test_prefix,
-        "identity": {"terms": [], "colors": [],
+        "identity": {"terms": [real_name] if real_name else [], "colors": [],
                      "note": "Reference-system identity (name, wordmark, distinctive labels, brand hex colours) - "
                              "recorded by acs-explorer for scrub only; never copied into deliverables or ui/."},
         "note": "Never store usernames, passwords, OTP codes, cookies or tokens in this project.",
@@ -305,7 +327,7 @@ def _is_id(seg: str) -> bool:
     return bool(re.fullmatch(r"\d+|\{[^}]*\}|:[a-z_]+|[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}", seg))
 
 
-def url_decision(url: str, label: str = "", context: str = "") -> dict:
+def url_decision(url: str, label: str = "", context: str = "", read_form: bool = False) -> dict:
     """Allowlist-first decision. Mirrored exactly by the JavaScript printed by `urlrules --format js`."""
     r = URL_RULES
     deny_verbs, nounish = set(r["deny_verbs"]), set(r["nounish_verbs"])
@@ -313,13 +335,20 @@ def url_decision(url: str, label: str = "", context: str = "") -> dict:
     rest = re.sub(r"^[a-z][a-z0-9+.-]*://[^/?#]*", "", (url or "").strip(), flags=re.I)
     rest = rest.split("#")[0]
     path, _, query = rest.partition("?")
-    segs = [x for x in path.lower().split("/") if x]
+    segs = [re.sub(r":\d+$", "", x) for x in path.lower().split("/") if x]
 
     def out(allowed, reason, matched=None):
         return {"url": url, "allowed": allowed, "reason": reason, "matched": matched or []}
 
-    if segs and "." in segs[-1] and segs[-1].rsplit(".", 1)[1] in r["download_ext"]:
-        return out(False, "download", [segs[-1].rsplit(".", 1)[1]])
+    inline_preview = False
+    if segs and "." in segs[-1]:
+        ext = segs[-1].rsplit(".", 1)[1]
+        if ext in r["download_ext"]:
+            if ext in r["inline_preview_ext"] and context == "iframe":
+                inline_preview = True
+                segs[-1] = segs[-1].rsplit(".", 1)[0]
+            else:
+                return out(False, "download", [ext])
     for pair in [x for x in query.split("&") if x]:
         key = pair.split("=")[0].lower()
         base = key.split("[")[0]
@@ -347,28 +376,62 @@ def url_decision(url: str, label: str = "", context: str = "") -> dict:
                 hits += [t for t in tokens if t in strong]
     if hits:
         return out(False, "action-verb", hits)
+    leaf = core[-1] if core else ""
+    if leaf in r["read_form_leaf"]:
+        if context == "actions-menu" and read_form:
+            return out(True, "read-form:" + leaf)
+        return out(False, "read-form-required", [leaf])
     lab = norm_label_text(label)
     if lab:
         words = _label_words(lab)
-        if context == "nav":
-            logout = [norm_label_text(w) for w in r["label_logout"]]
-            verbs = [norm_label_text(w) for w in r["label_deny"]]
-            stripped = re.sub(r"\s+(الان|now)$", "", lab)
-            if stripped in verbs or any(w in lab for w in logout):
+        first = words[0] if words else ""
+        read_words = [norm_label_text(w) for w in r["label_read"]]
+        is_read = first in read_words or any(lab.startswith(norm_label_text(ph)) for ph in r["label_read_phrases"])
+        if not is_read:
+            if first in r["label_imperative"] or any(lab.startswith(norm_label_text(ph))
+                                                     for ph in r["label_imperative_phrases"]):
                 return out(False, "label-verb", [label])
-        else:
-            for raw in r["label_deny"]:
-                verb = norm_label_text(raw)
-                if (" " in verb and verb in lab) or (" " not in verb and verb in words):
-                    return out(False, "label-verb", [raw])
+            if context == "nav":
+                logout = [norm_label_text(w) for w in r["label_logout"]]
+                verbs = [norm_label_text(w) for w in r["label_deny"]]
+                stripped = re.sub(r"\s+(الان|now)$", "", lab)
+                if stripped in verbs or any(w in lab for w in logout):
+                    return out(False, "label-verb", [label])
+            else:
+                for raw in r["label_deny"]:
+                    verb = norm_label_text(raw)
+                    if (" " in verb and verb in lab) or (" " not in verb and verb in words):
+                        return out(False, "label-verb", [raw])
+                if any(seg.startswith("asset") for seg in core):
+                    for raw in r["label_deny_asset"]:
+                        if norm_label_text(raw) in words:
+                            return out(False, "label-verb", [raw])
+    if leaf in r["create_leaf"]:
+        gen = [seg for seg in core[:-1] if seg in r["generator_segments"]]
+        if gen:
+            return out(False, "create-may-write", gen)
+        if context not in r["create_contexts"]:
+            return out(False, "create-may-write", [leaf])
+        return out(True, "leaf:" + leaf)
     noprefix = list(core)
     while noprefix and noprefix[0] in r["prefixes"]:
         noprefix.pop(0)
     pattern = None
-    if not core:
+    edit_like = any(leaf.startswith(pre) for pre in r["context_leaf_prefix"])
+    if inline_preview:
+        pattern = "inline-preview"
+    elif not core:
         pattern = "root"
-    elif core[-1] in r["allow_leaf"]:
-        pattern = "leaf:" + core[-1]
+    elif leaf in r["allow_leaf"]:
+        pattern = "leaf:" + leaf
+    elif any(leaf.startswith(pre) for pre in r["allow_leaf_prefix"]):
+        pattern = "leaf:add_*"
+    elif any(leaf.endswith(suf) for suf in r["allow_leaf_suffix"]):
+        pattern = "leaf:*_settings"
+    elif edit_like:
+        if not context:
+            return out(False, "context-required", [leaf])
+        pattern = "leaf:edit_*"
     elif "api" in noprefix[:2]:
         pattern = "api"
     elif noprefix and noprefix[0] in r["allow_container"] and len(noprefix) <= 2:
@@ -377,12 +440,12 @@ def url_decision(url: str, label: str = "", context: str = "") -> dict:
         pattern = "entity-id"
     if context == "actions-menu":
         view_edit = [norm_label_text(w) for w in r["label_view_edit"]]
-        ok = pattern is not None and ((core and core[-1] in r["view_edit_leaf"]) or
+        ok = pattern is not None and (leaf in r["view_edit_leaf"] or edit_like or
                                       any(w in view_edit for w in _label_words(lab)))
         return out(ok, pattern if ok else "actions-menu")
     if pattern:
         return out(True, pattern)
-    if context in r["confirming_contexts"]:
+    if context in r["confirming_contexts"] or (context in r["label_confirming_contexts"] and lab):
         return out(True, "context-confirmed")
     return out(False, "unknown-pattern")
 
@@ -398,38 +461,52 @@ URL_NOTES = {
     "action-verb": "رابط إجراء — لا تطلبه أبداً، ولا حتى بـ GET.",
     "label-verb": "نص الرابط فعل تنفيذي — الرفض نهائي حتى لو بدا المسار آمناً.",
     "actions-menu": "عنصر في قائمة إجراءات/⋯ — لا يُفتح منها إلا «عرض» و«تعديل» المطابقان لنمط قراءة.",
+    "create-may-write": "روابط create/new قد تُنشئ سجلاً أو تعريف كيان عند GET — مرفوض. يُقبل فقط كرابط ظاهر في القائمة "
+                        "الرئيسية أو شريط الأدوات (--context nav|toolbar) وخارج مسارات توليد الكيانات.",
+    "read-form-required": "نموذج عملية (بيع/تكهين/إعادة تقييم أصل) — يُقرأ فقط مع --context actions-menu --read-form، ولا يُحفظ.",
+    "context-required": "نموذج edit_* — أعد الفحص مع --context يحدد أين ظهر الرابط.",
     "unknown-pattern": "لا يطابق أي نمط قراءة معروف — مرفوض افتراضياً. إن كان رابط تنقّل ظاهراً في القائمة الرئيسية "
                        "أو رابط السجل في صف قائمة فأعد الفحص بـ --context nav أو list-row؛ وإلا سجّله سؤالاً مفتوحاً.",
     "context-confirmed": "نمط غير معروف لكن سياقه رابط تنقّل مؤكد — افتحه بالنقر عليه في الواجهة.",
+    "leaf:create": "قد يُنشئ سجلاً عند GET — افتحه بالنقر في الواجهة لا بـ fetch.",
+    "leaf:new": "قد يُنشئ سجلاً عند GET — افتحه بالنقر في الواجهة لا بـ fetch.",
+    "inline-preview": "معاينة PDF داخل إطار — للعرض فقط، لا تحفظ الملف.",
 }
 
 
 def cmd_urlcheck(args) -> None:
-    d = url_decision(args.url, args.label or "", args.context or "")
-    d["note"] = URL_NOTES.get(d["reason"], "نمط قراءة معروف — مسموح بطلب GET.")
+    d = url_decision(args.url, args.label or "", args.context or "", bool(args.read_form))
+    if d["reason"].startswith("read-form:"):
+        d["note"] = "نموذج يُقرأ فقط — لا تحفظه ولا تؤكد العملية."
+    else:
+        d["note"] = URL_NOTES.get(d["reason"], "نمط قراءة معروف — مسموح بطلب GET.")
     print(json.dumps(d, ensure_ascii=False))
     sys.exit(0 if d["allowed"] else 1)
 
 
 JS_TEMPLATE = r"""// generated by `acs_tool.py urlrules --format js` - do not edit; same rules as `acs_tool.py urlcheck`
 const ACS_URL_RULES = __RULES__;
-function acsUrlCheck(url, label = "", context = "") {
+function acsUrlCheck(url, label = "", context = "", readForm = false) {
   const r = ACS_URL_RULES;
   const denyVerbs = new Set(r.deny_verbs), nounish = new Set(r.nounish_verbs);
   const strong = new Set(r.deny_verbs.filter(v => !nounish.has(v)));
-  const norm = t => { t = (t || "").replace(/[ً-ْـ]/g, "");
-    t = t.replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه"); return t.replace(/\s+/g, " ").trim().toLowerCase(); };
-  const labelWords = l => { const w = l.split(/[^0-9a-z؀-ۿ]+/).filter(Boolean);
-    return w.concat(w.filter(x => x.startsWith("ال") && x.length > 3).map(x => x.slice(2))); };
+  const norm = t => { t = (t || "").replace(/[\u064B-\u0652\u0640]/g, "");
+    t = t.replace(/[\u0623\u0625\u0622]/g, "\u0627").replace(/\u0649/g, "\u064A").replace(/\u0629/g, "\u0647"); return t.replace(/\s+/g, " ").trim().toLowerCase(); };
+  const labelWords = l => { const w = l.split(/[^0-9a-z\u0600-\u06FF]+/).filter(Boolean);
+    return w.concat(w.filter(x => x.startsWith("\u0627\u0644") && x.length > 3).map(x => x.slice(2))); };
   const isId = s => /^(\d+|\{[^}]*\}|:[a-z_]+|[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12})$/.test(s);
   const out = (allowed, reason, matched) => ({ url, allowed, reason, matched: matched || [] });
   let rest = (url || "").trim().replace(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i, "").split("#")[0];
   const qi = rest.indexOf("?");
   const path = qi < 0 ? rest : rest.slice(0, qi), query = qi < 0 ? "" : rest.slice(qi + 1);
-  const segs = path.toLowerCase().split("/").filter(Boolean);
+  const segs = path.toLowerCase().split("/").filter(Boolean).map(x => x.replace(/:\d+$/, ""));
+  let inlinePreview = false;
   if (segs.length && segs[segs.length - 1].includes(".")) {
-    const ext = segs[segs.length - 1].split(".").pop();
-    if (r.download_ext.includes(ext)) return out(false, "download", [ext]);
+    const lastSeg = segs[segs.length - 1], cut = lastSeg.lastIndexOf("."), ext = lastSeg.slice(cut + 1);
+    if (r.download_ext.includes(ext)) {
+      if (r.inline_preview_ext.includes(ext) && context === "iframe") { inlinePreview = true; segs[segs.length - 1] = lastSeg.slice(0, cut); }
+      else return out(false, "download", [ext]);
+    }
   }
   for (const pair of query.split("&").filter(Boolean)) {
     const key = pair.split("=")[0].toLowerCase(), base = key.split("[")[0];
@@ -449,33 +526,56 @@ function acsUrlCheck(url, label = "", context = "") {
     }
   });
   if (hits.length) return out(false, "action-verb", hits);
+  const leaf = core.length ? core[core.length - 1] : "";
+  if (r.read_form_leaf.includes(leaf)) {
+    if (context === "actions-menu" && readForm) return out(true, "read-form:" + leaf);
+    return out(false, "read-form-required", [leaf]);
+  }
   const lab = norm(label);
   if (lab) {
-    const words = labelWords(lab);
-    if (context === "nav") {
-      const logout = r.label_logout.map(norm), verbs = r.label_deny.map(norm);
-      const stripped = lab.replace(/\s+(الان|now)$/, "");
-      if (verbs.includes(stripped) || logout.some(w => lab.includes(w))) return out(false, "label-verb", [label]);
-    } else {
-      for (const raw of r.label_deny) { const verb = norm(raw);
-        if ((verb.includes(" ") && lab.includes(verb)) || (!verb.includes(" ") && words.includes(verb))) return out(false, "label-verb", [raw]); }
+    const words = labelWords(lab), first = words.length ? words[0] : "";
+    const isRead = r.label_read.map(norm).includes(first) || r.label_read_phrases.some(ph => lab.startsWith(norm(ph)));
+    if (!isRead) {
+      if (r.label_imperative.includes(first) || r.label_imperative_phrases.some(ph => lab.startsWith(norm(ph)))) return out(false, "label-verb", [label]);
+      if (context === "nav") {
+        const logout = r.label_logout.map(norm), verbs = r.label_deny.map(norm);
+        const stripped = lab.replace(/\s+(\u0627\u0644\u0627\u0646|now)$/, "");
+        if (verbs.includes(stripped) || logout.some(w => lab.includes(w))) return out(false, "label-verb", [label]);
+      } else {
+        for (const raw of r.label_deny) { const verb = norm(raw);
+          if ((verb.includes(" ") && lab.includes(verb)) || (!verb.includes(" ") && words.includes(verb))) return out(false, "label-verb", [raw]); }
+        if (core.some(seg => seg.startsWith("asset"))) {
+          for (const raw of r.label_deny_asset) if (words.includes(norm(raw))) return out(false, "label-verb", [raw]);
+        }
+      }
     }
+  }
+  if (r.create_leaf.includes(leaf)) {
+    const gen = core.slice(0, -1).filter(seg => r.generator_segments.includes(seg));
+    if (gen.length) return out(false, "create-may-write", gen);
+    if (!r.create_contexts.includes(context)) return out(false, "create-may-write", [leaf]);
+    return out(true, "leaf:" + leaf);
   }
   const noprefix = core.slice();
   while (noprefix.length && r.prefixes.includes(noprefix[0])) noprefix.shift();
   let pattern = null;
-  if (!core.length) pattern = "root";
-  else if (r.allow_leaf.includes(core[core.length - 1])) pattern = "leaf:" + core[core.length - 1];
+  const editLike = r.context_leaf_prefix.some(pre => leaf.startsWith(pre));
+  if (inlinePreview) pattern = "inline-preview";
+  else if (!core.length) pattern = "root";
+  else if (r.allow_leaf.includes(leaf)) pattern = "leaf:" + leaf;
+  else if (r.allow_leaf_prefix.some(pre => leaf.startsWith(pre))) pattern = "leaf:add_*";
+  else if (r.allow_leaf_suffix.some(suf => leaf.endsWith(suf))) pattern = "leaf:*_settings";
+  else if (editLike) { if (!context) return out(false, "context-required", [leaf]); pattern = "leaf:edit_*"; }
   else if (noprefix.slice(0, 2).includes("api")) pattern = "api";
   else if (noprefix.length && r.allow_container.includes(noprefix[0]) && noprefix.length <= 2) pattern = "container:" + noprefix[0];
   else if (hadId && noprefix.length === 1) pattern = "entity-id";
   if (context === "actions-menu") {
     const viewEdit = r.label_view_edit.map(norm);
-    const ok = pattern !== null && ((core.length && r.view_edit_leaf.includes(core[core.length - 1])) || labelWords(lab).some(w => viewEdit.includes(w)));
+    const ok = pattern !== null && (r.view_edit_leaf.includes(leaf) || editLike || labelWords(lab).some(w => viewEdit.includes(w)));
     return out(ok, ok ? pattern : "actions-menu");
   }
   if (pattern) return out(true, pattern);
-  if (r.confirming_contexts.includes(context)) return out(true, "context-confirmed");
+  if (r.confirming_contexts.includes(context) || (r.label_confirming_contexts.includes(context) && lab)) return out(true, "context-confirmed");
   return out(false, "unknown-pattern");
 }
 """
@@ -495,11 +595,11 @@ def cmd_urlrules(args) -> None:
     cases = json.loads(Path(args.cases).read_text(encoding="utf-8"))
     import shutil
     import subprocess
-    py = [url_decision(c["url"], c.get("label", ""), c.get("context", "")) for c in cases]
+    py = [url_decision(c["url"], c.get("label", ""), c.get("context", ""), bool(c.get("read_form"))) for c in cases]
     js = None
     if shutil.which("node"):
         script = url_rules_js() + "\nconst cases = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));\n" \
-            "console.log(JSON.stringify(cases.map(c => acsUrlCheck(c.url, c.label || '', c.context || ''))));"
+            "console.log(JSON.stringify(cases.map(c => acsUrlCheck(c.url, c.label || '', c.context || '', !!c.read_form))));"
         res = subprocess.run(["node", "-e", script, args.cases], capture_output=True, text=True)
         js = json.loads(res.stdout) if res.returncode == 0 else None
         if js is None:
@@ -508,6 +608,9 @@ def cmd_urlrules(args) -> None:
     for i, c in enumerate(cases):
         row = {"url": c["url"], "label": c.get("label", ""), "context": c.get("context", ""),
                "allowed": py[i]["allowed"], "reason": py[i]["reason"]}
+        if "expect_reason" in c and c["expect_reason"] != py[i]["reason"]:
+            row["mismatch_expected_reason"] = c["expect_reason"]
+            bad += 1
         if "expect" in c and c["expect"] != py[i]["allowed"]:
             row["mismatch_expected"] = c["expect"]
             bad += 1
@@ -545,10 +648,29 @@ def ledger_count(root: Path) -> int:
     return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if re.match(r"\|\s*TR-\d+", line))
 
 
+def normalize_tr(ref: str) -> str:
+    m = re.match(r"TR-0*(\d+)", ref)
+    return f"TR-{int(m.group(1))}" if m else ref
+
+
+def expand_record_refs(text: str) -> list[str]:
+    """`TR-003`, `TR-3, TR-5`, `TR-003..TR-006` or `TR-3..6` -> normalised ids."""
+    out = []
+    for a, b in re.findall(r"TR-0*(\d+)\s*(?:\.\.|–|—|-|إلى)\s*(?:TR-)?0*(\d+)", text):
+        out += [f"TR-{n}" for n in range(int(a), int(b) + 1)]
+    text = re.sub(r"TR-0*\d+\s*(?:\.\.|–|—|-|إلى)\s*(?:TR-)?0*\d+", " ", text)
+    out += [normalize_tr(x) for x in re.findall(r"TR-\d+", text)]
+    return sorted(set(out), key=lambda x: int(x[3:]))
+
+
 def cmd_matrix(args) -> None:
     root = project_path(args)
     cells = load_matrix(root).get("cells", [])
     errors = []
+    ledger = root / "11-test-records-ledger.md"
+    ledger_ids = {normalize_tr(x) for x in re.findall(r"TR-\d+", ledger.read_text(encoding="utf-8"))} if ledger.exists() else set()
+    rules = root / "04-business-rules.md"
+    anomaly_heads = set(re.findall(r"^#{2,4}\s*(AN-\d+)", rules.read_text(encoding="utf-8"), re.M)) if rules.exists() else set()
     for c in cells:
         if c.get("status") not in MATRIX_STATUSES:
             errors.append(f"{c.get('id')}: status must be one of {sorted(MATRIX_STATUSES)}")
@@ -558,6 +680,12 @@ def cmd_matrix(args) -> None:
             errors.append(f"{c.get('id')}: tested cells need actual_entry")
         if c.get("diff") and not c.get("anomaly_ref"):
             errors.append(f"{c.get('id')}: has a diff but no anomaly_ref - add it to the anomalies section of 04-business-rules.md")
+        for tr in expand_record_refs(str(c.get("test_record") or "")):
+            if tr not in ledger_ids:
+                errors.append(f"{c.get('id')}: test_record {tr} is not in 11-test-records-ledger.md")
+        for an in re.findall(r"AN-\d+", str(c.get("anomaly_ref") or "")):
+            if an not in anomaly_heads:
+                errors.append(f"{c.get('id')}: anomaly_ref {an} has no `### {an}` heading in 04-business-rules.md")
     print(json.dumps({**matrix_stats(root), "test_records": ledger_count(root), "errors": errors},
                      ensure_ascii=False, indent=2))
     sys.exit(1 if errors else 0)
@@ -567,6 +695,7 @@ def cmd_validate(args) -> None:
     root = project_path(args)
     warnings: list[str] = []
     errors = validate_sitemap(load_json(root / "01-sitemap.json"), warnings)
+    warnings += lint_project(root)
     print(json.dumps({"valid": not errors, "errors": errors, "warnings": warnings}, ensure_ascii=False, indent=2))
     sys.exit(1 if errors else 0)
 
@@ -585,6 +714,189 @@ def read_front_matter(path: Path) -> dict:
             key, _, value = line.partition(":")
             data[key.strip()] = value.strip().strip('"').strip("'") or None
     return data
+
+
+MODULES_BEGIN = "<!-- ACS:MODULES:BEGIN -->"
+MODULES_END = "<!-- ACS:MODULES:END -->"
+
+
+def module_counts(module: dict) -> dict:
+    screens = [sc for sec in module.get("sections", []) for sc in sec.get("screens", [])]
+    return {"total": len(screens), "in_scope": sum(1 for sc in screens if sc.get("status") != "skipped"),
+            "studied": sum(1 for sc in screens if sc.get("status") in ("done", "partial"))}
+
+
+def regenerate_modules_table(root: Path, sitemap: dict) -> bool:
+    path = root / "01-modules.md"
+    if not path.exists():
+        return False
+    text = path.read_text(encoding="utf-8")
+    if MODULES_BEGIN not in text or MODULES_END not in text:
+        return False
+    rows = ["| الوحدة | الحالة | التصنيف | الشاشات | ضمن النطاق | مدروسة |", "|---|---|---|---|---|---|"]
+    for m in module_order(sitemap):
+        c = module_counts(m)
+        state = "معطّل" if m.get("enabled") is False else "مفعّل"
+        rows.append(f"| {m['name']} (`{m['id']}`) | {state} | {m.get('category') or '—'} | {c['total']} | "
+                    f"{c['in_scope']} | {c['studied']} |")
+    head, _, rest = text.partition(MODULES_BEGIN)
+    _, _, tail = rest.partition(MODULES_END)
+    new = head + MODULES_BEGIN + "\n" + "\n".join(rows) + "\n" + MODULES_END + tail
+    if new != text:
+        path.write_text(new, encoding="utf-8")
+    return True
+
+
+PHASE_FILES = {
+    "1": ["01-sitemap.md"], "1.5": ["01-modules.md", "01-api-map.md"],
+    "3": ["03-data-model.md", "03-erd.mmd", "03-schema.sql"], "4": ["04-business-rules.md"],
+    "5": ["05-roles-permissions.md"], "6": ["06-reports.md"],
+    "7": ["00-executive-summary.md", "04b-posting-matrix.md", "07-ux-guidelines.md", "08-build-brief.md",
+          "09-open-questions.md", "10-coverage-report.md"],
+}
+
+
+def is_stub(path: Path) -> bool:
+    if not path.exists():
+        return True
+    text = path.read_text(encoding="utf-8", errors="replace")
+    return "<!-- stub" in text or "-- stub" in text or text.strip() in ("", "erDiagram")
+
+
+def phase_states(root: Path) -> dict:
+    states = {}
+    for line in (root / "progress.md").read_text(encoding="utf-8").splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) >= 4 and re.fullmatch(r"\d+(\.\d+)?", cells[0]):
+            status = cells[3]
+            states[cells[0]] = "done" if "✅" in status else "not_started" if ("⬜" in status or "لم تبدأ" in status) else "other"
+    return states
+
+
+def lint_project(root: Path) -> list[str]:
+    warnings = []
+    states = phase_states(root)
+    for phase, files in PHASE_FILES.items():
+        for name in files:
+            path = root / name
+            if states.get(phase) == "done" and path.exists() and is_stub(path):
+                warnings.append(f"{name}: المرحلة {phase} معلّمة ✅ والملف ما زال stub.")
+            if states.get(phase) == "not_started" and path.exists() and not is_stub(path) and path.stat().st_size > 200:
+                warnings.append(f"{name}: الملف مكتوب لكن جدول progress.md يقول إن المرحلة {phase} لم تبدأ — حدّث الجدول.")
+    mods = root / "01-modules.md"
+    sitemap_path = root / "01-sitemap.json"
+    if mods.exists() and sitemap_path.exists() and not is_stub(mods):
+        text = mods.read_text(encoding="utf-8")
+        sitemap = load_json(sitemap_path)
+        if MODULES_BEGIN not in text:
+            header = next((ln for ln in text.splitlines() if ln.strip().startswith("|") and "ضمن النطاق" in ln), None)
+            if header:
+                cols = [c.strip() for c in header.strip().strip("|").split("|")]
+                idx = next(i for i, c in enumerate(cols) if "ضمن النطاق" in c)
+                for m in sitemap.get("modules", []):
+                    for ln in text.splitlines():
+                        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+                        if ln.strip().startswith("|") and len(cells) > idx and m["name"] in cells[0]:
+                            found = re.search(r"\d+", cells[idx])
+                            actual = module_counts(m)["in_scope"]
+                            if found and int(found.group(0)) != actual:
+                                warnings.append(f"01-modules.md: الوحدة «{m['name']}» مكتوب «ضمن النطاق» {found.group(0)} "
+                                                f"والخريطة تقول {actual} — أضف العلامتين {MODULES_BEGIN} / {MODULES_END} "
+                                                f"ليولّد sync الجدول.")
+                            break
+    return warnings
+
+
+def cmd_lint(args) -> None:
+    root = project_path(args)
+    warnings = lint_project(root)
+    print(json.dumps({"warnings": warnings, "count": len(warnings)}, ensure_ascii=False, indent=2))
+    sys.exit(1 if warnings and args.strict else 0)
+
+
+def cmd_mark(args) -> None:
+    root = project_path(args)
+    path = root / "01-sitemap.json"
+    sitemap = load_json(path)
+    hit = next((sc for _, _, sc in iter_screens(sitemap) if sc.get("id") == args.screen_id), None)
+    if hit is None:
+        sys.exit(f"error: screen `{args.screen_id}` is not in 01-sitemap.json")
+    if args.visual:
+        hit["visual_check"] = True
+    if args.no_visual:
+        hit["visual_check"] = False
+    if args.extraction:
+        hit["extraction"] = args.extraction
+    if args.rendering:
+        hit["rendering"] = args.rendering
+    save_json(path, sitemap)
+    print(json.dumps({"screen": hit["id"], "visual_check": hit.get("visual_check"), "extraction": hit.get("extraction"),
+                      "rendering": hit.get("rendering")}, ensure_ascii=False))
+
+
+def cmd_expected_tb(args) -> None:
+    """Expected balances per account role from the tested cells' actual_entry lines (numeric amounts only)."""
+    root = project_path(args)
+    totals, skipped, used = {}, [], 0
+    for c in load_matrix(root).get("cells", []):
+        if c.get("status") != "tested":
+            continue
+        for line in c.get("actual_entry") or []:
+            if not isinstance(line, dict):
+                continue
+            amount = line.get("amount_value", line.get("amount"))
+            try:
+                value = float(str(amount).replace(",", ""))
+            except (TypeError, ValueError):
+                skipped.append(f"{c.get('id')}: {line.get('role')} amount={amount!r}")
+                continue
+            role = str(line.get("role") or line.get("account") or "?")
+            side = str(line.get("side") or "").lower()
+            t = totals.setdefault(role, {"debit": 0.0, "credit": 0.0})
+            if side in ("debit", "dr", "مدين"):
+                t["debit"] += value
+            elif side in ("credit", "cr", "دائن"):
+                t["credit"] += value
+            else:
+                skipped.append(f"{c.get('id')}: {role} side={side!r}")
+                continue
+            used += 1
+    rows = [{"role": r, "debit": round(v["debit"], 2), "credit": round(v["credit"], 2),
+             "balance": round(v["debit"] - v["credit"], 2)} for r, v in sorted(totals.items())]
+    total_d, total_c = round(sum(r["debit"] for r in rows), 2), round(sum(r["credit"] for r in rows), 2)
+    result = {"lines_used": used, "lines_skipped": skipped, "total_debit": total_d, "total_credit": total_c,
+              "balanced": abs(total_d - total_c) < 0.005, "rows": rows,
+              "note": "أرصدة متوقعة من قيود الخلايا المختبرة فقط (السجلات التجريبية) — قارنها بحركة الفترة في ميزان المراجعة، "
+                      "لا بأرصدة تشمل بيانات سابقة."}
+    if args.write:
+        lines = ["# ميزان المراجعة المتوقع من الخلايا المختبرة", "", f"_وُلّد بـ `acs_tool.py expected-tb` في {now()}._", "",
+                 "| الدور | مدين | دائن | الرصيد (مدين − دائن) |", "|---|---|---|---|"]
+        lines += [f"| `{r['role']}` | {r['debit']:.2f} | {r['credit']:.2f} | {r['balance']:.2f} |" for r in rows]
+        lines += [f"| **الإجمالي** | **{total_d:.2f}** | **{total_c:.2f}** | {'متوازن' if result['balanced'] else 'غير متوازن'} |", "",
+                  f"أسطر مستخدمة: {used} · أسطر بلا مبلغ رقمي (تُضاف لها `amount_value`): {len(skipped)}"]
+        (root / "04c-expected-trial-balance.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        result["written"] = "04c-expected-trial-balance.md"
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def cmd_package(args) -> None:
+    import zipfile
+    root = project_path(args)
+    out = Path(args.out).resolve() if args.out else root.parent / f"{root.name}.zip"
+    count = 0
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
+        for path in sorted(root.rglob("*")):
+            rel = path.relative_to(root)
+            if not path.is_file() or "_private" in rel.parts or "__pycache__" in rel.parts or path.resolve() == out:
+                continue
+            zf.write(path, (Path(root.name) / rel).as_posix())
+            count += 1
+    with zipfile.ZipFile(out) as zf:
+        leaked = [n for n in zf.namelist() if "_private" in n.split("/")]
+    if leaked:
+        out.unlink()
+        sys.exit(f"error: archive contained _private entries and was removed: {leaked[:3]}")
+    print(json.dumps({"archive": str(out), "files": count, "contains_private": False}, ensure_ascii=False))
 
 
 def sync(root: Path) -> dict:
@@ -624,6 +936,7 @@ def sync(root: Path) -> dict:
                     "notes": f"أُضيفت تلقائياً من ملف شاشة (الوحدة المعلنة: {o['module']})"})
     sitemap["generated_at"] = sitemap.get("generated_at") or now()
     sitemap["synced_at"] = now()
+    regenerate_modules_table(root, sitemap)
     save_json(sitemap_path, sitemap)
     return {"updated": updated, "orphans": orphans}
 
@@ -684,6 +997,59 @@ def pct(part: int, whole: int) -> str:
     return f"{(100.0 * part / whole):.1f}%" if whole else "0.0%"
 
 
+def screen_has_test_record(root: Path, sc: dict) -> bool:
+    """A screen whose spec file cites a test record (TR-xxx) was driven through its form, i.e. seen."""
+    f = sc.get("file")
+    if not f or not (root / f).exists():
+        return False
+    return bool(re.search(r"TR-\d+", (root / f).read_text(encoding="utf-8", errors="replace")))
+
+
+MAIN_DOCUMENTS = {
+    "sales_invoice": "فاتورة بيع", "purchase_invoice": "فاتورة شراء", "receipt": "سند قبض", "payment": "سند صرف",
+    "sales_return": "مرتجع مبيعات", "purchase_return": "مرتجع مشتريات", "credit_note": "إشعار دائن",
+    "debit_note": "إشعار مدين", "fixed_asset": "أصل ثابت", "stock_count": "جرد", "treasury_transfer": "تحويل بين الخزائن",
+    "opening_balance": "رصيد افتتاحي", "manual_journal": "قيد يدوي",
+}
+
+
+def gap_rows(root: Path, sitemap: dict, st: dict) -> list[tuple[str, str]]:
+    rows = []
+    for m in sitemap.get("modules", []):
+        if m.get("enabled") is False:
+            rows.append((f"وحدة معطّلة: {m['name']}", "وحدة معطّلة"))
+    for m, _, sc in iter_screens(sitemap):
+        if sc.get("status") == "partial":
+            kind = "تقرير جزئي" if sc.get("type") == "report" else "شاشة جزئية"
+            rows.append((f"{kind}: {sc['name']} (`{sc['id']}`)", kind))
+    cells = load_matrix(root).get("cells", [])
+    for c in cells:
+        if c.get("status") in ("untested", "blocked"):
+            rows.append((f"خلية {c.get('id')} ({c.get('document')}) — {c.get('status')}", "خلية غير مختبرة"))
+    seen_docs = {str(c.get("document")) for c in cells}
+    if cells:
+        for key, name in MAIN_DOCUMENTS.items():
+            if key not in seen_docs:
+                rows.append((f"مستند بلا خلايا: {name} (`{key}`)", "مستند بلا خلايا"))
+    return rows
+
+
+GAP_HEADING = "## أثر الفجوات على البناء"
+
+
+def existing_gap_answers(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding="utf-8")
+    if GAP_HEADING not in text:
+        return {}
+    answers = {}
+    for row in table_rows(text.split(GAP_HEADING, 1)[1]):
+        if len(row) >= 4 and (row[2] or row[3]):
+            answers[row[0]] = (row[2], row[3])
+    return answers
+
+
 def cmd_coverage(args) -> None:
     root = project_path(args)
     sync(root)
@@ -699,6 +1065,9 @@ def cmd_coverage(args) -> None:
         "coverage_full": pct(t["done"], t["total"]),
         "coverage_any": pct(t["done"] + t["partial"], t["total"]),
         "coverage_in_scope": pct(t["done"] + t["partial"], t["total"] - out_of_scope),
+        "headline": "coverage_full",
+        "headline_text": f"كاملة {pct(t['done'], t['total'])} · كاملة+جزئية {pct(t['done'] + t['partial'], t['total'])} · "
+                         f"داخل النطاق {pct(t['done'] + t['partial'], t['total'] - out_of_scope)}",
     }
     mods = sitemap.get("modules", [])
     disabled = [m for m in mods if m.get("enabled") is False]
@@ -709,7 +1078,8 @@ def cmd_coverage(args) -> None:
                                             for sec in m.get("sections", []) for sc in sec.get("screens", []))]
     summary["module_coverage"] = pct(len(studied_modules), len(mods))
     fetch_only = [(m["name"], sc) for m, _, sc in iter_screens(sitemap)
-                  if sc.get("extraction") == "fetch" and not sc.get("visual_check")]
+                  if sc.get("extraction") == "fetch" and not sc.get("visual_check")
+                  and not screen_has_test_record(root, sc)]
     summary["fetch_only_screens"] = len(fetch_only)
     mstats = matrix_stats(root)
     summary["matrix"] = {k: mstats[k] for k in ("total", "tested", "untested", "blocked", "diffs")}
@@ -720,6 +1090,7 @@ def cmd_coverage(args) -> None:
             "## الملخص", "",
             "| المؤشر | القيمة |", "|---|---|",
             f"| إجمالي الشاشات في الخريطة | {t['total']} |",
+            f"| **التغطية الكاملة (العنوان)** | **{summary['coverage_full']}** ({t['done']} شاشة) |",
             f"| مدروسة بالكامل | {t['done']} ({summary['coverage_full']}) |",
             f"| مدروسة جزئياً | {t['partial']} |",
             f"| التغطية (كاملة + جزئية) | {summary['coverage_any']} |",
@@ -771,6 +1142,16 @@ def cmd_coverage(args) -> None:
             lines.append("لا يوجد." if mstats["total"] else "لم تُبنَ مصفوفة اختبار (وضع القراءة فقط أو لم تُنفَّذ المرحلة 4.5).")
         lines += ["", "## شاشات قُرئت بالاستخراج السريع (fetch) دون تحقق بصري", ""]
         lines += ([f"- {mn}: {sc['name']} (`{sc['id']}`)" for mn, sc in fetch_only] or ["لا يوجد."])
+        answers = existing_gap_answers(root / "10-coverage-report.md")
+        lines += ["", GAP_HEADING, "",
+                  "سطر لكل فجوة (يولَّد تلقائياً). املأ العمودين الأخيرين؛ ما تكتبه يُحفظ عند إعادة التوليد.", "",
+                  "| الفجوة | النوع | المرحلة المتأثرة في الـ Build Brief | التوصية |", "|---|---|---|---|"]
+        gaps = gap_rows(root, sitemap, st)
+        for gap, kind in gaps:
+            phase, advice = answers.get(gap, ("", ""))
+            lines.append(f"| {gap} | {kind} | {phase} | {advice} |")
+        if not gaps:
+            lines.append("| لا فجوات | — | — | — |")
         (root / "10-coverage-report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
         summary["written"] = "10-coverage-report.md"
     print(json.dumps(summary, ensure_ascii=False, indent=2))
@@ -784,9 +1165,14 @@ def cmd_progress(args) -> None:
     sitemap = load_json(root / "01-sitemap.json")
     st = coverage_stats(sitemap)
     t = st["total"]
-    block = [STATUS_BEGIN, f"### حالة الشاشات (آخر تحديث {now()})", "",
-             f"الإجمالي {t['total']} · كاملة {t['done']} · جزئية {t['partial']} · متخطّاة {t['skipped']} · "
-             f"متبقية {t['pending'] + t['in_progress']} · التغطية {pct(t['done'] + t['partial'], t['total'])}", "",
+    oos = sum(1 for _, sc in st["skipped"] if "النطاق" in (sc.get("skip_reason") or "")
+              or "out of scope" in (sc.get("skip_reason") or "").lower())
+    headline = (f"كاملة {pct(t['done'], t['total'])} · كاملة+جزئية {pct(t['done'] + t['partial'], t['total'])} · "
+                f"داخل النطاق {pct(t['done'] + t['partial'], t['total'] - oos)}")
+    block = [STATUS_BEGIN, f"**التغطية: {headline}**", "",
+             f"### حالة الشاشات (آخر تحديث {now()})", "",
+             f"الإجمالي {t['total']} · كاملة {t['done']} · جزئية {t['partial']} (قُرئت جزئياً، مثل تقرير قُرئت فلاتره فقط) · "
+             f"متخطّاة {t['skipped']} · متبقية {t['pending'] + t['in_progress']}", "",
              "| الوحدة | الإجمالي | منجز | متبقٍ |", "|---|---|---|---|"]
     for module, s in st["modules"]:
         block.append(f"| {module['name']} (`{module['id']}`) | {s['total']} | "
@@ -825,8 +1211,10 @@ def cmd_progress(args) -> None:
     else:
         text = text.rstrip() + "\n\n" + "\n".join(block) + "\n"
     path.write_text(text, encoding="utf-8")
-    print(json.dumps({"updated": "progress.md", "coverage": pct(t["done"] + t["partial"], t["total"])},
-                     ensure_ascii=False))
+    print(json.dumps({"updated": "progress.md", "headline": "coverage_full", "coverage": pct(t["done"], t["total"]),
+                      "coverage_full": pct(t["done"], t["total"]),
+                      "coverage_any": pct(t["done"] + t["partial"], t["total"]),
+                      "coverage_in_scope": pct(t["done"] + t["partial"], t["total"] - oos)}, ensure_ascii=False))
 
 
 def cmd_log(args) -> None:
@@ -1225,11 +1613,14 @@ def main() -> None:
 
     p = sub.add_parser("init", help="create the spec project folder")
     p.add_argument("--root", default=".", help="parent directory for <slug>-spec/")
-    p.add_argument("--real-product-name", "--system-name", dest="real_product_name", default="",
-                   help="the REAL product name of the reference system (e.g. the vendor's brand). Stored only in "
-                        "_private/project.json so scrub can verify it never appears in deliverables. NOT the label "
-                        "used in the outputs (that is always «النظام المرجعي»). --system-name is a deprecated alias.")
-    p.add_argument("--slug", help="folder slug; defaults to a slug of --real-product-name. Use a neutral codename "
+    p.add_argument("--private-name", "--real-product-name", "--system-name", dest="private_name", default="",
+                   help="the REAL product name of the reference system. Written only to _private/project.json and "
+                        "added to the identity terms so scrub can verify it never appears in deliverables. "
+                        "(--real-product-name and --system-name are deprecated aliases.)")
+    p.add_argument("--display-name", default="النظام المرجعي",
+                   help="neutral label used for the system in every output (default «النظام المرجعي»). scrub always "
+                        "ignores it. Must differ from --private-name.")
+    p.add_argument("--slug", help="folder slug; defaults to a slug of --private-name. Use a neutral codename "
                                   "if the folder will be shared with the implementing agent.")
     p.add_argument("--url", default=None)
     p.add_argument("--demo", default="غير معروف")
@@ -1275,6 +1666,9 @@ def main() -> None:
     p.add_argument("--context", default="", choices=["", *URL_RULES["contexts"]],
                    help="where the link appeared: nav (main menu), list-row (a record's own link in a list), "
                         "toolbar, actions-menu (an actions / ⋯ menu, or next to a delete icon), iframe")
+    p.add_argument("--read-form", action="store_true",
+                   help="with --context actions-menu: open an asset-operation form (sell, write_off, re_evaluate) "
+                        "to READ its fields only; it is never saved")
     p.set_defaults(func=cmd_urlcheck)
 
     p = sub.add_parser("urlrules", help="print the URL rules as JS/JSON, or self-test Python vs JS on a case file")
@@ -1296,6 +1690,30 @@ def main() -> None:
     p = sub.add_parser("uicontrast", help="WCAG contrast of ui/tokens.json")
     p.add_argument("--project", default=".")
     p.set_defaults(func=cmd_uicontrast)
+
+    p = sub.add_parser("mark", help="record visual verification / extraction mode of a screen")
+    p.add_argument("--project", default=".")
+    p.add_argument("screen_id")
+    p.add_argument("--visual", action="store_true", help="the screen was seen in the browser (screenshot or form use)")
+    p.add_argument("--no-visual", action="store_true")
+    p.add_argument("--extraction", choices=["fetch", "browse"])
+    p.add_argument("--rendering", choices=sorted(RENDERINGS))
+    p.set_defaults(func=cmd_mark)
+
+    p = sub.add_parser("lint", help="warn about stubs left in finished phases, phase-table and module-table drift")
+    p.add_argument("--project", default=".")
+    p.add_argument("--strict", action="store_true", help="exit 1 when there are warnings")
+    p.set_defaults(func=cmd_lint)
+
+    p = sub.add_parser("expected-tb", help="expected trial balance by role from tested scenario cells")
+    p.add_argument("--project", default=".")
+    p.add_argument("--write", action="store_true", help="also write 04c-expected-trial-balance.md")
+    p.set_defaults(func=cmd_expected_tb)
+
+    p = sub.add_parser("package", help="zip the project for hand-over, excluding _private/")
+    p.add_argument("--project", default=".")
+    p.add_argument("--out", default=None)
+    p.set_defaults(func=cmd_package)
 
     p = sub.add_parser("log", help="append to the progress log")
     p.add_argument("--project", default=".")

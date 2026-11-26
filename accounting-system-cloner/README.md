@@ -43,7 +43,7 @@ HTML لكل شاشة مع ملف ربط يثبت أن كل حقل وإجراء �
 
 موجود في `scripts/` لكل سكيل (مكتبة Python القياسية فقط):
 `init` · `validate` · `sync` · `next` · `progress` · `log` · `coverage --write` · `matrix` · `urlcheck` · `scrub` ·
-`uiscaffold` · `uicheck` · `uicontrast`. ومعه في `acs-ui-designer/scripts/ui_kit.py`: `init` · `tokens` · `lint` · `index`.
+`mark` · `lint` · `expected-tb` · `package` · `urlrules` · `uiscaffold` · `uicheck` · `uicontrast`. ومعه في `acs-ui-designer/scripts/ui_kit.py`: `init` · `tokens` · `lint` · `index`.
 `scrub` يفحص المخرجات بحثاً عن بريد، IBAN، أرقام ضريبية غير مموّهة، هواتف، رموز جلسة، بيانات دخول، واسم المنتج/نطاقه.
 
 ## هيكل المستودع
