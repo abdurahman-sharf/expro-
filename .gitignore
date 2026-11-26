@@ -96,3 +96,6 @@ auth.json
 # Backups made by tools/ops/backup.sh
 /backups/
 /state-after-failed-release/
+
+# The functional spec package is kept outside git (ACS_SPEC_DIR points at it)
+/ledger-x-spec/
