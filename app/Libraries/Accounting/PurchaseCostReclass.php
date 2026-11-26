@@ -73,7 +73,8 @@ final class PurchaseCostReclass
 
     /**
      * What is still to move for each branch: what the journals of the open year put on the cost of
-     * sales, less what was moved already.
+     * sales, less what journals dated in that year moved already. What was moved in an earlier year
+     * belongs to the purchases of that year and takes nothing off this one.
      *
      * @return array<int, numeric-string>
      */
@@ -87,11 +88,19 @@ final class PurchaseCostReclass
             }
         }
 
+        $year = $this->openYear($today);
+
+        if ($year === null) {
+            return [];
+        }
+
         $moved = $this->db->table('accounting_journals j')
             ->select('j.branch_id, SUM(j.total_debit) AS amount', false)
             ->where('j.company_id', CompanyContext::id())
             ->where('j.source_type', self::SOURCE)
             ->where('j.status', JournalStatus::Posted->value)
+            ->where('j.journal_date >=', $year['start'])
+            ->where('j.journal_date <=', $year['end'])
             ->groupBy('j.branch_id')
             ->get()
             ->getResult();
@@ -108,13 +117,14 @@ final class PurchaseCostReclass
     }
 
     /**
-     * Posts, dated today, one journal for each branch that still has something to move.
+     * Posts, dated today, one journal for each branch that still has something to move, in the name of
+     * the employee who asked for it, and writes each in the audit log.
      *
      * @return array<int, int> The journal posted for each branch.
      *
      * @throws AccountingException|PostingException
      */
-    public function post(string $today, ?int $employeeId): array
+    public function post(string $today, int $employeeId): array
     {
         $posting  = new PostingService($this->db);
         $journals = new DocumentJournals($this->db);
@@ -141,6 +151,8 @@ final class PurchaseCostReclass
                     description: 'Purchases not kept in stock moved from the cost of sales',
                     branchId: $branchId,
                 ))->journalId;
+
+                (new AuditLog($this->db))->write('journal', $posted[$branchId], 'purchase_costs_reclassified', $employeeId, JournalOrigin::User, ['amount' => $amount, 'from_account_id' => $cost, 'to_account_id' => $purchases], $branchId);
             }
 
             return $posted;

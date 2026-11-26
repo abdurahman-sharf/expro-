@@ -148,4 +148,38 @@ class PurchaseCostReclassTest extends CIUnitTestCase
 
         $this->assertSame(['0.00', '95.00'], [$this->balanceOf('cogs'), $this->balanceOf('purchases')]);
     }
+
+    public function testPending_IsNotLoweredByWhatAJournalDatedInAnEarlierYearMoved(): void
+    {
+        $lastYear = date('Y-m-d', strtotime($this->today . ' -1 year'));
+
+        (new PostingService())->post(new JournalDraft(
+            date: $lastYear,
+            lines: [new JournalLineDraft($this->accountId('purchases'), debit: '60.00'), new JournalLineDraft($this->accountId('cogs'), credit: '60.00')],
+            sourceType: PurchaseCostReclass::SOURCE,
+            sourceId: 1,
+            revision: 1,
+            employeeId: 1,
+            branchId: 1,
+        ));
+
+        $this->purchaseOnTheCostOfSales('80.00');
+
+        $this->assertSame([1 => '80.0000'], $this->reclass->pending($this->today));
+    }
+
+    public function testPost_WritesTheEmployeeOnTheJournalAndInTheAuditLog(): void
+    {
+        $this->purchaseOnTheCostOfSales('80.00');
+
+        $journalId = $this->reclass->post($this->today, 1)[1];
+
+        $journal = $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->get()->getRow();
+        $audit   = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'journal', 'entity_id' => $journalId, 'action' => 'purchase_costs_reclassified'])->get()->getRow();
+
+        $this->assertSame(['1', '1', 'user'], [(string) $journal->created_by, (string) $journal->posted_by, $journal->origin]);
+        $this->assertNotNull($audit);
+        $this->assertSame('1', (string) $audit->employee_id);
+        $this->assertSame('80.0000', json_decode((string) $audit->details, true)['amount']);
+    }
 }

@@ -93,10 +93,22 @@ class AccountingReclassifyPurchaseCostsTest extends CIUnitTestCase
     {
         $this->purchaseOnTheCostOfSales('80.00');
 
-        $this->assertStringContainsString('Branch 1: journal ', $this->runReclass('--post'));
+        $this->assertStringContainsString('Branch 1: journal ', $this->runReclass('--post --employee 1'));
         $this->assertSame(1, $this->reclassJournals());
-        $this->assertStringContainsString('Nothing is pending in the fiscal year open today.', $this->runReclass('--post'));
+        $this->assertStringContainsString('Nothing is pending in the fiscal year open today.', $this->runReclass('--post --employee 1'));
         $this->assertSame(1, $this->reclassJournals());
+        $this->assertSame('1', (string) $this->accountingDb()->table('accounting_journals')->where('source_type', PurchaseCostReclass::SOURCE)->get()->getRow()->posted_by);
+    }
+
+    public function testRun_RequiresAnEmployeeThatExistsToPost(): void
+    {
+        $this->purchaseOnTheCostOfSales('80.00');
+
+        foreach (['--post', '--post --employee 0', '--post --employee 987654', '--post --employee abc'] as $arguments) {
+            $this->assertStringContainsString('Name the employee who posts the journal with --employee ID', $this->runReclass($arguments), $arguments);
+        }
+
+        $this->assertSame(0, $this->reclassJournals());
     }
 
     public function testRun_AcceptsBooksWhosePurchasesNeverTouchedTheCostOfSales(): void
