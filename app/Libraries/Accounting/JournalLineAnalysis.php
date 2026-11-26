@@ -85,7 +85,7 @@ final class JournalLineAnalysis
      */
     public function apply(int $lineId, LineAnalysis $analysis): void
     {
-        $this->db->table('accounting_journal_lines')->where('line_id', $lineId)->update(['cost_center_id' => $analysis->costCenterId]);
+        (new PostingService($this->db))->chargeLine($lineId, $analysis->costCenterId);
         $this->db->table('accounting_journal_line_distributions')->where('line_id', $lineId)->delete();
         $this->db->table('accounting_journal_line_meta')->where('line_id', $lineId)->delete();
         $this->write($lineId, $analysis);

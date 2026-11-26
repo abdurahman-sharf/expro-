@@ -206,7 +206,7 @@ final class YearEndClosing
                 $this->analysis->copy((int) $original->journal_id, $result->journalId);
             }
 
-            $this->db->table('accounting_journals')->where('journal_id', (int) $original->journal_id)->update(['status' => JournalStatus::Reversed->value]);
+            $this->posting->markReversed((int) $original->journal_id);
             $this->db->table('accounting_year_end_closings')->where('closing_id', $closingId)->update([
                 'status'              => 'reversed',
                 'active_key'          => null,

@@ -298,8 +298,8 @@ final class PostingService
         if (bccomp($totalDebit, $totalCredit, self::SCALE) !== 0) {
             throw new PostingException(
                 PostingError::Unbalanced,
-                "The journal is unbalanced: debit {$totalDebit}, credit {$totalCredit}.",
-                ['debit' => $totalDebit, 'credit' => $totalCredit],
+                'The journal is unbalanced by ' . ltrim(bcsub($totalDebit, $totalCredit, self::SCALE), '-') . ": debit {$totalDebit}, credit {$totalCredit}.",
+                ['debit' => $totalDebit, 'credit' => $totalCredit, 'difference' => ltrim(bcsub($totalDebit, $totalCredit, self::SCALE), '-')],
             );
         }
 
@@ -722,6 +722,205 @@ final class PostingService
         );
 
         return $result === false ? null : $result->getRow();
+    }
+
+    /**
+     * Keeps a manual journal as a draft: it has no number, is checked by nothing and reaches no
+     * balance until it is posted. With a journal id it replaces the header and the lines of that
+     * draft, and only of a draft.
+     *
+     * @param list<array<string, mixed>> $lines The lines as typed: line_no, account_id, description, debit, credit, cost_center_id.
+     *
+     * @throws PostingException
+     */
+    public function writeDraft(?int $journalId, int $branchId, string $date, string $description, string $currency, array $lines, ?int $employeeId): int
+    {
+        $debit  = bcadd('0', '0', self::SCALE);
+        $credit = $debit;
+
+        foreach ($lines as $line) {
+            $debit  = bcadd($debit, (string) $line['debit'], self::SCALE);
+            $credit = bcadd($credit, (string) $line['credit'], self::SCALE);
+        }
+
+        if ($journalId === null) {
+            $this->db->table('accounting_journals')->insert([
+                'company_id'    => CompanyContext::id(),
+                'branch_id'     => $branchId,
+                'series'        => 'manual',
+                'number'        => null,
+                'journal_date'  => $date,
+                'description'   => $description === '' ? null : $description,
+                'status'        => JournalStatus::Draft->value,
+                'source_type'   => JournalDraft::SOURCE_MANUAL,
+                'origin'        => JournalOrigin::User->value,
+                'currency_code' => $currency,
+                'total_debit'   => $debit,
+                'total_credit'  => $credit,
+                'created_by'    => $employeeId,
+            ]);
+
+            $journalId = (int) $this->db->insertID();
+        } else {
+            $this->assertDraft($journalId);
+
+            $this->db->table('accounting_journals')->where('journal_id', $journalId)->update([
+                'branch_id'    => $branchId,
+                'journal_date' => $date,
+                'description'  => $description === '' ? null : $description,
+                'total_debit'  => $debit,
+                'total_credit' => $credit,
+            ]);
+            $this->db->table('accounting_journal_lines')->where('journal_id', $journalId)->delete();
+        }
+
+        $this->writeLines($journalId, $lines);
+
+        return $journalId;
+    }
+
+    /**
+     * Removes a draft and its lines. A journal that was posted is never removed.
+     *
+     * @throws PostingException
+     */
+    public function deleteDraft(int $journalId): void
+    {
+        $this->assertDraft($journalId);
+
+        $this->db->table('accounting_journal_lines')->where('journal_id', $journalId)->delete();
+        $this->db->table('accounting_journals')->where('journal_id', $journalId)->delete();
+    }
+
+    /**
+     * Posts a stored draft as the journal given: it passes every check a new journal passes, takes
+     * the next number of the manual series, and its lines are replaced by the checked ones. The
+     * caller locks the draft in $lock, which runs after the period is held and before anything is
+     * written.
+     *
+     * @param callable(): mixed $lock
+     *
+     * @return array{lines: list<array<string, mixed>>, debit: string, credit: string, currency: string, rate: string, branch_id: int}
+     *
+     * @throws PostingException
+     */
+    public function postDraft(int $journalId, JournalDraft $draft, callable $lock): array
+    {
+        if ($draft->sourceType !== JournalDraft::SOURCE_MANUAL) {
+            throw new PostingException(PostingError::InvalidSource, 'Only a manual journal is kept as a draft.', ['source_type' => $draft->sourceType]);
+        }
+
+        $prepared = $this->validate($draft);
+
+        $this->periods->enforce($draft->date, $prepared['branch_id']);
+        $lock();
+        $this->assertDraft($journalId);
+
+        $this->db->table('accounting_journals')->where('journal_id', $journalId)->update([
+            'branch_id'     => $prepared['branch_id'],
+            'number'        => $this->numbering->nextManual(),
+            'journal_date'  => $draft->date,
+            'description'   => $draft->description === '' ? null : $draft->description,
+            'status'        => JournalStatus::Posted->value,
+            'currency_code' => $prepared['currency'],
+            'exchange_rate' => $prepared['rate'],
+            'total_debit'   => $prepared['debit'],
+            'total_credit'  => $prepared['credit'],
+            'posted_by'     => $draft->employeeId,
+            'posted_at'     => new RawSql('CURRENT_TIMESTAMP'),
+        ]);
+
+        $this->db->table('accounting_journal_lines')->where('journal_id', $journalId)->delete();
+        $this->writeLines($journalId, $prepared['lines']);
+
+        return $prepared;
+    }
+
+    /**
+     * Changes what a posted journal says without changing what it posts: the text of the journal and of
+     * its lines and where a line is charged. An amount, an account, a date, a number or a status given
+     * here is refused.
+     *
+     * @param array<string, mixed>             $journal Columns of the journal.
+     * @param array<int, array<string, mixed>> $lines   Columns of each line, by line id.
+     *
+     * @throws PostingException
+     */
+    public function writeDetails(int $journalId, array $journal, array $lines): void
+    {
+        foreach ([[$journal, ['description']], ...array_map(static fn (array $columns): array => [$columns, ['description', 'cost_center_id']], array_values($lines))] as [$columns, $allowed]) {
+            if (array_diff(array_keys($columns), $allowed) !== []) {
+                throw new PostingException(PostingError::WriteFailed, 'Only the text of a journal and where its lines are charged can be changed once it is posted.', ['columns' => array_keys($columns)]);
+            }
+        }
+
+        if ($journal !== []) {
+            $this->db->table('accounting_journals')->where('journal_id', $journalId)->update($journal);
+        }
+
+        foreach ($lines as $lineId => $columns) {
+            $this->db->table('accounting_journal_lines')->where('journal_id', $journalId)->where('line_id', $lineId)->update($columns);
+        }
+    }
+
+    /**
+     * Marks a posted journal as taken back by the journal that reverses it. Nothing it posted changes.
+     */
+    public function markReversed(int $journalId): void
+    {
+        $this->db->table('accounting_journals')
+            ->where('journal_id', $journalId)
+            ->where('status', JournalStatus::Posted->value)
+            ->update(['status' => JournalStatus::Reversed->value]);
+    }
+
+    /**
+     * Sets the single cost center a line is charged to, or none.
+     */
+    public function chargeLine(int $lineId, ?int $costCenterId): void
+    {
+        $this->db->table('accounting_journal_lines')->where('line_id', $lineId)->update(['cost_center_id' => $costCenterId]);
+    }
+
+    /**
+     * @throws PostingException
+     */
+    private function assertDraft(int $journalId): void
+    {
+        $journal = $this->db->table('accounting_journals')->select('status')->where('journal_id', $journalId)->get()->getRow();
+
+        if ($journal === null || $journal->status !== JournalStatus::Draft->value) {
+            throw new PostingException(PostingError::WriteFailed, "Journal {$journalId} is not a draft.", ['journal_id' => $journalId]);
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $lines
+     *
+     * @throws PostingException
+     */
+    private function writeLines(int $journalId, array $lines): void
+    {
+        $rows = [];
+
+        foreach (array_values($lines) as $index => $line) {
+            $rows[] = [
+                'journal_id'     => $journalId,
+                'line_no'        => $line['line_no'] ?? $index + 1,
+                'account_id'     => $line['account_id'],
+                'description'    => $line['description'] ?? null,
+                'debit'          => $line['debit'],
+                'credit'         => $line['credit'],
+                'cost_center_id' => $line['cost_center_id'] ?? null,
+                'party_type'     => $line['party_type'] ?? null,
+                'party_id'       => $line['party_id'] ?? null,
+                'is_auto_tax'    => $line['is_auto_tax'] ?? 0,
+            ];
+        }
+
+        if ($this->db->table('accounting_journal_lines')->insertBatch($rows) === false) {
+            throw new PostingException(PostingError::WriteFailed, 'The journal lines could not be written.');
+        }
     }
 
     /**

@@ -1731,4 +1731,196 @@ class PostingServiceTest extends CIUnitTestCase
         $db->table('accounting_cost_centers')->truncate();
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
     }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function typedLines(string $debit = '100.00', string $credit = '100.00'): array
+    {
+        return [
+            ['line_no' => 1, 'account_id' => $this->accountId('cash'), 'description' => null, 'debit' => $debit, 'credit' => '0', 'cost_center_id' => null],
+            ['line_no' => 2, 'account_id' => $this->accountId('sales_revenue'), 'description' => null, 'debit' => '0', 'credit' => $credit, 'cost_center_id' => null],
+        ];
+    }
+
+    private function manualDraft(string $amount = '100.00'): JournalDraft
+    {
+        return new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft($this->accountId('cash'), debit: $amount), new JournalLineDraft($this->accountId('sales_revenue'), credit: $amount)],
+            sourceType: JournalDraft::SOURCE_MANUAL,
+            origin: JournalOrigin::User,
+            employeeId: 1,
+        );
+    }
+
+    private function storedJournal(int $journalId): object
+    {
+        return $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->get()->getRow();
+    }
+
+    public function testWriteDraft_KeepsAnUnbalancedJournalWithoutANumberAndReplacesItsLines(): void
+    {
+        $journalId = $this->service->writeDraft(null, 1, '2026-10-21', 'Draft', 'SAR', $this->typedLines('100.00', '90.00'), 1);
+
+        $this->assertSame(['draft', null, '100.0000', '90.0000'], [$this->storedJournal($journalId)->status, $this->storedJournal($journalId)->number, $this->storedJournal($journalId)->total_debit, $this->storedJournal($journalId)->total_credit]);
+
+        $this->service->writeDraft($journalId, 1, '2026-10-22', '', 'SAR', $this->typedLines('40.00', '40.00'), 1);
+
+        $this->assertSame(['2026-10-22', '40.0000'], [$this->storedJournal($journalId)->journal_date, $this->storedJournal($journalId)->total_debit]);
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journalId)->countAllResults());
+    }
+
+    public function testWriteDraft_RejectsReplacingAJournalThatWasPosted(): void
+    {
+        $posted = $this->service->post($this->manualDraft())->journalId;
+
+        try {
+            $this->service->writeDraft($posted, 1, '2026-10-22', '', 'SAR', $this->typedLines('40.00', '40.00'), 1);
+            $this->fail('A posted journal was replaced.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::WriteFailed, $failure->error);
+        }
+
+        $this->assertSame('100.0000', $this->storedJournal($posted)->total_debit);
+    }
+
+    public function testDeleteDraft_RemovesADraftAndRejectsAPostedJournal(): void
+    {
+        $draftId = $this->service->writeDraft(null, 1, '2026-10-21', '', 'SAR', $this->typedLines(), 1);
+        $posted  = $this->service->post($this->manualDraft())->journalId;
+
+        $this->service->deleteDraft($draftId);
+
+        $this->assertNull($this->accountingDb()->table('accounting_journals')->where('journal_id', $draftId)->get()->getRow());
+
+        try {
+            $this->service->deleteDraft($posted);
+            $this->fail('A posted journal was deleted.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::WriteFailed, $failure->error);
+        }
+
+        $this->assertSame('posted', $this->storedJournal($posted)->status);
+    }
+
+    public function testPostDraft_ChecksTheJournalNumbersItAndReplacesTheLinesOfTheDraft(): void
+    {
+        $draftId = $this->service->writeDraft(null, 1, '2026-10-21', '', 'SAR', $this->typedLines('100.00', '90.00'), 1);
+        $locked  = false;
+
+        $this->service->postDraft($draftId, $this->manualDraft('75.00'), static function () use (&$locked): void {
+            $locked = true;
+        });
+
+        $journal = $this->storedJournal($draftId);
+
+        $this->assertTrue($locked);
+        $this->assertSame(['posted', '75.0000', '75.0000'], [$journal->status, $journal->total_debit, $journal->total_credit]);
+        $this->assertNotNull($journal->number);
+        $this->assertNotNull($journal->posted_at);
+    }
+
+    public function testPostDraft_RejectsAnUnbalancedJournalAndLeavesTheDraftAsItWas(): void
+    {
+        $draftId = $this->service->writeDraft(null, 1, '2026-10-21', '', 'SAR', $this->typedLines('100.00', '90.00'), 1);
+        $draft   = new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft($this->accountId('cash'), debit: '100.00'), new JournalLineDraft($this->accountId('sales_revenue'), credit: '90.00')],
+            sourceType: JournalDraft::SOURCE_MANUAL,
+            origin: JournalOrigin::User,
+            employeeId: 1,
+        );
+
+        try {
+            $this->service->postDraft($draftId, $draft, static fn (): bool => true);
+            $this->fail('An unbalanced journal was posted.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::Unbalanced, $failure->error);
+            $this->assertSame('10.0000', $failure->context['difference']);
+            $this->assertStringContainsString('by 10.0000', $failure->getMessage());
+        }
+
+        $this->assertSame(['draft', null], [$this->storedJournal($draftId)->status, $this->storedJournal($draftId)->number]);
+    }
+
+    public function testPostDraft_RejectsADateInAClosedPeriod(): void
+    {
+        $draftId = $this->service->writeDraft(null, 1, '2026-10-21', '', 'SAR', $this->typedLines(), 1);
+        $this->closeThrough('2026-10-31');
+
+        try {
+            $this->service->postDraft($draftId, $this->manualDraft(), static fn (): bool => true);
+            $this->fail('A journal was posted into a closed period.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::PeriodClosed, $failure->error);
+        }
+
+        $this->assertSame('draft', $this->storedJournal($draftId)->status);
+    }
+
+    public function testWriteDetails_ChangesTheTextOfAJournalAndRejectsAnAmount(): void
+    {
+        $posted = $this->service->post($this->manualDraft())->journalId;
+        $lineId = (int) $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $posted)->orderBy('line_no')->get()->getRow()->line_id;
+
+        $this->service->writeDetails($posted, ['description' => 'Rent'], [$lineId => ['description' => 'March']]);
+
+        $this->assertSame('Rent', $this->storedJournal($posted)->description);
+        $this->assertSame('March', $this->accountingDb()->table('accounting_journal_lines')->where('line_id', $lineId)->get()->getRow()->description);
+
+        try {
+            $this->service->writeDetails($posted, [], [$lineId => ['debit' => '5.00']]);
+            $this->fail('The amount of a posted line was changed.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::WriteFailed, $failure->error);
+        }
+
+        $this->assertSame('100.0000', $this->accountingDb()->table('accounting_journal_lines')->where('line_id', $lineId)->get()->getRow()->debit);
+    }
+
+    public function testMarkReversed_TurnsAPostedJournalAndLeavesADraftAlone(): void
+    {
+        $posted  = $this->service->post($this->manualDraft())->journalId;
+        $draftId = $this->service->writeDraft(null, 1, '2026-10-21', '', 'SAR', $this->typedLines(), 1);
+
+        $this->service->markReversed($posted);
+        $this->service->markReversed($draftId);
+
+        $this->assertSame(['reversed', 'draft'], [$this->storedJournal($posted)->status, $this->storedJournal($draftId)->status]);
+    }
+
+    public function testChargeLine_SetsTheCostCenterOfALineAndNothingElse(): void
+    {
+        $posted = $this->service->post($this->manualDraft())->journalId;
+        $line   = $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $posted)->orderBy('line_no')->get()->getRow();
+
+        $this->service->chargeLine((int) $line->line_id, null);
+
+        $after = $this->accountingDb()->table('accounting_journal_lines')->where('line_id', $line->line_id)->get()->getRow();
+
+        $this->assertSame([$line->debit, $line->credit, $line->account_id, null], [$after->debit, $after->credit, $after->account_id, $after->cost_center_id]);
+    }
+
+    public function testWrite_IsTheOnlyPlaceInTheApplicationThatWritesToTheJournalTables(): void
+    {
+        $writers = [];
+
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(APPPATH, FilesystemIterator::SKIP_DOTS)) as $file) {
+            $path = str_replace(APPPATH, '', $file->getPathname());
+
+            if ($file->getExtension() !== 'php' || str_starts_with($path, 'Database/Migrations/') || $path === 'Libraries/Accounting/PostingService.php') {
+                continue;
+            }
+
+            $source = (string) file_get_contents($file->getPathname());
+
+            if (preg_match("/table\\('accounting_journal(?:s|_lines)(?: [a-z]+)?'\\)(?:(?!;).)*?->(?:insert|insertBatch|update|updateBatch|delete|replace|upsert)\\(/s", $source) === 1
+                || preg_match('/(?:INSERT INTO|UPDATE|DELETE FROM)[^;]{0,200}accounting_journal(?:s|_lines)\b/s', $source) === 1) {
+                $writers[] = $path;
+            }
+        }
+
+        $this->assertSame([], $writers);
+    }
 }

@@ -11,7 +11,6 @@ use App\Libraries\Stock\StockPermitSources;
 use App\Libraries\Tax\AdvanceVat;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
-use CodeIgniter\Database\RawSql;
 use Config\Database;
 use DateTimeImmutable;
 
@@ -63,7 +62,6 @@ final class JournalService
     private AuditLog $audit;
     private AccountingGuard $guard;
     private PostingService $posting;
-    private JournalNumbering $numbering;
     private BranchGuard $branches;
     private PeriodGuard $periods;
     private JournalLineAnalysis $analysis;
@@ -71,15 +69,14 @@ final class JournalService
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?PostingService $posting = null, ?BranchGuard $branches = null)
     {
-        $this->db        = $db ?? Database::connect();
-        $this->audit     = new AuditLog($this->db);
-        $this->guard     = $guard ?? new AccountingGuard();
-        $this->posting   = $posting ?? new PostingService($this->db);
-        $this->numbering = new JournalNumbering($this->db);
-        $this->branches  = $branches ?? new BranchGuard($this->db);
-        $this->periods   = new PeriodGuard($this->db);
-        $this->settings  = new JournalSettings($this->db);
-        $this->analysis  = new JournalLineAnalysis($this->db, null, $this->settings);
+        $this->db       = $db ?? Database::connect();
+        $this->audit    = new AuditLog($this->db);
+        $this->guard    = $guard ?? new AccountingGuard();
+        $this->posting  = $posting ?? new PostingService($this->db);
+        $this->branches = $branches ?? new BranchGuard($this->db);
+        $this->periods  = new PeriodGuard($this->db);
+        $this->settings = new JournalSettings($this->db);
+        $this->analysis = new JournalLineAnalysis($this->db, null, $this->settings);
     }
 
     /**
@@ -111,44 +108,13 @@ final class JournalService
         }
 
         return $this->transactional(function () use ($journalId, $branchId, $date, $description, $lines, $currency, $employeeId): int {
-            $totals = $this->totals($lines);
-
-            if ($journalId === null) {
-                $this->db->table('accounting_journals')->insert([
-                    'company_id'    => CompanyContext::id(),
-                    'branch_id'     => $branchId,
-                    'series'        => 'manual',
-                    'number'        => null,
-                    'journal_date'  => $date,
-                    'description'   => $description === '' ? null : $description,
-                    'status'        => JournalStatus::Draft->value,
-                    'source_type'   => JournalDraft::SOURCE_MANUAL,
-                    'origin'        => JournalOrigin::User->value,
-                    'currency_code' => $currency,
-                    'total_debit'   => $totals[0],
-                    'total_credit'  => $totals[1],
-                    'created_by'    => $employeeId,
-                ]);
-
-                $id     = (int) $this->db->insertID();
-                $action = 'draft_created';
-            } else {
+            if ($journalId !== null) {
                 $this->lockDraft($journalId, $employeeId);
-
-                $this->db->table('accounting_journals')->where('journal_id', $journalId)->update([
-                    'branch_id'    => $branchId,
-                    'journal_date' => $date,
-                    'description'  => $description === '' ? null : $description,
-                    'total_debit'  => $totals[0],
-                    'total_credit' => $totals[1],
-                ]);
-                $this->db->table('accounting_journal_lines')->where('journal_id', $journalId)->delete();
-
-                $id     = $journalId;
-                $action = 'draft_updated';
             }
 
-            $this->insertLines($id, $lines);
+            $id     = $this->posting->writeDraft($journalId, $branchId, $date, $description, $currency, $lines, $employeeId);
+            $action = $journalId === null ? 'draft_created' : 'draft_updated';
+
             $this->analysis->store($id, $this->analysesOf($lines));
             $this->audit->write('journal', $id, $action, $employeeId, JournalOrigin::User, ['lines' => count($lines)], $branchId);
 
@@ -170,8 +136,7 @@ final class JournalService
             $draft = $this->lockDraft($journalId, $employeeId);
             $files = $attachments->purgeDraft($journalId, $employeeId, (int) $draft->branch_id);
 
-            $this->db->table('accounting_journal_lines')->where('journal_id', $journalId)->delete();
-            $this->db->table('accounting_journals')->where('journal_id', $journalId)->delete();
+            $this->posting->deleteDraft($journalId);
 
             $this->audit->write('journal', $journalId, 'draft_deleted', $employeeId, JournalOrigin::User, $files === [] ? [] : ['attachments' => count($files)], (int) $draft->branch_id);
         });
@@ -220,29 +185,13 @@ final class JournalService
 
         (new TreasuryScopes($this->db))->assertMayPost($draft->lines, $employeeId);
 
-        $prepared = $this->posting->validate($draft);
+        $this->posting->validate($draft);
+
         $analyses = $this->analysesOf($lines);
 
-        return $this->transactional(function () use ($journalId, $employeeId, $prepared, $date, $description, $analyses): int {
-            $this->periods->enforce($date, $prepared['branch_id']);
-            $this->lockDraft($journalId, $employeeId);
+        return $this->transactional(function () use ($journalId, $employeeId, $draft, $analyses): int {
+            $prepared = $this->posting->postDraft($journalId, $draft, fn (): object => $this->lockDraft($journalId, $employeeId));
 
-            $this->db->table('accounting_journals')->where('journal_id', $journalId)->update([
-                'branch_id'     => $prepared['branch_id'],
-                'number'        => $this->numbering->nextManual(),
-                'journal_date'  => $date,
-                'description'   => $description === '' ? null : $description,
-                'status'        => JournalStatus::Posted->value,
-                'currency_code' => $prepared['currency'],
-                'exchange_rate' => $prepared['rate'],
-                'total_debit'   => $prepared['debit'],
-                'total_credit'  => $prepared['credit'],
-                'posted_by'     => $employeeId,
-                'posted_at'     => new RawSql('CURRENT_TIMESTAMP'),
-            ]);
-
-            $this->db->table('accounting_journal_lines')->where('journal_id', $journalId)->delete();
-            $this->insertLines($journalId, $prepared['lines']);
             $this->analysis->store($journalId, $analyses);
 
             $this->audit->write('journal', $journalId, 'posted', $employeeId, JournalOrigin::User, [
@@ -357,13 +306,7 @@ final class JournalService
                 return false;
             }
 
-            if (isset($changes['journal'])) {
-                $this->db->table('accounting_journals')->where('journal_id', $journalId)->update($changes['journal']);
-            }
-
-            foreach ($changes['lines'] as $lineId => $columns) {
-                $this->db->table('accounting_journal_lines')->where('line_id', $lineId)->update($columns);
-            }
+            $this->posting->writeDetails($journalId, $changes['journal'] ?? [], $changes['lines']);
 
             foreach ($changes['analysis'] as $lineId => $analysis) {
                 $this->analysis->apply($lineId, $analysis);
@@ -626,9 +569,7 @@ final class JournalService
                 $this->analysis->copy($journalId, $result->journalId);
             }
 
-            $this->db->table('accounting_journals')
-                ->where('journal_id', $journalId)
-                ->update(['status' => JournalStatus::Reversed->value]);
+            $this->posting->markReversed($journalId);
 
             $this->audit->write('journal', $journalId, 'reversed', $employeeId, $origin, [
                 'reversal_id' => $result->journalId,
@@ -1272,51 +1213,6 @@ final class JournalService
         }
 
         return $expanded;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $lines
-     */
-    private function insertLines(int $journalId, array $lines): void
-    {
-        $rows = [];
-
-        foreach (array_values($lines) as $index => $line) {
-            $rows[] = [
-                'journal_id'     => $journalId,
-                'line_no'        => $line['line_no'] ?? $index + 1,
-                'account_id'     => $line['account_id'],
-                'description'    => $line['description'] ?? null,
-                'debit'          => $line['debit'],
-                'credit'         => $line['credit'],
-                'cost_center_id' => $line['cost_center_id'] ?? null,
-                'party_type'     => $line['party_type'] ?? null,
-                'party_id'       => $line['party_id'] ?? null,
-                'is_auto_tax'    => $line['is_auto_tax'] ?? 0,
-            ];
-        }
-
-        if ($this->db->table('accounting_journal_lines')->insertBatch($rows) === false) {
-            throw new AccountingException(AccountingError::WriteFailed, 'The journal lines could not be saved.');
-        }
-    }
-
-    /**
-     * @param list<array<string, mixed>> $lines
-     *
-     * @return array{0: string, 1: string}
-     */
-    private function totals(array $lines): array
-    {
-        $debit  = '0.0000';
-        $credit = '0.0000';
-
-        foreach ($lines as $line) {
-            $debit  = bcadd($debit, $line['debit'], 4);
-            $credit = bcadd($credit, $line['credit'], 4);
-        }
-
-        return [$debit, $credit];
     }
 
     /**
