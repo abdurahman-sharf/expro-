@@ -48,6 +48,17 @@ class DefaultChartTest extends CIUnitTestCase
         $this->assertSame([AccountType::Asset->value, NormalBalance::Debit->value], [$cashGap->account_type, $cashGap->normal_balance], 'The surplus and shortage of the till is an asset here and a credit in the reference chart (G-102)');
     }
 
+    public function testInstall_HoldsTheOpeningBalancesAmongTheCurrentLiabilitiesAndTheSuppliersUnderACodeTheirsDoesNotStartWith(): void
+    {
+        $db = $this->accountingDb();
+
+        $opening   = $db->table('accounting_accounts')->where('system_key', 'opening_balance')->get()->getRow();
+        $suppliers = $db->table('accounting_accounts')->where('system_key', 'payables')->get()->getRow();
+
+        $this->assertSame([AccountType::Liability->value, '214', '21'], [$opening->account_type, $opening->code, $db->table('accounting_accounts')->where('account_id', $opening->parent_id)->get()->getRow()->code]);
+        $this->assertSame(['2211', '211'], [$suppliers->code, $db->table('accounting_accounts')->where('account_id', $suppliers->parent_id)->get()->getRow()->code]);
+    }
+
     public function testInstall_DoesNothingWhenTheChartAlreadyHasAccounts(): void
     {
         $before = $this->countRows('accounting_accounts');

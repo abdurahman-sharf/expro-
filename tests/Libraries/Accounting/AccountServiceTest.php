@@ -94,6 +94,14 @@ class AccountServiceTest extends CIUnitTestCase
         $this->assertSame((string) $this->accountIdByCode('11'), (string) $account->parent_id);
     }
 
+    public function testCreate_AcceptsACodeThatDoesNotStartWithTheCodeOfItsParent(): void
+    {
+        $accountId = $this->service->create(['parent_id' => $this->accountIdByCode('11'), 'code' => '9990', 'name' => 'Petty cash']);
+
+        $this->assertSame('9990', $this->account($accountId)->code);
+        $this->assertSame((string) $this->accountIdByCode('11'), (string) $this->account($accountId)->parent_id);
+    }
+
     public function testCreate_DerivesTheDirectionFromTheTypeOfTheParent(): void
     {
         $revenue = $this->service->create(['parent_id' => $this->accountIdByCode('41'), 'code' => '4110', 'name' => 'Service revenue']);
