@@ -3,6 +3,7 @@
 namespace Tests\Database;
 
 use App\Database\Migrations\ChartCodeHierarchy;
+use App\Database\Migrations\InterBranchTransfers;
 use App\Libraries\Accounting\BooksSnapshot;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalDraft;
@@ -203,5 +204,39 @@ class ChartCodeHierarchyMigrationTest extends CIUnitTestCase
         $this->assertSame([$opening->parent_id, $opening->account_type], [$after->parent_id, $after->account_type]);
         $this->assertSame([], BooksSnapshot::differences($before, (new BooksSnapshot())->take()));
         $this->assertFalse($this->accountingDb()->fieldExists('legacy_code', 'accounting_accounts'));
+    }
+
+    public function testUp_MovesTheAccountBetweenBranchesThatTheEarlierMigrationOpenedAndLeavesTheBalancesAsTheyWere(): void
+    {
+        $db = $this->accountingDb();
+
+        $db->table('accounting_routing')->where('routing_key', 'branches.payable')->delete();
+        $db->table('accounting_accounts')->where('system_key', 'branches_payable')->delete();
+
+        (new InterBranchTransfers())->up();
+
+        $payable = $db->table('accounting_accounts')->where('system_key', 'branches_payable')->get()->getRow();
+
+        $this->assertSame('2214', $payable->code);
+
+        (new PostingService())->post(new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft($this->accountId('cash'), debit: '75.00'), new JournalLineDraft((int) $payable->account_id, credit: '75.00')],
+            sourceType: 'sale',
+            sourceId: 9400,
+            employeeId: 1,
+            currencyCode: 'SAR',
+        ));
+
+        $before = (new BooksSnapshot())->take();
+
+        (new ChartCodeHierarchy())->up();
+
+        $after = $db->table('accounting_accounts')->where('system_key', 'branches_payable')->get()->getRow();
+
+        $this->assertSame(['2114', '2214', (string) $payable->account_id], [$after->code, $after->legacy_code, (string) $after->account_id]);
+        $this->assertSame((string) $payable->account_id, (string) $db->table('accounting_routing')->where('routing_key', 'branches.payable')->get()->getRow()->account_id);
+        $this->assertSame([], BooksSnapshot::differences($before, (new BooksSnapshot())->take()));
+        $this->assertSame('75.0000', $before['companies'][1]['accounts'][(int) $payable->account_id]['credit']);
     }
 }
