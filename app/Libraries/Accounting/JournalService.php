@@ -215,6 +215,7 @@ final class JournalService
         $this->assertCostCentersRequired($lines);
         $this->periods->prepare($date);
 
+        $lines = $this->withTaxLines($lines);
         $draft = $this->toPostingDraft($date, $description, $lines, $employeeId, $branchId);
 
         (new TreasuryScopes($this->db))->assertMayPost($draft->lines, $employeeId);
@@ -273,6 +274,7 @@ final class JournalService
         $this->assertLineDescriptions($lines);
         $this->assertCostCentersRequired($lines);
 
+        $lines = $this->withTaxLines($lines);
         $draft = $this->toPostingDraft($date, $description, $lines, $employeeId, $branchId);
 
         (new TreasuryScopes($this->db))->assertMayPost($draft->lines, $employeeId);
@@ -1205,6 +1207,7 @@ final class JournalService
                 credit: (string) $line['credit'],
                 description: $line['description'],
                 costCenterId: $line['cost_center_id'],
+                autoTax: $line['auto_tax'] ?? false,
             ), $lines),
             sourceType: JournalDraft::SOURCE_MANUAL,
             origin: JournalOrigin::User,
@@ -1212,6 +1215,63 @@ final class JournalService
             description: $description,
             branchId: $branchId,
         );
+    }
+
+    /**
+     * The lines of a journal about to be posted with the line the books add for the tax of each line
+     * that carries one, right after it and on its side: the tax paid for a debit, the tax collected
+     * for a credit. A tax that is in the amount of its line is taken out of it, so the line stands at
+     * its net. The other side of the journal has to cover the tax, or the journal does not balance.
+     *
+     * @param list<array<string, mixed>> $lines
+     *
+     * @return list<array<string, mixed>>
+     *
+     * @throws PostingException
+     */
+    private function withTaxLines(array $lines): array
+    {
+        $resolver = null;
+        $expanded = [];
+
+        foreach ($lines as $line) {
+            $tax    = $line['analysis']->tax ?? null;
+            $amount = $tax['amount'] ?? '0';
+
+            if ($tax === null || bccomp($amount, '0', 4) <= 0) {
+                $expanded[] = ['line_no' => count($expanded) + 1] + $line;
+
+                continue;
+            }
+
+            $debited = bccomp((string) $line['debit'], '0', 4) > 0;
+            $side    = $debited ? 'debit' : 'credit';
+            $key     = $debited ? RoutingKey::TaxInput : RoutingKey::TaxOutput;
+            $resolver ??= new RoutingResolver($this->db);
+            $account = $resolver->accountFor($key);
+
+            if ($account === null) {
+                throw new PostingException(PostingError::RoutingRowCancelled, "The routing of {$key->value} is cancelled, so the tax of line {$line['line_no']} has no account.", ['routing_key' => $key->value, 'line' => $line['line_no']]);
+            }
+
+            if ($tax['included']) {
+                $line[$side] = bcsub((string) $line[$side], $amount, 4);
+            }
+
+            $expanded[] = ['line_no' => count($expanded) + 1] + $line;
+            $expanded[] = [
+                'line_no'        => count($expanded) + 1,
+                'account_id'     => $account,
+                'description'    => trim($tax['code'] . ' ' . rtrim(rtrim($tax['percent'], '0'), '.') . '%'),
+                'cost_center_id' => null,
+                'debit'          => $debited ? $amount : '0.0000',
+                'credit'         => $debited ? '0.0000' : $amount,
+                'analysis'       => new LineAnalysis(),
+                'auto_tax'       => true,
+            ];
+        }
+
+        return $expanded;
     }
 
     /**
@@ -1232,6 +1292,7 @@ final class JournalService
                 'cost_center_id' => $line['cost_center_id'] ?? null,
                 'party_type'     => $line['party_type'] ?? null,
                 'party_id'       => $line['party_id'] ?? null,
+                'is_auto_tax'    => $line['is_auto_tax'] ?? 0,
             ];
         }
 

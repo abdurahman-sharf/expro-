@@ -291,6 +291,7 @@ final class PostingService
                 'party_id'       => $line->partyId,
                 'foreign_amount' => $foreignAmount,
                 'currency_code'  => $lineCurrency,
+                'is_auto_tax'    => (int) $line->autoTax,
             ];
         }
 

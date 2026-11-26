@@ -2714,6 +2714,7 @@ class JournalServiceTest extends CIUnitTestCase
         $input['lines'][0]['tags']         = 'rent, office';
         $input['lines'][1]['tax_code']     = 'VAT15';
         $input['lines'][1]['tax_percent']  = '15';
+        $input['lines'][1]['tax_included'] = '1';
         $draftId                           = $this->service->saveDraft($input);
 
         $this->setConfigValue(JournalSettings::LINE_TAGS, '0');
@@ -2891,6 +2892,7 @@ class JournalServiceTest extends CIUnitTestCase
         $this->setConfigValue(JournalSettings::LINE_TAX, '1');
 
         $input['lines'][0]['tags']        = "  Rent , office،  RENT ;  <b>x</b> ";
+        $input['lines'][0]['debit']       = '115.00';
         $input['lines'][1]['tax_included'] = '0';
 
         $journalId = $this->service->postNew($input);
@@ -2901,21 +2903,91 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertSame([], $line[1]->analysis->tags);
     }
 
-    public function testPostNew_NotesTheTaxOfALineWithoutPostingTaxOrChangingTheJournal(): void
+    public function testPostNew_AddsALineForTheTaxOfADebitLineOnTheTaxPaidAndTheOtherSideCoversIt(): void
     {
         $this->setConfigValue(JournalSettings::LINE_TAX, '1');
-        $plain = $this->service->postNew($this->journalInput('100.00'));
 
-        $input                                = $this->journalInput('100.00');
-        $input['lines'][1]['tax_code']        = 'VAT15';
-        $input['lines'][1]['tax_percent']     = '15';
-        $input['lines'][1]['tax_included']    = '1';
-        $taxed                                = $this->service->postNew($input);
+        $input          = $this->journalInput();
+        $input['lines'] = [
+            ['account_id' => $this->accountId('expenses_default'), 'debit' => '100.00', 'credit' => '', 'tax_code' => 'VAT15', 'tax_percent' => '15'],
+            ['account_id' => $this->accountId('cash'), 'debit' => '', 'credit' => '115.00'],
+        ];
 
-        $this->assertCount(2, $this->lines($taxed));
+        $journalId = $this->service->postNew($input);
+
+        $this->assertSame(
+            [
+                $this->accountId('expenses_default') . ':100.0000:0.0000:0',
+                $this->accountId('tax_input') . ':15.0000:0.0000:1',
+                $this->accountId('cash') . ':0.0000:115.0000:0',
+            ],
+            array_map(static fn (object $line): string => $line->account_id . ':' . $line->debit . ':' . $line->credit . ':' . $line->is_auto_tax, $this->lines($journalId)),
+        );
+        $this->assertSame(['115.0000', '115.0000'], [$this->journal($journalId)->total_debit, $this->journal($journalId)->total_credit]);
+        $this->assertSame('15.0000', $this->service->find($journalId)->lines[0]->analysis->tax['amount']);
+    }
+
+    public function testPostNew_RejectsAJournalWhoseOtherSideDoesNotCoverTheTaxOfALine(): void
+    {
+        $this->setConfigValue(JournalSettings::LINE_TAX, '1');
+
+        $input                            = $this->journalInput('100.00');
+        $input['lines'][0]['tax_code']    = 'VAT15';
+        $input['lines'][0]['tax_percent'] = '15';
+        $before                           = $this->countRows('accounting_journals');
+
+        $this->assertPostingFailsWith(PostingError::Unbalanced, fn () => $this->service->postNew($input));
+        $this->assertSame($before, $this->countRows('accounting_journals'));
+    }
+
+    public function testPostNew_AddsALineForTheTaxOfACreditLineOnTheTaxCollected(): void
+    {
+        $this->setConfigValue(JournalSettings::LINE_TAX, '1');
+
+        $input                            = $this->journalInput('100.00');
+        $input['lines'][0]['debit']       = '115.00';
+        $input['lines'][1]['tax_code']    = 'VAT15';
+        $input['lines'][1]['tax_percent'] = '15';
+
+        $lines = $this->lines($this->service->postNew($input));
+
+        $this->assertSame([(string) $this->accountId('tax_output'), '0.0000', '15.0000', '1'], [(string) $lines[2]->account_id, $lines[2]->debit, $lines[2]->credit, (string) $lines[2]->is_auto_tax]);
+    }
+
+    public function testPostNew_TakesATaxThatIsInTheAmountOfItsLineOutOfItAndLeavesTheJournalAtItsTotal(): void
+    {
+        $this->setConfigValue(JournalSettings::LINE_TAX, '1');
+
+        $input                             = $this->journalInput('100.00');
+        $input['lines'][1]['tax_code']     = 'VAT15';
+        $input['lines'][1]['tax_percent']  = '15';
+        $input['lines'][1]['tax_included'] = '1';
+        $taxed                             = $this->service->postNew($input);
+
+        $lines = $this->lines($taxed);
+
+        $this->assertCount(3, $lines);
         $this->assertSame('100.0000', $this->journal($taxed)->total_debit);
-        $this->assertSame($this->lines($plain)[1]->credit, $this->lines($taxed)[1]->credit);
-        $this->assertSame('13.0400', $this->service->find($taxed)->lines[1]->analysis->tax['amount']);
+        $this->assertSame(['86.9600', '13.0400'], [$lines[1]->credit, $lines[2]->credit]);
+        $this->assertSame((string) $this->accountId('tax_output'), (string) $lines[2]->account_id);
+    }
+
+    public function testSaveDraft_KeepsTheTaxOfALineAsANoteAndAddsNoLineUntilTheJournalIsPosted(): void
+    {
+        $this->setConfigValue(JournalSettings::LINE_TAX, '1');
+
+        $input                            = $this->journalInput('100.00');
+        $input['lines'][0]['debit']       = '115.00';
+        $input['lines'][1]['tax_code']    = 'VAT15';
+        $input['lines'][1]['tax_percent'] = '15';
+        $draftId                          = $this->service->saveDraft($input);
+
+        $this->assertCount(2, $this->lines($draftId));
+
+        $this->service->postDraft($draftId);
+
+        $this->assertCount(3, $this->lines($draftId));
+        $this->assertSame('115.0000', $this->journal($draftId)->total_credit);
     }
 
     public function testPostNew_RejectsAnInvalidTagAndAnInvalidTaxNote(): void
@@ -2949,6 +3021,7 @@ class JournalServiceTest extends CIUnitTestCase
         $input['lines'][0]['tags']        = implode(',', array_merge([str_repeat('ب', 30)], array_map(static fn (int $n): string => "t{$n}", range(1, 9))));
         $input['lines'][0]['tax_code']    = str_repeat('V', 16);
         $input['lines'][0]['tax_percent'] = '100';
+        $input['lines'][1]['credit']      = '200.00';
 
         $journalId = $this->service->postNew($input);
         $analysis  = $this->service->find($journalId)->lines[0]->analysis;
@@ -2965,8 +3038,9 @@ class JournalServiceTest extends CIUnitTestCase
         $this->setConfigValue(JournalSettings::LINE_TAX, '1');
         $input                            = $this->distributedInput($a, $b, '99.99');
         $input['lines'][1]['tags']        = 'sale';
-        $input['lines'][1]['tax_code']    = 'VAT15';
-        $input['lines'][1]['tax_percent'] = '15';
+        $input['lines'][1]['tax_code']     = 'VAT15';
+        $input['lines'][1]['tax_percent']  = '15';
+        $input['lines'][1]['tax_included'] = '1';
         $input['lines'][0]['cost_center_id'] = null;
 
         $journalId = $this->service->postNew($input);

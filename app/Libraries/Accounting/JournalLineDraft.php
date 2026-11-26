@@ -14,6 +14,7 @@ final readonly class JournalLineDraft
         public ?int $partyId = null,
         public ?string $foreignAmount = null,
         public ?string $currencyCode = null,
+        public bool $autoTax = false,
     ) {
     }
 }
