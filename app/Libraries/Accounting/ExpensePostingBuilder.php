@@ -4,11 +4,10 @@ namespace App\Libraries\Accounting;
 
 /**
  * The journal a saved expense needs, as a draft. It writes nothing. The expense is paid out of a
- * treasury straight away and owes nobody, as in the reference system: what the expense cost goes
- * to its account, the tax in it goes to the account of tax paid, and the whole amount comes out of
- * the treasury it was paid from. An expense that is not paid yet is owed to other creditors until
- * it is paid, which changing its way of payment settles. Whatever cannot be decided with certainty
- * is refused with a named failure.
+ * treasury straight away and owes nobody: what the expense cost goes to its account, the tax in it
+ * goes to the account of tax paid, and the whole amount comes out of the treasury it was paid from.
+ * An expense that is not paid yet is owed to other creditors until it is paid, which changing its way
+ * of payment settles. Whatever cannot be decided with certainty is refused with a named failure.
  */
 final class ExpensePostingBuilder
 {

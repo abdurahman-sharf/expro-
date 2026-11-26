@@ -15,7 +15,7 @@ use Config\Database;
  * A sales debit note goes under sales, as it raises what the customer owes the way an invoice does.
  *
  * A return issued as a refund invoice goes under returns; a return issued as a credit note sits
- * under settlements, as the reference system shows a credit note.
+ * under settlements.
  */
 final class CustomerBalanceReport
 {

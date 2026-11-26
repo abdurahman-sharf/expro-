@@ -14,10 +14,8 @@ use Config\Database;
 /**
  * The settings of multiple units, bundles, tracking and negative stock. Units, bundles and tracking are
  * off and a sale that takes stock below nothing is allowed until someone says otherwise, so a shop that
- * never opens them keeps the behaviour it has. How the reference system switches these on was observed
- * as settings only, so the switches themselves are an assumption of the design. They are changed only by
- * whoever may change the accounting settings, and every change is written to the audit log with what it
- * was before.
+ * never opens them keeps the behaviour it has. They are changed only by whoever may change the
+ * accounting settings, and every change is written to the audit log with what it was before.
  */
 final class StockOptions
 {

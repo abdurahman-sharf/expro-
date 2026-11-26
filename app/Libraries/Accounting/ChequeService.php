@@ -631,8 +631,8 @@ final class ChequeService
 
     /**
      * The day of a status change must not come before the cheque or before the change it follows. A
-     * collection is not before the due date; it may be on a day to come, as the reference system takes
-     * it. The other changes are made up to today.
+     * collection is not before the due date; it may be on a day to come. The other changes are made up
+     * to today.
      *
      * @throws AccountingException
      */

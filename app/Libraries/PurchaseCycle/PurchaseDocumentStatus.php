@@ -7,8 +7,8 @@ namespace App\Libraries\PurchaseCycle;
  * are labels that somebody sets by hand, where the family allows it, and nothing is ever sent to anybody.
  * Converted, partly received and received are never stored: they are read from the documents and the
  * receivings that stand, so a cancelled document or a deleted receiving puts the document back where it
- * was without anyone having to remember to. The statuses and the moves between them are the conservative
- * choice of this system, not a copy of the reference system, whose purchase cycle was not observed.
+ * was without anyone having to remember to. The statuses and the moves between them are deliberately
+ * conservative.
  */
 enum PurchaseDocumentStatus: string
 {

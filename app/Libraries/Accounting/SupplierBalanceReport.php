@@ -14,7 +14,7 @@ use Config\Database;
  * before the period, and the balance is the account at the end of the last day.
  *
  * The returns column is where return invoices will go. Until a purchase has such a kind, every
- * return is a debit note and sits under settlements, as the reference system shows a debit note.
+ * return is a debit note and sits under settlements.
  */
 final class SupplierBalanceReport
 {

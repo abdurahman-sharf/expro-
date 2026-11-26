@@ -6,8 +6,7 @@ namespace App\Libraries\Documents;
  * An amount of money spelled out, in Arabic or in English, for the documents that print it as words
  * (the vouchers and the receipts). The amount is a string so no float rounds it, it is rounded to the
  * decimals of the currency, and an amount of a trillion or more, a negative one, or one that is not a
- * number is refused by name. The Arabic wording follows the grammar of the counted noun and is
- * the wording of this system: only the amount of 3,000 Saudi riyals was seen in the reference system.
+ * number is refused by name. The Arabic wording follows the grammar of the counted noun.
  */
 final class AmountInWords
 {

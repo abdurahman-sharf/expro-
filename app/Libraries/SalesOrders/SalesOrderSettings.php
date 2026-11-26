@@ -12,8 +12,8 @@ use Config\Database;
 
 /**
  * The two switches of the sales orders: whether the module is on, and whether an invoice may take more
- * of an item than the order holds. Both are off until somebody turns them on, as the reference
- * system keeps them, so nothing of the module shows or works where nobody asked for it.
+ * of an item than the order holds. Both are off until somebody turns them on, so nothing of the module
+ * shows or works where nobody asked for it.
  */
 final class SalesOrderSettings
 {

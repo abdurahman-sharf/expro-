@@ -24,8 +24,7 @@ use DateTimeImmutable;
  * one movement after the other with the balance after each: the payments of customers and the receipt
  * vouchers in, the payments to suppliers and the expenses out, and what a supplier gave back in. The
  * manual journals and the transfers between treasuries are not here. The balance at the start is what
- * the same documents moved before the first day, which is an assumption, since the reference system was
- * observed only on a period that began before its first movement.
+ * the same documents moved before the first day.
  */
 final class FinancialMovementsReport implements FamilyReport
 {

@@ -27,11 +27,10 @@ use App\Libraries\Stock\StockPermitSources;
 use App\Libraries\Tax\AdvanceVat;
 
 /**
- * The sources a journal can have in these books, for the filter of the reports of journals. The
- * reference system offers thirty-three; the ones it has for assets, payroll and manufacturing have no
- * counterpart here, and the sources here that it has no name for (the cash refunds, the settlements
- * between branches, the opening balances, the closing of a year and the journal a payment gets in the
- * branch of a treasury of another branch) are listed under their own names.
+ * The sources a journal can have in these books, for the filter of the reports of journals. Each is
+ * listed under its own name, the cash refunds, the settlements between branches, the opening balances,
+ * the closing of a year and the journal a payment gets in the branch of a treasury of another branch
+ * among them.
  */
 final class JournalSources
 {

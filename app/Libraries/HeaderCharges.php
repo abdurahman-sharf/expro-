@@ -7,7 +7,7 @@ use App\Libraries\Accounting\SaleAmounts;
 /**
  * The charges typed on the header of an invoice or a credit note, apart from its lines: an adjustment,
  * which has a label and a signed amount, and a shipping charge with the tax on it. The adjustment joins
- * the total only while the total before it is more than nothing, as the reference system adds it. The tax
+ * the total only while the total before it is more than nothing. The tax
  * on the shipping follows the tax mode: on top of the amount when the prices do not include tax, taken out
  * of the amount when they do. The tax is kept to four decimals and never rounded to the cent; the total of
  * the invoice is, in the journal.

@@ -13,9 +13,7 @@ use Config\Database;
  * the system has always done and the default. The second refuses a sale of more than the location holds.
  * The third refuses a sale of more than is available: what the location holds less what invoices that
  * were issued before their goods left have already promised. The shelf is read under a lock, in the
- * transaction of the sale, so that two sales of the last units never both pass. How the reference system
- * words and applies its three options was read from the settings only (the blocking meaning of the first
- * comes from its help text), so which sales each option covers is an assumption of the design: a sale
+ * transaction of the sale, so that two sales of the last units never both pass. The options cover a sale
  * that completes and delivers, and the delivery of an invoice. A return to a supplier, a permit and a
  * stocktake keep the rules they have.
  */

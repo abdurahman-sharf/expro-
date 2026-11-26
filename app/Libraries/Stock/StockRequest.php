@@ -27,8 +27,7 @@ use DateTimeImmutable;
  * moves the stock, so the permit carries every rule and every check of a transfer. A request is
  * cancelled while it is requested or approved, and what has been fulfilled stays so: the transfer is
  * cancelled on its permit. It works only while its setting is on, and so does the transfer permit it
- * needs. How the reference system switches requests on, and the states it gives them, were not
- * observed, so the settings, the states and the roles are an assumption of the design.
+ * needs.
  */
 final class StockRequest
 {

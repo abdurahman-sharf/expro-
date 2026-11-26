@@ -89,10 +89,9 @@ final class DefaultChart
     }
 
     /**
-     * The code of every account starts with the code of its parent, and the opening balances are held
-     * in the equity until they are closed out, not among the liabilities. Otherwise it is the
-     * chart of the reference system as observed in a fresh account, plus the accounts only
-     * this application needs: unused gift cards (216), the customers of sales made without naming
+     * The default chart. The code of every account starts with the code of its parent, and the opening
+     * balances are held in the equity until they are closed out, not among the liabilities. Beside the
+     * general accounts it holds unused gift cards (216), the customers of sales made without naming
      * one (12043), the leaf accounts of the cheque cycle under the two groups of notes (120601,
      * 120602 and 212001) and the deposit fees (546), and the adjustments and the shipping charged on
      * sales (4204 and 4208), and the gains and losses of exchange differences (4209 and 5410). Rows are

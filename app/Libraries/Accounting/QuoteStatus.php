@@ -3,8 +3,8 @@
 namespace App\Libraries\Accounting;
 
 /**
- * The state of a quote (an estimate), kept apart from the status of the sale that holds it. The
- * reference system has these eight, set from the list and the view of a quote and never from its
+ * The state of a quote (an estimate), kept apart from the status of the sale that holds it. There
+ * are eight, set from the list and the view of a quote and never from its
  * form. A quote that was saved before the states existed has none stored and is read as open.
  * Sent, viewed and replied need the quote to leave the system by mail or by a shared link, which
  * this system does not do, so an employee sets them by hand; converted is set only by saving the

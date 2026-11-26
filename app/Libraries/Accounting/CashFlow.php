@@ -14,9 +14,8 @@ use Config\Database;
  * account that moved and is not fully taken by a line is set out under one line of other changes, so
  * the total change is the change of the accounts of the treasuries and the banks whichever accounts
  * moved, and the report says what they held when the range opened and when it ended and whether the
- * two agree. That is a difference on purpose from the reference system, whose total differs from the
- * money held as soon as an account with no line moves. The journals that close a year are left out, a
- * journal that was reversed is read with its reversal, and everything is read in one snapshot.
+ * two agree. The journals that close a year are left out, a journal that was reversed is read with its
+ * reversal, and everything is read in one snapshot.
  */
 final class CashFlow
 {

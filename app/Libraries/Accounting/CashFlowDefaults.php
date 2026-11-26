@@ -3,11 +3,11 @@
 namespace App\Libraries\Accounting;
 
 /**
- * The lines the cash flow report starts with, in the order the reference system draws them, and the
+ * The lines the cash flow report starts with, in the order the report draws them, and the
  * accounts each takes from until it is pointed at others: the net income takes from every revenue and
  * expense account, the others from the account the chart names or from the main account with that
- * code. The lines of the two investing accounts have no formula in the reference system, so the
- * sale of assets takes what was credited to them and the purchase of assets minus what was debited.
+ * code. On the two investing accounts, the sale of assets takes what was credited to them and the
+ * purchase of assets minus what was debited.
  */
 final class CashFlowDefaults
 {

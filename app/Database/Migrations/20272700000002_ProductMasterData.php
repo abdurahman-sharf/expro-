@@ -6,8 +6,8 @@ use CodeIgniter\Database\Migration;
 use RuntimeException;
 
 /**
- * The fields of a product that Daftra shows and this application lacked: a brand (a small list of its
- * own), the code the supplier gives the product, and a status. The status has the three observed values,
+ * Three fields of a product: a brand (a small list of its own), the code the supplier gives the
+ * product, and a status. The status has three values,
  * active (0, the value that changes nothing), inactive (1) and suspended (2); both of the last two hide the
  * product from the lists of new documents and mean nothing else, and the `deleted` flag keeps its
  * meaning. Every column may be empty or holds the value that changes nothing, so an item that exists reads

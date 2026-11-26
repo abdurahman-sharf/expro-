@@ -3,8 +3,8 @@
 namespace App\Libraries\Accounting;
 
 /**
- * How a routing row decides the account of its posting line. The numbers are the ones the
- * reference system shows next to the same choices.
+ * How a routing row decides the account of its posting line. The numbers identify the choices in
+ * the routing screen.
  *
  * Auto uses the account of the row, and for a party, stock location or treasury it opens one
  * sub-account of that account for every entity. PerItem lets each product name its own account on

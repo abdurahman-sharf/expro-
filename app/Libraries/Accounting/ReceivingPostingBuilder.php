@@ -9,8 +9,8 @@ use Closure;
  * stock lines. It writes nothing. Whatever it cannot decide with certainty it refuses with a
  * named failure, so that a journal that looks right and is not never reaches the books.
  *
- * A purchase has one journal and, when it was paid at once, a second one for the payment, as in
- * the reference system. Goods that come in go into the account of their stock location at what
+ * A purchase has one journal and, when it was paid at once, a second one for the payment.
+ * Goods that come in go into the account of their stock location at what
  * they cost, and the tax on them into the account of tax paid. What is bought and not kept in
  * stock goes to the account of purchases, never to the cost of sales, and comes back out of it when
  * it is returned. Goods that go back to the supplier leave the account at what they are worth in
@@ -315,7 +315,7 @@ final class ReceivingPostingBuilder
 
     /**
      * What the lines come to: the cost, the tax on it, and the total the supplier is owed,
-     * which is kept to two decimals while the tax is not rounded, as in the reference system.
+     * which is kept to two decimals while the tax is not rounded.
      *
      * @return array{net: numeric-string, tax: numeric-string, total: numeric-string}
      */

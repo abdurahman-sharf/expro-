@@ -6,11 +6,10 @@ use CodeIgniter\Database\Migration;
 
 /**
  * The two accounts the exchange differences of payments are posted to, one for what is gained and one for
- * what is lost, in the chart of a company that already has one, with their two routing rows. The
- * reference system posts both to a single account of current assets (E66 and G-132); two accounts
- * under other revenues and other expenses are the default here, and the routing lets a company point
- * both rows at one account when it wants the single one. Only accounts and routing rows are added: no
- * journal, no document and no balance is touched. Safe to run again.
+ * what is lost, in the chart of a company that already has one, with their two routing rows. Two
+ * accounts under other revenues and other expenses are the default, and the routing lets a company
+ * point both rows at one account when it wants a single one. Only accounts and routing rows are added:
+ * no journal, no document and no balance is touched. Safe to run again.
  */
 class FxDifferenceAccounts extends Migration
 {

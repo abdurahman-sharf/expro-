@@ -10,7 +10,7 @@ use CodeIgniter\Database\BaseConnection;
  * with certainty it refuses with a named failure, so that a journal that looks right and is
  * not never reaches the books.
  *
- * A sale has up to three kinds of journal, as in the reference system: the invoice, which
+ * A sale has up to three kinds of journal: the invoice, which
  * puts the whole amount on the customer, the cost of what was delivered, and one journal for
  * each payment, which settles the customer. A sale without a customer is posted to the
  * account of counter customers instead, which must be settled in full.

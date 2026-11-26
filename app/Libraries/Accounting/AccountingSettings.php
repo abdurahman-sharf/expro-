@@ -88,8 +88,8 @@ final class AccountingSettings
     }
 
     /**
-     * Whether a customer may be given an opening balance. It is off until it is turned on, as the
-     * reference system keeps it, so that nothing of it shows or works on a database where nobody asked.
+     * Whether a customer may be given an opening balance. It is off until it is turned on, so that
+     * nothing of it shows or works on a database where nobody asked.
      */
     public function customerOpeningEnabled(): bool
     {
@@ -149,7 +149,7 @@ final class AccountingSettings
 
     /**
      * Whether the sales debit note is available: a document that raises what a customer owes without an
-     * invoice. It is off until it is turned on, as the reference system keeps it.
+     * invoice. It is off until it is turned on.
      */
     public function debitNoteEnabled(): bool
     {

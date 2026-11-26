@@ -13,10 +13,8 @@ use Config\Database;
 /**
  * The two settings of the stock documents: the transfer permit and the stock requests. Both are off
  * until someone turns them on, so a shop that never opens them moves stock as it always did. The add
- * and issue permits and the stocktake need no setting. How the reference system switches the transfer
- * permit and the requests on was not observed, so these two are an assumption of the design. They are
- * changed only by whoever may change the accounting settings, and every change is written to the audit
- * log with what it was before.
+ * and issue permits and the stocktake need no setting. The two settings are changed only by whoever may
+ * change the accounting settings, and every change is written to the audit log with what it was before.
  */
 final class StockDocumentSettings
 {

@@ -29,8 +29,7 @@ use DateTimeImmutable;
  *
  * It works only while accounting and the setting for debit notes are on, and only for those who hold the
  * permission to manage them. Taking one back needs no setting, so the setting can be turned off while
- * notes stand. This is an assumption of the design: its form and its journal were not observed in the
- * reference system.
+ * notes stand.
  */
 final class SalesDebitNotes
 {

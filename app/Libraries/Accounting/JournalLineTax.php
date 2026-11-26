@@ -5,10 +5,10 @@ namespace App\Libraries\Accounting;
 /**
  * The tax of a line of a manual journal. While the journal is a draft it is a note. When the journal
  * is posted, a line is added for it on the side of the line that carries it: on the account of the
- * tax paid for a debit, on the account of the tax collected for a credit (P-05). The figures follow
- * the script of the reference system's journal form (OBS-A FRM-R39): when the tax is in the amount, net is the amount over one plus the
- * rate, rounded, and the tax is what is left of the amount; when it is not, the tax is the amount
- * times the rate, rounded, and the total is the amount plus it.
+ * tax paid for a debit, on the account of the tax collected for a credit (P-05). When the tax is in
+ * the amount, net is the amount over one plus the rate, rounded, and the tax is what is left of the
+ * amount; when it is not, the tax is the amount times the rate, rounded, and the total is the amount
+ * plus it.
  */
 final class JournalLineTax
 {

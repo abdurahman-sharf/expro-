@@ -6,7 +6,7 @@ use CodeIgniter\Database\Migration;
 use RuntimeException;
 
 /**
- * The fields of a customer that Daftra shows and filters by, and the country of a supplier: a
+ * The fields a customer is shown and filtered by, and the country of a supplier: a
  * classification (a small list of its own), the manual status of the follow-up (five values that
  * nothing posts from), the employee the customer is assigned to, an area, a country code, the type
  * (individual or commercial), the government flag and the billing method. Every column may be empty or

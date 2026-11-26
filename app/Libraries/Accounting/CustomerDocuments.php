@@ -208,7 +208,7 @@ final class CustomerDocuments
     }
 
     /**
-     * What each customer was returned, split the way the reference system splits it: refund
+     * What each customer was returned, split by the kind of document: refund
      * invoices are returns, credit notes are adjustments. Only returns the books hold count.
      *
      * @param list<int> $customerIds

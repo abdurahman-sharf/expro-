@@ -12,8 +12,8 @@ use CodeIgniter\Database\BaseConnection;
  * cost. The profit is the price less the discount less the cost, and goods that cost nothing show their
  * whole price as profit. A row is dated by its movement, a service has no row, and a return costs what the
  * sale it takes back cost, so the cost of the report is the cost of sales of the books for the same days,
- * which the report says. It differs from the movements report of the reference system by the cost of a
- * return whose item changed its average cost between the sale and the return, which is deliberate.
+ * which the report says. A return whose item changed its average cost between the sale and the return
+ * still costs what the sale cost, which is deliberate.
  */
 final class ProfitReport
 {

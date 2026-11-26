@@ -64,8 +64,8 @@ final class SalePosting
 
     /**
      * Posts a sale that has just been completed: its invoice, a journal for each payment, and the
-     * cost of its goods if they were delivered, in that order as the reference system numbers
-     * them. The order only decides the numbers of journals written from now on.
+     * cost of its goods if they were delivered, in that order. The order only decides the numbers of
+     * journals written from now on.
      *
      * @throws AccountingException|PostingException
      */

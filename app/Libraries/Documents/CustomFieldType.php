@@ -5,9 +5,8 @@ namespace App\Libraries\Documents;
 use DateTimeImmutable;
 
 /**
- * The kinds of extra field a product or an invoice can carry. The reference system offers twenty; these
- * are the nine that hold one plain value. A value is kept as text and checked against its kind when it
- * is entered.
+ * The kinds of extra field a product or an invoice can carry: the nine that hold one plain value. A
+ * value is kept as text and checked against its kind when it is entered.
  */
 enum CustomFieldType: string
 {

@@ -6,8 +6,7 @@ namespace App\Libraries\SalesOrders;
  * Where a sales order stands. Open, approved and cancelled are stored; partly invoiced and invoiced
  * are never stored, they are what the quantities of the invoices that were issued from the order
  * say, so an invoice that is cancelled puts the order back where it was without anyone having to
- * remember to. The reference system's statuses and the way an order is converted were not observed,
- * so this table is the conservative choice of this system, not a copy.
+ * remember to. The statuses and the moves between them are deliberately conservative.
  */
 enum SalesOrderStatus: string
 {

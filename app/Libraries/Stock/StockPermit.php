@@ -53,8 +53,7 @@ use DateTimeImmutable;
  * a stock location with less than nothing of an item is refused, which is how a receiving is corrected.
  *
  * No treasury is involved and no party account is touched. The add and issue permits are always
- * available; the transfer permit works only while its setting is on. How the reference system switches
- * the transfer permit on was not observed, so that setting is an assumption.
+ * available; the transfer permit works only while its setting is on.
  */
 final class StockPermit
 {

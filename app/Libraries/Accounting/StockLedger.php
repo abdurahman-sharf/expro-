@@ -71,10 +71,10 @@ final class StockLedger
     }
 
     /**
-     * The movements of an item counted by serial number are written one for each serial number, as the
-     * permits of a tracked product are in the reference system: a movement of three units becomes three
-     * movements of one, and the value is shared among them to the last digit, so that the sum is what the
-     * journal says. A movement of anything else is written as it is.
+     * The movements of an item counted by serial number are written one for each serial number: a
+     * movement of three units becomes three movements of one, and the value is shared among them to the
+     * last digit, so that the sum is what the journal says. A movement of anything else is written as it
+     * is.
      *
      * @param list<StockMovement> $movements
      *
@@ -200,7 +200,7 @@ final class StockLedger
     /**
      * What a unit of an item leaving a stock location is worth. When the movements account for
      * every unit that is there, it is what they say a unit is worth: the stock is valued from
-     * what happened to it, as the reference system does. When they do not (stock from before
+     * what happened to it. When they do not (stock from before
      * the books began, or from movements that were never posted), or nothing is left to divide
      * by, it is the cost the item carries. When the shelves have already changed by a quantity
      * that the movements do not have yet, say so, so that it is not counted as stock the movements

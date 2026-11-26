@@ -15,7 +15,7 @@ use DateTimeZone;
  * issue date, the invoice date, the due date, or some days before or after the invoice date. The ones that
  * look ahead (the issue date, the invoice date, days before) count from the next date the schedule will
  * make an invoice for; the ones that look back (the due date, days after) from the invoice the schedule made
- * last. The reference system's own meaning of the five choices was not observed beyond their names.
+ * last.
  */
 final class RecurringReminders
 {

@@ -4,7 +4,7 @@ namespace App\Libraries\MasterData;
 
 /**
  * The status of a product. Inactive and suspended are two labels for one state: the product is left out of
- * the lists of new documents and nothing else changes. The values are the ones Daftra stores.
+ * the lists of new documents and nothing else changes.
  */
 enum ItemStatus: int
 {

@@ -8,7 +8,7 @@ namespace App\Libraries\Accounting;
  * what the supplier is owed. The rule: each line takes a share proportional to what it comes to after
  * its own discount and before its tax, rounded to the cent, and the last line that comes to
  * something takes what is left, so the shares add up to the discount exactly. A line never takes more
- * than it comes to. This is an assumption: the reference system was only observed with one line.
+ * than it comes to.
  */
 final class InvoiceDiscountShares
 {

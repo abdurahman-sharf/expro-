@@ -13,9 +13,7 @@ use Config\Database;
  * is owed to it, a leaf liability account, and then the shipping charge of a sale that names it is
  * posted there instead of to the routed shipping revenue: the customer pays the charge and the shop owes
  * it on. A company with no account changes nothing in the books. The feature is off until it is turned
- * on, and only whoever manages the accounting settings, across the whole company, changes it. The
- * reference system's chart reserves a group of shipping companies; how it names a company on a document
- * was not observed, so this is the smallest form of it, and an assumption.
+ * on, and only whoever manages the accounting settings, across the whole company, changes it.
  */
 final class ShippingCompanies
 {

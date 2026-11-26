@@ -13,8 +13,8 @@ use Config\Database;
 /**
  * The switches of the purchase cycle: whether the four documents are on at all, whether a receiving may take
  * more of an item than the purchase order holds, and, for each of the four documents, whether it may carry a
- * status set by hand (the four toggles the reference system shows on its purchase cycle settings page). All of
- * them are off until somebody turns them on, so nothing of the cycle shows or works where nobody asked for it.
+ * status set by hand. All of them are off until somebody turns them on, so nothing of the cycle shows or
+ * works where nobody asked for it.
  */
 final class PurchaseCycleSettings
 {

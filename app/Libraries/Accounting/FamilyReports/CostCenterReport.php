@@ -22,8 +22,7 @@ use Config\Database;
  * up to the trial balance of the same branches and days; a distribution over 100 percent counts
  * more than its line, and the excess is a row of its own so that the total still ties. The journals
  * that close a year are left out, as the trial balance and the statements leave them out. It reads the
- * books and writes nothing. The columns are an assumption: no cost center existed in the account
- * the reference system was observed in.
+ * books and writes nothing.
  */
 final class CostCenterReport implements FamilyReport
 {

@@ -8,7 +8,7 @@ use Config\Database;
 /**
  * Ages what is owed from the account itself, not from the documents: every line of the account
  * on the side of what is owed is a debit, every line on the other side is credit, and the credit is
- * applied to the oldest debit first, as the reference system does in its aging by ledger. What is left
+ * applied to the oldest debit first. What is left
  * of a debit is aged by the day of its journal against the day of the report, in buckets of a period
  * of days. Only journals dated by the day of the report count, so the buckets, less the credit held,
  * are the balance of the account of that day.

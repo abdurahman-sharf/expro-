@@ -72,7 +72,7 @@ final class AssetRegister
 
     /**
      * The code a new asset is offered: the next of its numbering when that is on, else the next
-     * whole number, six digits as the form of the reference system shows it.
+     * whole number, in six digits.
      */
     public function suggestCode(): string
     {

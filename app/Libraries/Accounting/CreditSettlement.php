@@ -15,7 +15,7 @@ use Config\Database;
  * credit that is gone or has shrunk, or applied beyond what the invoice still owed), and it
  * applies the credit that is free to the invoices that are open, the one dated earliest first, and
  * among invoices of one date the one created first. The invoice a credit note came from has no
- * priority: the reference system walks the open invoices by date alone. No journal is written,
+ * priority: the open invoices are walked by date alone. No journal is written,
  * because the account of the customer already carries the credit; under the Saudi rules the VAT an advance carries
  * moves with its applications (AdvanceVat).
  *

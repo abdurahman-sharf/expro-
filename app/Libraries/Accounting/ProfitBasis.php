@@ -4,9 +4,9 @@ namespace App\Libraries\Accounting;
 
 /**
  * The way a profit and loss statement recognises revenue and expense: on the books as they stand
- * (accrual), or on the day money moved through a treasury or a bank (cash). Daftra also counts by
- * the day an invoice is issued, for all invoices or for the paid ones; those two are named here only
- * so that asking for them is refused in words, because their rule has not been fully observed.
+ * (accrual), or on the day money moved through a treasury or a bank (cash). Counting by
+ * the day an invoice is issued, for all invoices or for the paid ones, is named here only so that
+ * asking for it is refused in words: no rule is defined for those two.
  */
 enum ProfitBasis: string
 {

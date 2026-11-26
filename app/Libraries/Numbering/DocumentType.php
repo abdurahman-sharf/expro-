@@ -119,9 +119,9 @@ enum DocumentType: string
     }
 
     /**
-     * The digits a number of the kind has until the company chooses otherwise: the sales debit note
-     * and the sales order are numbered with five and the stock documents with six, as the reference system numbers them;
-     * the four purchase cycle documents are numbered with five as an assumption, since none of them was observed.
+     * The digits a number of the kind has until the company chooses otherwise: the sales debit note,
+     * the sales order and the four purchase cycle documents are numbered with five, and the stock
+     * documents with six.
      */
     public function defaultPadding(): int
     {

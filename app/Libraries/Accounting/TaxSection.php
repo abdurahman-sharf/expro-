@@ -3,7 +3,7 @@
 namespace App\Libraries\Accounting;
 
 /**
- * The parts of the tax report, in the order the reference system lists them. The tax of each part
+ * The parts of the tax report, in the order the report lists them. The tax of each part
  * is signed by what it does to the tax owed: the tax of sales, of receipt vouchers and of what
  * suppliers take back adds to it, and the tax of returned sales, of purchases and of expenses takes
  * from it.

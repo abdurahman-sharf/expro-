@@ -15,7 +15,7 @@ use DateTimeZone;
  * The first due date is the start date. A schedule has an end by a day, by a number of dates, by
  * neither (then it never ends) or by both, whichever comes first. An invoice may be issued some days
  * before its date, fewer than the days the period has, which is counted as one for a day, seven for a
- * week, thirty for a month and 365 for a year, as the reference system counts them.
+ * week, thirty for a month and 365 for a year.
  */
 final readonly class RecurrenceTerms
 {
@@ -24,7 +24,7 @@ final readonly class RecurrenceTerms
     public const MAX_COUNT       = 3650;
 
     /**
-     * The frequencies an expense may repeat at: the nine of the reference system.
+     * The frequencies an expense may repeat at.
      *
      * @var array<string, array{0: int, 1: RecurrenceUnit}>
      */

@@ -13,8 +13,8 @@ use CodeIgniter\Database\BaseConnection;
 use DateTimeImmutable;
 
 /**
- * What a form of an asset says, checked and cut to what the tables hold. The rules of the form of the
- * reference system are here: the fields each method takes (a method that does not take a field has it
+ * What a form of an asset says, checked and cut to what the tables hold. The rules of the form are
+ * here: the fields each method takes (a method that does not take a field has it
  * cleared), the first depreciation date that defaults to the day of going into service plus a period,
  * and the rules of the units of an asset (a serial number or a barcode each, both unique, an employee
  * when the asset is with one). A field the form does not say how to default is derived as the notes

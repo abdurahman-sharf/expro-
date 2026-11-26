@@ -11,8 +11,8 @@ use Config\Database;
 /**
  * The assets report: the assets of the branches of a scope, filtered by the custody employee, the date of
  * purchase, the months whose depreciation is wanted, the status, the account and the category, and
- * grouped by status, day of going into service or day of purchase. The columns are an assumption (the
- * reference system showed none). What the register has on the books ties to the books: the cost of the
+ * grouped by status, day of going into service or day of purchase. What the register has on the books
+ * ties to the books: the cost of the
  * assets on the books is what the debit side of their cost accounts holds, and their accumulated
  * depreciation what the credit side of theirs holds, so that cost less accumulated depreciation is the
  * balance of the two accounts and the tie says where it does not hold.

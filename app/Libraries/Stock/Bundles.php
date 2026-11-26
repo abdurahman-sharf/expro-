@@ -13,8 +13,7 @@ use Config\Database;
  * is the one that gives the price to the kit and nothing to its components, so selling it earns the price
  * of the bundle and takes its components out of stock at the cost each of them has, and the cost of the
  * sale is the sum of those costs. A bundle cannot contain itself or another bundle: a component is an
- * ordinary item, never the product that carries the price of any bundle. The observation of the reference
- * system is the settings and the form only, so the cost rule is an assumption of the design.
+ * ordinary item, never the product that carries the price of any bundle.
  */
 final class Bundles
 {

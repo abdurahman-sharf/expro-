@@ -3,9 +3,8 @@
 namespace App\Libraries\Accounting;
 
 /**
- * The currencies the books offer to start from, with the decimals the ISO 4217 table gives each one
- * (the table of the reference system differs from it for some codes, and is not adopted: see E66 and
- * the rule FRM-R56). Only the zero, two and three decimals the books keep are listed.
+ * The currencies the books offer to start from, with the decimals the ISO 4217 table gives each one.
+ * Only the zero, two and three decimals the books keep are listed.
  */
 final class CurrencyCatalog
 {

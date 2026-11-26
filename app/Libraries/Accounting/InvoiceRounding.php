@@ -3,13 +3,11 @@
 namespace App\Libraries\Accounting;
 
 /**
- * How the journal of an invoice rounds, copied from the reference system: the tax is kept as
+ * How the journal of an invoice rounds: the tax is kept as
  * it was calculated, the total the party owes is rounded to two decimals, and the revenue is
  * what is left of the total after the tax, so the journal balances without a rounding line.
  *
- * When the total falls exactly between two cents the reference system rounds in a direction no
- * formula we tried reproduces: four of the six recorded cases went up and two went down. This
- * rounds those up, and so may differ from it by one cent there and nowhere else.
+ * A total that falls exactly between two cents is rounded up.
  */
 final class InvoiceRounding
 {

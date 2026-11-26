@@ -3,8 +3,8 @@
 namespace App\Libraries\Accounting;
 
 /**
- * What the account of a customer or of a supplier did over a period, split the way the reference
- * system splits it: the balance before the period, what was sold or bought, what came back as a
+ * What the account of a customer or of a supplier did over a period, split into its columns: the
+ * balance before the period, what was sold or bought, what came back as a
  * return invoice (negative, as the account moves), what was paid, what credit and debit notes settled, and the balance at the end.
  * Whatever the account holds that none of those explains (a manual journal) is kept apart as
  * other, so the columns always add up to the balance.

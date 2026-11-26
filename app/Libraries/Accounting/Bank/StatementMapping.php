@@ -9,8 +9,8 @@ use App\Libraries\Accounting\AccountingException;
  * Where the five fields of a statement line are in the rows of a file: the separator of the cells,
  * whether the first row is a heading to be skipped, the column of each field counted from one, and the
  * order of the day, the month and the year in a date written with three numbers. The date, the deposit
- * and the withdrawal are required and the description and the reference are optional, as the reference
- * system's wizard has them, and no two fields take the same column.
+ * and the withdrawal are required and the description and the reference are optional, and no two fields
+ * take the same column.
  */
 final class StatementMapping
 {
@@ -52,8 +52,8 @@ final class StatementMapping
     }
 
     /**
-     * The mapping of the sample file of the reference system: date, description, deposit, withdrawal and
-     * reference, in that order.
+     * The mapping of the sample file: date, description, deposit, withdrawal and reference, in that
+     * order.
      */
     public static function standard(string $delimiter = self::COMMA, bool $skipFirstRow = true): self
     {

@@ -92,7 +92,7 @@ final class ReceivingAmounts
 
     /**
      * What the lines come to: the cost, the tax on it, and the total the supplier is owed, which is
-     * kept to two decimals while the tax is not rounded, as in the reference system. A purchase saved
+     * kept to two decimals while the tax is not rounded. A purchase saved
      * under the Saudi rules rounds its tax to the halala once for each rate (byRate), so its journal
      * holds input VAT in halalas and the few decimals of the cost go to the cost.
      *

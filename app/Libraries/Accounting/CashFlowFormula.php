@@ -5,7 +5,7 @@ namespace App\Libraries\Accounting;
 /**
  * What a line of the cash flow report takes from its accounts in the range: what was credited less
  * what was debited, what was debited less what was credited, only what was credited, or minus what
- * was debited. The first two are the ones the reference system offers.
+ * was debited.
  */
 enum CashFlowFormula: string
 {

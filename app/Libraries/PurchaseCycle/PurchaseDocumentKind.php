@@ -8,8 +8,7 @@ use App\Libraries\Numbering\DocumentType;
  * The four documents of the purchase cycle, in the order one is made from the next: the purchase request,
  * the quotation request, the quotation of a supplier and the purchase order, which the receiving of the goods
  * (the purchase invoice) closes. Each is stored in a table of its own, so an id of one kind is never the id
- * of a document of another. None of the four was observed in the reference system, whose purchase cycle
- * app is switched off in the account: the way they are built is the choice of this system, not a copy.
+ * of a document of another.
  */
 enum PurchaseDocumentKind: string
 {
@@ -93,8 +92,7 @@ enum PurchaseDocumentKind: string
     }
 
     /**
-     * The setting, named as the reference system names its four toggles, that lets the documents of the
-     * kind carry a status set by hand.
+     * The setting that lets the documents of the kind carry a status set by hand.
      */
     public function manualStatusSetting(): string
     {

@@ -53,8 +53,7 @@ use DateTimeImmutable;
  * movements, which is refused when that would leave a location with less than nothing of an item, as a
  * correction of a receiving is. A stocktake that has not been approved is cancelled without any effect.
  * When the books do not follow it, which is while accounting is off, the shelves still change. Its
- * journal takes the day it is approved, not the day counted. Neither that day, nor the setting that the
- * reference system has for counting by the date of the stocktake, was observed.
+ * journal takes the day it is approved, not the day counted.
  */
 final class Stocktake
 {

@@ -15,11 +15,10 @@ use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
 /**
- * The unit templates: a base unit and the larger units that convert to it by a factor. The form of the
- * reference system was observed (the main unit name, its short name of up to 25 characters, a template
- * name, an active switch and rows of a larger unit with its name, factor and short name). Its hidden
- * switch to update all costs was not observed to do anything and is not built. A factor is a positive
- * number of at most four decimals. Once a document line has used a unit of a template, its units and
+ * The unit templates: a base unit and the larger units that convert to it by a factor. A template has
+ * the name of its main unit, its short name of up to 25 characters, a template name, an active switch
+ * and rows of a larger unit with its name, factor and short name. A factor is a positive number of at
+ * most four decimals. Once a document line has used a unit of a template, its units and
  * factors never change, because the stored line says what it meant by pointing at them: editing a used
  * template is refused by name, and a changed version is saved as a new template that carries the old one
  * as its predecessor. Only the name of a template and its active switch change after use.

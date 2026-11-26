@@ -11,8 +11,8 @@ use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingResolver;
 
 /**
- * The journals of the register of fixed assets. Their form is standard bookkeeping and none of them was
- * observed in the reference system, so they are assumptions: buying an asset debits its cost account and
+ * The journals of the register of fixed assets, in the form of standard bookkeeping: buying an asset
+ * debits its cost account and
  * credits the treasury it was paid from, the account of what is owed for assets, or for an asset already
  * owned when the books began the accumulated depreciation it had and the opening balance account for the
  * rest; a month of depreciation debits each asset's expense account and credits its accumulated

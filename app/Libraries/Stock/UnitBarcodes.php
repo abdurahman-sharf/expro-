@@ -13,9 +13,8 @@ use Config\Database;
 /**
  * A barcode for each unit of an item. Scanning one enters its item in the unit it names (a carton barcode
  * enters a carton). A barcode belongs to one item and one unit for good and may not be the number of any
- * item, so that a scan never means two things. The reference system asks for a factor with every barcode
- * row of a product, which here is the unit the barcode names, and a barcode with no unit is another way
- * to scan the base unit.
+ * item, so that a scan never means two things. The factor of a barcode is that of the unit it names, and
+ * a barcode with no unit is another way to scan the base unit.
  */
 final class UnitBarcodes
 {

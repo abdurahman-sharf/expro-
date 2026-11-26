@@ -19,10 +19,9 @@ use Config\Database;
  * Money a customer pays with no invoice behind it. It is one journal of its own, a debit to the
  * treasury it was paid into and a credit to the account of the customer, so the customer holds it
  * as credit and the credit is spent on their invoices by the order of every credit, the oldest
- * invoice first, at once and without a journal. The reference system posts it to a liability of its
- * own and leaves the account of the customer untouched until somebody distributes it by hand; this
- * keeps the account, the invoices and the aging of the customer in agreement at every moment
- * instead (an assumption the owner can veto). An advance is never edited and never deleted: one that
+ * invoice first, at once and without a journal. No separate liability holds it and nobody distributes
+ * it by hand, which keeps the account, the invoices and the aging of the customer in agreement at every
+ * moment. An advance is never edited and never deleted: one that
  * is wrong is cancelled, which reverses its journal, and what had been spent from it goes back to the
  * customer's credit. Under the Saudi rules an advance carries VAT on what no invoice takes of it at once (AdvanceVat).
  */

@@ -14,11 +14,11 @@ use ValueError;
  * holds. Only an invoice, a tax invoice and a credit note carry one, never a quote, a work order, a
  * purchase invoice or a voucher, nor one printed for a sale that was not issued (set aside or cancelled),
  * and none carries one while the tax number of the seller is not entered: a document without it is
- * printed without a code and the screen says why, where the reference system prints a code with an
- * empty tax number. A document in a foreign currency carries none either, since the code holds the
- * amounts in the currency of the shop, and no document of a business its owner said is not registered for
- * VAT, which issues no tax invoice and has no tax number to state. The figures are the ones the document shows: they are read,
- * never worked out again, and a credit note shows them as the amounts it takes back.
+ * printed without a code and the screen says why. A document in a foreign currency carries none either,
+ * since the code holds the amounts in the currency of the shop, and no document of a business its owner
+ * said is not registered for VAT, which issues no tax invoice and has no tax number to state. The
+ * figures are the ones the document shows: they are read, never worked out again, and a credit note
+ * shows them as the amounts it takes back.
  */
 final class DocumentQr
 {

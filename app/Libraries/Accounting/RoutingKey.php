@@ -5,7 +5,7 @@ namespace App\Libraries\Accounting;
 /**
  * Every account a posting can need, named by the part of the business it belongs to. The
  * first nineteen keys, the price variance of purchases aside, are the rows of the six routing
- * families of the reference system. The others are accounts this application needs on top of them.
+ * families. The others are accounts that postings need on top of them.
  */
 enum RoutingKey: string
 {
@@ -120,7 +120,7 @@ enum RoutingKey: string
     }
 
     /**
-     * The types the row offers, in the order the reference system lists them.
+     * The types the row offers, in the order the routing screen lists them.
      *
      * @return list<RoutingType>
      */
@@ -181,8 +181,8 @@ enum RoutingKey: string
     }
 
     /**
-     * The reference system calls the cancelled choice "no routing" on these rows: there is
-     * no account to cancel, the row simply sets nothing.
+     * The cancelled choice sets nothing on these rows, as there is no account to cancel: it is shown
+     * as "no routing" on the product sales row and as the default chart account on the cost of sales row.
      */
     public function cancelMeansNone(): bool
     {
