@@ -37,6 +37,7 @@ return [
     'item_inventory_locations'      => '',
     'item_purchases_adjustment'     => '',
     'item_purchases_discount'       => '',
+    'item_purchases_price_variance' => '',
     'item_purchases_purchases'      => '',
     'item_purchases_returns'        => '',
     'item_purchases_suppliers'      => '',

@@ -129,7 +129,7 @@ class RoutingServiceTest extends CIUnitTestCase
 
         $this->assertSame([
             'sales.customers', 'sales.revenue', 'sales.returns', 'sales.discount', 'sales.product', 'sales.adjustment', 'sales.shipping', 'sales.cogs',
-            'purchases.suppliers', 'purchases.purchases', 'purchases.returns', 'purchases.discount', 'purchases.adjustment',
+            'purchases.suppliers', 'purchases.purchases', 'purchases.returns', 'purchases.discount', 'purchases.adjustment', 'purchases.price_variance',
             'inventory.locations', 'treasuries.accounts', 'treasuries.banks', 'branches.receivable', 'branches.payable',
             'cheques.receivable', 'cheques.collection', 'cheques.fees', 'cheques.payable',
             'stock_permits.add', 'stock_permits.issue', 'stock_permits.count_out', 'stock_permits.count_in',

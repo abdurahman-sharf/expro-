@@ -11,9 +11,11 @@ use Closure;
  *
  * A purchase has one journal and, when it was paid at once, a second one for the payment, as in
  * the reference system. Goods that come in go into the account of their stock location at what
- * they cost, and the tax on them into the account of tax paid. Goods that go back to the
- * supplier leave the account at what they are worth in stock, and what the supplier gives back
- * for them beyond that goes to the cost of sales. A transfer moves stock from one location to
+ * they cost, and the tax on them into the account of tax paid. What is bought and not kept in
+ * stock goes to the account of purchases, never to the cost of sales, and comes back out of it when
+ * it is returned. Goods that go back to the supplier leave the account at what they are worth in
+ * stock, and what the supplier gives back for them beyond that goes to the account routed for the
+ * price variance of purchases. A transfer moves stock from one location to
  * another at what it is worth where it leaves. A transfer between locations of two branches is two
  * journals, one in each branch, that meet in the accounts between branches: the branch it leaves
  * debits what the other branches owe it and credits the stock it gave up, and the branch it goes to
@@ -366,7 +368,7 @@ final class ReceivingPostingBuilder
         }
 
         if (bccomp($expense, '0', self::SCALE) !== 0) {
-            $debits[] = [$this->required(RoutingKey::CostOfGoodsSold), $expense];
+            $debits[] = [$this->required(RoutingKey::Purchases), $expense];
         }
 
         if (bccomp($totals['tax'], '0', self::SCALE) > 0) {
@@ -474,9 +476,12 @@ final class ReceivingPostingBuilder
         $movements  = [];
         $byLocation = [];
         $inventory  = '0';
+        $notStocked = '0';
 
         foreach ($purchase->lines as $line) {
             if (! $line->hasStock) {
+                $notStocked = bcadd($notStocked, SaleAmounts::absolute(ReceivingAmounts::net($line)), self::SCALE);
+
                 continue;
             }
 
@@ -493,7 +498,8 @@ final class ReceivingPostingBuilder
         $decimals   = $foreign === null ? 2 : $this->baseDecimalsOf();
         $total      = $foreign === null ? $totals['total'] : Money::toBase($totals['total'], $foreign->rate, $decimals);
         $tax        = $foreign === null ? $totals['tax'] : Money::toBase($totals['tax'], $foreign->rate, $decimals);
-        $difference = bcsub(bcsub($total, $inventory, self::SCALE), $tax, self::SCALE);
+        $notStocked = $foreign === null ? $notStocked : Money::toBase($notStocked, $foreign->rate, $decimals);
+        $difference = bcsub(bcsub(bcsub($total, $inventory, self::SCALE), $tax, self::SCALE), $notStocked, self::SCALE);
         $lines      = [];
 
         if (bccomp($totals['total'], '0', self::SCALE) > 0) {
@@ -510,12 +516,16 @@ final class ReceivingPostingBuilder
             }
         }
 
+        if (bccomp($notStocked, '0', self::SCALE) > 0) {
+            $lines[] = new JournalLineDraft($this->required(RoutingKey::Purchases), credit: $notStocked);
+        }
+
         $sign = bccomp($difference, '0', self::SCALE);
 
         if ($sign > 0) {
-            $lines[] = new JournalLineDraft($this->required(RoutingKey::CostOfGoodsSold), credit: $difference);
+            $lines[] = new JournalLineDraft($this->required(RoutingKey::PurchasePriceVariance), credit: $difference);
         } elseif ($sign < 0) {
-            $lines[] = new JournalLineDraft($this->required(RoutingKey::CostOfGoodsSold), debit: SaleAmounts::absolute($difference));
+            $lines[] = new JournalLineDraft($this->required(RoutingKey::PurchasePriceVariance), debit: SaleAmounts::absolute($difference));
         }
 
         return new StockPostingPlan($this->draft($purchase, $lines, $revision, $employeeId, 'Purchase return #'), $movements);

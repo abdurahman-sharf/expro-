@@ -255,13 +255,13 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
         );
     }
 
-    public function testPurchase_PostsAServiceAsACostAndMovesNoStock(): void
+    public function testPurchase_PostsWhatIsNotKeptInStockToPurchasesNotToTheCostOfSalesAndMovesNoStock(): void
     {
         $plan = $this->builder->purchase($this->purchase([$this->line('1', '80', stock: false)]), 1);
 
         $this->assertSame(
             [
-                $this->accountId('cogs') . ':80.0000:0.0000',
+                $this->accountId('purchases') . ':80.0000:0.0000',
                 $this->supplierAccount() . ':0.0000:80.0000',
             ],
             $this->shape($plan->journal),
@@ -314,7 +314,7 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
 
     public function testPurchase_RefusesARoutingThatIsCancelled(): void
     {
-        $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::CostOfGoodsSold->value)->update(['routing_type' => RoutingType::Cancelled->value]);
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::Purchases->value)->update(['routing_type' => RoutingType::Cancelled->value]);
 
         $failure = $this->failureOf(fn () => $this->builder->purchase($this->purchase([$this->line('1', '10', stock: false)]), 1));
 
@@ -393,7 +393,40 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
         $this->assertSame(
             [
                 $this->supplierAccount() . ':80.0000:0.0000',
-                $this->accountId('cogs') . ':0.0000:80.0000',
+                $this->accountId('purchases') . ':0.0000:80.0000',
+            ],
+            $this->shape($plan->journal),
+        );
+    }
+
+    public function testPurchase_PostsTheTaxOfWhatIsNotKeptInStockBesideIt(): void
+    {
+        $plan = $this->builder->purchase($this->purchase([$this->line('1', '100', '15', stock: false)]), 1);
+
+        $this->assertSame(
+            [
+                $this->accountId('purchases') . ':100.0000:0.0000',
+                $this->accountId('tax_input') . ':15.0000:0.0000',
+                $this->supplierAccount() . ':0.0000:115.0000',
+            ],
+            $this->shape($plan->journal),
+        );
+    }
+
+    public function testPurchase_SendsThePriceVarianceOfAReturnToTheAccountItsRowIsRoutedTo(): void
+    {
+        $variance = $this->accountId('expenses_default');
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::PurchasePriceVariance->value)->update(['account_id' => $variance]);
+
+        $origin = $this->origin([$this->line('20', '65.70')]);
+        $plan   = $this->builder->purchase($this->purchase([$this->line('-2', '70', cost: '66'), $this->line('-1', '80', stock: false)], ReceivingType::Return, origin: $origin), 1);
+
+        $this->assertSame(
+            [
+                $this->supplierAccount() . ':220.0000:0.0000',
+                $this->stockAccount($this->warehouse) . ':0.0000:132.0000',
+                $this->accountId('purchases') . ':0.0000:80.0000',
+                $variance . ':0.0000:8.0000',
             ],
             $this->shape($plan->journal),
         );
@@ -706,14 +739,14 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
         }
     }
 
-    public function testPurchase_RejectsTheCostOfSalesRowSetToPerItemBecauseTheRowDoesNotOfferIt(): void
+    public function testPurchase_RejectsThePurchasesRowSetToPerItemBecausePostingDoesNotApplyItThere(): void
     {
-        $this->routeRow(RoutingKey::CostOfGoodsSold, RoutingType::PerItem);
+        $this->routeRow(RoutingKey::Purchases, RoutingType::PerItem);
 
         $failure = $this->failureOf(fn () => $this->builder->purchase($this->purchase([$this->line('1', '9', stock: false, itemId: 4)]), 1));
 
         $this->assertSame(PostingError::RoutingTypeUnsupported, $failure->error);
-        $this->assertSame('sales.cogs', $failure->context['routing_key']);
+        $this->assertSame('purchases.purchases', $failure->context['routing_key']);
     }
 
     public function testPurchase_ConvertsAPurchaseInDollarsToTheBaseAndWorthsTheStockWhatItsLineIsWorth(): void
@@ -724,7 +757,7 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
 
         $this->assertSame([
             $this->stockAccount($this->warehouse) . ':749.9600:0.0000',
-            $this->accountId('cogs') . ':75.0000:0.0000',
+            $this->accountId('purchases') . ':75.0000:0.0000',
             $this->supplierAccount() . ':0.0000:824.9600',
         ], array_map(static fn ($line): string => $line->accountId . ':' . bcadd($line->debit, '0', 4) . ':' . bcadd($line->credit, '0', 4), $plan->journal->lines));
         $this->assertSame(['USD', '3.75000000'], [$plan->journal->currencyCode, $plan->journal->exchangeRate]);

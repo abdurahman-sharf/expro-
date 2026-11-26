@@ -963,6 +963,7 @@ return [
     'source_opening_stock'                       => '',
     'source_purchase'                            => '',
     'source_purchase_payment'                    => '',
+    'source_purchase_reclass'                    => '',
     'source_revenue'                             => '',
     'source_reversal'                            => '',
     'source_sale'                                => '',

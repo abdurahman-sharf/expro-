@@ -37,6 +37,7 @@ return [
     'item_inventory_locations'      => 'مواقع المخزون (الحساب الرئيسي)',
     'item_purchases_adjustment'     => 'تسوية المشتريات',
     'item_purchases_discount'       => 'خصم مكتسب',
+    'item_purchases_price_variance' => 'فرق سعر مرتجع المشتريات',
     'item_purchases_purchases'      => 'المشتريات',
     'item_purchases_returns'        => 'مرتجعات المشتريات',
     'item_purchases_suppliers'      => 'الموردون (الحساب الرئيسي)',

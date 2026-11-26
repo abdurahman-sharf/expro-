@@ -963,6 +963,7 @@ return [
     'source_opening_stock'                       => 'Opening stock',
     'source_purchase'                            => 'Receiving',
     'source_purchase_payment'                    => 'Receiving payment',
+    'source_purchase_reclass'                    => 'Purchases moved from the cost of sales',
     'source_revenue'                             => 'Receipt voucher',
     'source_reversal'                            => 'Reversal',
     'source_sale'                                => 'Sale',

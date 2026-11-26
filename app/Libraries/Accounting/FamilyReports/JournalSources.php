@@ -13,6 +13,7 @@ use App\Libraries\Accounting\InterBranchSettlements;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\OpeningBalanceService;
 use App\Libraries\Accounting\OpeningStock;
+use App\Libraries\Accounting\PurchaseCostReclass;
 use App\Libraries\Accounting\ReceivingPostingBuilder;
 use App\Libraries\Accounting\RevenuePostingBuilder;
 use App\Libraries\Accounting\SalePostingBuilder;
@@ -48,6 +49,7 @@ final class JournalSources
             ReceivingPostingBuilder::SOURCE_PAYMENT,
             ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT,
             ReceivingPostingBuilder::SOURCE_SUPPLIER_FX,
+            PurchaseCostReclass::SOURCE,
             SupplierAdvances::SOURCE,
             CreditRefunds::SUPPLIER_SOURCE,
             CustomerAdvances::SOURCE,

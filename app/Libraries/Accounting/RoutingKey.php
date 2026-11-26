@@ -4,8 +4,8 @@ namespace App\Libraries\Accounting;
 
 /**
  * Every account a posting can need, named by the part of the business it belongs to. The
- * first nineteen keys are the rows of the six routing families of the reference system. The
- * others are accounts this application needs on top of them.
+ * first nineteen keys, the price variance of purchases aside, are the rows of the six routing
+ * families of the reference system. The others are accounts this application needs on top of them.
  */
 enum RoutingKey: string
 {
@@ -22,6 +22,7 @@ enum RoutingKey: string
     case PurchaseReturns       = 'purchases.returns';
     case PurchaseDiscount      = 'purchases.discount';
     case PurchaseAdjustment    = 'purchases.adjustment';
+    case PurchasePriceVariance = 'purchases.price_variance';
     case StockLocations        = 'inventory.locations';
     case Treasuries            = 'treasuries.accounts';
     case StockPermitAdd        = 'stock_permits.add';
@@ -66,7 +67,7 @@ enum RoutingKey: string
     {
         return match ($this) {
             self::Customers, self::SalesRevenue, self::SalesReturns, self::SalesDiscount, self::ProductSales, self::SalesAdjustment, self::SalesShipping, self::CostOfGoodsSold => 'sales',
-            self::Suppliers, self::Purchases, self::PurchaseReturns, self::PurchaseDiscount, self::PurchaseAdjustment => 'purchases',
+            self::Suppliers, self::Purchases, self::PurchaseReturns, self::PurchaseDiscount, self::PurchaseAdjustment, self::PurchasePriceVariance => 'purchases',
             self::StockLocations => 'inventory',
             self::Treasuries, self::Banks, self::InterBranchReceivable, self::InterBranchPayable => 'treasuries',
             self::NotesReceivable, self::ChequesUnderCollection, self::ChequeDepositFees, self::NotesPayable => 'cheques',
@@ -209,6 +210,7 @@ enum RoutingKey: string
             self::SalesRevenue, self::SalesReturns, self::ProductSales, self::SalesShipping => [AccountType::Revenue],
             self::SalesDiscount, self::SalesAdjustment, self::PurchaseDiscount, self::PurchaseAdjustment => [AccountType::Revenue, AccountType::Expense],
             self::CostOfGoodsSold, self::StockCountOut, self::StockCountIn, self::ChequeDepositFees => [AccountType::Expense],
+            self::PurchasePriceVariance => [AccountType::Expense, AccountType::Revenue],
             self::Purchases, self::PurchaseReturns => [AccountType::Asset, AccountType::Expense],
             self::CashDifference => [AccountType::Asset, AccountType::Revenue, AccountType::Expense],
             self::FxGain, self::FxLoss => [AccountType::Revenue, AccountType::Expense, AccountType::Asset],
@@ -255,6 +257,7 @@ enum RoutingKey: string
             self::PurchaseReturns       => null,
             self::PurchaseDiscount      => 'purchase_discount',
             self::PurchaseAdjustment    => 'purchase_discount',
+            self::PurchasePriceVariance => 'cogs',
             self::StockLocations        => 'inventory',
             self::Treasuries            => 'treasuries',
             self::Banks                 => 'banks',

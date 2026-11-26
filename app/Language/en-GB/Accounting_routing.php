@@ -37,6 +37,7 @@ return [
     'item_inventory_locations'      => 'Stock locations (main account)',
     'item_purchases_adjustment'     => 'Purchases settlement',
     'item_purchases_discount'       => 'Discounts received',
+    'item_purchases_price_variance' => 'Purchase return price variance',
     'item_purchases_purchases'      => 'Purchases',
     'item_purchases_returns'        => 'Purchase returns',
     'item_purchases_suppliers'      => 'Suppliers (main account)',

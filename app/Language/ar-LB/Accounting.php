@@ -963,6 +963,7 @@ return [
     'source_opening_stock'                       => 'مخزون افتتاحي',
     'source_purchase'                            => 'استلام',
     'source_purchase_payment'                    => 'دفعة استلام',
+    'source_purchase_reclass'                    => 'إعادة تبويب مشتريات من تكلفة المبيعات',
     'source_revenue'                             => 'سند قبض',
     'source_reversal'                            => 'عكس قيد',
     'source_sale'                                => 'بيع',
