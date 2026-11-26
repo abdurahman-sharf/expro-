@@ -98,6 +98,7 @@ return [
     'treasuries_title'              => 'Treasuries',
     'type_auto'                     => 'Automatic',
     'type_cancelled'                => 'Cancel the accounts',
+    'type_chart_default'            => 'Default chart account',
     'type_main_per_entity'          => 'Set the main account for each one',
     'type_none'                     => 'No routing',
     'type_per_item'                 => 'Set for each one',

@@ -98,6 +98,7 @@ return [
     'treasuries_title'              => 'الخزائن',
     'type_auto'                     => 'تعيين تلقائي',
     'type_cancelled'                => 'إلغاء الحسابات',
+    'type_chart_default'            => 'حساب الدليل الافتراضي',
     'type_main_per_entity'          => 'تعيين الحساب الرئيسي لكل منها',
     'type_none'                     => 'بلا توجيه',
     'type_per_item'                 => 'تعيين لكل منها',

@@ -189,7 +189,7 @@ class AccountingRoutingControllerTest extends CIUnitTestCase
         $this->assertSame(count(RoutingKey::editable()), substr_count($body, 'aria-label="' . lang('Accounting_routing.column_type') . ': '));
     }
 
-    public function testGetIndex_CallsTheCancelledTypeNoRoutingOnTheCostRow(): void
+    public function testGetIndex_CallsTheCancelledTypeTheDefaultChartAccountOnTheCostRow(): void
     {
         $this->manager();
 
@@ -197,7 +197,8 @@ class AccountingRoutingControllerTest extends CIUnitTestCase
         $row  = substr($body, (int) strpos($body, 'id="route_sales_cogs_type"'));
         $row  = substr($row, 0, (int) strpos($row, '</select>'));
 
-        $this->assertStringContainsString('>' . lang('Accounting_routing.type_none') . '<', $row);
+        $this->assertStringContainsString('>' . lang('Accounting_routing.type_chart_default') . '<', $row);
+        $this->assertStringNotContainsString(lang('Accounting_routing.type_none'), $row);
         $this->assertStringNotContainsString(lang('Accounting_routing.type_cancelled'), $row);
     }
 

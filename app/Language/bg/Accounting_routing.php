@@ -98,6 +98,7 @@ return [
     'treasuries_title'              => '',
     'type_auto'                     => '',
     'type_cancelled'                => '',
+    'type_chart_default'            => '',
     'type_main_per_entity'          => '',
     'type_none'                     => '',
     'type_per_item'                 => '',

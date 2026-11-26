@@ -86,7 +86,7 @@ class AccountingRouting extends AccountingController
             }
 
             $types = array_map(
-                static fn (string $type): array => ['value' => $type, 'text' => lang('Accounting_routing.type_' . ($type === RoutingType::Cancelled->value && $item->cancelMeansNone ? 'none' : $type))],
+                static fn (string $type): array => ['value' => $type, 'text' => lang('Accounting_routing.type_' . ($type === RoutingType::Cancelled->value && $item->cancelMeansNone ? ($item->key === RoutingKey::CostOfGoodsSold->value ? 'chart_default' : 'none') : $type))],
                 $item->routingTypes,
             );
 
