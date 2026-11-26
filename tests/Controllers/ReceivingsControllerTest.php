@@ -568,6 +568,37 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame('-500.00', $this->balance($this->accountId('cash')));
     }
 
+    public function testPostComplete_RefundsNothingAndTakesTheBalanceOfTheSupplierDownWhenNoRefundIsTypedOnAReturn(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]);
+
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '-4', '50')], 'return', -1, $purchase));
+        $this->post('/receivings/complete', $this->completeForm(lang('Sales.cash'), ''))->assertSee('RECV ');
+
+        $return = $this->newestReceiving();
+
+        $this->assertSame('return', $return->receiving_type);
+        $this->assertSame(PaymentType::Due, PaymentType::fromLabel((string) $return->payment_type));
+        $this->assertNull($return->treasury_id);
+        $this->assertSame('-300.00', $this->balance($this->supplierAccount()), 'The supplier is owed what is left of the purchase');
+        $this->assertSame('0.00', $this->balance($this->accountId('cash')), 'No money came back');
+        $this->assertSame([], $this->purchases->get_payments((int) $return->receiving_id));
+    }
+
+    public function testPostComplete_RefundsAReturnInFullOnlyWhenTheWholeRefundIsTyped(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]);
+
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '-4', '50')], 'return', -1, $purchase));
+        $this->post('/receivings/complete', $this->completeForm(lang('Sales.cash'), '200.00'))->assertSee('RECV ');
+
+        $this->assertSame(PaymentType::Cash, PaymentType::fromLabel((string) $this->newestReceiving()->payment_type));
+        $this->assertSame('-500.00', $this->balance($this->supplierAccount()));
+        $this->assertSame('200.00', $this->balance($this->accountId('cash')));
+    }
+
     public function testPostComplete_SaysWhyTheBooksRefusedTheReceivingAndKeepsTheCart(): void
     {
         $itemId = $this->item('0.00');

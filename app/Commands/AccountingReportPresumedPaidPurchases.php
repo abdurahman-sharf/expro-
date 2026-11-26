@@ -8,12 +8,12 @@ use CodeIgniter\CLI\CLI;
 
 class AccountingReportPresumedPaidPurchases extends BaseCommand
 {
-    private const COLUMNS = ['receiving_id', 'number', 'date', 'supplier', 'amount', 'treasury', 'payment_type'];
+    private const COLUMNS = ['receiving_id', 'kind', 'number', 'date', 'supplier', 'amount', 'treasury', 'payment_type'];
 
     protected $group       = 'Accounting';
     protected $name        = 'accounting:report_presumed_paid_purchases';
     protected $usage       = 'accounting:report_presumed_paid_purchases [--csv]';
-    protected $description = 'Lists the purchases the books hold as paid in full at the moment they were saved, with no payment of their own: number, date, supplier, amount, treasury and way of payment. A purchase saved with the amount paid left empty was booked this way before an amount had to be typed, and so was one whose typed amount covered it, and the two cannot be told apart, so go through the list by hand. Reads only and corrects nothing.';
+    protected $description = 'Lists the purchases the books hold as paid in full and the returns they hold as refunded in full at the moment they were saved, with no payment of their own: kind (purchase or return), number, date, supplier, amount, treasury and way of payment. One saved with the amount left empty was booked this way before an amount had to be typed, and so was one whose typed amount covered it, and the two cannot be told apart, so go through the list by hand. Reads only and corrects nothing.';
     protected $options     = [
         '--csv' => 'Print the list as CSV and nothing else (add spark\'s own --no-header, or its banner comes first).',
     ];
@@ -41,13 +41,13 @@ class AccountingReportPresumedPaidPurchases extends BaseCommand
         }
 
         if ($purchases === []) {
-            CLI::write('No purchase is held as paid in full at the moment it was saved.', 'green');
+            CLI::write('No purchase or return is held as paid or refunded in full at the moment it was saved.', 'green');
 
             return EXIT_SUCCESS;
         }
 
         CLI::table(array_map('array_values', $purchases), self::COLUMNS);
-        CLI::write(count($purchases) . ' purchase(s) are held as paid in full at the moment they were saved. Nothing was changed.');
+        CLI::write(count($purchases) . ' purchase(s) and return(s) are held as paid or refunded in full at the moment they were saved. Nothing was changed.');
 
         return EXIT_SUCCESS;
     }

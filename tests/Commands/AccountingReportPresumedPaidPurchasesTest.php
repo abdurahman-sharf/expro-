@@ -66,7 +66,7 @@ class AccountingReportPresumedPaidPurchasesTest extends CIUnitTestCase
         $this->assertStringContainsString('300.00', $output);
         $this->assertStringContainsString('Gulf Supplies', $output);
         $this->assertStringNotContainsString('120.00', $output);
-        $this->assertStringContainsString('1 purchase(s) are held as paid in full at the moment they were saved. Nothing was changed.', $output);
+        $this->assertStringContainsString('1 purchase(s) and return(s) are held as paid or refunded in full at the moment they were saved. Nothing was changed.', $output);
         $this->assertSame($journals, $this->countRows('accounting_journals'));
     }
 
@@ -76,12 +76,12 @@ class AccountingReportPresumedPaidPurchasesTest extends CIUnitTestCase
 
         $output = $this->runReport('--csv');
 
-        $this->assertStringContainsString('receiving_id,number,date,supplier,amount,treasury,payment_type', $output);
-        $this->assertMatchesRegularExpression('/^' . $receivingId . ',[^,]*,\d{4}-\d{2}-\d{2},"?Gulf Supplies"?,300\.00,/m', $output);
+        $this->assertStringContainsString('receiving_id,kind,number,date,supplier,amount,treasury,payment_type', $output);
+        $this->assertMatchesRegularExpression('/^' . $receivingId . ',purchase,[^,]*,\d{4}-\d{2}-\d{2},"?Gulf Supplies"?,300\.00,/m', $output);
     }
 
     public function testRun_AcceptsBooksThatHoldNoSuchPurchase(): void
     {
-        $this->assertStringContainsString('No purchase is held as paid in full at the moment it was saved.', $this->runReport());
+        $this->assertStringContainsString('No purchase or return is held as paid or refunded in full at the moment it was saved.', $this->runReport());
     }
 }

@@ -709,11 +709,12 @@ class Receivings extends Secure_Controller
     }
 
     /**
-     * What was typed in the box of the amount tendered, which is what the purchase is paid with. A purchase
-     * whose box was left empty is paid nothing and stays owed to its supplier: money leaves a treasury only
-     * for an amount somebody typed. Null when the way of payment takes no money from a treasury, and for a
-     * return whose box was left empty, whose refund is received whole or not at all. An amount that cannot
-     * be taken is returned as the error to show.
+     * What was typed in the box of the amount tendered, which is what the purchase is paid with or what a
+     * return is refunded. A box left empty is nothing paid and nothing refunded: the purchase stays owed to
+     * its supplier and the return takes the balance of the supplier down, because money moves in or out of a
+     * treasury only for an amount somebody typed. Null when the way of payment takes no money from a
+     * treasury. A refund is received whole or not at all. An amount that cannot be taken is returned as the
+     * error to show.
      *
      * @return array{error: string}|numeric-string|null
      */
@@ -727,7 +728,7 @@ class Receivings extends Secure_Controller
         }
 
         if ($typed === '') {
-            return $mode === 'receive' ? '0.0000' : null;
+            return '0.0000';
         }
 
         $parsed = parse_decimals($typed);
