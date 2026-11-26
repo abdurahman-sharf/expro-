@@ -29,11 +29,11 @@ class AccountingBooksCompareTest extends CIUnitTestCase
     {
         $file = WRITEPATH . 'books-compare-' . bin2hex(random_bytes(6)) . '.json';
 
-        file_put_contents($file, $content !== '' ? $content : json_encode([
-            'accounts' => [7 => ['code' => '1201', 'name' => 'Cash', 'debit' => $debit, 'credit' => '0.0000']],
+        file_put_contents($file, $content !== '' ? $content : json_encode(['companies' => [1 => [
+            'accounts' => [7 => ['code' => '1201', 'name' => 'Cash', 'debit' => $debit, 'credit' => '0.0000', 'branches' => [1 => ['debit' => $debit, 'credit' => '0.0000']]]],
             'totals'   => ['debit' => $debit, 'credit' => $debit],
             'stock'    => [1 => ['account_id' => 9, 'account_balance' => '50.0000', 'movements_value' => '50.0000', 'unattributed' => '0.0000']],
-        ]));
+        ]]]));
 
         $this->files[] = $file;
 
@@ -52,15 +52,16 @@ class AccountingBooksCompareTest extends CIUnitTestCase
     {
         $output = $this->runCompare($this->file('100.0000') . ' ' . $this->file('100.0000'));
 
-        $this->assertStringContainsString('The two snapshots agree on all 1 account(s) and 1 stock location(s).', $output);
+        $this->assertStringContainsString('The two snapshots agree on all 1 company.', $output);
     }
 
     public function testRun_RejectsSnapshotsThatDifferAndListsEachFigure(): void
     {
         $output = $this->runCompare($this->file('100.0000') . ' ' . $this->file('90.0000'));
 
-        $this->assertStringContainsString('account 7 debit: 100.0000 -> 90.0000', $output);
-        $this->assertStringContainsString('3 figure(s) differ.', $output);
+        $this->assertStringContainsString('company 1 account 7 debit: 100.0000 -> 90.0000', $output);
+        $this->assertStringContainsString('company 1 account_branch 7/1 debit: 100.0000 -> 90.0000', $output);
+        $this->assertStringContainsString('4 figure(s) differ.', $output);
     }
 
     public function testRun_RequiresTwoFilesThatAreSnapshots(): void
@@ -68,7 +69,7 @@ class AccountingBooksCompareTest extends CIUnitTestCase
         $message = 'Name two snapshot files written by accounting:books_snapshot';
 
         $this->assertStringContainsString($message, $this->runCompare($this->file('100.0000')));
-        $this->assertStringContainsString($message, $this->runCompare($this->file('100.0000') . ' ' . $this->file('', '{"accounts": 1}')));
+        $this->assertStringContainsString($message, $this->runCompare($this->file('100.0000') . ' ' . $this->file('', '{"companies": []}')));
         $this->assertStringContainsString($message, $this->runCompare($this->file('100.0000') . ' ' . $this->file('', 'not json')));
     }
 }

@@ -69,10 +69,25 @@ class AccountingBooksSnapshotTest extends CIUnitTestCase
         $output   = $this->runSnapshot($this->file);
         $snapshot = json_decode((string) file_get_contents($this->file), true);
 
-        $this->assertStringContainsString('2 account(s) with movements, debit 100.0000, credit 100.0000', $output);
-        $this->assertSame('100.0000', $snapshot['accounts'][$this->accountId('cash')]['debit']);
-        $this->assertSame(['debit' => '100.0000', 'credit' => '100.0000'], $snapshot['totals']);
-        $this->assertArrayHasKey(self::LOCATION_ID, $snapshot['stock']);
+        $this->assertStringContainsString('Company 1: 2 account(s) with movements, debit 100.0000, credit 100.0000', $output);
+        $this->assertSame([1], array_keys($snapshot['companies']));
+        $this->assertSame('100.0000', $snapshot['companies'][1]['accounts'][$this->accountId('cash')]['branches'][1]['debit']);
+        $this->assertSame(['debit' => '100.0000', 'credit' => '100.0000'], $snapshot['companies'][1]['totals']);
+    }
+
+    public function testRun_WritesTheBooksOfEveryCompanyWhenAskedForAll(): void
+    {
+        $this->accountingDb()->table('companies')->insert(['company_id' => 2, 'name' => 'Second company']);
+
+        try {
+            $output   = $this->runSnapshot($this->file . ' --all-companies');
+            $snapshot = json_decode((string) file_get_contents($this->file), true);
+        } finally {
+            $this->accountingDb()->table('companies')->where('company_id', 2)->delete();
+        }
+
+        $this->assertSame([1, 2], array_keys($snapshot['companies']));
+        $this->assertStringContainsString('Company 2: 0 account(s) with movements', $output);
     }
 
     public function testRun_RequiresAFileToWriteTo(): void
