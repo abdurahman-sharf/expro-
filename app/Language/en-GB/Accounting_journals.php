@@ -133,6 +133,7 @@ return [
     'tax_amount'                     => 'Tax',
     'tax_code'                       => 'Tax code',
     'tax_included'                   => 'Included in the amount',
+    'tax_line_preview'               => 'Posting adds a {0} line of {1} for this tax.',
     'tax_note'                       => 'Line tax',
     'tax_note_hint'                  => 'On a manual journal, posting adds a line for this tax on the side of its line, and the other side must cover it. On a journal the books made it stays a note.',
     'tax_percent'                    => 'Rate %',

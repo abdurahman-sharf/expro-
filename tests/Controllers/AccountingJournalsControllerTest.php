@@ -2373,6 +2373,19 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(lang('Accounting_journals.tax_note_hint'), $both);
     }
 
+    public function testGetNew_CountsTheTaxOfALineInTheTotalsAndShowsTheLinePostingWillAdd(): void
+    {
+        $this->accountant();
+        $this->setConfigValue(JournalSettings::LINE_TAX, '1');
+
+        $body = $this->get('/accounting_journals/new')->response()->getBody();
+
+        $this->assertStringContainsString('class="form-text acc-tax-preview"', $body);
+        $this->assertStringContainsString('const taxOf = function($row, amount)', $body);
+        $this->assertStringContainsString('debit += rowDebit + (rowDebit > 0 ? added : 0);', $body);
+        $this->assertStringContainsString(json_encode(lang('Accounting_journals.tax_line_preview'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT), $body);
+    }
+
     public function testGetNew_ReadsArabicDigitsInTheRateOfATaxNote(): void
     {
         $this->accountant();

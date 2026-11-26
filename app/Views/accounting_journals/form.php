@@ -196,11 +196,15 @@ $rows   = $lines === [] ? [null, null] : $lines;
             'confirm_delete' => lang('Accounting_journals.confirm_delete_draft'),
             'failed'         => lang('Accounting_journals.request_failed'),
             'closed'         => lang('Accounting_journals.closed_until'),
+            'tax_line'       => lang('Accounting_journals.tax_line_preview'),
+            'debit'          => lang('Accounting_journals.debit'),
+            'credit'         => lang('Accounting_journals.credit'),
         ], $jsonFlags) ?>;
         const cutoffs = <?= json_encode($cutoffs, $jsonFlags) ?>;
         const textRequired = <?= $lineDescriptionRequired ? 'true' : 'false' ?>;
         const branchId = <?= (int) $branch_id ?>;
         const SCALE = 10000;
+        const TAX_STEP = Math.pow(10, 4 - <?= (int) $decimals ?>);
         const picker = accounting_support.accountPicker('accounts_list', <?= json_encode($picker, $jsonFlags) ?>);
         const defaults = <?= json_encode($defaults, $jsonFlags) ?>;
 
@@ -245,6 +249,23 @@ $rows   = $lines === [] ? [null, null] : $lines;
             return sign + fixed;
         };
 
+        // The tax of a line, in units, as posting works it out: on top of the amount, or the part of the
+        // amount that is tax when the tax is in it, rounded to the decimals of the base currency.
+        const taxOf = function($row, amount) {
+            const percent = parseFloat(normalize(String($row.find('.acc-tax-percent').val() || '')));
+
+            if (isNaN(percent) || percent <= 0 || amount <= 0) {
+                return {amount: 0, included: false};
+            }
+
+            const included = $row.find('input[type="checkbox"][name$="[tax_included]"]').is(':checked');
+            const round = function(value) {
+                return Math.round(value / TAX_STEP) * TAX_STEP;
+            };
+
+            return {amount: included ? round(amount) - round(amount / (1 + percent / 100)) : round(amount * percent / 100), included: included};
+        };
+
         const refreshTotals = function() {
             let debit = 0;
             let credit = 0;
@@ -255,8 +276,12 @@ $rows   = $lines === [] ? [null, null] : $lines;
             $body.children().each(function() {
                 const rowDebit = units($(this).find('.acc-debit').val());
                 const rowCredit = units($(this).find('.acc-credit').val());
-                debit += rowDebit;
-                credit += rowCredit;
+                const tax = taxOf($(this), Math.max(rowDebit, rowCredit));
+                const added = tax.included ? 0 : tax.amount;
+
+                debit += rowDebit + (rowDebit > 0 ? added : 0);
+                credit += rowCredit + (rowCredit > 0 ? added : 0);
+                $(this).find('.acc-tax-preview').text(tax.amount > 0 ? text.tax_line.replace('{0}', rowDebit > 0 ? text.debit : text.credit).replace('{1}', format(tax.amount)) : '');
                 if (rowDebit > 0 || rowCredit > 0) {
                     amounts++;
                     withoutAccount += $(this).find('input.acc-account').val() === '' ? 1 : 0;
@@ -329,6 +354,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
         });
 
         $body.on('input', '.acc-line-text', refreshTotals);
+        $body.on('input change', '.acc-tax-percent, input[name$="[tax_included]"]', refreshTotals);
 
         $body.on('input', '.acc-debit, .acc-credit', function() {
             const normalized = normalize($(this).val());

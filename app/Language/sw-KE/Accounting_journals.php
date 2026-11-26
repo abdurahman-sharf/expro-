@@ -133,6 +133,7 @@ return [
     'tax_amount'                     => '',
     'tax_code'                       => '',
     'tax_included'                   => '',
+    'tax_line_preview'               => '',
     'tax_note'                       => '',
     'tax_note_hint'                  => '',
     'tax_percent'                    => '',

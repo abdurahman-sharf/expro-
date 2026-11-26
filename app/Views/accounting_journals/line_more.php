@@ -34,6 +34,7 @@ $tax = $analysis?->tax;
                 <?= lang('Accounting_journals.tax_included') ?>
             </label>
         </div>
+        <span class="form-text acc-tax-preview" role="status" aria-live="polite"></span>
         <span class="form-text"><?= lang('Accounting_journals.tax_note_hint') ?></span>
     <?php endif; ?>
 </details>
