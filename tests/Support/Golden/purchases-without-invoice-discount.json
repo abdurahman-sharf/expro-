@@ -424,7 +424,7 @@
                             "status": "posted",
                             "lines": [
                                 "inventory:376.6968:0.0000",
-                                "cogs:0.7000:0.0000",
+                                "purchases:0.7000:0.0000",
                                 "tax_input:27.3632:0.0000",
                                 "supplier:0.0000:404.7600"
                             ]

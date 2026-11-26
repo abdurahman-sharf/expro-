@@ -76,13 +76,14 @@ class PurchaseCostReclassTest extends CIUnitTestCase
 
     private function balanceOf(string $systemKey): string
     {
-        $row = $this->accountingDb()->table('accounting_journal_lines l')
-            ->select('COALESCE(SUM(l.debit), 0) - COALESCE(SUM(l.credit), 0) AS balance', false)
-            ->join('accounting_journals j', 'j.journal_id = l.journal_id')
-            ->whereIn('j.status', ['posted', 'reversed'])
-            ->where('l.account_id', $this->accountId($systemKey))
-            ->get()
-            ->getRow();
+        $db  = $this->accountingDb();
+        $row = $db->query(
+            'SELECT COALESCE(SUM(l.debit), 0) - COALESCE(SUM(l.credit), 0) AS balance
+             FROM ' . $db->prefixTable('accounting_journal_lines') . ' l
+             JOIN ' . $db->prefixTable('accounting_journals') . " j ON j.journal_id = l.journal_id
+             WHERE j.status IN ('posted', 'reversed') AND l.account_id = ?",
+            [$this->accountId($systemKey)],
+        )->getRow();
 
         return bcadd((string) $row->balance, '0', 2);
     }

@@ -49,6 +49,7 @@ trait PurchaseGoldenTrait
             'supplier'  => $this->supplierAccount(),
             'cash'      => $this->accountId('cash'),
             'cogs'      => $this->accountId('cogs'),
+            'purchases' => $this->accountId('purchases'),
         ];
 
         foreach ($locations as $index => $locationId) {

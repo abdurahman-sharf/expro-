@@ -101,6 +101,7 @@ class ReceivingPostingTest extends CIUnitTestCase
             'supplier'  => $this->supplierAccount(),
             'cash'      => $this->accountId('cash'),
             'cogs'      => $this->accountId('cogs'),
+            'purchases' => $this->accountId('purchases'),
         ];
     }
 
@@ -250,14 +251,14 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame('supplier_required', $rows[0]->error_code);
     }
 
-    public function testPostCompleted_PostsAServiceAsACostAndMovesNoStock(): void
+    public function testPostCompleted_PostsAServiceToPurchasesNotToTheCostOfSalesAndMovesNoStock(): void
     {
         $service = $this->item('0.00', false);
 
         $receivingId = $this->buy([$this->purchaseLine($service, 0, '3', '100', '15')]);
 
         $this->assertGreaterThan(0, $receivingId);
-        $this->assertSame($this->expectedLines([['cogs', '300.00', '0.00'], ['tax_input', '45.00', '0.00'], ['supplier', '0.00', '345.00']]), $this->standingPurchase($receivingId)[0]['lines']);
+        $this->assertSame($this->expectedLines([['purchases', '300.00', '0.00'], ['tax_input', '45.00', '0.00'], ['supplier', '0.00', '345.00']]), $this->standingPurchase($receivingId)[0]['lines']);
         $this->assertSame(0, $this->countRows('accounting_stock_entries'));
         $this->assertStockTies();
     }
@@ -2602,7 +2603,7 @@ class ReceivingPostingTest extends CIUnitTestCase
         $roles = $this->roles();
 
         $this->assertSame(
-            [$roles['inventory'] . ':126.0105:0.0000', $roles['cogs'] . ':9.0000:0.0000', $roles['tax_input'] . ':15.2995:0.0000', $roles['supplier'] . ':0.0000:150.3100'],
+            [$roles['inventory'] . ':126.0105:0.0000', $roles['purchases'] . ':9.0000:0.0000', $roles['tax_input'] . ':15.2995:0.0000', $roles['supplier'] . ':0.0000:150.3100'],
             $this->exactLines($this->standingPurchase($id)[0]['id']),
             'Each line costs what it came to less its share, the tax follows, the supplier is owed the total to two decimals and the stock takes the rounding',
         );
