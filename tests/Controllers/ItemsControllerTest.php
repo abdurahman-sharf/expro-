@@ -3973,6 +3973,7 @@ class ItemsControllerTest extends CIUnitTestCase
                 }
             });
         } finally {
+            set_time_limit(0);
             unset($_FILES['file_path']);
             unlink($file);
             session()->remove('person_id');
