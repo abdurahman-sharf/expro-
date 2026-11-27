@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Accounting\Engine\OperationJournal;
 use App\Libraries\Assets\AssetSources;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
@@ -65,6 +66,7 @@ final class JournalService
     private BranchGuard $branches;
     private PeriodGuard $periods;
     private JournalLineAnalysis $analysis;
+    private OperationJournal $journal;
     private JournalSettings $settings;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?PostingService $posting = null, ?BranchGuard $branches = null)
@@ -77,6 +79,7 @@ final class JournalService
         $this->periods  = new PeriodGuard($this->db);
         $this->settings = new JournalSettings($this->db);
         $this->analysis = new JournalLineAnalysis($this->db, null, $this->settings);
+        $this->journal  = new OperationJournal(ManualJournalFacts::OPERATION, $this->db);
     }
 
     /**
@@ -180,8 +183,8 @@ final class JournalService
         $this->assertCostCentersRequired($lines);
         $this->periods->prepare($date);
 
+        $draft = $this->manualDraft($date, $description, $lines, $employeeId, $branchId);
         $lines = $this->withTaxLines($lines);
-        $draft = $this->toPostingDraft($date, $description, $lines, $employeeId, $branchId);
 
         (new TreasuryScopes($this->db))->assertMayPost($draft->lines, $employeeId);
 
@@ -223,8 +226,8 @@ final class JournalService
         $this->assertLineDescriptions($lines);
         $this->assertCostCentersRequired($lines);
 
+        $draft = $this->manualDraft($date, $description, $lines, $employeeId, $branchId);
         $lines = $this->withTaxLines($lines);
-        $draft = $this->toPostingDraft($date, $description, $lines, $employeeId, $branchId);
 
         (new TreasuryScopes($this->db))->assertMayPost($draft->lines, $employeeId);
 
@@ -1156,6 +1159,31 @@ final class JournalService
             description: $description,
             branchId: $branchId,
         );
+    }
+
+    /**
+     * The journal a manual journal posts, from the lines as they were typed, in the mode manual journals
+     * are posted in.
+     *
+     * @param list<array<string, mixed>> $lines
+     *
+     * @throws PostingException
+     */
+    private function manualDraft(string $date, string $description, array $lines, ?int $employeeId, int $branchId): JournalDraft
+    {
+        $draft = $this->journal->draft(
+            fn (): JournalDraft => $this->toPostingDraft($date, $description, $this->withTaxLines($lines), $employeeId, $branchId),
+            static fn () => ManualJournalFacts::of($lines, $date, $branchId, $description, $employeeId),
+            JournalDraft::SOURCE_MANUAL,
+            null,
+            1,
+        );
+
+        if ($draft === null) {
+            throw new PostingException(PostingError::TooFewLines, 'A journal needs at least two lines.', ['lines' => 0]);
+        }
+
+        return $draft;
     }
 
     /**

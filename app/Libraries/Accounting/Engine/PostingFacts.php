@@ -2,11 +2,14 @@
 
 namespace App\Libraries\Accounting\Engine;
 
+use App\Libraries\Accounting\JournalOrigin;
+
 /**
  * What a document gives the posting engine, and nothing about accounts or sides: its figures (signed
  * amounts the expressions of the rules read), its fields (the ids and labels the rules pick accounts
  * from), its flags (what the conditions of a rule test), and its lists (the entries a line repeats over,
- * each with figures, fields and flags of its own).
+ * each with figures, fields and flags of its own). A document typed by somebody, such as a manual
+ * journal, brings its own description and origin, and may have no source id.
  */
 final readonly class PostingFacts
 {
@@ -18,7 +21,7 @@ final readonly class PostingFacts
      */
     public function __construct(
         public string $operation,
-        public int $sourceId,
+        public ?int $sourceId,
         public string $date,
         public int $branchId,
         public int $revision = 1,
@@ -28,6 +31,8 @@ final readonly class PostingFacts
         public array $flags = [],
         public array $lists = [],
         public ?string $currencyCode = null,
+        public ?string $description = null,
+        public JournalOrigin $origin = JournalOrigin::System,
     ) {
     }
 }

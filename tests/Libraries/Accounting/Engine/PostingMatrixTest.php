@@ -101,6 +101,22 @@ class PostingMatrixTest extends CIUnitTestCase
                 ['figures' => ['gross' => '80.00', 'tax' => '0', 'net' => '80.00'], 'fields' => ['account_id' => '@chosen_revenue', 'category_account_id' => null, 'treasury_id' => null, 'payment_type' => 'Cash'], 'flags' => ['has_treasury' => false, 'no_treasury' => true]],
                 [['cash', 'debit', '80.0000'], ['chosen_revenue', 'credit', '80.0000']],
             ],
+            'P-04 P-05 a manual journal whose debit line carries a tax on top of its amount' => [
+                ['P-04', 'P-05'], 'manual',
+                ['lists' => ['lines' => [
+                    ['figures' => ['amount' => '100.00', 'net' => '100.00', 'tax' => '15.00'], 'fields' => ['account_id' => '@other_expenses', 'cost_center_id' => null], 'flags' => ['on_debit' => true, 'on_credit' => false]],
+                    ['figures' => ['amount' => '-115.00', 'net' => '-115.00', 'tax' => '0'], 'fields' => ['account_id' => '@cash', 'cost_center_id' => null], 'flags' => ['on_debit' => false, 'on_credit' => true]],
+                ]]],
+                [['other_expenses', 'debit', '100.0000'], ['vat_input', 'debit', '15.0000'], ['cash', 'credit', '115.0000']],
+            ],
+            'P-04 P-05 a manual journal whose credit line holds its tax in its amount' => [
+                ['P-04', 'P-05'], 'manual',
+                ['lists' => ['lines' => [
+                    ['figures' => ['amount' => '115.00', 'net' => '115.00', 'tax' => '0'], 'fields' => ['account_id' => '@cash', 'cost_center_id' => null], 'flags' => ['on_debit' => true, 'on_credit' => false]],
+                    ['figures' => ['amount' => '-115.00', 'net' => '-100.00', 'tax' => '-15.00'], 'fields' => ['account_id' => '@other_incomes', 'cost_center_id' => null], 'flags' => ['on_debit' => false, 'on_credit' => true]],
+                ]]],
+                [['cash', 'debit', '115.0000'], ['other_incomes', 'credit', '100.0000'], ['vat_output', 'credit', '15.0000']],
+            ],
         ];
     }
 

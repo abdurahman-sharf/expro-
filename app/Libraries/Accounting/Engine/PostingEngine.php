@@ -4,7 +4,6 @@ namespace App\Libraries\Accounting\Engine;
 
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
-use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
@@ -48,14 +47,14 @@ final class PostingEngine
         $set   = $this->rules->current($facts->operation, $facts->date);
         $lines = [];
 
-        foreach ($set->lines as $rule) {
-            $entries = $rule->repeatOver === null ? [[]] : ($facts->lists[$rule->repeatOver] ?? []);
+        foreach ($this->groups($set->lines) as [$over, $rules]) {
+            foreach ($over === null ? [[]] : ($facts->lists[$over] ?? []) as $entry) {
+                foreach ($rules as $rule) {
+                    $line = $this->line($rule, $facts, $entry);
 
-            foreach ($entries as $entry) {
-                $line = $this->line($rule, $facts, $entry);
-
-                if ($line !== null) {
-                    $lines[] = $line;
+                    if ($line !== null) {
+                        $lines[] = $line;
+                    }
                 }
             }
         }
@@ -70,12 +69,37 @@ final class PostingEngine
             sourceType: $set->sourceType,
             sourceId: $facts->sourceId,
             revision: $facts->revision,
-            origin: JournalOrigin::System,
+            origin: $facts->origin,
             employeeId: $facts->employeeId,
-            description: str_replace('{source_id}', (string) $facts->sourceId, $set->description),
+            description: $facts->description ?? str_replace('{source_id}', (string) $facts->sourceId, $set->description),
             branchId: $facts->branchId,
             entryType: $set->entryType,
         );
+    }
+
+    /**
+     * The lines of the rules in runs: a line that repeats over a list runs with the lines right after
+     * it that repeat over the same list, entry by entry, so that the lines of one entry stand together.
+     *
+     * @param list<RuleLine> $rules
+     *
+     * @return list<array{?string, list<RuleLine>}>
+     */
+    private function groups(array $rules): array
+    {
+        $groups = [];
+
+        foreach ($rules as $rule) {
+            $last = array_key_last($groups);
+
+            if ($rule->repeatOver !== null && $last !== null && $groups[$last][0] === $rule->repeatOver) {
+                $groups[$last][1][] = $rule;
+            } else {
+                $groups[] = [$rule->repeatOver, [$rule]];
+            }
+        }
+
+        return $groups;
     }
 
     /**

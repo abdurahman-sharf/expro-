@@ -155,6 +155,22 @@ class PostingEngineTest extends CIUnitTestCase
         $this->assertSame([$this->accountId('cash') . ':25.0000:0.0000', $vat . ':0.0000:15.0000', $other . ':0.0000:10.0000'], $this->shape($draft));
     }
 
+    public function testBuild_KeepsTheLinesOfOneEntryTogetherWhenConsecutiveLinesRepeatOverTheSameList(): void
+    {
+        $this->publish([
+            ['line_no' => 1, 'side' => 'debit', 'account' => ['first' => [['field' => 'account_id']]], 'amount' => 'net', 'repeat_over' => 'lines'],
+            ['line_no' => 2, 'side' => 'debit', 'account' => $this->role('tax.input'), 'amount' => 'tax', 'repeat_over' => 'lines'],
+            ['line_no' => 3, 'side' => 'credit', 'account' => ['first' => [['system' => 'cash']]], 'amount' => 'total'],
+        ]);
+
+        $draft = $this->engine->build($this->facts([
+            'figures' => ['total' => '130'],
+            'lists'   => ['lines' => [['figures' => ['net' => '100', 'tax' => '15'], 'fields' => ['account_id' => $this->accountId('purchases')]], ['figures' => ['net' => '15', 'tax' => '0'], 'fields' => ['account_id' => $this->accountId('expenses_default')]]]],
+        ]));
+
+        $this->assertSame([$this->accountId('purchases') . ':100.0000:0.0000', $this->accountId('tax_input') . ':15.0000:0.0000', $this->accountId('expenses_default') . ':15.0000:0.0000', $this->accountId('cash') . ':0.0000:130.0000'], $this->shape($draft));
+    }
+
     public function testBuild_CarriesTheBranchTheCostCenterAndTheForeignAmountOfTheDocument(): void
     {
         $second = $this->createBranch('B2');
