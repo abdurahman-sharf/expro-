@@ -209,6 +209,35 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertSame(1, $this->postedJournals($expenseId));
     }
 
+    public function testSaveValue_TakesAsLongInShadowAsInLegacyWithinWhatTheMeasurementWrites(): void
+    {
+        if (getenv('MEASURE_EXPENSE_SHADOW') !== '1') {
+            $this->markTestSkipped('The measurement of 100 saves in each mode runs only with MEASURE_EXPENSE_SHADOW=1.');
+        }
+
+        $db      = $this->accountingDb();
+        $timings = [];
+
+        foreach (['legacy', 'shadow', 'legacy', 'shadow'] as $round => $mode) {
+            $db->table('accounting_posting_modes')->replace(['company_id' => 1, 'operation' => 'expense', 'mode' => $mode]);
+            $start = hrtime(true);
+
+            for ($i = 0; $i < 100; $i++) {
+                $this->assertNotNull($this->saveExpense($this->expenseData('230.00', '30.00')));
+            }
+
+            $timings[$mode][] = (hrtime(true) - $start) / 1e6 / 100;
+        }
+
+        $db->table('accounting_posting_modes')->replace(['company_id' => 1, 'operation' => 'expense', 'mode' => 'shadow']);
+
+        $result = array_map(static fn (array $runs): float => round(array_sum($runs) / count($runs), 2), $timings);
+
+        file_put_contents(WRITEPATH . 'measure-expense-shadow.json', json_encode(['average_ms_per_save' => $result, 'runs_ms' => $timings, 'saves_per_run' => 100], JSON_PRETTY_PRINT));
+
+        $this->assertSame(0, $db->table('accounting_posting_shadow_diffs')->where('operation', 'expense')->countAllResults());
+    }
+
     public function testSaveValue_StampsTheBranchOfTheEmployeeWithoutATreasury(): void
     {
         $second = $this->createBranch('B2');
