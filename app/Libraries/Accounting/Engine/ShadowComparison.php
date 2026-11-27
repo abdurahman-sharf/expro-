@@ -7,12 +7,15 @@ use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
+use RuntimeException;
+use Throwable;
 
 /**
  * Sets the journal the engine would post beside the one the code of the document posts, and writes
- * down every difference. Two journals agree when they have the same lines, each line taken as its
- * account, its side, its amount, its branch and its cost center: the description and the order of the
- * lines do not count.
+ * down every difference. Two journals agree when their heads have the same date, source, kind and
+ * branch, and they have the same lines, each line taken as its account, its side, its amount, its
+ * cost center and its amount in a foreign currency with that currency: the description and the order
+ * of the lines do not count.
  */
 final class ShadowComparison
 {
@@ -26,7 +29,8 @@ final class ShadowComparison
     }
 
     /**
-     * What one journal has that the other has not, line by line, as "account|side|amount|branch|center".
+     * What one journal has that the other has not: its head as "date|source|kind|branch" when the heads
+     * differ, and its lines as "account|side|amount|branch|center|foreign amount|currency".
      *
      * @return array{only_legacy: list<string>, only_engine: list<string>}
      */
@@ -35,13 +39,25 @@ final class ShadowComparison
         $left  = self::lines($legacy);
         $right = self::lines($engine);
 
-        return ['only_legacy' => self::minus($left, $right), 'only_engine' => self::minus($right, $left)];
+        $differences = ['only_legacy' => self::minus($left, $right), 'only_engine' => self::minus($right, $left)];
+
+        if ($legacy !== null && $engine !== null && self::head($legacy) !== self::head($engine)) {
+            array_unshift($differences['only_legacy'], 'head ' . self::head($legacy));
+            array_unshift($differences['only_engine'], 'head ' . self::head($engine));
+        }
+
+        return $differences;
+    }
+
+    private static function head(JournalDraft $draft): string
+    {
+        return implode('|', [$draft->date, $draft->sourceType, $draft->entryType->value, (string) $draft->branchId]);
     }
 
     /**
      * Writes the difference down when there is one. Returns whether the two agree.
      */
-    public function compare(string $operation, ?JournalDraft $legacy, ?JournalDraft $engine, ?int $ruleSetId, string $sourceType, ?int $sourceId, int $revision, ?PostingException $failure = null): bool
+    public function compare(string $operation, ?JournalDraft $legacy, ?JournalDraft $engine, ?int $ruleSetId, string $sourceType, ?int $sourceId, int $revision, ?Throwable $failure = null): bool
     {
         $differences = self::differences($legacy, $engine);
 
@@ -50,10 +66,10 @@ final class ShadowComparison
         }
 
         if ($failure !== null) {
-            $differences['engine_failed'] = $failure->error->value . ': ' . $failure->getMessage();
+            $differences['engine_failed'] = ($failure instanceof PostingException ? $failure->error->value : $failure::class) . ': ' . $failure->getMessage();
         }
 
-        $this->db->table('accounting_posting_shadow_diffs')->insert([
+        $written = $this->db->table('accounting_posting_shadow_diffs')->insert([
             'company_id'   => CompanyContext::id(),
             'operation'    => $operation,
             'source_type'  => $sourceType,
@@ -65,6 +81,10 @@ final class ShadowComparison
             'engine_lines' => json_encode(self::lines($engine)),
             'differences'  => json_encode($differences, JSON_UNESCAPED_UNICODE),
         ]);
+
+        if ($written === false) {
+            throw new RuntimeException('The difference could not be written: ' . ($this->db->error()['message'] ?? ''));
+        }
 
         return false;
     }
@@ -105,7 +125,7 @@ final class ShadowComparison
 
         foreach ($draft->lines as $line) {
             $debit   = bccomp($line->debit, '0', self::SCALE) > 0;
-            $lines[] = implode('|', [$line->accountId, $debit ? 'debit' : 'credit', bcadd($debit ? $line->debit : $line->credit, '0', self::SCALE), (string) $draft->branchId, (string) $line->costCenterId]);
+            $lines[] = implode('|', [$line->accountId, $debit ? 'debit' : 'credit', bcadd($debit ? $line->debit : $line->credit, '0', self::SCALE), (string) $draft->branchId, (string) $line->costCenterId, $line->foreignAmount === null ? '' : bcadd($line->foreignAmount, '0', self::SCALE), (string) $line->currencyCode]);
         }
 
         sort($lines);

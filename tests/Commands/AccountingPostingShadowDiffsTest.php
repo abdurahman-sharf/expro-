@@ -64,8 +64,8 @@ class AccountingPostingShadowDiffsTest extends CIUnitTestCase
         $output = $this->runCommand('expense');
 
         $this->assertStringContainsString('expense expense 12 revision 1, branch 1', $output);
-        $this->assertStringContainsString('only the code: 5|debit|100.0000|1|', $output);
-        $this->assertStringContainsString('only the engine: 6|debit|100.0000|1|', $output);
+        $this->assertStringContainsString('only the code: 5|debit|100.0000|1|||', $output);
+        $this->assertStringContainsString('only the engine: 6|debit|100.0000|1|||', $output);
         $this->assertStringContainsString('1 difference(s).', $output);
         $this->assertSame(1, $this->countRows('accounting_posting_shadow_diffs'));
         $this->assertStringContainsString('The engine agreed', $this->runCommand('sale'));

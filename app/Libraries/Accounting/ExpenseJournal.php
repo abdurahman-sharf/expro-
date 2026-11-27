@@ -5,7 +5,7 @@ namespace App\Libraries\Accounting;
 use App\Libraries\Accounting\Engine\PostingEngine;
 use App\Libraries\Accounting\Engine\PostingMode;
 use App\Libraries\Accounting\Engine\PostingModes;
-use App\Libraries\Accounting\Engine\ShadowComparison;
+use App\Libraries\Accounting\Engine\ShadowRun;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -21,13 +21,15 @@ final class ExpenseJournal
     private ExpensePostingBuilder $builder;
     private PostingEngine $engine;
     private PostingModes $modes;
+    private ShadowRun $shadowRun;
 
     public function __construct(?BaseConnection $db = null, ?ExpensePostingBuilder $builder = null, ?PostingEngine $engine = null)
     {
-        $this->db      = $db ?? Database::connect();
-        $this->builder = $builder ?? new ExpensePostingBuilder(new RoutingResolver($this->db));
-        $this->engine  = $engine ?? new PostingEngine($this->db);
-        $this->modes   = new PostingModes($this->db);
+        $this->db        = $db ?? Database::connect();
+        $this->builder   = $builder ?? new ExpensePostingBuilder(new RoutingResolver($this->db));
+        $this->engine    = $engine ?? new PostingEngine($this->db);
+        $this->modes     = new PostingModes($this->db);
+        $this->shadowRun = new ShadowRun($this->db, $this->engine);
     }
 
     /**
@@ -64,17 +66,6 @@ final class ExpenseJournal
 
     private function shadow(ExpenseDocument $expense, int $revision, ?int $employeeId, ?JournalDraft $legacy): void
     {
-        $engine  = null;
-        $failure = null;
-        $setId   = null;
-
-        try {
-            $setId  = $this->engine->rules()->current(ExpensePostingBuilder::SOURCE, $expense->date)->ruleSetId;
-            $engine = $this->engine->build(ExpenseFacts::of($expense, $revision, $employeeId));
-        } catch (PostingException $exception) {
-            $failure = $exception;
-        }
-
-        (new ShadowComparison($this->db))->compare(ExpensePostingBuilder::SOURCE, $legacy, $engine, $setId, ExpensePostingBuilder::SOURCE, $expense->expenseId, $revision, $failure);
+        $this->shadowRun->check(ExpensePostingBuilder::SOURCE, $legacy, static fn () => ExpenseFacts::of($expense, $revision, $employeeId), ExpensePostingBuilder::SOURCE, $expense->expenseId, $revision);
     }
 }

@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting\Engine;
 
 use App\Libraries\Accounting\Engine\ShadowComparison;
 use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
@@ -77,7 +78,43 @@ class ShadowComparisonTest extends CIUnitTestCase
             $this->assertNotSame(['only_legacy' => [], 'only_engine' => []], $differences, $what);
         }
 
-        $this->assertSame(['only_legacy' => ['5|debit|100.0000|1|'], 'only_engine' => ['6|debit|100.0000|1|']], ShadowComparison::differences($this->draft($base), $this->draft([new JournalLineDraft(6, debit: '100'), new JournalLineDraft(9, credit: '100')])));
+        $this->assertSame(['only_legacy' => ['5|debit|100.0000|1|||'], 'only_engine' => ['6|debit|100.0000|1|||']], ShadowComparison::differences($this->draft($base), $this->draft([new JournalLineDraft(6, debit: '100'), new JournalLineDraft(9, credit: '100')])));
+    }
+
+    public function testDifferences_RejectsAnotherForeignAmountOrCurrencyOnALine(): void
+    {
+        $legacy = $this->draft([new JournalLineDraft(5, debit: '375', foreignAmount: '100', currencyCode: 'USD'), new JournalLineDraft(9, credit: '375', foreignAmount: '100', currencyCode: 'USD')]);
+
+        foreach ([
+            'foreign amount'    => [new JournalLineDraft(5, debit: '375', foreignAmount: '101', currencyCode: 'USD'), new JournalLineDraft(9, credit: '375', foreignAmount: '100', currencyCode: 'USD')],
+            'currency'          => [new JournalLineDraft(5, debit: '375', foreignAmount: '100', currencyCode: 'EUR'), new JournalLineDraft(9, credit: '375', foreignAmount: '100', currencyCode: 'USD')],
+            'no foreign amount' => [new JournalLineDraft(5, debit: '375'), new JournalLineDraft(9, credit: '375', foreignAmount: '100', currencyCode: 'USD')],
+        ] as $what => $lines) {
+            $differences = ShadowComparison::differences($legacy, $this->draft($lines));
+
+            $this->assertCount(1, $differences['only_legacy'], $what);
+            $this->assertSame('5|debit|375.0000|1||100.0000|USD', $differences['only_legacy'][0], $what);
+        }
+
+        $this->assertSame(['only_legacy' => [], 'only_engine' => []], ShadowComparison::differences($legacy, $this->draft([new JournalLineDraft(9, credit: '375.00', foreignAmount: '100.0000', currencyCode: 'USD'), new JournalLineDraft(5, debit: '375', foreignAmount: '100.00', currencyCode: 'USD')])));
+    }
+
+    public function testDifferences_RejectsAnotherDateSourceKindOrBranchOfTheJournal(): void
+    {
+        $lines  = [new JournalLineDraft(5, debit: '100'), new JournalLineDraft(9, credit: '100')];
+        $legacy = new JournalDraft(date: '2026-10-21', lines: $lines, sourceType: 'expense', sourceId: 1, branchId: 1);
+
+        foreach ([
+            'date'   => [new JournalDraft(date: '2026-10-22', lines: $lines, sourceType: 'expense', sourceId: 1, branchId: 1), '2026-10-22|expense|general|1'],
+            'source' => [new JournalDraft(date: '2026-10-21', lines: $lines, sourceType: 'revenue', sourceId: 1, branchId: 1), '2026-10-21|revenue|general|1'],
+            'kind'   => [new JournalDraft(date: '2026-10-21', lines: $lines, sourceType: 'expense', sourceId: 1, branchId: 1, entryType: JournalEntryType::Revenue), '2026-10-21|expense|revenue|1'],
+            'branch' => [new JournalDraft(date: '2026-10-21', lines: $lines, sourceType: 'expense', sourceId: 1, branchId: 2), '2026-10-21|expense|general|2'],
+        ] as $what => [$engine, $head]) {
+            $differences = ShadowComparison::differences($legacy, $engine);
+
+            $this->assertSame('head 2026-10-21|expense|general|1', $differences['only_legacy'][0], $what);
+            $this->assertSame('head ' . $head, $differences['only_engine'][0], $what);
+        }
     }
 
     public function testCompare_WritesDownADifferenceAndAFailureOfTheEngine(): void
@@ -91,7 +128,7 @@ class ShadowComparisonTest extends CIUnitTestCase
 
         $this->assertSame([42, 41], array_column($recorded, 'source_id'));
         $this->assertSame('rule_missing: No rule.', $recorded[0]['differences']['engine_failed']);
-        $this->assertSame(['5|debit|100.0000|1|', '9|credit|100.0000|1|'], $recorded[1]['differences']['only_legacy']);
+        $this->assertSame(['5|debit|100.0000|1|||', '9|credit|100.0000|1|||'], $recorded[1]['differences']['only_legacy']);
         $this->assertSame([], (new ShadowComparison())->recorded('sale'));
     }
 }

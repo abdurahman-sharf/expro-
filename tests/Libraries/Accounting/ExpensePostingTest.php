@@ -143,7 +143,70 @@ class ExpensePostingTest extends CIUnitTestCase
 
         $this->assertSame($this->accountId('tax_input') . '=30.00/0.00', $this->postedLines(self::SOURCE, $expenseId)[1], 'The journal of the code is what was posted');
         $this->assertCount(1, $diffs);
-        $this->assertSame([$this->accountId('tax_input') . '|debit|60.0000|1|'], json_decode((string) $diffs[0]->differences, true)['only_engine']);
+        $this->assertSame([$this->accountId('tax_input') . '|debit|60.0000|1|||'], json_decode((string) $diffs[0]->differences, true)['only_engine']);
+    }
+
+    public function testSaveValue_SavesTheExpenseWithTheJournalOfTheCodeWhenTheEngineThrowsATypeError(): void
+    {
+        $db    = $this->accountingDb();
+        $setId = (int) $db->table('accounting_posting_rule_sets')->where('operation', 'expense')->get()->getRow()->rule_set_id;
+        $db->table('accounting_posting_rules')->where(['rule_set_id' => $setId, 'line_no' => 2])->update(['account' => 'null']);
+
+        try {
+            $expenseId = $this->saveExpense($this->expenseData('230.00', '30.00'));
+        } finally {
+            $db->table('accounting_posting_rules')->where(['rule_set_id' => $setId, 'line_no' => 2])->update(['account' => '{"first":[{"field":"category_account_id"},{"role":"expenses.default"}]}']);
+        }
+
+        $diffs = $db->table('accounting_posting_shadow_diffs')->where('operation', 'expense')->get()->getResult();
+        $db->table('accounting_posting_shadow_diffs')->where('operation', 'expense')->delete();
+
+        $this->assertNotNull($expenseId);
+        $this->assertSame([$this->accountId('expenses_default') . '=200.00/0.00', $this->accountId('tax_input') . '=30.00/0.00', $this->accountId('cash') . '=0.00/230.00'], $this->postedLines(self::SOURCE, $expenseId));
+        $this->assertCount(1, $diffs);
+        $this->assertStringStartsWith('TypeError: ', json_decode((string) $diffs[0]->differences, true)['engine_failed']);
+    }
+
+    public function testSaveValue_SavesTheExpenseWithTheJournalOfTheCodeWhenAQueryOfTheEngineFails(): void
+    {
+        $db    = $this->accountingDb();
+        $rules = $db->prefixTable('accounting_posting_rules');
+        $db->query("RENAME TABLE `{$rules}` TO `{$rules}_away`");
+
+        try {
+            $expenseId = $this->saveExpense($this->expenseData('230.00', '30.00'));
+        } finally {
+            $db->query("RENAME TABLE `{$rules}_away` TO `{$rules}`");
+        }
+
+        $diffs = $db->table('accounting_posting_shadow_diffs')->where('operation', 'expense')->get()->getResult();
+        $db->table('accounting_posting_shadow_diffs')->where('operation', 'expense')->delete();
+
+        $this->assertNotNull($expenseId);
+        $this->assertSame($this->accountId('cash') . '=0.00/230.00', $this->postedLines(self::SOURCE, $expenseId)[2]);
+        $this->assertSame(1, $this->postedJournals($expenseId));
+        $this->assertCount(1, $diffs);
+        $this->assertArrayHasKey('engine_failed', json_decode((string) $diffs[0]->differences, true));
+    }
+
+    public function testSaveValue_SavesTheExpenseWhenTheDifferenceOfTheEngineCannotBeWritten(): void
+    {
+        $db    = $this->accountingDb();
+        $setId = (int) $db->table('accounting_posting_rule_sets')->where('operation', 'expense')->get()->getRow()->rule_set_id;
+        $diffs = $db->prefixTable('accounting_posting_shadow_diffs');
+        $db->table('accounting_posting_rules')->where(['rule_set_id' => $setId, 'line_no' => 3])->update(['amount' => 'tax * 2']);
+        $db->query("RENAME TABLE `{$diffs}` TO `{$diffs}_away`");
+
+        try {
+            $expenseId = $this->saveExpense($this->expenseData('230.00', '30.00'));
+        } finally {
+            $db->query("RENAME TABLE `{$diffs}_away` TO `{$diffs}`");
+            $db->table('accounting_posting_rules')->where(['rule_set_id' => $setId, 'line_no' => 3])->update(['amount' => 'tax']);
+        }
+
+        $this->assertNotNull($expenseId);
+        $this->assertSame($this->accountId('tax_input') . '=30.00/0.00', $this->postedLines(self::SOURCE, $expenseId)[1]);
+        $this->assertSame(1, $this->postedJournals($expenseId));
     }
 
     public function testSaveValue_StampsTheBranchOfTheEmployeeWithoutATreasury(): void
