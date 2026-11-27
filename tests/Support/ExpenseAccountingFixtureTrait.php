@@ -40,6 +40,8 @@ trait ExpenseAccountingFixtureTrait
         $this->setConfigValue('accounting_expense_account_required', '0');
         $this->setConfigValue('accounting_enabled', '1');
 
+        $this->accountingDb()->table('accounting_posting_shadow_diffs')->where('operation', 'expense')->delete();
+
         $this->expenses        = model(Expense::class);
         $this->cashups         = model(Cashup::class);
         $this->clerkId         = $this->employeeWithGrants([]);
@@ -53,6 +55,11 @@ trait ExpenseAccountingFixtureTrait
         }
 
         $this->expensesStarted = false;
+
+        $diffs = $this->accountingDb()->table('accounting_posting_shadow_diffs')->where('operation', 'expense')->get()->getResultArray();
+
+        $this->accountingDb()->table('accounting_posting_shadow_diffs')->where('operation', 'expense')->delete();
+        $this->assertSame([], $diffs, 'The posting engine built another journal than the expense posted');
 
         $this->setConfigValue('accounting_enabled', '0');
         $this->setConfigValue('accounting_expense_account_required', '0');

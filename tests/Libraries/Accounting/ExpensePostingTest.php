@@ -126,6 +126,26 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertSame(1, $this->postedJournals($expenseId));
     }
 
+    public function testSaveValue_WritesDownWhereTheRulesOfTheEngineWouldPostOtherwiseWhileTheExpenseIsInShadow(): void
+    {
+        $db    = $this->accountingDb();
+        $setId = (int) $db->table('accounting_posting_rule_sets')->where('operation', 'expense')->get()->getRow()->rule_set_id;
+        $db->table('accounting_posting_rules')->where(['rule_set_id' => $setId, 'line_no' => 3])->update(['amount' => 'tax * 2']);
+
+        try {
+            $expenseId = $this->saveExpense($this->expenseData('230.00', '30.00'));
+        } finally {
+            $db->table('accounting_posting_rules')->where(['rule_set_id' => $setId, 'line_no' => 3])->update(['amount' => 'tax']);
+        }
+
+        $diffs = $db->table('accounting_posting_shadow_diffs')->where('operation', 'expense')->get()->getResult();
+        $db->table('accounting_posting_shadow_diffs')->where('operation', 'expense')->delete();
+
+        $this->assertSame($this->accountId('tax_input') . '=30.00/0.00', $this->postedLines(self::SOURCE, $expenseId)[1], 'The journal of the code is what was posted');
+        $this->assertCount(1, $diffs);
+        $this->assertSame([$this->accountId('tax_input') . '|debit|60.0000|1|'], json_decode((string) $diffs[0]->differences, true)['only_engine']);
+    }
+
     public function testSaveValue_StampsTheBranchOfTheEmployeeWithoutATreasury(): void
     {
         $second = $this->createBranch('B2');

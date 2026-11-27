@@ -3,10 +3,10 @@
 namespace App\Libraries\Accounting\Backfill;
 
 use App\Libraries\Accounting\CrossBranchPayments;
+use App\Libraries\Accounting\ExpenseJournal;
 use App\Libraries\Accounting\ExpensePosting;
 use App\Libraries\Accounting\ExpensePostingBuilder;
 use App\Libraries\Accounting\PostingException;
-use App\Libraries\Accounting\RoutingResolver;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseConnection;
 
@@ -18,7 +18,7 @@ use CodeIgniter\Database\BaseConnection;
 final class ExpenseBackfill extends BackfillAdapter
 {
     private ExpensePosting $documents;
-    private ExpensePostingBuilder $builder;
+    private ExpenseJournal $journal;
     private CrossBranchPayments $crossBranch;
     private int $defaultBranchId;
 
@@ -27,7 +27,7 @@ final class ExpenseBackfill extends BackfillAdapter
         parent::__construct($db, $gate);
 
         $this->documents       = new ExpensePosting($this->db);
-        $this->builder         = new ExpensePostingBuilder(new RoutingResolver($this->db));
+        $this->journal         = new ExpenseJournal($this->db);
         $this->crossBranch     = new CrossBranchPayments($this->db);
         $this->defaultBranchId = (new BranchGuard($this->db))->companyDefaultBranchId();
     }
@@ -82,7 +82,7 @@ final class ExpenseBackfill extends BackfillAdapter
         }
 
         try {
-            $draft = $this->builder->expense($expense, 1, $employeeId);
+            $draft = $this->journal->draft($expense, 1, $employeeId);
 
             if ($draft !== null && count($this->crossBranch->drafts($draft, $expense->treasuryId, $expense->treasuryBranchId)) > 1) {
                 return BackfillPlan::refused(BackfillRefusal::CrossBranchPayment, $source, (string) $expense->treasuryId);

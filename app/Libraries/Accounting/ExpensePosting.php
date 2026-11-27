@@ -24,7 +24,7 @@ final class ExpensePosting
     private AccountingSettings $settings;
     private OperationsHold $hold;
     private DocumentJournals $journals;
-    private ExpensePostingBuilder $builder;
+    private ExpenseJournal $journal;
     private TreasuryService $treasuries;
     private BranchGuard $branches;
     private AuditLog $audit;
@@ -37,7 +37,7 @@ final class ExpensePosting
         $this->settings   = new AccountingSettings($this->db);
         $this->hold       = new OperationsHold($this->db);
         $this->journals   = new DocumentJournals($this->db, $this->branches);
-        $this->builder    = new ExpensePostingBuilder(new RoutingResolver($this->db));
+        $this->journal    = new ExpenseJournal($this->db);
         $this->treasuries = new TreasuryService($this->db, null, $this->branches);
         $this->audit      = new AuditLog($this->db);
 
@@ -134,8 +134,8 @@ final class ExpensePosting
         }
 
         $revision = $this->journals->nextRevision(ExpensePostingBuilder::SOURCE, $expenseId);
-        $draft    = $wanted ? $this->builder->expense($expense, $revision, $actorId) : null;
-        $drafts   = $draft === null ? [] : $this->crossBranch->drafts($draft, $expense->treasuryId, $expense->treasuryBranchId);
+        $draft    = $wanted ? $this->journal->draft($expense, $revision, $actorId) : null;
+        $drafts   = $draft === null ? [] : ($this->journal->crossesBranches($expense->date) ? $this->crossBranch->drafts($draft, $expense->treasuryId, $expense->treasuryBranchId) : [$draft]);
         $change   = $this->journals->syncAll(ExpensePostingBuilder::SOURCE, $expenseId, $drafts, $actorId, 'Expense #' . $expenseId . ($expense->deleted ? ' deleted' : ' changed'));
 
         $this->record($expense, $change, $draft?->revision, $actorId);
