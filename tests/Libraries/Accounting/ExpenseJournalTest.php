@@ -31,6 +31,11 @@ class ExpenseJournalTest extends CIUnitTestCase
 
     private int $treasuryId;
 
+    protected function expectsShadowDifferences(): bool
+    {
+        return true;
+    }
+
     public static function setUpBeforeClass(): void
     {
         $seeder = Database::seeder('tests');

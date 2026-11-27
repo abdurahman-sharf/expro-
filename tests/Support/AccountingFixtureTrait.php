@@ -14,6 +14,8 @@ use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalSettings;
 use CodeIgniter\Database\BaseConnection;
+use PHPUnit\Framework\Attributes\After;
+use PHPUnit\Framework\Attributes\Before;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Events\Events;
 use Config\Database;
@@ -26,6 +28,51 @@ trait AccountingFixtureTrait
     private array $insertedPeople = [];
     /** @var list<int> */
     private array $insertedLocations = [];
+
+    /**
+     * A test that writes differences of the posting engine on purpose says so here, and takes them
+     * away itself.
+     */
+    protected function expectsShadowDifferences(): bool
+    {
+        return false;
+    }
+
+    private function hasShadowDifferencesTable(): bool
+    {
+        $db = $this->accountingDb();
+
+        return $db->query('SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?', [$db->prefixTable('accounting_posting_shadow_diffs')])->getRow() !== null;
+    }
+
+    #[Before]
+    protected function clearShadowDifferences(): void
+    {
+        $db = $this->accountingDb();
+
+        if ($this->hasShadowDifferencesTable()) {
+            $db->table('accounting_posting_shadow_diffs')->truncate();
+        }
+    }
+
+    /**
+     * Fails a test after which the posting engine, checking a document of an operation in shadow mode,
+     * would have posted another journal than the one the code posted.
+     */
+    #[After]
+    protected function assertNoShadowDifferences(): void
+    {
+        $db = $this->accountingDb();
+
+        if ($this->expectsShadowDifferences() || ! $this->hasShadowDifferencesTable()) {
+            return;
+        }
+
+        $diffs = $db->table('accounting_posting_shadow_diffs')->get()->getResultArray();
+
+        $db->table('accounting_posting_shadow_diffs')->truncate();
+        $this->assertSame([], $diffs, 'The posting engine built another journal than the code posted');
+    }
 
     protected function accountingDb(): BaseConnection
     {

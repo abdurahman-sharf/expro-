@@ -23,6 +23,11 @@ class ShadowRunTest extends CIUnitTestCase
     protected $refresh     = false;
     protected $namespace   = null;
 
+    protected function expectsShadowDifferences(): bool
+    {
+        return true;
+    }
+
     public static function setUpBeforeClass(): void
     {
         $seeder = Database::seeder('tests');
