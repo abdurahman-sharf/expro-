@@ -53,6 +53,9 @@ class PostingMatrixTest extends CIUnitTestCase
             'cash'             => $this->accountId('cash'),
             'other_expenses'   => $this->accountId('expenses_default'),
             'chosen_expense'   => $this->customAccount('52', '5298', 'Chosen expense'),
+            'chosen_revenue'   => $this->customAccount('42', '4297', 'Chosen revenue'),
+            'other_incomes'    => $this->accountId('revenues_default'),
+            'vat_output'       => $this->accountId('tax_output'),
             'vat_input'        => $this->accountId('tax_input'),
             'other_payables'   => $this->accountId('other_payables'),
         ];
@@ -87,6 +90,16 @@ class PostingMatrixTest extends CIUnitTestCase
                 ['P-45', 'P-46'], 'expense',
                 ['figures' => ['gross' => '-115.00', 'tax' => '-15.00', 'net' => '-100.00'], 'fields' => ['category_account_id' => null, 'treasury_id' => '@treasury_id', 'payment_type' => 'Cash'], 'flags' => ['is_due' => false, 'has_treasury' => true, 'no_treasury' => false]],
                 [['treasury', 'debit', '115.0000'], ['other_expenses', 'credit', '100.0000'], ['vat_input', 'credit', '15.0000']],
+            ],
+            'P-47 a receipt voucher received into a treasury with tax in its amount' => [
+                ['P-47'], 'revenue',
+                ['figures' => ['gross' => '115.00', 'tax' => '15.00', 'net' => '100.00'], 'fields' => ['account_id' => null, 'category_account_id' => null, 'treasury_id' => '@treasury_id', 'payment_type' => 'Cash'], 'flags' => ['has_treasury' => true, 'no_treasury' => false]],
+                [['treasury', 'debit', '115.0000'], ['other_incomes', 'credit', '100.0000'], ['vat_output', 'credit', '15.0000']],
+            ],
+            'P-47 a receipt voucher on the account chosen on it, received by its way of payment' => [
+                ['P-47'], 'revenue',
+                ['figures' => ['gross' => '80.00', 'tax' => '0', 'net' => '80.00'], 'fields' => ['account_id' => '@chosen_revenue', 'category_account_id' => null, 'treasury_id' => null, 'payment_type' => 'Cash'], 'flags' => ['has_treasury' => false, 'no_treasury' => true]],
+                [['cash', 'debit', '80.0000'], ['chosen_revenue', 'credit', '80.0000']],
             ],
         ];
     }
@@ -125,8 +138,10 @@ class PostingMatrixTest extends CIUnitTestCase
             }
 
             foreach ((new PostingRules())->current($operation, '2026-10-21')->lines as $line) {
-                if (bccomp(PostingExpression::evaluate($line->amount, $facts['figures']), '0', 4) !== 0) {
-                    $reached[$operation][$line->lineNo] = true;
+                foreach ($line->repeatOver === null ? [$facts['figures']] : array_map(static fn (array $entry): array => array_merge($facts['figures'] ?? [], $entry['figures'] ?? []), $facts['lists'][$line->repeatOver] ?? []) as $figures) {
+                    if (bccomp(PostingExpression::evaluate($line->amount, $figures), '0', 4) !== 0) {
+                        $reached[$operation][$line->lineNo] = true;
+                    }
                 }
             }
         }
@@ -145,8 +160,9 @@ class PostingMatrixTest extends CIUnitTestCase
      */
     private function facts(string $operation, array $facts): PostingFacts
     {
-        $fields = array_map(fn (mixed $value): mixed => is_string($value) && str_starts_with($value, '@') ? $this->roles[substr($value, 1)] : $value, $facts['fields'] ?? []);
+        $resolve = fn (array $fields): array => array_map(fn (mixed $value): mixed => is_string($value) && str_starts_with($value, '@') ? $this->roles[substr($value, 1)] : $value, $fields);
+        $lists   = array_map(static fn (array $entries): array => array_map(static fn (array $entry): array => ['fields' => $resolve($entry['fields'] ?? [])] + $entry, $entries), $facts['lists'] ?? []);
 
-        return new PostingFacts($operation, 1, '2026-10-21', 1, 1, 1, $facts['figures'], $fields, $facts['flags'] ?? []);
+        return new PostingFacts($operation, 1, '2026-10-21', 1, 1, 1, $facts['figures'] ?? [], $resolve($facts['fields'] ?? []), $facts['flags'] ?? [], $lists);
     }
 }

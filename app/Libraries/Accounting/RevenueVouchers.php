@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Accounting\Engine\OperationJournal;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -29,6 +30,7 @@ final class RevenueVouchers
     private DocumentJournals $journals;
     private TreasuryService $treasuries;
     private RevenuePostingBuilder $builder;
+    private OperationJournal $journal;
     private AuditLog $audit;
 
     public function __construct(?BaseConnection $db = null, ?BranchGuard $branches = null)
@@ -38,6 +40,7 @@ final class RevenueVouchers
         $this->journals   = new DocumentJournals($this->db, $this->branches);
         $this->treasuries = new TreasuryService($this->db, null, $this->branches);
         $this->builder    = new RevenuePostingBuilder(new RoutingResolver($this->db));
+        $this->journal    = new OperationJournal(RevenuePostingBuilder::SOURCE, $this->db);
         $this->audit      = new AuditLog($this->db);
     }
 
@@ -264,7 +267,13 @@ final class RevenueVouchers
     {
         $revenue  = $this->document($revenueId);
         $revision = $this->journals->nextRevision(RevenuePostingBuilder::SOURCE, $revenueId);
-        $draft    = $revenue === null || $revenue->deleted ? null : $this->builder->revenue($revenue, $revision, $employeeId);
+        $draft    = $revenue === null || $revenue->deleted ? null : $this->journal->draft(
+            fn (): ?JournalDraft => $this->builder->revenue($revenue, $revision, $employeeId),
+            static fn () => RevenueFacts::of($revenue, $revision, $employeeId),
+            RevenuePostingBuilder::SOURCE,
+            $revenue->revenueId,
+            $revision,
+        );
 
         return $this->journals->sync(RevenuePostingBuilder::SOURCE, $revenueId, $draft, $employeeId, $reason);
     }
