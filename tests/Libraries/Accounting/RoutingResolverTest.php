@@ -323,7 +323,7 @@ class RoutingResolverTest extends CIUnitTestCase
 
     public function testAccountFor_RoutesTheStockPermitsToTheCounterAccountsOfTheReferenceSystem(): void
     {
-        $case = $this->referenceCase('T-53', 'stock_permit_accounts', 'counter-accounts-of-the-stock-permits', 'exact');
+        $case = $this->referenceCase('T-53', 'stock_permit_accounts', 'counter-accounts-of-the-stock-permits', 'deliberate_difference');
         $code = fn (RoutingKey $key): string => (string) $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->resolver->accountFor($key))->get()->getRow()->code;
 
         $this->assertSameAsFixture($case['expected'], ['accounts' => ['in_permit' => $code(RoutingKey::StockPermitAdd), 'out_permit' => $code(RoutingKey::StockPermitIssue)]], 'counter accounts of the permits');

@@ -145,7 +145,7 @@ final class ShippingCompaniesTest extends CIUnitTestCase
     public function testCreate_RejectsAnAccountThatIsNotALeafLiabilityThatIsOnAndFree(): void
     {
         $owed     = $this->payable();
-        $inactive = $this->payable('22122', 'Closed');
+        $inactive = $this->payable('21122', 'Closed');
 
         $this->accountingDb()->table('accounting_accounts')->where('account_id', $inactive)->update(['active' => 0]);
         $this->companies->create(['name' => 'Fast Ship', 'account_id' => $owed]);
@@ -161,8 +161,8 @@ final class ShippingCompaniesTest extends CIUnitTestCase
     {
         $supplierAccount = (new EntityAccountService())->ensure(EntityAccountService::SUPPLIER, 7, 'Acme Supplies');
         $reserved        = $this->accountId('tax_output');
-        $routed          = $this->payable('22123', 'Owed through a routing row');
-        $free            = $this->payable('22124', 'Owed to Fast Ship');
+        $routed          = $this->payable('21123', 'Owed through a routing row');
+        $free            = $this->payable('21124', 'Owed to Fast Ship');
 
         $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::NotesPayable->value)->update(['account_id' => $routed]);
 
@@ -197,7 +197,7 @@ final class ShippingCompaniesTest extends CIUnitTestCase
     {
         $manager = $this->manager();
         $first   = $this->payable();
-        $second  = $this->payable('22122', 'Owed to Gulf');
+        $second  = $this->payable('21122', 'Owed to Gulf');
         $id      = $this->companies->create(['name' => 'Fast Ship', 'account_id' => $first], $manager);
 
         $this->companies->update($id, ['name' => 'Fast Ship Ltd', 'account_id' => $second], $manager);
@@ -276,7 +276,7 @@ final class ShippingCompaniesTest extends CIUnitTestCase
     public function testAccountChoices_ListsTheLeafLiabilityAccountsThatAreOn(): void
     {
         $owed     = $this->payable();
-        $inactive = $this->payable('22122', 'Closed');
+        $inactive = $this->payable('21122', 'Closed');
 
         $this->accountingDb()->table('accounting_accounts')->where('account_id', $inactive)->update(['active' => 0]);
 
@@ -286,14 +286,14 @@ final class ShippingCompaniesTest extends CIUnitTestCase
         $this->assertArrayNotHasKey($inactive, $choices);
         $this->assertArrayNotHasKey($this->accountId('cash'), $choices);
         $this->assertArrayNotHasKey($this->accountIdByCode('2112'), $choices);
-        $this->assertSame('22121 - Owed to Fast Ship', $choices[$owed]);
+        $this->assertSame('21121 - Owed to Fast Ship', $choices[$owed]);
     }
 
     public function testAccountChoices_LeavesOutSupplierAccountsReservedAccountsAndRoutedOnes(): void
     {
         $supplierAccount = (new EntityAccountService())->ensure(EntityAccountService::SUPPLIER, 7, 'Acme Supplies');
-        $routed          = $this->payable('22123', 'Owed through a routing row');
-        $free            = $this->payable('22124', 'Owed to Fast Ship');
+        $routed          = $this->payable('21123', 'Owed through a routing row');
+        $free            = $this->payable('21124', 'Owed to Fast Ship');
 
         $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::NotesPayable->value)->update(['account_id' => $routed]);
 

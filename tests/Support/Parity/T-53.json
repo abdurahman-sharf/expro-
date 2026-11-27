@@ -116,7 +116,8 @@
     {
       "id": "counter-accounts-of-the-stock-permits",
       "kind": "stock_permit_accounts",
-      "classification": "exact",
+      "classification": "deliberate_difference",
+      "reason": "The code of every account starts with the code of its parent, so the creditors account the add permits credit is 2113 under 211. The account and its routing are the same; only its code differs.",
       "evidence": [
         "permits"
       ],
@@ -134,7 +135,7 @@
       },
       "expected": {
         "accounts": {
-          "in_permit": "2213",
+          "in_permit": "2113",
           "out_permit": "12042"
         }
       }

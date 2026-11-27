@@ -1387,7 +1387,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('21121', $page);
         $this->assertStringContainsString('data-id="' . $company . '"', $page);
         $this->assertStringContainsString('>' . lang('Accounting_settings.shipping_company_edit') . '</button>', $page);
-        $this->assertStringContainsString('<option value="' . $account . '">22121 - Owed to Fast Ship</option>', $page);
+        $this->assertStringContainsString('<option value="' . $account . '">21121 - Owed to Fast Ship</option>', $page);
         $this->assertStringNotContainsString('<option value="' . $this->accountId('cash') . '">', substr($page, (int) strpos($page, 'id="shipping_company_account"')));
     }
 

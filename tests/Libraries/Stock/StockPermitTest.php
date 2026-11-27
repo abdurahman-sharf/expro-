@@ -162,7 +162,7 @@ class StockPermitTest extends CIUnitTestCase
     public function testCreate_CreditsTheAccountChosenOnAnAddPermitInsteadOfTheAutomaticOne(): void
     {
         $itemId  = $this->stocked('10', '50');
-        $account = $this->customAccount('211', '2299', 'Permit creditors');
+        $account = $this->customAccount('211', '21199', 'Permit creditors');
 
         $permitId = $this->add($itemId, '2', '25', ['account_id' => $account]);
 
@@ -619,7 +619,7 @@ class StockPermitTest extends CIUnitTestCase
 
     public function testAllowedAccounts_ListsOpenLeavesWithoutAPartyOfAKindThatFitsTheSideOfThePermit(): void
     {
-        $liability = $this->customAccount('211', '2298', 'Fitting liability');
+        $liability = $this->customAccount('211', '21198', 'Fitting liability');
         $asset     = $this->customAccount('12', '1298', 'Fitting asset');
 
         $add   = array_map(static fn (object $account): int => (int) $account->account_id, $this->permits->allowedAccounts(StockPermitType::Add));
@@ -879,7 +879,7 @@ class StockPermitTest extends CIUnitTestCase
     {
         $first   = $this->stocked('10', '50');
         $second  = $this->stocked('10', '20');
-        $account = $this->customAccount('211', '2297', 'Corrected creditors');
+        $account = $this->customAccount('211', '21197', 'Corrected creditors');
         $this->numberWith(DocumentType::StockPermitAdd, 'IN-', 3);
 
         $permitId = $this->add($first, '2', '150');
@@ -1467,7 +1467,9 @@ class StockPermitTest extends CIUnitTestCase
 
         $this->assertShelfIs($itemId, $case['inputs']['before']);
 
-        $permitId = $this->add($itemId, $permit['units'], $permit['price'], ['account_id' => $this->accountIdByCode($permit['counter_account'])]);
+        $this->assertSame('2213', $permit['counter_account'], 'The fixture names the other creditors by the code they had before codes followed their parent');
+
+        $permitId = $this->add($itemId, $permit['units'], $permit['price'], ['account_id' => $this->accountId('other_payables')]);
         $journals = $this->journalsOfSource(StockPermitSources::PERMIT, $permitId);
 
         $this->assertCount(1, $journals);

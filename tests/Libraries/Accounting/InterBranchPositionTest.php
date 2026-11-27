@@ -181,7 +181,7 @@ class InterBranchPositionTest extends CIUnitTestCase
     public function testByBranch_StillCountsAStockTransferPostedToAccountsThatAreNoLongerInTheRouting(): void
     {
         $receivable = $this->customAccount('1204', '12047', 'Receivable of an earlier routing');
-        $payable    = $this->customAccount('211', '2217', 'Payable of an earlier routing');
+        $payable    = $this->customAccount('211', '2117', 'Payable of an earlier routing');
 
         $this->stockLeg('stock_transfer', 503, 1, $receivable, '80.00', true);
         $this->stockLeg('stock_transfer_receipt', 503, $this->secondBranch, $payable, '80.00', false);

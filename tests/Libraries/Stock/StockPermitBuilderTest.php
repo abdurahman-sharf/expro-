@@ -133,7 +133,7 @@ class StockPermitBuilderTest extends CIUnitTestCase
     public function testPlan_CreditsTheAccountChosenOnAnAddPermitAndValuesAFreeOneAtNothing(): void
     {
         $itemId  = $this->item('0.00');
-        $account = $this->customAccount('211', '2296', 'Chosen');
+        $account = $this->customAccount('211', '21196', 'Chosen');
 
         $chosen = $this->builder->plan($this->document(StockPermitType::Add, [new StockPermitLine($itemId, 1, '2.000', '5.000000', '0')], null, null, $account), 1);
 
