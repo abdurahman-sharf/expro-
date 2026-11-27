@@ -25,6 +25,7 @@ final class ReceivingPosting
     private JournalService $journals;
     private ReceivingLoader $loader;
     private ReceivingPostingBuilder $builder;
+    private ReceivingPaymentJournal $payments;
     private StockLedger $ledger;
     private AccountingSettings $settings;
     private OperationsHold $hold;
@@ -41,7 +42,9 @@ final class ReceivingPosting
         $this->settings = new AccountingSettings($this->db);
         $this->hold     = new OperationsHold($this->db);
         $this->periods  = new PeriodGuard($this->db);
-        $this->builder  = new ReceivingPostingBuilder(new RoutingResolver($this->db), $this->ledger, fn (): int => (new Currencies($this->db))->baseDecimals());
+        $baseDecimals   = fn (): int => (new Currencies($this->db))->baseDecimals();
+        $this->builder  = new ReceivingPostingBuilder(new RoutingResolver($this->db), $this->ledger, $baseDecimals);
+        $this->payments = new ReceivingPaymentJournal($this->builder, $baseDecimals, $this->db);
 
         $this->crossBranch = new CrossBranchPayments($this->db);
     }
@@ -409,7 +412,7 @@ final class ReceivingPosting
             return;
         }
 
-        $draft = $this->builder->payment($purchase, $this->nextRevision(ReceivingPostingBuilder::SOURCE_PAYMENT, $purchase->receivingId), $employeeId);
+        $draft = $this->payments->payment($purchase, $this->nextRevision(ReceivingPostingBuilder::SOURCE_PAYMENT, $purchase->receivingId), $employeeId);
 
         if ($draft !== null) {
             $this->posting->post($draft);
@@ -442,7 +445,7 @@ final class ReceivingPosting
         }
 
         $active = $this->activeJournal(ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, $payment->paymentId, JournalEntryType::General);
-        $draft  = $this->builder->supplierPaymentDifference($purchase, $payment, $this->nextRevision(ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, $payment->paymentId), $employeeId);
+        $draft  = $this->payments->supplierPaymentDifference($purchase, $payment, $this->nextRevision(ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, $payment->paymentId), $employeeId);
 
         if ($active !== null) {
             if ($draft !== null && $this->holds($active, $draft)) {
@@ -500,7 +503,7 @@ final class ReceivingPosting
         }
 
         $active = $this->activeJournal(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $payment->paymentId, JournalEntryType::General);
-        $draft  = $this->builder->supplierPayment($purchase, $payment, $this->nextRevision(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $payment->paymentId), $employeeId);
+        $draft  = $this->payments->supplierPayment($purchase, $payment, $this->nextRevision(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $payment->paymentId), $employeeId);
         $drafts = $draft === null ? [] : $this->crossBranch->drafts($draft, $payment->treasuryId, $payment->treasuryBranchId);
 
         if ($active !== null && $draft !== null && $draft->date !== $active->journal_date) {

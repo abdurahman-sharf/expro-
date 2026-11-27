@@ -7,6 +7,7 @@ use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingAmounts;
 use App\Libraries\Accounting\ReceivingLoader;
+use App\Libraries\Accounting\ReceivingPaymentJournal;
 use App\Libraries\Accounting\ReceivingPostingBuilder;
 use App\Libraries\Accounting\ReceivingType;
 use App\Libraries\Accounting\RoutingResolver;
@@ -31,6 +32,7 @@ final class PurchaseBackfill extends BackfillAdapter
 
     private ReceivingLoader $loader;
     private ReceivingPostingBuilder $builder;
+    private ReceivingPaymentJournal $payments;
     private CrossBranchPayments $crossBranch;
 
     public function __construct(BaseConnection $db, ?BackfillGate $gate = null)
@@ -39,6 +41,7 @@ final class PurchaseBackfill extends BackfillAdapter
 
         $this->loader      = new ReceivingLoader($this->db);
         $this->builder     = new ReceivingPostingBuilder(new RoutingResolver($this->db), new StockLedger($this->db));
+        $this->payments    = new ReceivingPaymentJournal($this->builder, null, $this->db);
         $this->crossBranch = new CrossBranchPayments($this->db);
     }
 
@@ -113,14 +116,14 @@ final class PurchaseBackfill extends BackfillAdapter
             }
 
             $steps = [new BackfillStep($plan->journal, $plan->movements === [] ? null : new BackfillStock(ReceivingPostingBuilder::issueSourceOf($purchase), $purchase->receivingId, JournalEntryType::General, 1, $purchase->date, $purchase->branchId, $plan->movements))];
-            $paid  = $this->builder->payment($purchase, 1, $employeeId);
+            $paid  = $this->payments->payment($purchase, 1, $employeeId);
 
             if ($paid !== null) {
                 $steps[] = new BackfillStep($paid);
             }
 
             foreach ($purchase->payments as $payment) {
-                $draft = $this->builder->supplierPayment($purchase, $payment, 1, $employeeId);
+                $draft = $this->payments->supplierPayment($purchase, $payment, 1, $employeeId);
 
                 if ($draft === null) {
                     continue;

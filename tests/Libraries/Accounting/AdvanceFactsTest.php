@@ -11,6 +11,7 @@ use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingResolver;
+use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\TreasuryService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -71,6 +72,16 @@ class AdvanceFactsTest extends CIUnitTestCase
         $this->assertSame([(new TreasuryService())->accountOf($this->treasuryId) . ':250.0000:0.0000', $account . ':0.0000:250.0000'], self::shape($byTreasury));
         $this->assertSame([(new RoutingResolver())->accountForPayment(PaymentType::BankTransfer) . ':250.0000:0.0000', $account . ':0.0000:250.0000'], self::shape($byPayment));
         $this->assertSame([CustomerAdvances::SOURCE, 5, 'Advance payment from customer #' . $customer], [$byTreasury->sourceType, $byTreasury->sourceId, $byTreasury->description]);
+    }
+
+    public function testSupplier_RequiresTheDebitOnTheSupplierAndTheMoneyOutOfTheTreasuryOrTheWayOfPaying(): void
+    {
+        $supplier = $this->insertSupplier();
+        $account  = (new EntityAccountService())->ensure(EntityAccountService::SUPPLIER, $supplier, 'Gulf Supplies');
+        $draft    = (new PostingEngine())->build(AdvanceFacts::supplier(6, $supplier, '80.00', '2026-10-22', lang('Sales.cash'), $this->treasuryId, 1, 1));
+
+        $this->assertSame([(new TreasuryService())->accountOf($this->treasuryId) . ':0.0000:80.0000', $account . ':80.0000:0.0000'], self::shape($draft));
+        $this->assertSame([SupplierAdvances::SOURCE, 'Payment to supplier #' . $supplier . ' without a purchase'], [$draft->sourceType, $draft->description]);
     }
 
     public function testCustomer_RejectsACustomerWithoutAnAccountAndAWayOfPayingWithNoAccountAsTheCodeDoes(): void

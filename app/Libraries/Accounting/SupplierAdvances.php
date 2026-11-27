@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Accounting\Engine\OperationJournal;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -44,6 +45,7 @@ final class SupplierAdvances
     private SupplierLock $lock;
     private SupplierSettlement $settlement;
     private AuditLog $audit;
+    private OperationJournal $journal;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
@@ -57,6 +59,7 @@ final class SupplierAdvances
         $this->lock       = new SupplierLock($this->db);
         $this->settlement = new SupplierSettlement($this->db);
         $this->audit      = new AuditLog($this->db);
+        $this->journal    = new OperationJournal(self::SOURCE, $this->db);
     }
 
     /**
@@ -104,7 +107,13 @@ final class SupplierAdvances
                 throw new PostingException(PostingError::PaymentTypeUnknown, "The payment type {$paymentType} has no account to be paid from.", ['payment_type' => $paymentType]);
             }
 
-            $this->post($supplierId, $advanceId, $date, $branchId, $account, $amount, 'Payment to supplier #' . $supplierId . ' without a purchase', $employeeId);
+            $this->posting->post($this->journal->draft(
+                fn (): JournalDraft => $this->draft($supplierId, $advanceId, $date, $branchId, $account, $amount, 'Payment to supplier #' . $supplierId . ' without a purchase', $employeeId),
+                static fn () => AdvanceFacts::supplier($advanceId, $supplierId, $amount, $date, $paymentType, $treasury === null ? null : (int) $treasury->treasury_id, $branchId, $employeeId),
+                self::SOURCE,
+                $advanceId,
+                1,
+            ));
             $this->settlement->settle($supplierId, $employeeId);
             $this->audit->write('supplier_advance', $advanceId, 'created', $employeeId, JournalOrigin::User, ['supplier_id' => $supplierId, 'kind' => self::PAYMENT, 'amount' => $amount], $branchId);
 
@@ -330,7 +339,17 @@ final class SupplierAdvances
      */
     private function post(int $supplierId, int $advanceId, string $date, int $branchId, int $creditedAccount, string $amount, string $description, ?int $employeeId): void
     {
-        $this->posting->post(new JournalDraft(
+        $this->posting->post($this->draft($supplierId, $advanceId, $date, $branchId, $creditedAccount, $amount, $description, $employeeId));
+    }
+
+    /**
+     * @param numeric-string $amount
+     *
+     * @throws PostingException
+     */
+    private function draft(int $supplierId, int $advanceId, string $date, int $branchId, int $creditedAccount, string $amount, string $description, ?int $employeeId): JournalDraft
+    {
+        return new JournalDraft(
             date: $date,
             lines: [new JournalLineDraft($this->supplierAccount($supplierId), debit: $amount), new JournalLineDraft($creditedAccount, credit: $amount)],
             sourceType: self::SOURCE,
@@ -340,7 +359,7 @@ final class SupplierAdvances
             description: $description,
             branchId: $branchId,
             entryType: JournalEntryType::General,
-        ));
+        );
     }
 
     /**

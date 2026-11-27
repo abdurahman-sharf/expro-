@@ -153,6 +153,41 @@ class PostingMatrixTest extends CIUnitTestCase
                 ['figures' => ['fx_diff' => '-5.00'], 'fields' => ['customer_id' => null], 'flags' => ['has_customer' => false, 'counter' => true, 'is_loss' => false, 'is_gain' => true]],
                 [['counter', 'debit', '5.0000'], ['fx_gain', 'credit', '5.0000']],
             ],
+            'P-33 a purchase paid when it was saved from a treasury takes it off the supplier' => [
+                ['P-33'], 'purchase_payment',
+                ['figures' => ['paid' => '345.00', 'amount' => '345.00'], 'fields' => ['supplier_id' => '@supplier_id', 'treasury_id' => '@treasury_id', 'payment_type' => 'Cash'], 'flags' => ['by_treasury' => true, 'by_payment' => false]],
+                [['treasury', 'credit', '345.0000'], ['supplier', 'debit', '345.0000']],
+            ],
+            'P-33 a return the supplier paid back in cash turns around' => [
+                ['P-33'], 'purchase_payment',
+                ['figures' => ['paid' => '-46.00', 'amount' => '-46.00'], 'fields' => ['supplier_id' => '@supplier_id', 'treasury_id' => null, 'payment_type' => 'Cash'], 'flags' => ['by_treasury' => false, 'by_payment' => true]],
+                [['cash', 'debit', '46.0000'], ['supplier', 'credit', '46.0000']],
+            ],
+            'P-34 a payment against a purchase from a treasury' => [
+                ['P-34'], 'supplier_payment',
+                ['figures' => ['paid' => '120.00', 'amount' => '120.00'], 'fields' => ['supplier_id' => '@supplier_id', 'treasury_id' => '@treasury_id', 'payment_type' => 'Cash'], 'flags' => ['by_treasury' => true, 'by_payment' => false]],
+                [['treasury', 'credit', '120.0000'], ['supplier', 'debit', '120.0000']],
+            ],
+            'P-34 money a supplier gave back against a purchase' => [
+                ['P-34'], 'supplier_payment',
+                ['figures' => ['paid' => '-20.00', 'amount' => '-20.00'], 'fields' => ['supplier_id' => '@supplier_id', 'treasury_id' => null, 'payment_type' => 'Cash'], 'flags' => ['by_treasury' => false, 'by_payment' => true]],
+                [['cash', 'debit', '20.0000'], ['supplier', 'credit', '20.0000']],
+            ],
+            'P-34 a payment to a supplier without a purchase is credit with the supplier' => [
+                ['P-34'], 'supplier_advance',
+                ['figures' => ['amount' => '700.00'], 'fields' => ['party_id' => '@supplier_id', 'treasury_id' => '@treasury_id', 'payment_type' => 'Cash'], 'flags' => ['by_treasury' => true, 'by_payment' => false]],
+                [['treasury', 'credit', '700.0000'], ['supplier', 'debit', '700.0000']],
+            ],
+            'P-21 a payment of a foreign purchase at a lower rate leaves an exchange gain' => [
+                ['P-21'], 'supplier_payment_fx',
+                ['figures' => ['fx_diff' => '4.00'], 'fields' => ['supplier_id' => '@supplier_id'], 'flags' => ['is_gain' => true, 'is_loss' => false]],
+                [['supplier', 'debit', '4.0000'], ['fx_gain', 'credit', '4.0000']],
+            ],
+            'P-21 a payment of a foreign purchase at a higher rate leaves an exchange loss' => [
+                ['P-21'], 'supplier_payment_fx',
+                ['figures' => ['fx_diff' => '-4.00'], 'fields' => ['supplier_id' => '@supplier_id'], 'flags' => ['is_gain' => false, 'is_loss' => true]],
+                [['supplier', 'credit', '4.0000'], ['fx_loss', 'debit', '4.0000']],
+            ],
             'P-04 P-05 a manual journal whose debit line carries a tax on top of its amount' => [
                 ['P-04', 'P-05'], 'manual',
                 ['lists' => ['lines' => [
