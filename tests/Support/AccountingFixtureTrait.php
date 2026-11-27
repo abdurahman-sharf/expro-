@@ -71,7 +71,11 @@ trait AccountingFixtureTrait
         $diffs = $db->table('accounting_posting_shadow_diffs')->get()->getResultArray();
 
         $db->table('accounting_posting_shadow_diffs')->truncate();
-        $this->assertSame([], $diffs, 'The posting engine built another journal than the code posted');
+
+        // Counted only when it fails, so a test that makes no assertion of its own stays one.
+        if ($diffs !== []) {
+            $this->fail('The posting engine built another journal than the code posted: ' . json_encode($diffs, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        }
     }
 
     protected function accountingDb(): BaseConnection
