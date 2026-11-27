@@ -924,6 +924,8 @@ return [
     'posting_routing_account_unusable'           => 'The account chosen in the routing is missing, a group or inactive.',
     'posting_routing_row_cancelled'              => 'A routing row that this posting cannot do without is cancelled. Change it in the account routing.',
     'posting_routing_type_unsupported'           => 'The routing of an account is set to a type that posting does not apply yet. Change it in the account routing.',
+    'posting_rule_invalid'                       => 'A posting rule cannot be applied: its amount {0} cannot be worked out.',
+    'posting_rule_missing'                       => 'No posting rule covers {0} on this date.',
     'posting_sale_not_postable'                  => 'A quantity on line {0} does not fit this kind of sale.',
     'posting_sale_return_exceeds_origin'         => 'A return cannot give back more than the sale brought. What is left to return: {0}.',
     'posting_supplier_required'                  => 'A receiving that is not paid at once needs a supplier to owe it.',

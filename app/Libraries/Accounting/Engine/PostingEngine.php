@@ -1,0 +1,191 @@
+<?php
+
+namespace App\Libraries\Accounting\Engine;
+
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalLineDraft;
+use App\Libraries\Accounting\JournalOrigin;
+use App\Libraries\Accounting\PaymentType;
+use App\Libraries\Accounting\PostingError;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\RoutingKey;
+use App\Libraries\Accounting\RoutingResolver;
+use CodeIgniter\Database\BaseConnection;
+use Config\Database;
+
+/**
+ * Builds the journal of a document from the posting rules of its operation and the facts of the
+ * document. It writes nothing: the journal it returns goes to the posting service like any other.
+ * Which account each line takes is decided here, from the rules and the routing, and nowhere else.
+ */
+final class PostingEngine
+{
+    private const SCALE = 4;
+
+    private BaseConnection $db;
+    private PostingRules $rules;
+    private RoutingResolver $resolver;
+
+    public function __construct(?BaseConnection $db = null, ?PostingRules $rules = null, ?RoutingResolver $resolver = null)
+    {
+        $this->db       = $db ?? Database::connect();
+        $this->rules    = $rules ?? new PostingRules($this->db);
+        $this->resolver = $resolver ?? new RoutingResolver($this->db);
+    }
+
+    public function rules(): PostingRules
+    {
+        return $this->rules;
+    }
+
+    /**
+     * The journal the rules of the operation make of the facts, or null when every line comes to nothing.
+     *
+     * @throws PostingException
+     */
+    public function build(PostingFacts $facts): ?JournalDraft
+    {
+        $set   = $this->rules->current($facts->operation, $facts->date);
+        $lines = [];
+
+        foreach ($set->lines as $rule) {
+            $entries = $rule->repeatOver === null ? [[]] : ($facts->lists[$rule->repeatOver] ?? []);
+
+            foreach ($entries as $entry) {
+                $line = $this->line($rule, $facts, $entry);
+
+                if ($line !== null) {
+                    $lines[] = $line;
+                }
+            }
+        }
+
+        if ($lines === []) {
+            return null;
+        }
+
+        return new JournalDraft(
+            date: $facts->date,
+            lines: $lines,
+            sourceType: $set->sourceType,
+            sourceId: $facts->sourceId,
+            revision: $facts->revision,
+            origin: JournalOrigin::System,
+            employeeId: $facts->employeeId,
+            description: str_replace('{source_id}', (string) $facts->sourceId, $set->description),
+            branchId: $facts->branchId,
+            entryType: $set->entryType,
+        );
+    }
+
+    /**
+     * @param array{figures?: array<string, string>, fields?: array<string, int|string|null>, flags?: array<string, bool>} $entry
+     *
+     * @throws PostingException
+     */
+    private function line(RuleLine $rule, PostingFacts $facts, array $entry): ?JournalLineDraft
+    {
+        $figures = array_merge($facts->figures, $entry['figures'] ?? []);
+        $fields  = array_merge($facts->fields, $entry['fields'] ?? []);
+        $flags   = array_merge($facts->flags, $entry['flags'] ?? []);
+        $amount  = PostingExpression::evaluate($rule->amount, $figures);
+        $sign    = bccomp($amount, '0', self::SCALE);
+
+        if ($sign === 0) {
+            return null;
+        }
+
+        $magnitude = ltrim($amount, '-');
+        $debit     = ($rule->side === 'debit') === ($sign > 0);
+        $account   = $this->account($rule, $fields, $flags);
+        $foreign   = $rule->foreignAmount === null ? null : ltrim(PostingExpression::evaluate($rule->foreignAmount, $figures), '-');
+        $center    = $rule->costCenter === null ? null : $fields[$rule->costCenter['field']] ?? null;
+
+        return new JournalLineDraft(
+            $account,
+            debit: $debit ? $magnitude : '0',
+            credit: $debit ? '0' : $magnitude,
+            costCenterId: $center === null ? null : (int) $center,
+            foreignAmount: $foreign,
+            currencyCode: $foreign === null ? null : $facts->currencyCode,
+        );
+    }
+
+    /**
+     * The first place of the line that gives an account.
+     *
+     * @param array<string, int|string|null> $fields
+     * @param array<string, bool>            $flags
+     *
+     * @throws PostingException
+     */
+    private function account(RuleLine $rule, array $fields, array $flags): int
+    {
+        $lastRole = null;
+
+        foreach ($rule->account['first'] as $source) {
+            if (isset($source['when']) && ! ($flags[$source['when']] ?? false)) {
+                continue;
+            }
+
+            $account = match (true) {
+                isset($source['field'])   => $this->field($fields, $source['field']),
+                isset($source['system'])  => $this->resolver->systemAccount($source['system']),
+                isset($source['payment']) => $this->payment($fields, $source['payment']),
+                default                   => $this->role($source, $fields, $lastRole),
+            };
+
+            if ($account !== null) {
+                return $account;
+            }
+        }
+
+        if (($rule->account['else'] ?? null) === 'payment_type_unknown') {
+            $type = (string) ($fields['payment_type'] ?? '');
+
+            throw new PostingException(PostingError::PaymentTypeUnknown, "The payment type {$type} has no account to be paid from.", ['payment_type' => $type]);
+        }
+
+        throw new PostingException(PostingError::RoutingRowCancelled, 'The routing of ' . ($lastRole ?? 'a line') . " is cancelled, but line {$rule->lineNo} of the rules cannot be posted without it.", ['routing_key' => $lastRole ?? '', 'line' => $rule->lineNo]);
+    }
+
+    /**
+     * @param array<string, int|string|null> $fields
+     */
+    private function field(array $fields, string $name): ?int
+    {
+        $value = $fields[$name] ?? null;
+
+        return $value === null || $value === '' ? null : (int) $value;
+    }
+
+    /**
+     * @param array<string, string>          $source
+     * @param array<string, int|string|null> $fields
+     *
+     * @throws PostingException
+     */
+    private function role(array $source, array $fields, ?string &$lastRole): ?int
+    {
+        $lastRole = $source['role'];
+        $entity   = isset($source['entity']) ? $this->field($fields, $source['entity']) : null;
+
+        if (isset($source['entity']) && $entity === null) {
+            return null;
+        }
+
+        return $this->resolver->accountFor(RoutingKey::from($source['role']), $entity);
+    }
+
+    /**
+     * @param array<string, int|string|null> $fields
+     *
+     * @throws PostingException
+     */
+    private function payment(array $fields, string $name): ?int
+    {
+        $type = PaymentType::fromLabel((string) ($fields[$name] ?? ''));
+
+        return $type === null ? null : $this->resolver->accountForPayment($type);
+    }
+}

@@ -924,6 +924,8 @@ return [
     'posting_routing_account_unusable'           => '',
     'posting_routing_row_cancelled'              => '',
     'posting_routing_type_unsupported'           => '',
+    'posting_rule_invalid'                       => '',
+    'posting_rule_missing'                       => '',
     'posting_sale_not_postable'                  => '',
     'posting_sale_return_exceeds_origin'         => '',
     'posting_supplier_required'                  => '',

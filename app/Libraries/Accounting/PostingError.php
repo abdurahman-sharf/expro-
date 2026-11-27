@@ -11,6 +11,8 @@ enum PostingError: string
     case LineWithoutAmount             = 'line_without_amount';
     case Unbalanced                    = 'unbalanced';
     case InvalidSource                 = 'invalid_source';
+    case RuleInvalid                   = 'rule_invalid';
+    case RuleMissing                   = 'rule_missing';
     case InvalidCurrency               = 'invalid_currency';
     case InvalidParty                  = 'invalid_party';
     case PartyAccountMismatch          = 'party_account_mismatch';
