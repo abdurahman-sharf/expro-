@@ -6,6 +6,7 @@ use App\Libraries\Accounting\Engine\PostingEngine;
 use App\Libraries\Accounting\Engine\PostingExpression;
 use App\Libraries\Accounting\Engine\PostingFacts;
 use App\Libraries\Accounting\Engine\PostingRules;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\TreasuryService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -58,7 +59,28 @@ class PostingMatrixTest extends CIUnitTestCase
             'vat_output'       => $this->accountId('tax_output'),
             'vat_input'        => $this->accountId('tax_input'),
             'other_payables'   => $this->accountId('other_payables'),
+            'cash_difference'  => $this->accountId('cash_difference'),
+            'counter'          => $this->accountId('counter_customers'),
+            'fx_gain'          => $this->accountId('fx_gain'),
+            'fx_loss'          => $this->accountId('fx_loss'),
         ];
+
+        $customer = $this->insertCustomer();
+        $supplier = $this->insertSupplier();
+
+        $this->roles += [
+            'customer_id' => $customer,
+            'customer'    => (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $customer, 'Matrix customer'),
+            'supplier_id' => $supplier,
+            'supplier'    => (new EntityAccountService())->ensure(EntityAccountService::SUPPLIER, $supplier, 'Matrix supplier'),
+        ];
+    }
+
+    protected function tearDown(): void
+    {
+        $this->removeInsertedEntities();
+
+        parent::tearDown();
     }
 
     /**
@@ -100,6 +122,36 @@ class PostingMatrixTest extends CIUnitTestCase
                 ['P-47'], 'revenue',
                 ['figures' => ['gross' => '80.00', 'tax' => '0', 'net' => '80.00'], 'fields' => ['account_id' => '@chosen_revenue', 'category_account_id' => null, 'treasury_id' => null, 'payment_type' => 'Cash'], 'flags' => ['has_treasury' => false, 'no_treasury' => true]],
                 [['cash', 'debit', '80.0000'], ['chosen_revenue', 'credit', '80.0000']],
+            ],
+            'P-16 P-17 a payment of a sale into a treasury takes it off the customer' => [
+                ['P-17'], 'sale_payment',
+                ['figures' => ['paid' => '200.00', 'adjustment' => '0', 'amount' => '200.00'], 'fields' => ['customer_id' => '@customer_id', 'treasury_id' => '@treasury_id', 'payment_type' => 'Cash'], 'flags' => ['by_treasury' => true, 'by_payment' => false, 'has_customer' => true, 'counter' => false]],
+                [['customer', 'credit', '200.0000'], ['treasury', 'debit', '200.0000']],
+            ],
+            'P-16 P-17 a counter sale paid in cash and refunded in part turns around on a refund' => [
+                ['P-17'], 'sale_payment',
+                ['figures' => ['paid' => '-30.00', 'adjustment' => '0', 'amount' => '-30.00'], 'fields' => ['customer_id' => null, 'treasury_id' => null, 'payment_type' => 'Cash'], 'flags' => ['by_treasury' => false, 'by_payment' => true, 'has_customer' => false, 'counter' => true]],
+                [['counter', 'debit', '30.0000'], ['cash', 'credit', '30.0000']],
+            ],
+            'P-16 the rounding of cash a customer paid over goes to cash differences' => [
+                ['P-16'], 'sale_payment',
+                ['figures' => ['paid' => '0', 'adjustment' => '-0.05', 'amount' => '0'], 'fields' => ['customer_id' => '@customer_id', 'treasury_id' => null, 'payment_type' => 'Cash'], 'flags' => ['by_treasury' => false, 'by_payment' => false, 'has_customer' => true, 'counter' => false]],
+                [['customer', 'debit', '0.0500'], ['cash_difference', 'credit', '0.0500']],
+            ],
+            'P-18 an advance from a customer into a treasury is credit of the customer' => [
+                ['P-18'], 'customer_advance',
+                ['figures' => ['amount' => '500.00'], 'fields' => ['party_id' => '@customer_id', 'treasury_id' => '@treasury_id', 'payment_type' => 'Cash'], 'flags' => ['by_treasury' => true, 'by_payment' => false]],
+                [['treasury', 'debit', '500.0000'], ['customer', 'credit', '500.0000']],
+            ],
+            'P-21 a payment of a foreign sale at a lower rate leaves an exchange loss' => [
+                ['P-21'], 'sale_payment_fx',
+                ['figures' => ['fx_diff' => '5.00'], 'fields' => ['customer_id' => '@customer_id'], 'flags' => ['has_customer' => true, 'counter' => false, 'is_loss' => true, 'is_gain' => false]],
+                [['customer', 'credit', '5.0000'], ['fx_loss', 'debit', '5.0000']],
+            ],
+            'P-21 a payment of a foreign counter sale at a higher rate leaves an exchange gain' => [
+                ['P-21'], 'sale_payment_fx',
+                ['figures' => ['fx_diff' => '-5.00'], 'fields' => ['customer_id' => null], 'flags' => ['has_customer' => false, 'counter' => true, 'is_loss' => false, 'is_gain' => true]],
+                [['counter', 'debit', '5.0000'], ['fx_gain', 'credit', '5.0000']],
             ],
             'P-04 P-05 a manual journal whose debit line carries a tax on top of its amount' => [
                 ['P-04', 'P-05'], 'manual',

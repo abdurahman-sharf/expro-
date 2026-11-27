@@ -26,7 +26,7 @@ final class PostingRules
 
     private const SIDES        = ['debit', 'credit'];
     private const SOURCE_KEYS  = ['when', 'field', 'role', 'entity', 'system', 'payment'];
-    private const ELSE_ERRORS  = ['payment_type_unknown', 'routing_row_cancelled'];
+    private const ELSE_ERRORS  = ['payment_type_unknown', 'routing_row_cancelled', 'fx_accounts_missing', 'entity_account_missing', 'no_journal'];
     private const NAME_PATTERN = '/^[a-z][a-z0-9_]{0,31}$/';
 
     private BaseConnection $db;

@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Accounting\Engine\OperationJournal;
 use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\EInvoiceRules;
 use App\Libraries\EInvoicing\EInvoiceService;
@@ -41,6 +42,7 @@ final class CustomerAdvances
     private CustomerLock $lock;
     private CreditSettlement $settlement;
     private AuditLog $audit;
+    private OperationJournal $journal;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
@@ -52,6 +54,7 @@ final class CustomerAdvances
         $this->lock       = new CustomerLock($this->db);
         $this->settlement = new CreditSettlement($this->db);
         $this->audit      = new AuditLog($this->db);
+        $this->journal    = new OperationJournal(self::SOURCE, $this->db);
     }
 
     /**
@@ -91,16 +94,22 @@ final class CustomerAdvances
 
             $advanceId = $this->insert($customerId, $place['branch'], $amount, $date, $paymentType, $place['treasury'], $reference, $note, $requestKey, $employeeId);
 
-            $this->posting->post(new JournalDraft(
-                date: $date,
-                lines: [new JournalLineDraft($place['account'], debit: $amount), new JournalLineDraft($this->customerAccount($customerId), credit: $amount)],
-                sourceType: self::SOURCE,
-                sourceId: $advanceId,
-                origin: JournalOrigin::System,
-                employeeId: $employeeId,
-                description: 'Advance payment from customer #' . $customerId,
-                branchId: $place['branch'],
-                entryType: JournalEntryType::General,
+            $this->posting->post($this->journal->draft(
+                fn (): JournalDraft => new JournalDraft(
+                    date: $date,
+                    lines: [new JournalLineDraft($place['account'], debit: $amount), new JournalLineDraft($this->customerAccount($customerId), credit: $amount)],
+                    sourceType: self::SOURCE,
+                    sourceId: $advanceId,
+                    origin: JournalOrigin::System,
+                    employeeId: $employeeId,
+                    description: 'Advance payment from customer #' . $customerId,
+                    branchId: $place['branch'],
+                    entryType: JournalEntryType::General,
+                ),
+                static fn () => AdvanceFacts::customer($advanceId, $customerId, $amount, $date, $paymentType, $place['treasury'], $place['branch'], $employeeId),
+                self::SOURCE,
+                $advanceId,
+                1,
             ));
 
             $this->settlement->settle($customerId, $employeeId);

@@ -38,7 +38,8 @@ final class PostingEngine
     }
 
     /**
-     * The journal the rules of the operation make of the facts, or null when every line comes to nothing.
+     * The journal the rules of the operation make of the facts, or null when every line comes to nothing
+     * or a line whose rule says so finds no account.
      *
      * @throws PostingException
      */
@@ -47,16 +48,20 @@ final class PostingEngine
         $set   = $this->rules->current($facts->operation, $facts->date);
         $lines = [];
 
-        foreach ($this->groups($set->lines) as [$over, $rules]) {
-            foreach ($over === null ? [[]] : ($facts->lists[$over] ?? []) as $entry) {
-                foreach ($rules as $rule) {
-                    $line = $this->line($rule, $facts, $entry);
+        try {
+            foreach ($this->groups($set->lines) as [$over, $rules]) {
+                foreach ($over === null ? [[]] : ($facts->lists[$over] ?? []) as $entry) {
+                    foreach ($rules as $rule) {
+                        $line = $this->line($rule, $facts, $entry);
 
-                    if ($line !== null) {
-                        $lines[] = $line;
+                        if ($line !== null) {
+                            $lines[] = $line;
+                        }
                     }
                 }
             }
+        } catch (NoJournal) {
+            return null;
         }
 
         if ($lines === []) {
@@ -122,7 +127,7 @@ final class PostingEngine
         $magnitude = ltrim($amount, '-');
         $debit     = ($rule->side === 'debit') === ($sign > 0);
         $account   = $this->account($rule, $fields, $flags);
-        $foreign   = $rule->foreignAmount === null ? null : ltrim(PostingExpression::evaluate($rule->foreignAmount, $figures), '-');
+        $foreign   = $rule->foreignAmount === null || $facts->currencyCode === null ? null : ltrim(PostingExpression::evaluate($rule->foreignAmount, $figures), '-');
         $center    = $rule->costCenter === null ? null : $fields[$rule->costCenter['field']] ?? null;
 
         return new JournalLineDraft(
@@ -136,7 +141,8 @@ final class PostingEngine
     }
 
     /**
-     * The first place of the line that gives an account.
+     * The first place of the line that gives an account. A line of an exchange difference fails as one
+     * whatever kept its account from being found.
      *
      * @param array<string, int|string|null> $fields
      * @param array<string, bool>            $flags
@@ -144,6 +150,29 @@ final class PostingEngine
      * @throws PostingException
      */
     private function account(RuleLine $rule, array $fields, array $flags): int
+    {
+        if (($rule->account['else'] ?? null) !== 'fx_accounts_missing') {
+            return $this->firstAccount($rule, $fields, $flags);
+        }
+
+        try {
+            return $this->firstAccount($rule, $fields, $flags);
+        } catch (PostingException $failure) {
+            if ($failure->error === PostingError::FxAccountsMissing) {
+                throw $failure;
+            }
+
+            throw new PostingException(PostingError::FxAccountsMissing, "Line {$rule->lineNo} of the rules has no usable account, so the exchange difference cannot be posted.", ['line' => $rule->lineNo], $failure);
+        }
+    }
+
+    /**
+     * @param array<string, int|string|null> $fields
+     * @param array<string, bool>            $flags
+     *
+     * @throws PostingException
+     */
+    private function firstAccount(RuleLine $rule, array $fields, array $flags): int
     {
         $lastRole = null;
 
@@ -162,6 +191,18 @@ final class PostingEngine
             if ($account !== null) {
                 return $account;
             }
+        }
+
+        if (($rule->account['else'] ?? null) === 'no_journal') {
+            throw new NoJournal();
+        }
+
+        if (($rule->account['else'] ?? null) === 'entity_account_missing') {
+            throw new PostingException(PostingError::EntityAccountMissing, 'The party of line ' . $rule->lineNo . ' has no account of its own yet.', ['routing_key' => $lastRole ?? '']);
+        }
+
+        if (($rule->account['else'] ?? null) === 'fx_accounts_missing') {
+            throw new PostingException(PostingError::FxAccountsMissing, 'The routing of ' . ($lastRole ?? 'a line') . ' has no account, so the exchange difference cannot be posted.', ['routing_key' => $lastRole ?? '']);
         }
 
         if (($rule->account['else'] ?? null) === 'payment_type_unknown') {

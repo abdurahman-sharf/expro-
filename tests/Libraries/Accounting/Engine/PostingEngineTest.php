@@ -138,6 +138,17 @@ class PostingEngineTest extends CIUnitTestCase
         $this->assertBuildFails(PostingError::PaymentTypeUnknown, ['figures' => ['net' => '10'], 'fields' => ['payment_type' => 'Cash']]);
     }
 
+    public function testBuild_RequiresNoJournalWhenALineThatSaysSoFindsNoAccount(): void
+    {
+        $this->publish([
+            ['line_no' => 1, 'side' => 'debit', 'account' => ['first' => [['when' => 'never', 'system' => 'cash']], 'else' => 'no_journal'], 'amount' => 'net'],
+            ['line_no' => 2, 'side' => 'credit', 'account' => ['first' => [['system' => 'other_payables']]], 'amount' => 'net'],
+        ]);
+
+        $this->assertNull($this->engine->build($this->facts(['figures' => ['net' => '10']])));
+        $this->assertSame([$this->accountId('cash') . ':10.0000:0.0000', $this->accountId('other_payables') . ':0.0000:10.0000'], $this->shape($this->engine->build($this->facts(['figures' => ['net' => '10'], 'flags' => ['never' => true]]))));
+    }
+
     public function testBuild_PostsALineOnceForEachEntryOfTheListItRepeatsOverWithTheFiguresAndFieldsOfTheEntry(): void
     {
         $vat   = $this->accountId('tax_output');

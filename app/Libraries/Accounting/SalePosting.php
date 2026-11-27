@@ -26,6 +26,7 @@ final class SalePosting
     private JournalService $journals;
     private SaleLoader $loader;
     private SalePostingBuilder $builder;
+    private SalePaymentJournal $paymentJournal;
     private StockLedger $stock;
     private AccountingSettings $settings;
     private OperationsHold $hold;
@@ -43,6 +44,8 @@ final class SalePosting
         $this->hold     = new OperationsHold($this->db);
         $this->periods  = new PeriodGuard($this->db);
         $this->builder  = SalePostingBuilder::forDatabase($this->db);
+
+        $this->paymentJournal = SalePaymentJournal::forDatabase($this->db, $this->builder);
 
         $this->crossBranch = new CrossBranchPayments($this->db);
     }
@@ -378,7 +381,7 @@ final class SalePosting
         }
 
         $active = $this->activeJournal(SalePostingBuilder::SOURCE_PAYMENT_FX, $payment->paymentId, JournalEntryType::General);
-        $draft  = $this->builder->paymentDifference($sale, $payment, $this->nextRevision(SalePostingBuilder::SOURCE_PAYMENT_FX, $payment->paymentId, JournalEntryType::General), $employeeId);
+        $draft  = $this->paymentJournal->paymentDifference($sale, $payment, $this->nextRevision(SalePostingBuilder::SOURCE_PAYMENT_FX, $payment->paymentId, JournalEntryType::General), $employeeId);
 
         if ($active !== null) {
             if ($draft !== null && $this->holds($active, $draft)) {
@@ -437,7 +440,7 @@ final class SalePosting
         }
 
         $active = $this->activeJournal(SalePostingBuilder::SOURCE_PAYMENT, $payment->paymentId, JournalEntryType::General);
-        $draft  = $this->builder->payment($sale, $payment, $this->nextRevision(SalePostingBuilder::SOURCE_PAYMENT, $payment->paymentId, JournalEntryType::General), $employeeId);
+        $draft  = $this->paymentJournal->payment($sale, $payment, $this->nextRevision(SalePostingBuilder::SOURCE_PAYMENT, $payment->paymentId, JournalEntryType::General), $employeeId);
         $drafts = $draft === null ? [] : $this->crossBranch->drafts($draft, $payment->treasuryId, $payment->treasuryBranchId);
 
         if (count($drafts) > 1) {

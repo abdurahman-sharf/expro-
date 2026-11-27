@@ -7,6 +7,7 @@ use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\SaleLoader;
+use App\Libraries\Accounting\SalePaymentJournal;
 use App\Libraries\Accounting\SalePostingBuilder;
 use App\Libraries\Accounting\UndeliveredReturns;
 use CodeIgniter\Database\BaseConnection;
@@ -22,6 +23,7 @@ final class SaleBackfill extends BackfillAdapter
 
     private SaleLoader $loader;
     private SalePostingBuilder $builder;
+    private SalePaymentJournal $payments;
     private CrossBranchPayments $crossBranch;
 
     public function __construct(BaseConnection $db, ?BackfillGate $gate = null)
@@ -30,6 +32,7 @@ final class SaleBackfill extends BackfillAdapter
 
         $this->loader      = new SaleLoader($this->db);
         $this->builder     = SalePostingBuilder::forDatabase($this->db);
+        $this->payments    = SalePaymentJournal::forDatabase($this->db, $this->builder);
         $this->crossBranch = new CrossBranchPayments($this->db);
     }
 
@@ -102,7 +105,7 @@ final class SaleBackfill extends BackfillAdapter
             }
 
             foreach ($sale->payments as $payment) {
-                $draft = $this->builder->payment($sale, $payment, 1, $employeeId);
+                $draft = $this->payments->payment($sale, $payment, 1, $employeeId);
 
                 if ($draft === null) {
                     continue;
