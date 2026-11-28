@@ -885,6 +885,7 @@ return [
     'posting_credit_needs_customer'              => 'البيع بلا عميل يجب أن يُدفع كاملًا. الفرق {0}.',
     'posting_cross_branch_payment_invalid'       => 'لا يمكن ترحيل هذه الدفعة في خزينة فرع آخر.',
     'posting_discount_needs_additive_tax'        => 'حساب الخصم يتطلب أسعارًا لا تشمل الضريبة.',
+    'posting_engine_gap_open'                    => 'لا يستطيع محرك الترحيل ترحيل {0} بعد: {1}',
     'posting_entity_account_missing'             => 'العميل أو المورد أو موقع المخزون بلا حساب خاص به بعد.',
     'posting_expense_tax_invalid'                => 'ضريبة المصروف يجب أن تكون بإشارة مبلغه وألا تزيد عليه.',
     'posting_foreign_amount_missing'             => 'في سطر مبلغ أجنبي بلا عملته، أو سطر من قيد بعملة أجنبية بلا مبلغ أجنبي.',

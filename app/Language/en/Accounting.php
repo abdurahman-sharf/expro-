@@ -885,6 +885,7 @@ return [
     'posting_credit_needs_customer'              => 'A sale without a customer must be paid in full. The difference is {0}.',
     'posting_cross_branch_payment_invalid'       => 'This payment cannot be posted into a treasury of another branch.',
     'posting_discount_needs_additive_tax'        => 'A discount account needs prices that do not include the tax.',
+    'posting_engine_gap_open'                    => 'The posting engine cannot post {0} yet: {1}',
     'posting_entity_account_missing'             => 'The customer, supplier or stock location has no account of its own yet.',
     'posting_expense_tax_invalid'                => 'The tax of an expense must have the sign of its amount and cannot be more than the amount.',
     'posting_foreign_amount_missing'             => 'A line has a foreign amount without its currency, or a line of a journal in a foreign currency has no foreign amount.',

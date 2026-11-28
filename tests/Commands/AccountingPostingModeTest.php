@@ -2,6 +2,7 @@
 
 namespace Tests\Commands;
 
+use App\Libraries\Accounting\Engine\PostingGaps;
 use App\Libraries\Accounting\Engine\PostingMode;
 use App\Libraries\Accounting\Engine\PostingModes;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -64,5 +65,14 @@ class AccountingPostingModeTest extends CIUnitTestCase
         $this->assertStringContainsString('Name the employee who switches the mode', $this->runCommand('expense engine'));
         $this->assertStringContainsString('Name the employee who switches the mode', $this->runCommand('expense engine --employee 987654'));
         $this->assertSame(PostingMode::Shadow, (new PostingModes())->of('expense'));
+    }
+
+    public function testRun_RejectsTheEngineForAnOperationWithAnOpenGap(): void
+    {
+        $output = $this->runCommand('purchase engine --employee 1');
+
+        $this->assertStringContainsString(lang('Accounting.posting_engine_gap_open', ['purchase', implode('; ', PostingGaps::of('purchase'))]), $output);
+        $this->assertStringContainsString('Nothing was changed', $output);
+        $this->assertNotSame(PostingMode::Engine, (new PostingModes())->of('purchase'));
     }
 }

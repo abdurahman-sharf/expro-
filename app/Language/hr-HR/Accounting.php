@@ -885,6 +885,7 @@ return [
     'posting_credit_needs_customer'              => '',
     'posting_cross_branch_payment_invalid'       => '',
     'posting_discount_needs_additive_tax'        => '',
+    'posting_engine_gap_open'                    => '',
     'posting_entity_account_missing'             => '',
     'posting_expense_tax_invalid'                => '',
     'posting_foreign_amount_missing'             => '',

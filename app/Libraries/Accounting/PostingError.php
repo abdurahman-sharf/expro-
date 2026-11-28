@@ -18,6 +18,7 @@ enum PostingError: string
     case PartyAccountMismatch          = 'party_account_mismatch';
     case RoutingTypeUnsupported        = 'routing_type_unsupported';
     case RoutingAccountUnusable        = 'routing_account_unusable';
+    case EngineGapOpen                 = 'engine_gap_open';
     case EntityAccountMissing          = 'entity_account_missing';
     case AccountNotFound               = 'account_not_found';
     case AccountNotPostable            = 'account_not_postable';

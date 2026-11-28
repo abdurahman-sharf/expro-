@@ -2,8 +2,10 @@
 
 namespace App\Commands;
 
+use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\Engine\PostingMode;
 use App\Libraries\Accounting\Engine\PostingModes;
+use App\Libraries\Accounting\PostingException;
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
 use Config\Database;
@@ -13,7 +15,7 @@ class AccountingPostingMode extends BaseCommand
     protected $group       = 'Accounting';
     protected $name        = 'accounting:posting_mode';
     protected $usage       = 'accounting:posting_mode [OPERATION MODE --employee ID]';
-    protected $description = 'Without arguments, lists the mode each operation is posted in. With an operation and a mode (legacy, shadow or engine), switches that operation and writes the audit log in the name of the employee given. legacy posts the journal of the code of the document; shadow posts that journal and records where the engine would differ; engine posts the journal of the engine. Exits 0, and 7 for a mode or an employee it refuses.';
+    protected $description = 'Without arguments, lists the mode each operation is posted in. With an operation and a mode (legacy, shadow or engine), switches that operation and writes the audit log in the name of the employee given. legacy posts the journal of the code of the document; shadow posts that journal and records where the engine would differ; engine posts the journal of the engine. An operation with a gap the engine does not take over yet is refused the engine. Exits 0, and 7 for a mode, an employee or a switch it refuses.';
     protected $options     = [
         '--employee' => 'The id of the employee who switches the mode. Needed to switch.',
     ];
@@ -51,7 +53,13 @@ class AccountingPostingMode extends BaseCommand
             return EXIT_USER_INPUT;
         }
 
-        $modes->set((string) $params[0], $mode, $employee);
+        try {
+            $modes->set((string) $params[0], $mode, $employee);
+        } catch (PostingException $refused) {
+            CLI::error(rtrim(AccountingMessage::of($refused), '.') . '. Nothing was changed.');
+
+            return EXIT_USER_INPUT;
+        }
         CLI::write("{$params[0]}: {$mode->value}", 'green');
 
         return EXIT_SUCCESS;

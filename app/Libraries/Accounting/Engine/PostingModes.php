@@ -4,6 +4,8 @@ namespace App\Libraries\Accounting\Engine;
 
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\JournalOrigin;
+use App\Libraries\Accounting\PostingError;
+use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -42,8 +44,17 @@ final class PostingModes
         return $modes;
     }
 
+    /**
+     * @throws PostingException An operation that still has a gap is not posted by the engine.
+     */
     public function set(string $operation, PostingMode $mode, int $employeeId): void
     {
+        $gaps = PostingGaps::of($operation);
+
+        if ($mode === PostingMode::Engine && $gaps !== []) {
+            throw new PostingException(PostingError::EngineGapOpen, "The engine cannot post {$operation} yet: " . implode('; ', $gaps) . '.', ['code' => $operation, 'name' => implode('; ', $gaps)]);
+        }
+
         $before = $this->of($operation);
 
         if ($before === $mode) {
