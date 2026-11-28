@@ -143,6 +143,7 @@ class SalePaymentDifferenceFactsTest extends CIUnitTestCase
         foreach ([RoutingKey::FxGain, RoutingKey::FxLoss, RoutingKey::Customers, RoutingKey::CounterCustomers, RoutingKey::Treasuries] as $key) {
             foreach (['cancelled', 'per_item'] as $type) {
                 $this->reinstallChart();
+                $this->reopenEntityAccounts(['customer' => [$this->customerId], 'treasury' => [$this->treasuryId]]);
                 $this->accountingDb()->table('accounting_routing')->where('routing_key', $key->value)->update(['routing_type' => $type, 'account_id' => null]);
 
                 foreach ([$this->customerId, null] as $customer) {

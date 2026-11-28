@@ -145,6 +145,7 @@ class SupplierPaymentDifferenceFactsTest extends CIUnitTestCase
         foreach ([RoutingKey::FxGain, RoutingKey::FxLoss, RoutingKey::Suppliers, RoutingKey::Treasuries] as $key) {
             foreach (['cancelled', 'per_item', 'main_per_entity'] as $type) {
                 $this->reinstallChart();
+                $this->reopenEntityAccounts(['supplier' => [$this->supplierId], 'treasury' => [$this->treasuryId]]);
                 $this->accountingDb()->table('accounting_routing')->where('routing_key', $key->value)->update(['routing_type' => $type, 'account_id' => null]);
 
                 $this->assertSameOutcomes($this->purchase($payments, $this->supplierId, new DocumentCurrency('USD', '3.7500', 2), lang('Sales.cash')), "{$key->value} {$type}");

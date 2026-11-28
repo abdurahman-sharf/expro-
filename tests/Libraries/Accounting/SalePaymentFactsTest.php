@@ -147,6 +147,7 @@ class SalePaymentFactsTest extends CIUnitTestCase
         foreach ([RoutingKey::Customers, RoutingKey::CounterCustomers, RoutingKey::Treasuries, RoutingKey::CashDifference] as $key) {
             foreach (['cancelled', 'per_item'] as $type) {
                 $this->reinstallChart();
+                $this->reopenEntityAccounts(['customer' => [$this->customerId], 'treasury' => [$this->treasuryId]]);
                 $this->accountingDb()->table('accounting_routing')->where('routing_key', $key->value)->update(['routing_type' => $type, 'account_id' => null]);
 
                 foreach ([[lang('Sales.cash'), false, $this->treasuryId], [lang('Sales.cash'), false, null], [lang('Sales.cash'), true, null], [lang('Sales.due'), false, null]] as [$label, $adjustment, $treasury]) {
@@ -158,6 +159,7 @@ class SalePaymentFactsTest extends CIUnitTestCase
         }
 
         $this->reinstallChart();
+        $this->reopenEntityAccounts(['customer' => [$this->customerId], 'treasury' => [$this->treasuryId]]);
         $this->accountingDb()->table('accounting_routing')->where('routing_key', PaymentType::Cash->routingKey())->update(['account_id' => null]);
         $this->assertSameOutcome($this->sale(new SalePayment(84, lang('Sales.cash'), '40.00', '0', false, '2026-10-22'), $this->customerId), 'way of paying without an account');
     }

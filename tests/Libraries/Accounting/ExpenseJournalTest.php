@@ -134,6 +134,7 @@ class ExpenseJournalTest extends CIUnitTestCase
         foreach ([RoutingKey::TaxInput, RoutingKey::ExpensesDefault, RoutingKey::Treasuries] as $key) {
             foreach (['cancelled', 'per_item'] as $type) {
                 $this->reinstallChart();
+                $this->reopenEntityAccounts(['treasury' => [$this->treasuryId]]);
                 $this->accountingDb()->table('accounting_routing')->where('routing_key', $key->value)->update(['routing_type' => $type, 'account_id' => null]);
 
                 $both = $this->both($this->expense(treasury: $key === RoutingKey::Treasuries ? $this->treasuryId : null));

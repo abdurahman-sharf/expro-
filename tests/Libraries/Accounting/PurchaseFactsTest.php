@@ -187,6 +187,7 @@ class PurchaseFactsTest extends CIUnitTestCase
         foreach ([RoutingKey::Purchases, RoutingKey::TaxInput, RoutingKey::Suppliers, RoutingKey::StockLocations, RoutingKey::PurchasePriceVariance] as $key) {
             foreach (['cancelled', 'per_item', 'main_per_entity'] as $type) {
                 $this->reinstallChart();
+                $this->reopenEntityAccounts(['supplier' => [$this->supplierId], 'treasury' => [$this->treasuryId], 'stock_location' => $this->locations]);
                 $this->accountingDb()->table('accounting_routing')->where('routing_key', $key->value)->update(['routing_type' => $type, 'account_id' => null]);
 
                 $this->assertSameOutcome($this->purchase($lines), "{$key->value} {$type}");

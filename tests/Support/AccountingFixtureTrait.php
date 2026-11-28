@@ -8,6 +8,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\CurrencyCatalog;
 use App\Libraries\Accounting\DefaultChart;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
@@ -231,6 +232,23 @@ trait AccountingFixtureTrait
     /**
      * Leaves only the default branch, which every test starts from.
      */
+    /**
+     * Opens again the accounts of the entities given, which reinstalling the chart takes away with every
+     * other account, so that a test that reinstalls the chart in a loop still posts to them.
+     *
+     * @param array<string, list<int>> $entities The ids of each kind (EntityAccountService::CUSTOMER and the rest).
+     */
+    protected function reopenEntityAccounts(array $entities): void
+    {
+        $service = new EntityAccountService($this->accountingDb());
+
+        foreach ($entities as $kind => $ids) {
+            foreach ($ids as $id) {
+                $service->ensure($kind, $id, ucfirst(str_replace('_', ' ', $kind)) . ' ' . $id);
+            }
+        }
+    }
+
     protected function resetBranches(): void
     {
         $db = $this->accountingDb();

@@ -137,6 +137,7 @@ class PurchasePaymentFactsTest extends CIUnitTestCase
         foreach ([RoutingKey::Suppliers, RoutingKey::Treasuries] as $key) {
             foreach (['cancelled', 'per_item', 'main_per_entity'] as $type) {
                 $this->reinstallChart();
+                $this->reopenEntityAccounts(['supplier' => [$this->supplierId], 'treasury' => [$this->treasuryId]]);
                 $this->accountingDb()->table('accounting_routing')->where('routing_key', $key->value)->update(['routing_type' => $type, 'account_id' => null]);
 
                 foreach ([[lang('Sales.cash'), $this->treasuryId], [lang('Sales.cash'), null], [lang('Sales.due'), null]] as [$label, $treasury]) {

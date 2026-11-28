@@ -109,6 +109,7 @@ class RevenueFactsTest extends CIUnitTestCase
         foreach ([RoutingKey::TaxOutput, RoutingKey::RevenuesDefault, RoutingKey::Treasuries] as $key) {
             foreach (['cancelled', 'per_item'] as $type) {
                 $this->reinstallChart();
+                $this->reopenEntityAccounts(['treasury' => [$this->treasuryId]]);
                 $this->accountingDb()->table('accounting_routing')->where('routing_key', $key->value)->update(['routing_type' => $type, 'account_id' => null]);
 
                 $this->assertSameOutcome($this->revenue(treasury: $key === RoutingKey::Treasuries ? $this->treasuryId : null), "{$key->value} {$type}");
