@@ -5,6 +5,7 @@ namespace App\Libraries\Accounting\Backfill;
 use App\Libraries\Accounting\CrossBranchPayments;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\PurchaseJournal;
 use App\Libraries\Accounting\ReceivingAmounts;
 use App\Libraries\Accounting\ReceivingLoader;
 use App\Libraries\Accounting\ReceivingPaymentJournal;
@@ -33,6 +34,7 @@ final class PurchaseBackfill extends BackfillAdapter
     private ReceivingLoader $loader;
     private ReceivingPostingBuilder $builder;
     private ReceivingPaymentJournal $payments;
+    private PurchaseJournal $journal;
     private CrossBranchPayments $crossBranch;
 
     public function __construct(BaseConnection $db, ?BackfillGate $gate = null)
@@ -42,6 +44,7 @@ final class PurchaseBackfill extends BackfillAdapter
         $this->loader      = new ReceivingLoader($this->db);
         $this->builder     = new ReceivingPostingBuilder(new RoutingResolver($this->db), new StockLedger($this->db));
         $this->payments    = new ReceivingPaymentJournal($this->builder, null, $this->db);
+        $this->journal     = new PurchaseJournal($this->builder, null, $this->db);
         $this->crossBranch = new CrossBranchPayments($this->db);
     }
 
@@ -109,7 +112,7 @@ final class PurchaseBackfill extends BackfillAdapter
         }
 
         try {
-            $plan = $this->builder->purchase($purchase, 1, $employeeId);
+            $plan = $this->journal->plan($purchase, 1, $employeeId);
 
             if ($this->stockOpenedAfter('receivings', 'receiving_id', 'receiving_time', $purchase->receivingId, $plan->movements)) {
                 return BackfillPlan::refused(BackfillRefusal::StockOpenedAfter, $source);

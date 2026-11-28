@@ -73,7 +73,12 @@ class PostingMatrixTest extends CIUnitTestCase
             'customer'    => (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $customer, 'Matrix customer'),
             'supplier_id' => $supplier,
             'supplier'    => (new EntityAccountService())->ensure(EntityAccountService::SUPPLIER, $supplier, 'Matrix supplier'),
+            'purchases'   => $this->accountId('purchases'),
+            'variance'    => $this->accountId('cogs'),
         ];
+
+        $location     = $this->insertStockLocation('Matrix store');
+        $this->roles += ['location_id' => $location, 'store' => (new EntityAccountService())->ensure(EntityAccountService::STOCK_LOCATION, $location, 'Matrix store')];
     }
 
     protected function tearDown(): void
@@ -188,6 +193,26 @@ class PostingMatrixTest extends CIUnitTestCase
                 ['figures' => ['fx_diff' => '-4.00'], 'fields' => ['supplier_id' => '@supplier_id'], 'flags' => ['is_gain' => false, 'is_loss' => true]],
                 [['supplier', 'credit', '4.0000'], ['fx_loss', 'debit', '4.0000']],
             ],
+            'P-28 P-29 P-30 a purchase of stock and of what is not stocked, with tax, owed to the supplier' => [
+                ['P-28', 'P-29', 'P-30'], 'purchase',
+                ['figures' => ['net' => '100.00', 'tax' => '60.00', 'total' => '460.00'], 'fields' => ['supplier_id' => '@supplier_id', 'treasury_id' => null, 'payment_type' => null], 'flags' => ['has_supplier' => true, 'by_treasury' => false, 'by_payment' => false], 'lists' => ['locations' => [['fields' => ['location_id' => '@location_id'], 'figures' => ['value' => '300.00']]]]],
+                [['store', 'debit', '300.0000'], ['purchases', 'debit', '100.0000'], ['vat_input', 'debit', '60.0000'], ['supplier', 'credit', '460.0000']],
+            ],
+            'P-28 a purchase with no supplier paid at once from a treasury' => [
+                ['P-28'], 'purchase',
+                ['figures' => ['net' => '0', 'tax' => '0', 'total' => '80.00'], 'fields' => ['supplier_id' => null, 'treasury_id' => '@treasury_id', 'payment_type' => 'Cash'], 'flags' => ['has_supplier' => false, 'by_treasury' => true, 'by_payment' => false], 'lists' => ['locations' => [['fields' => ['location_id' => '@location_id'], 'figures' => ['value' => '80.00']]]]],
+                [['store', 'debit', '80.0000'], ['treasury', 'credit', '80.0000']],
+            ],
+            'P-35 a return given back above its cost, the difference of price credited' => [
+                ['P-35'], 'purchase_return',
+                ['figures' => ['total' => '115.00', 'foreign_total' => '115.00', 'tax' => '15.00', 'foreign_tax' => '15.00', 'net' => '0', 'variance' => '20.00'], 'fields' => ['supplier_id' => '@supplier_id', 'treasury_id' => null, 'payment_type' => null], 'flags' => ['has_supplier' => true, 'by_treasury' => false, 'by_payment' => false], 'lists' => ['locations' => [['fields' => ['location_id' => '@location_id'], 'figures' => ['value' => '80.00']]]]],
+                [['supplier', 'debit', '115.0000'], ['vat_input', 'credit', '15.0000'], ['store', 'credit', '80.0000'], ['variance', 'credit', '20.0000']],
+            ],
+            'P-35 a return below its cost with a line that is not stocked, the difference of price debited' => [
+                ['P-35'], 'purchase_return',
+                ['figures' => ['total' => '150.00', 'foreign_total' => '150.00', 'tax' => '0', 'foreign_tax' => '0', 'net' => '100.00', 'variance' => '-30.00'], 'fields' => ['supplier_id' => '@supplier_id', 'treasury_id' => null, 'payment_type' => null], 'flags' => ['has_supplier' => true, 'by_treasury' => false, 'by_payment' => false], 'lists' => ['locations' => [['fields' => ['location_id' => '@location_id'], 'figures' => ['value' => '80.00']]]]],
+                [['supplier', 'debit', '150.0000'], ['store', 'credit', '80.0000'], ['purchases', 'credit', '100.0000'], ['variance', 'debit', '30.0000']],
+            ],
             'P-04 P-05 a manual journal whose debit line carries a tax on top of its amount' => [
                 ['P-04', 'P-05'], 'manual',
                 ['lists' => ['lines' => [
@@ -216,7 +241,7 @@ class PostingMatrixTest extends CIUnitTestCase
     public function testBuild_PostsTheLinesThePostingMatrixSaysForTheRule(array $references, string $operation, array $facts, array $expected): void
     {
         $draft = (new PostingEngine())->build($this->facts($operation, $facts));
-        $names = array_flip(array_diff_key($this->roles, ['treasury_id' => true]));
+        $names = array_flip(array_filter($this->roles, static fn (string $role): bool => ! str_ends_with($role, '_id'), ARRAY_FILTER_USE_KEY));
 
         $this->assertNotNull($draft);
         $this->assertSame(

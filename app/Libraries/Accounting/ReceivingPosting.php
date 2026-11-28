@@ -26,6 +26,7 @@ final class ReceivingPosting
     private ReceivingLoader $loader;
     private ReceivingPostingBuilder $builder;
     private ReceivingPaymentJournal $payments;
+    private PurchaseJournal $journal;
     private StockLedger $ledger;
     private AccountingSettings $settings;
     private OperationsHold $hold;
@@ -45,6 +46,7 @@ final class ReceivingPosting
         $baseDecimals   = fn (): int => (new Currencies($this->db))->baseDecimals();
         $this->builder  = new ReceivingPostingBuilder(new RoutingResolver($this->db), $this->ledger, $baseDecimals);
         $this->payments = new ReceivingPaymentJournal($this->builder, $baseDecimals, $this->db);
+        $this->journal  = new PurchaseJournal($this->builder, $baseDecimals, $this->db);
 
         $this->crossBranch = new CrossBranchPayments($this->db);
     }
@@ -239,7 +241,7 @@ final class ReceivingPosting
             $date       = $purchase->date;
 
             if ($active !== null) {
-                $replacement = $this->builder->purchase($purchase, $this->nextRevisionOf($source, $purchase->receivingId), $employeeId)->journal;
+                $replacement = $this->journal->plan($purchase, $this->nextRevisionOf($source, $purchase->receivingId), $employeeId)->journal;
 
                 (new TreasuryScopes($this->db))->assertMayReplace((int) $active->journal_id, $replacement, $employeeId);
 
@@ -377,7 +379,7 @@ final class ReceivingPosting
             return;
         }
 
-        $plan = $this->builder->purchase($purchase, $revision, $employeeId);
+        $plan = $this->journal->plan($purchase, $revision, $employeeId);
 
         if ($purchase->toBranchId === null) {
             $journalId = $plan->journal === null ? null : $this->posting->post((new JournalDescriptions($this->db))->ofPurchase($plan->journal, $purchase))->journalId;

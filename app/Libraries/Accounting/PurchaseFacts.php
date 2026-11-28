@@ -64,7 +64,7 @@ final class PurchaseFacts
             employeeId: $employeeId,
             figures: $figures,
             fields: self::creditorFields($purchase),
-            flags: self::creditorFlags($purchase),
+            flags: self::creditorFlags($purchase, $count >= 2),
             lists: ['locations' => $locations],
             currencyCode: $purchase->currency?->code,
             description: 'Purchase #' . $purchase->receivingId,
@@ -137,7 +137,7 @@ final class PurchaseFacts
             employeeId: $employeeId,
             figures: $figures,
             fields: self::creditorFields($purchase),
-            flags: self::creditorFlags($purchase),
+            flags: self::creditorFlags($purchase, $count >= 2),
             lists: ['locations' => $locations],
             currencyCode: $foreign?->code,
             description: 'Purchase return #' . $purchase->receivingId,
@@ -154,15 +154,15 @@ final class PurchaseFacts
 
     /**
      * Whom the goods are owed to: the supplier, or with no supplier the treasury or the way the purchase was
-     * paid. A way a purchase is never paid with is refused as it always was.
+     * paid. A way a purchase is never paid with is refused as it always was, when there is a journal to owe.
      *
      * @return array<string, bool>
      *
      * @throws PostingException
      */
-    private static function creditorFlags(ReceivingDocument $purchase): array
+    private static function creditorFlags(ReceivingDocument $purchase, bool $posts): array
     {
-        $type       = $purchase->supplierId === null && $purchase->paymentType !== null ? SupplierPaymentType::of($purchase->paymentType) : null;
+        $type       = $posts && $purchase->supplierId === null && $purchase->paymentType !== null ? SupplierPaymentType::of($purchase->paymentType) : null;
         $byTreasury = $type !== null && $purchase->treasuryId !== null && $type->usesTreasury();
 
         return ['has_supplier' => $purchase->supplierId !== null, 'by_treasury' => $byTreasury, 'by_payment' => $type !== null && ! $byTreasury];
