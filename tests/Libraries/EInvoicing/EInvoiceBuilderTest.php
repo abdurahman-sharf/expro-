@@ -23,6 +23,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use ReflectionMethod;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EInvoiceFixtureTrait;
 use Tests\Support\EInvoiceSaleFixtureTrait;
@@ -582,6 +583,8 @@ class EInvoiceBuilderTest extends CIUnitTestCase
         return [...$this->tax($itemId, $line, $amount), 'percent' => $percent, 'vat' => $vat];
     }
 
+    #[Group('T-01-T-11')]
+    #[Group('T-06')]
     public function testFromSale_WritesTheCategoryAndReasonOfEachLine(): void
     {
         $export   = $this->item('0', false);

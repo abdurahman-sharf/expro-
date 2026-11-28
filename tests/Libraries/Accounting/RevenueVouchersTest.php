@@ -19,6 +19,7 @@ use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
@@ -321,6 +322,8 @@ class RevenueVouchersTest extends CIUnitTestCase
         $this->assertSame(AccountingError::TreasuryNotFound, $this->refusal(fn () => $this->save(['treasury_id' => 99999]))->error);
     }
 
+    #[Group('T-01-T-11')]
+    #[Group('T-03')]
     public function testSave_WritesNothingWhenThePeriodIsClosedAndRecordsTheRefusal(): void
     {
         $this->closeThrough($this->today);

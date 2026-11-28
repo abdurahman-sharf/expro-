@@ -19,6 +19,7 @@ use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
@@ -489,6 +490,8 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertSame(['posted', 'reposted', 'cancelled'], $actions);
     }
 
+    #[Group('T-01-T-11')]
+    #[Group('T-03')]
     public function testSaveValue_RefusesADateInAClosedPeriodAndLogsTheFailure(): void
     {
         $this->closeThrough($this->daysAgo(1));

@@ -26,6 +26,7 @@ use App\Models\Expense;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -116,6 +117,8 @@ class TrialBalanceTest extends CIUnitTestCase
         return array_map(static fn (TrialBalanceRow $row): string => $row->code, $report->rows);
     }
 
+    #[Group('T-01-T-11')]
+    #[Group('T-07')]
     public function testBuild_ShowsEachAccountThatHoldsSomethingWithWhatItWasDebitedAndCredited(): void
     {
         $this->cashSale('2026-10-05', 1, '100.00');
@@ -162,6 +165,8 @@ class TrialBalanceTest extends CIUnitTestCase
         $this->assertTrue($branch->balances());
     }
 
+    #[Group('T-01-T-11')]
+    #[Group('T-07')]
     public function testBuild_GivesAGroupItsOwnLinesAndThoseOfTheAccountsUnderIt(): void
     {
         $this->cashSale('2026-10-05', 1, '100.00');
@@ -197,6 +202,8 @@ class TrialBalanceTest extends CIUnitTestCase
         $this->assertLessThan(array_search('411', $codes, true), array_search('120101', $codes, true));
     }
 
+    #[Group('T-01-T-11')]
+    #[Group('T-07')]
     public function testBuild_AddsUpTheAccountsAtTheTopAndTheTwoSidesAreEqual(): void
     {
         $this->cashSale('2026-10-05', 1, '100.00');

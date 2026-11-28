@@ -9,6 +9,7 @@ use App\Libraries\Tax\VatLine;
 use App\Libraries\Tax\VatResult;
 use CodeIgniter\Test\CIUnitTestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\Group;
 
 class VatCalculatorTest extends CIUnitTestCase
 {
@@ -61,10 +62,33 @@ class VatCalculatorTest extends CIUnitTestCase
         $this->assertSame(['100.00', '15.00', '115.00'], [$result->taxable(), $result->vat(), $result->totalWithVat()]);
     }
 
+    #[Group('T-01-T-11')]
+    #[Group('T-04')]
+    public function testCalculate_ChargesTheTaxOnThreeAt33Point33AsNinetyNinePoint99And15(): void
+    {
+        $result = $this->calculate([[bcmul('3', '33.33', 2)]]);
+
+        $this->assertSame(['99.99', '15.00', '114.99'], self::line($result));
+        $this->assertSame(['99.99', '15.00', '114.99'], [$result->taxable(), $result->vat(), $result->totalWithVat()]);
+    }
+
+    #[Group('T-01-T-11')]
+    #[Group('T-05')]
     public function testCalculate_TakesTheNetOutOfAPriceThatHoldsTheTax(): void
     {
         $this->assertSame(['100.00', '15.00', '115.00'], self::line($this->calculate([['115', true]])));
         $this->assertSame(['86.96', '13.04', '100.00'], self::line($this->calculate([['100', true]])));
+    }
+
+    #[Group('T-01-T-11')]
+    #[Group('T-06')]
+    public function testCalculate_ChargesNothingOnALineOfZeroRateAndKeepsTheExemptionCodeAndItsReason(): void
+    {
+        $result   = $this->calculate([['100', false, self::zero()]]);
+        $category = array_values($result->categories)[0];
+
+        $this->assertSame(['100.00', '0.00', '100.00'], self::line($result));
+        $this->assertSame(['Z', 'VATEX-SA-32', 'Export of goods', '0.00'], [$category->category, $category->exemptionCode, $category->exemptionText, $category->vat]);
     }
 
     public function testCalculate_RoundsTheTaxOfACategoryOnItsTaxableAmountAndNotOnItsLines(): void

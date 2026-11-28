@@ -11,6 +11,7 @@ use App\Libraries\Tax\VatClassificationException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -173,6 +174,8 @@ class VatClassificationTest extends CIUnitTestCase
         }
     }
 
+    #[Group('T-01-T-11')]
+    #[Group('T-06')]
     public function testSaveClass_RequiresAnExemptionCodeOfItsCategory(): void
     {
         $failure = $this->refusal(fn () => $this->classes->saveClass(['code' => 'TEST-E', 'name' => 'Test', 'category' => 'E', 'exemption_code' => 'VATEX-SA-32', 'exemption_text' => 'Reason', 'tax_name' => 'VAT', 'percent' => '0', 'valid_from' => '2026-01-01'], null, $this->manager));

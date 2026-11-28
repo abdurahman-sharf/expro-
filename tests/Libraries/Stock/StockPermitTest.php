@@ -23,6 +23,7 @@ use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -441,6 +442,8 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame($posted, $this->countRows('accounting_journals'));
     }
 
+    #[Group('T-01-T-11')]
+    #[Group('T-03')]
     public function testCreate_RollsBackThePermitTheShelvesAndTheMovementsWhenThePostingIsRefused(): void
     {
         $itemId = $this->stocked('10', '50');

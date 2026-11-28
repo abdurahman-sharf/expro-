@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\ChequeSources;
 use App\Libraries\Accounting\CostCenterService;
@@ -40,6 +41,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
@@ -479,6 +481,25 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertPostingFailsWith(PostingError::Unbalanced, fn () => $this->service->postNew($this->unbalancedInput()));
 
         $this->assertSame(0, $this->countRows('accounting_journals'));
+        $this->assertSame(0, $this->countRows('accounting_journal_lines'));
+    }
+
+    #[Group('T-01-T-11')]
+    #[Group('T-02')]
+    public function testPostNew_RejectsADebitOf100AndACreditOf90WithTheDifferenceOf10InItsMessageAndPostsNoLine(): void
+    {
+        $input                       = $this->journalInput('100.00');
+        $input['lines'][1]['credit'] = '90.00';
+
+        try {
+            $this->service->postNew($input);
+            $this->fail('The journal was posted.');
+        } catch (PostingException $refused) {
+            $this->assertSame(PostingError::Unbalanced, $refused->error);
+            $this->assertSame('10.0000', bcadd($refused->context['difference'], '0', 4));
+            $this->assertStringContainsString('10.00', AccountingMessage::of($refused));
+        }
+
         $this->assertSame(0, $this->countRows('accounting_journal_lines'));
     }
 
@@ -1294,6 +1315,8 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertNotContains($inactive, $ids);
     }
 
+    #[Group('T-01-T-11')]
+    #[Group('T-03')]
     public function testPostNew_RejectsADateInAClosedPeriod(): void
     {
         $this->closeThrough('2026-03-31');

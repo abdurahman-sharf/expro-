@@ -6,6 +6,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\Support\Ledger\LedgerDatabase;
 use Tests\Support\Ledger\LedgerRunner;
 use Tests\Support\Ledger\LedgerScenario;
@@ -62,6 +63,8 @@ final class LedgerInvariantsTest extends CIUnitTestCase
     }
 
     #[DataProvider('provideRun_KeepsEveryInvariantAcrossMixedOperations')]
+    #[Group('T-01-T-11')]
+    #[Group('T-01')]
     public function testRunKeepsEveryInvariantAcrossMixedOperations(int $seed, int $operations): void
     {
         $listed = trim((string) getenv('LEDGER_SKIP'));

@@ -60,6 +60,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use RuntimeException;
 use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
@@ -282,6 +283,45 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(PostingError::RoutingTypeUnsupported, $this->failure()->error);
     }
 
+    #[Group('T-01-T-11')]
+    #[Group('T-08')]
+    public function testSaveValue_PostsTwoAt100OfAProductThatCost60AsTheRevenueAndTheCostOfTheSameSale(): void
+    {
+        $item   = $this->item('60.00');
+        $saleId = $this->save([$this->line($item, 0, '2', '100.00', '60.00')], [$this->tax($item, 0, '30.00')]);
+
+        $this->assertSame([$this->customerAccount() . ':230.00:0.00', $this->accountId('sales_revenue') . ':0.00:200.00', $this->accountId('tax_output') . ':0.00:30.00'], $this->standing($saleId, 'revenue')[0]['lines']);
+        $this->assertSame([$this->accountId('cogs') . ':120.00:0.00', $this->stockAccount() . ':0.00:120.00'], $this->standing($saleId, 'cogs')[0]['lines']);
+    }
+
+    #[Group('T-01-T-11')]
+    #[Group('T-09')]
+    public function testSaveValue_PostsADiscountOfTenPercentOnALineAsRevenueOf90WithNoLineOfDiscount(): void
+    {
+        $item   = $this->item('10.00', false);
+        $saleId = $this->save([$this->line($item, 0, '1', '100.00', '10.00', '10')], [$this->tax($item, 0, '13.50')]);
+
+        $this->assertSame([$this->customerAccount() . ':103.50:0.00', $this->accountId('sales_revenue') . ':0.00:90.00', $this->accountId('tax_output') . ':0.00:13.50'], $this->standing($saleId, 'revenue')[0]['lines']);
+    }
+
+    #[Group('T-01-T-11')]
+    #[Group('T-10')]
+    public function testSaveValue_PostsADiscountOfTenPercentOnTheWholeOfLinesOf100And50AsRevenueOf135(): void
+    {
+        $first  = $this->item('10.00', false);
+        $second = $this->item('10.00', false);
+        $items  = [$this->line($first, 0, '1', '100.00', '10.00'), $this->line($second, 1, '1', '50.00', '10.00')];
+
+        $items[0]['invoice_discount_share'] = '10.0000';
+        $items[1]['invoice_discount_share'] = '5.0000';
+
+        $saleId = $this->save($items, [$this->tax($first, 0, '13.50'), $this->tax($second, 1, '6.75')], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, ['type' => PERCENT, 'value' => '10']);
+
+        $this->assertSame([$this->customerAccount() . ':155.25:0.00', $this->accountId('sales_revenue') . ':0.00:135.00', $this->accountId('tax_output') . ':0.00:20.25'], $this->standing($saleId, 'revenue')[0]['lines']);
+    }
+
+    #[Group('T-01-T-11')]
+    #[Group('T-03')]
     public function testSaveValue_RefusesASaleInAClosedPeriodWithoutLeavingAnyOfIt(): void
     {
         $cycle = $this->referenceInvoice();
@@ -4939,6 +4979,27 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame($this->employeeId, (int) $issued[0]->employee_id);
         $this->assertSame(['number' => null, 'date' => $day], json_decode((string) $issued[0]->details, true));
         $this->assertTies();
+    }
+
+    #[Group('T-01-T-11')]
+    #[Group('T-11')]
+    public function testIssueDraft_GivesADraftOf100NoNumberNoJournalAndNoStockUntilItIsIssuedWithTheNextNumber(): void
+    {
+        (new DocumentNumbering($this->accountingDb()))->configure(DocumentType::SalesInvoice, ['enabled' => true, 'prefix' => 'INV-', 'padding' => 4]);
+
+        $item   = $this->item('60.00');
+        $before = $this->stock($item);
+        $draft  = $this->draftInvoice([$this->line($item, 0, '1', '100.00', '60.00')]);
+
+        $this->assertEmpty($this->sales->getInvoiceNumber($draft));
+        $this->assertSame([], $this->journals($draft));
+        $this->assertFalse($this->stockTaken($item, $before));
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+
+        $this->assertSame('INV-0001', $this->sales->getInvoiceNumber($draft));
+        $this->assertNotSame([], $this->standing($draft, 'revenue'));
+        $this->assertTrue($this->stockTaken($item, $before));
     }
 
     public function testIssueDraft_WritesTheNumberTheInvoiceTookInTheAuditOfTheIssue(): void

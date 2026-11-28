@@ -24,6 +24,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EInvoiceSaleFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -596,6 +597,8 @@ class CustomerAdvancesTest extends CIUnitTestCase
         $this->assertSame('completed', $this->accountingDb()->table('customer_advances')->where('advance_id', $advanceId)->get()->getRow()->status);
     }
 
+    #[Group('T-01-T-11')]
+    #[Group('T-03')]
     public function testReceive_IsRefusedInAClosedPeriodAndSavesNothing(): void
     {
         $this->closeThrough(date('Y-m-d'));
