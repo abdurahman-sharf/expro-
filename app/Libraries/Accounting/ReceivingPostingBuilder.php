@@ -83,7 +83,7 @@ final class ReceivingPostingBuilder
     /**
      * The journal of the payment of a purchase, or null when there is none: the purchase was
      * left on credit, has no supplier to settle (it was paid in its own journal), or only moves
-     * stock. A return paid back by the supplier mirrors a payment. The money moves on the day the
+     * stock. A way of paying that gives no account and is not credit is refused rather than dropped. A return paid back by the supplier mirrors a payment. The money moves on the day the
      * purchase was saved, whatever day is typed on the invoice, as the payment of a sale does.
      *
      * @throws PostingException
@@ -97,7 +97,11 @@ final class ReceivingPostingBuilder
         $account = $this->paymentAccount($purchase->paymentType, $purchase->treasuryId);
 
         if ($account === null) {
-            return null;
+            if ($purchase->paymentType === null || PaymentType::fromLabel($purchase->paymentType) === PaymentType::Due) {
+                return null;
+            }
+
+            throw new PostingException(PostingError::PaymentTypeUnknown, "The payment type {$purchase->paymentType} has no account to be paid from.", ['payment_type' => $purchase->paymentType]);
         }
 
         $total = $this->totals($purchase)['total'];

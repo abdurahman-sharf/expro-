@@ -25,8 +25,8 @@ final class PostingRules
     use RunsInTransaction;
 
     private const SIDES        = ['debit', 'credit'];
-    private const SOURCE_KEYS  = ['when', 'field', 'role', 'entity', 'system', 'payment'];
-    private const ELSE_ERRORS  = ['payment_type_unknown', 'routing_row_cancelled', 'fx_accounts_missing', 'entity_account_missing', 'no_journal'];
+    private const SOURCE_KEYS  = ['when', 'field', 'role', 'entity', 'system', 'payment', 'no_journal'];
+    private const ELSE_ERRORS  = ['payment_type_unknown', 'routing_row_cancelled', 'fx_accounts_missing', 'entity_account_missing'];
     private const NAME_PATTERN = '/^[a-z][a-z0-9_]{0,31}$/';
 
     private BaseConnection $db;
@@ -216,6 +216,14 @@ final class PostingRules
         foreach ($account['first'] as $source) {
             if (! is_array($source) || array_diff(array_keys($source), self::SOURCE_KEYS) !== []) {
                 $refuse('a place has a key that is not known');
+            }
+
+            if (array_key_exists('no_journal', $source)) {
+                if ($source['no_journal'] !== true || array_diff(['when', 'no_journal'], array_keys($source)) !== [] || count($source) !== 2 || preg_match(self::NAME_PATTERN, (string) $source['when']) !== 1) {
+                    $refuse('a place that posts no journal names the condition it holds on and nothing else');
+                }
+
+                continue;
             }
 
             $kinds = array_intersect(array_keys($source), ['field', 'role', 'system', 'payment']);

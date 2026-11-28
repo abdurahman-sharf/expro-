@@ -533,6 +533,32 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertNull($this->paymentRow($saleId)->treasury_id);
     }
 
+    public function testSaveValue_RejectsACashPaymentIntoATreasuryWhoseRoutingIsCancelledWithAMessageAndSavesNothing(): void
+    {
+        $drawer = $this->drawerOfTheSeller();
+        $item   = $this->item('10.00');
+        $sales  = $this->countSales();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::Treasuries->value)->update(['routing_type' => 'cancelled']);
+
+        $result = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
+
+        $this->assertSame(ACCOUNTING_FAILED, $result);
+        $this->assertSame(PostingError::RoutingTypeUnsupported, $this->sales->accountingFailure()->error);
+        $this->assertStringContainsString(RoutingKey::Treasuries->value, $this->sales->accountingFailure()->getMessage());
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame('0.0000', (new TreasuryService())->position($drawer)->balance);
+    }
+
+    public function testSaveValue_PostsNoPaymentJournalForAPaymentLeftOnCredit(): void
+    {
+        $item   = $this->item('10.00');
+        $saleId = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.due'), '100.00')]);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame([], array_values(array_filter($this->journals($saleId), static fn (array $journal): bool => $journal['source'] === 'sale_payment')));
+        $this->assertSame('100.00', $this->balance($this->customerAccount()));
+    }
+
     /**
      * A treasury of the seller's branch that only the employees given may deposit into.
      *

@@ -35,7 +35,7 @@ final class PurchasePaymentFacts
             employeeId: $employeeId,
             figures: ['paid' => bcmul($base, $sign, SaleAmounts::SCALE), 'amount' => bcmul($total, $sign, SaleAmounts::SCALE)],
             fields: ['supplier_id' => $purchase->supplierId, 'treasury_id' => $byTreasury ? $purchase->treasuryId : null, 'payment_type' => $purchase->paymentType],
-            flags: ['by_treasury' => $byTreasury, 'by_payment' => $type !== null && ! $byTreasury],
+            flags: ['on_credit' => $type === PaymentType::Due, 'by_treasury' => $byTreasury, 'by_payment' => $type !== null && $type !== PaymentType::Due && ! $byTreasury],
             currencyCode: $purchase->currency?->code,
             description: ($purchase->type === ReceivingType::Receive ? 'Payment of purchase #' : 'Refund of purchase return #') . $purchase->receivingId,
         );

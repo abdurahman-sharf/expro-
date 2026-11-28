@@ -39,7 +39,8 @@ final class PostingEngine
 
     /**
      * The journal the rules of the operation make of the facts, or null when every line comes to nothing
-     * or a line whose rule says so finds no account.
+     * or a line reaches a place that posts no journal, whose condition the facts hold (a payment left on
+     * credit). A line that finds no account otherwise is refused.
      *
      * @throws PostingException
      */
@@ -181,6 +182,10 @@ final class PostingEngine
                 continue;
             }
 
+            if (isset($source['no_journal'])) {
+                throw new NoJournal();
+            }
+
             $account = match (true) {
                 isset($source['field'])   => $this->field($fields, $source['field']),
                 isset($source['system'])  => $this->resolver->systemAccount($source['system']),
@@ -191,10 +196,6 @@ final class PostingEngine
             if ($account !== null) {
                 return $account;
             }
-        }
-
-        if (($rule->account['else'] ?? null) === 'no_journal') {
-            throw new NoJournal();
         }
 
         if (($rule->account['else'] ?? null) === 'entity_account_missing') {

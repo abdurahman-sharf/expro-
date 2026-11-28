@@ -261,7 +261,8 @@ final class SalePostingBuilder
 
     /**
      * The journal of one payment, or null when it settles nothing: a payment that is not
-     * completed, a payment left on credit, or one that nets to zero after the change given back. A refund (a negative payment) mirrors
+     * completed, a payment left on credit, or one that nets to zero after the change given back.
+     * Any other payment whose way of paying gives no account is refused rather than dropped. A refund (a negative payment) mirrors
      * a receipt. A cash adjustment is the cash rounding of the sale, which goes to the cash
      * differences account.
      *
@@ -295,7 +296,11 @@ final class SalePostingBuilder
                 : $this->resolver->accountForPayment($type);
 
             if ($account === null) {
-                return null;
+                if ($type === PaymentType::Due) {
+                    return null;
+                }
+
+                throw new PostingException(PostingError::PaymentTypeUnknown, "The payment type {$payment->type} has no account to be paid into.", ['payment_type' => $payment->type]);
             }
 
             $amount   = bcsub($payment->amount, $payment->cashRefund, SaleAmounts::SCALE);

@@ -8,11 +8,14 @@ use CodeIgniter\Database\Migration;
  * The posting rules of the money a customer pays: a payment of a sale, the exchange difference it leaves
  * on a foreign sale, and an advance with no invoice, seeded for every company as each is posted today,
  * and each set to be checked beside its code. The account of the customer comes first, because the code
- * asks for it before it looks at how the money was paid. No journal and no balance is touched.
+ * asks for it before it looks at how the money was paid. A payment left on credit posts no journal, by a
+ * condition the rule names; any other payment that finds no account is refused. No journal and no
+ * balance is touched.
  */
 class PostingRulesCustomerPayments extends Migration
 {
     private const TREASURY_OR_PAYMENT = '{"first":[{"when":"by_treasury","role":"treasuries.accounts","entity":"treasury_id"},{"when":"by_payment","payment":"payment_type"}]';
+    private const ON_CREDIT_OR_MONEY  = '{"first":[{"when":"on_credit","no_journal":true},{"when":"by_treasury","role":"treasuries.accounts","entity":"treasury_id"},{"when":"by_payment","payment":"payment_type"}]';
     private const RECEIVABLE          = '{"first":[{"when":"has_customer","role":"sales.customers","entity":"customer_id"},{"when":"counter","role":"sales.counter"}]}';
     private const OPERATIONS          = [
         'sale_payment' => [
@@ -20,7 +23,7 @@ class PostingRulesCustomerPayments extends Migration
             'lines'  => [
                 [1, 'credit', self::RECEIVABLE, 'adjustment + paid', 'amount', 'P-17'],
                 [2, 'debit', '{"first":[{"role":"cash.difference"}]}', 'adjustment', null, 'P-16'],
-                [3, 'debit', self::TREASURY_OR_PAYMENT . ',"else":"no_journal"}', 'paid', 'amount', 'P-17'],
+                [3, 'debit', self::ON_CREDIT_OR_MONEY . ',"else":"payment_type_unknown"}', 'paid', 'amount', 'P-17'],
             ],
         ],
         'sale_payment_fx' => [

@@ -58,8 +58,9 @@ final class SalePaymentFacts
                 'payment_type' => $payment->type,
             ],
             flags: [
+                'on_credit'    => $type === PaymentType::Due,
                 'by_treasury'  => $byTreasury,
-                'by_payment'   => $type !== null && ! $byTreasury,
+                'by_payment'   => $type !== null && $type !== PaymentType::Due && ! $byTreasury,
                 'has_customer' => $sale->customerId !== null,
                 'counter'      => $sale->customerId === null,
             ],

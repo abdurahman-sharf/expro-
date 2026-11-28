@@ -9,17 +9,19 @@ use CodeIgniter\Database\Migration;
  * made against a purchase later, the exchange difference it leaves on a foreign purchase, and an advance
  * with no purchase, seeded for every company as each is posted today, and each set to be checked beside its
  * code. The account the money goes through comes first where the code asks for it before the account of
- * the supplier. No journal and no balance is touched.
+ * the supplier. What a purchase left on credit was paid posts no journal, by a condition the rule names;
+ * any other payment that finds no account is refused. No journal and no balance is touched.
  */
 class PostingRulesSupplierPayments extends Migration
 {
     private const TREASURY_OR_PAYMENT = '{"first":[{"when":"by_treasury","role":"treasuries.accounts","entity":"treasury_id"},{"when":"by_payment","payment":"payment_type"}]';
+    private const ON_CREDIT_OR_MONEY  = '{"first":[{"when":"on_credit","no_journal":true},{"when":"by_treasury","role":"treasuries.accounts","entity":"treasury_id"},{"when":"by_payment","payment":"payment_type"}]';
     private const SUPPLIER            = '{"first":[{"role":"purchases.suppliers","entity":"supplier_id"}]}';
     private const OPERATIONS          = [
         'purchase_payment' => [
             'header' => ['source_type' => 'purchase_payment', 'description' => 'Payment of purchase #{source_id}', 'cross_branch' => 0, 'note' => 'As what a purchase was paid when it was saved was posted when the engine came in.'],
             'lines'  => [
-                [1, 'credit', self::TREASURY_OR_PAYMENT . ',"else":"no_journal"}', 'paid', 'amount', 'P-33'],
+                [1, 'credit', self::ON_CREDIT_OR_MONEY . ',"else":"payment_type_unknown"}', 'paid', 'amount', 'P-33'],
                 [2, 'debit', self::SUPPLIER, 'paid', 'amount', 'P-33'],
             ],
         ],
