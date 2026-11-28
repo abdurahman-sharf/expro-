@@ -22,6 +22,7 @@ final readonly class RuleSet
         public string $description,
         public bool $crossBranch,
         public array $lines,
+        public ?array $foreignRounding = null,
     ) {
     }
 }

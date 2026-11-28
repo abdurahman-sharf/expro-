@@ -9,7 +9,9 @@ use App\Libraries\Accounting\JournalOrigin;
  * amounts the expressions of the rules read), its fields (the ids and labels the rules pick accounts
  * from), its flags (what the conditions of a rule test), and its lists (the entries a line repeats over,
  * each with figures, fields and flags of its own). A document typed by somebody, such as a manual
- * journal, brings its own description and origin, and may have no source id.
+ * journal, brings its own description and origin, and may have no source id. A document in a foreign
+ * currency names the currency, and, when its rules convert the journal to the base, the rate of the
+ * document and the decimals of the base.
  */
 final readonly class PostingFacts
 {
@@ -33,6 +35,8 @@ final readonly class PostingFacts
         public ?string $currencyCode = null,
         public ?string $description = null,
         public JournalOrigin $origin = JournalOrigin::System,
+        public ?string $currencyRate = null,
+        public int $baseDecimals = 2,
     ) {
     }
 }

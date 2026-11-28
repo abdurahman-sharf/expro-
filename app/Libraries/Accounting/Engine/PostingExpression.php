@@ -16,6 +16,7 @@ final class PostingExpression
     public const NAMES = [
         'amount', 'gross', 'net', 'tax', 'total', 'cost', 'paid', 'shipping', 'shipping_tax', 'adjustment',
         'discount', 'rounding', 'fx_diff', 'dep', 'nbv', 'value', 'proceeds', 'accumulated',
+        'variance', 'foreign_total', 'foreign_tax',
     ];
     private const SCALE  = 12;
     private const RESULT = 4;

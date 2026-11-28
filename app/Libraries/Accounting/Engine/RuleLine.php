@@ -23,6 +23,7 @@ final readonly class RuleLine
         public ?string $foreignAmount = null,
         public ?array $costCenter = null,
         public ?string $matrixRef = null,
+        public bool $autoTax = false,
     ) {
     }
 }

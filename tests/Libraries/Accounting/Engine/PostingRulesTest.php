@@ -110,6 +110,7 @@ class PostingRulesTest extends CIUnitTestCase
             'an entity on a system account'       => [['account' => ['first' => [['system' => 'cash', 'entity' => 'x']]]]],
             'a cost center that is not a field'   => [['cost_center' => ['role' => 'x']]],
             'a foreign amount that is not one'    => [['foreign_amount' => 'net;']],
+            'an automatic tax that is not yes'    => [['auto_tax' => 'yes']],
         ];
     }
 
@@ -144,5 +145,27 @@ class PostingRulesTest extends CIUnitTestCase
         }
 
         $this->assertSame([], $this->rules->versions('probe'));
+    }
+
+    public function testPublish_RejectsARoundingOfAForeignJournalThatIsNotOneAndKeepsOneThatIs(): void
+    {
+        foreach ([['balancing' => 'smallest'], ['balancing' => 'largest_debit', 'except' => ['tax']], ['balancing' => 'first', 'line' => 2], 'largest_debit'] as $rounding) {
+            try {
+                $this->rules->publish('probe', '2026-01-01', ['source_type' => 'probe', 'foreign_rounding' => $rounding], $this->lines(), 1);
+                $this->fail('The rules were published with ' . json_encode($rounding));
+            } catch (PostingException $failure) {
+                $this->assertSame(PostingError::RuleInvalid, $failure->error);
+            }
+        }
+
+        $lines                = $this->lines();
+        $lines[0]['auto_tax'] = true;
+
+        $this->rules->publish('probe', '2026-01-01', ['source_type' => 'probe', 'foreign_rounding' => ['balancing' => 'largest_debit', 'except' => [2]]], $lines, 1);
+
+        $set = $this->rules->current('probe', '2026-10-21');
+
+        $this->assertSame(['balancing' => 'largest_debit', 'except' => [2]], $set->foreignRounding);
+        $this->assertSame([true, false], array_map(static fn ($line): bool => $line->autoTax, array_slice($set->lines, 0, 2)));
     }
 }

@@ -30,7 +30,7 @@ final class ShadowComparison
 
     /**
      * What one journal has that the other has not: its head as "date|source|kind|branch" when the heads
-     * differ, and its lines as "account|side|amount|branch|center|foreign amount|currency".
+     * differ, and its lines as "account|side|amount|branch|center|foreign amount|currency|auto_tax".
      *
      * @return array{only_legacy: list<string>, only_engine: list<string>}
      */
@@ -125,7 +125,7 @@ final class ShadowComparison
 
         foreach ($draft->lines as $line) {
             $debit   = bccomp($line->debit, '0', self::SCALE) > 0;
-            $lines[] = implode('|', [$line->accountId, $debit ? 'debit' : 'credit', bcadd($debit ? $line->debit : $line->credit, '0', self::SCALE), (string) $draft->branchId, (string) $line->costCenterId, $line->foreignAmount === null ? '' : bcadd($line->foreignAmount, '0', self::SCALE), (string) $line->currencyCode]);
+            $lines[] = implode('|', [$line->accountId, $debit ? 'debit' : 'credit', bcadd($debit ? $line->debit : $line->credit, '0', self::SCALE), (string) $draft->branchId, (string) $line->costCenterId, $line->foreignAmount === null ? '' : bcadd($line->foreignAmount, '0', self::SCALE), (string) $line->currencyCode, $line->autoTax ? 'auto_tax' : '']);
         }
 
         sort($lines);

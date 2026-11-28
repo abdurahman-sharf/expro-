@@ -171,7 +171,7 @@ class ExpenseJournalTest extends CIUnitTestCase
         $this->assertEquals((new ExpensePostingBuilder(new RoutingResolver()))->expense($this->expense(), 1, 1), $draft);
         $this->assertCount(1, $recorded);
         $this->assertSame([31, $set->ruleSetId], [$recorded[0]['source_id'], (int) $this->accountingDb()->table('accounting_posting_shadow_diffs')->get()->getRow()->rule_set_id]);
-        $this->assertSame([$this->accountId('tax_input') . '|debit|30.0000|1|||'], $recorded[0]['differences']['only_engine']);
+        $this->assertSame([$this->accountId('tax_input') . '|debit|30.0000|1||||'], $recorded[0]['differences']['only_engine']);
     }
 
     public function testDraft_PostsTheJournalOfTheEngineInEngineMode(): void

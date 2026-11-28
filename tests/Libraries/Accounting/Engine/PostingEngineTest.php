@@ -2,18 +2,32 @@
 
 namespace Tests\Libraries\Accounting\Engine;
 
+use App\Libraries\Accounting\DocumentCurrency;
 use App\Libraries\Accounting\Engine\PostingEngine;
 use App\Libraries\Accounting\Engine\PostingFacts;
 use App\Libraries\Accounting\Engine\PostingRules;
+use App\Libraries\Accounting\Engine\ShadowComparison;
+use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Accounting\ForeignConversion;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
+use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\PurchaseFacts;
+use App\Libraries\Accounting\ReceivingDocument;
+use App\Libraries\Accounting\ReceivingLine;
+use App\Libraries\Accounting\ReceivingPostingBuilder;
+use App\Libraries\Accounting\ReceivingType;
 use App\Libraries\Accounting\RoutingKey;
+use App\Libraries\Accounting\RoutingResolver;
+use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\TreasuryService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Random\Engine\Xoshiro256StarStar;
+use Random\Randomizer;
 use Tests\Support\AccountingFixtureTrait;
 
 class PostingEngineTest extends CIUnitTestCase
@@ -212,6 +226,169 @@ class PostingEngineTest extends CIUnitTestCase
         $this->publish([['line_no' => 1, 'side' => 'debit', 'account' => $this->role('expenses.default'), 'amount' => 'net']], '2026-06-01');
 
         $this->assertBuildFails(PostingError::RuleMissing, ['date' => '2026-05-31', 'figures' => ['net' => '10']]);
+    }
+
+    public function testBuild_RequiresAutoTaxOnTheJournalLineOfARuleLineThatSaysSo(): void
+    {
+        $this->publish([
+            ['line_no' => 1, 'side' => 'debit', 'account' => $this->role('expenses.default'), 'amount' => 'net'],
+            ['line_no' => 2, 'side' => 'debit', 'account' => $this->role('tax.input'), 'amount' => 'tax', 'auto_tax' => true],
+            ['line_no' => 3, 'side' => 'credit', 'account' => ['first' => [['system' => 'cash']]], 'amount' => 'net + tax'],
+        ]);
+
+        $draft = $this->engine->build($this->facts(['figures' => ['net' => '100', 'tax' => '15']]));
+
+        $this->assertSame([false, true, false], array_map(static fn ($line): bool => $line->autoTax, $draft->lines));
+    }
+
+    /**
+     * Rules of a foreign journal: debits of the entries of a list, a tax and a credit of the total, the
+     * rounding put as the rounding says.
+     *
+     * @param array<string, mixed> $rounding
+     */
+    private function publishForeign(array $rounding): void
+    {
+        $this->publish([
+            ['line_no' => 1, 'side' => 'debit', 'account' => ['first' => [['field' => 'account_id']]], 'amount' => 'value', 'repeat_over' => 'parts'],
+            ['line_no' => 2, 'side' => 'debit', 'account' => $this->role('tax.input'), 'amount' => 'tax'],
+            ['line_no' => 3, 'side' => 'credit', 'account' => ['first' => [['system' => 'cash']]], 'amount' => 'total'],
+        ], header: ['foreign_rounding' => $rounding]);
+    }
+
+    /**
+     * @param list<string> $parts
+     */
+    private function foreignFacts(array $parts, string $tax, string $rate, ?string $currency = 'USD'): PostingFacts
+    {
+        $accounts = [$this->accountId('expenses_default'), $this->accountId('other_payables'), $this->accountId('revenues_default')];
+        $entries  = array_map(static fn (string $value, int $index): array => ['fields' => ['account_id' => $accounts[$index % 3]], 'figures' => ['value' => $value]], $parts, array_keys($parts));
+        $total    = array_reduce([...$parts, $tax], static fn (string $sum, string $amount): string => bcadd($sum, $amount, 4), '0');
+
+        return $this->facts(['figures' => ['tax' => $tax, 'total' => $total], 'lists' => ['parts' => $entries], 'currencyCode' => $currency, 'currencyRate' => $rate, 'baseDecimals' => 2]);
+    }
+
+    /**
+     * What the code makes of the same journal written in the currency: ForeignConversion with the line given.
+     *
+     * @param list<string> $parts
+     */
+    private function convertedByTheCode(array $parts, string $tax, string $rate, int $balancing): JournalDraft
+    {
+        $accounts = [$this->accountId('expenses_default'), $this->accountId('other_payables'), $this->accountId('revenues_default')];
+        $lines    = array_map(static fn (string $value, int $index): JournalLineDraft => new JournalLineDraft($accounts[$index % 3], debit: $value), $parts, array_keys($parts));
+        $total    = array_reduce([...$parts, $tax], static fn (string $sum, string $amount): string => bcadd($sum, $amount, 4), '0');
+
+        if (bccomp($tax, '0', 4) > 0) {
+            $lines[] = new JournalLineDraft($this->accountId('tax_input'), debit: $tax);
+        }
+
+        $lines[] = new JournalLineDraft($this->accountId('cash'), credit: $total);
+
+        return ForeignConversion::toBase(new JournalDraft('2026-10-21', $lines, 'probe', 7, branchId: 1), new DocumentCurrency('USD', $rate, 2), 2, $balancing);
+    }
+
+    public function testBuild_RequiresAForeignJournalInTheBaseWithTheRoundingOnTheFirstLargestDebitTheRulesDoNotExcept(): void
+    {
+        $this->publishForeign(['balancing' => 'largest_debit', 'except' => [2]]);
+
+        foreach ([
+            'the largest of three that round'          => [['33.33', '33.33', '33.34'], '15.01', '3.7512', 2],
+            'the first of two that are as large'       => [['50.00', '50.00'], '7.77', '3.7333', 0],
+            'not the tax, though it is the largest'    => [['10.01', '20.02'], '99.99', '0.2667', 1],
+            'one line among many that are smaller'     => [['0.01', '0.02', '0.03', '0.05', '0.04'], '0.01', '3.3333', 3],
+        ] as $what => [$parts, $tax, $rate, $balancing]) {
+            $engine = $this->engine->build($this->foreignFacts($parts, $tax, $rate));
+
+            $this->assertSame(['only_legacy' => [], 'only_engine' => []], ShadowComparison::differences($this->convertedByTheCode($parts, $tax, $rate, $balancing), $engine), $what);
+            $this->assertSame([], array_values(array_filter($engine->lines, static fn ($line): bool => $line->currencyCode !== 'USD')), $what);
+        }
+    }
+
+    public function testBuild_RequiresTheRoundingOnTheFirstLineWhenTheRulesSaySoAndNoConversionInTheBase(): void
+    {
+        $this->publishForeign(['balancing' => 'first']);
+
+        $this->assertSame(['only_legacy' => [], 'only_engine' => []], ShadowComparison::differences($this->convertedByTheCode(['33.33', '33.34'], '0', '3.7512', 0), $this->engine->build($this->foreignFacts(['33.33', '33.34'], '0', '3.7512'))));
+        $this->assertSame([$this->accountId('expenses_default') . ':10.0000:0.0000', $this->accountId('other_payables') . ':20.0000:0.0000', $this->accountId('cash') . ':0.0000:30.0000'], $this->shape($this->engine->build($this->foreignFacts(['10.00', '20.00'], '0', '3.75', null))));
+    }
+
+    public function testBuild_RejectsAForeignJournalWithNoRateOrARoundingLargerThanRounding(): void
+    {
+        $this->publishForeign(['balancing' => 'largest_debit']);
+
+        $this->assertBuildFails(PostingError::ForeignRateMismatch, ['figures' => ['tax' => '0', 'total' => '10'], 'lists' => ['parts' => [['fields' => ['account_id' => $this->accountId('expenses_default')], 'figures' => ['value' => '10']]]], 'currencyCode' => 'USD']);
+
+        try {
+            $this->engine->build($this->foreignFacts(['0.01'], '0', '0.4'));
+            $this->fail('The journal was built.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::ForeignRoundingTooBig, $failure->error);
+        }
+    }
+
+    /**
+     * The code and the engine on foreign purchases of many lines, before the rules of the purchase use the
+     * rounding: the rules here are the lines of a purchase under another name.
+     */
+    public function testBuild_RequiresTheJournalOfTheCodeForRandomForeignPurchasesOfManyLines(): void
+    {
+        $this->publish([
+            ['line_no' => 1, 'side' => 'debit', 'account' => ['first' => [['role' => 'inventory.locations', 'entity' => 'location_id']]], 'amount' => 'value', 'repeat_over' => 'locations'],
+            ['line_no' => 2, 'side' => 'debit', 'account' => $this->role('purchases.purchases'), 'amount' => 'net'],
+            ['line_no' => 3, 'side' => 'debit', 'account' => $this->role('tax.input'), 'amount' => 'tax'],
+            ['line_no' => 4, 'side' => 'credit', 'account' => ['first' => [['when' => 'has_supplier', 'role' => 'purchases.suppliers', 'entity' => 'supplier_id']], 'else' => 'supplier_required'], 'amount' => 'total'],
+        ], header: ['source_type' => 'purchase', 'foreign_rounding' => ['balancing' => 'largest_debit', 'except' => [3]]]);
+
+        $entities  = new EntityAccountService();
+        $supplier  = $this->insertSupplier();
+        $locations = [$this->insertStockLocation('Rounding store A'), $this->insertStockLocation('Rounding store B'), $this->insertStockLocation('Rounding store C')];
+
+        $entities->ensure(EntityAccountService::SUPPLIER, $supplier, 'Rounding supplier');
+
+        foreach ($locations as $location) {
+            $entities->ensure(EntityAccountService::STOCK_LOCATION, $location, 'Rounding store ' . $location);
+        }
+
+        $builder = new ReceivingPostingBuilder(new RoutingResolver(), new StockLedger(), static fn (): int => 2);
+        $random  = new Randomizer(new Xoshiro256StarStar(20261128));
+        $count   = 0;
+
+        for ($case = 0; $case < 300; $case++) {
+            $lines = [];
+
+            for ($index = 0, $size = $random->getInt(1, 7); $index < $size; $index++) {
+                $lines[] = new ReceivingLine($index + 1, $index, (string) $random->getInt(1, 9), '1', $random->getInt(1, 99999) / 100 . '', '0', 0, ['0', '5', '15'][$random->getInt(0, 2)], $locations[$random->getInt(0, 2)], $random->getInt(0, 3) > 0, '0', vatWorkedOnce: $case % 2 === 0);
+            }
+
+            $rate     = number_format($random->getInt(1, 99999) / 10000, 4, '.', '');
+            $purchase = new ReceivingDocument(900 + $case, '2026-10-21', ReceivingType::Receive, $supplier, 1, null, null, $lines, currency: new DocumentCurrency('USD', $rate, 2));
+
+            try {
+                $legacy = $builder->purchase($purchase, 1, 1)->journal;
+            } catch (PostingException $failure) {
+                $legacy = $failure->error->value;
+            }
+
+            try {
+                $given  = PurchaseFacts::receive($purchase, 1, 1, 2);
+                $engine = $this->engine->build(new PostingFacts('probe', $given->sourceId, $given->date, $given->branchId, 1, 1, $given->figures, $given->fields, $given->flags, $given->lists, $given->currencyCode, null, currencyRate: $given->currencyRate, baseDecimals: 2));
+            } catch (PostingException $failure) {
+                $engine = $failure->error->value;
+            }
+
+            if (! $legacy instanceof JournalDraft || ! $engine instanceof JournalDraft) {
+                $this->assertSame($legacy instanceof JournalDraft ? 'a journal' : $legacy, $engine instanceof JournalDraft ? 'a journal' : $engine, "case {$case}");
+
+                continue;
+            }
+
+            $this->assertSame(['only_legacy' => [], 'only_engine' => []], ShadowComparison::differences($legacy, $engine), "case {$case} at {$rate}");
+            $count++;
+        }
+
+        $this->assertGreaterThan(250, $count, 'Most of the purchases came to a journal');
+        $this->removeInsertedEntities();
     }
 
     /**

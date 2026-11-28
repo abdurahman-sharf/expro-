@@ -26,8 +26,9 @@ final class PostingRules
 
     private const SIDES        = ['debit', 'credit'];
     private const SOURCE_KEYS  = ['when', 'field', 'role', 'entity', 'system', 'payment', 'no_journal'];
-    private const ELSE_ERRORS  = ['payment_type_unknown', 'routing_row_cancelled', 'fx_accounts_missing', 'entity_account_missing'];
+    private const ELSE_ERRORS  = ['payment_type_unknown', 'routing_row_cancelled', 'fx_accounts_missing', 'entity_account_missing', 'supplier_required'];
     private const NAME_PATTERN = '/^[a-z][a-z0-9_]{0,31}$/';
+    private const BALANCING    = ['first', 'largest_debit'];
 
     private BaseConnection $db;
 
@@ -91,8 +92,8 @@ final class PostingRules
      * Writes a new version of the rules of an operation, which applies to documents dated on the day
      * given or later. Every line is checked before anything is written.
      *
-     * @param array{source_type: string, entry_type?: string, description?: string, cross_branch?: bool, note?: string}                                                                                           $header
-     * @param list<array{line_no: int, side: string, account: array<string, mixed>, amount: string, repeat_over?: ?string, foreign_amount?: ?string, cost_center?: ?array<string, string>, matrix_ref?: ?string}> $lines
+     * @param array{source_type: string, entry_type?: string, description?: string, cross_branch?: bool, foreign_rounding?: ?array{balancing: string, except?: list<int>}, note?: string}                                          $header
+     * @param list<array{line_no: int, side: string, account: array<string, mixed>, amount: string, repeat_over?: ?string, foreign_amount?: ?string, cost_center?: ?array<string, string>, auto_tax?: bool, matrix_ref?: ?string}> $lines
      *
      * @throws PostingException
      */
@@ -112,6 +113,10 @@ final class PostingRules
             throw new PostingException(PostingError::RuleInvalid, 'A version of the rules needs at least one line.', ['code' => $operation]);
         }
 
+        if (isset($header['foreign_rounding'])) {
+            self::assertForeignRounding($header['foreign_rounding']);
+        }
+
         $numbers = [];
 
         foreach ($lines as $line) {
@@ -127,16 +132,17 @@ final class PostingRules
             $last = (int) ($this->db->table('accounting_posting_rule_sets')->selectMax('version', 'last')->where(['company_id' => CompanyContext::id(), 'operation' => $operation])->get()->getRow()->last ?? 0);
 
             $this->db->table('accounting_posting_rule_sets')->insert([
-                'company_id'     => CompanyContext::id(),
-                'operation'      => $operation,
-                'version'        => $last + 1,
-                'effective_from' => $effectiveFrom,
-                'source_type'    => $header['source_type'],
-                'entry_type'     => $entryType->value,
-                'description'    => mb_substr($header['description'] ?? '', 0, 255),
-                'cross_branch'   => (int) ($header['cross_branch'] ?? false),
-                'note'           => isset($header['note']) ? mb_substr($header['note'], 0, 500) : null,
-                'created_by'     => $employeeId,
+                'company_id'       => CompanyContext::id(),
+                'operation'        => $operation,
+                'version'          => $last + 1,
+                'effective_from'   => $effectiveFrom,
+                'source_type'      => $header['source_type'],
+                'entry_type'       => $entryType->value,
+                'description'      => mb_substr($header['description'] ?? '', 0, 255),
+                'cross_branch'     => (int) ($header['cross_branch'] ?? false),
+                'foreign_rounding' => isset($header['foreign_rounding']) ? json_encode($header['foreign_rounding'], JSON_THROW_ON_ERROR) : null,
+                'note'             => isset($header['note']) ? mb_substr($header['note'], 0, 500) : null,
+                'created_by'       => $employeeId,
             ]);
 
             $setId = (int) $this->db->insertID();
@@ -151,6 +157,7 @@ final class PostingRules
                     'repeat_over'    => $line['repeat_over'] ?? null,
                     'foreign_amount' => $line['foreign_amount'] ?? null,
                     'cost_center'    => isset($line['cost_center']) ? json_encode($line['cost_center'], JSON_THROW_ON_ERROR) : null,
+                    'auto_tax'       => (int) ($line['auto_tax'] ?? false),
                     'matrix_ref'     => $line['matrix_ref'] ?? null,
                 ]);
             }
@@ -189,6 +196,10 @@ final class PostingRules
             if (($line[$name] ?? null) !== null) {
                 $this->assertName((string) $line[$name], $name);
             }
+        }
+
+        if (isset($line['auto_tax']) && ! is_bool($line['auto_tax'])) {
+            throw new PostingException(PostingError::RuleInvalid, 'Whether a line is the tax worked out of another is yes or no.', ['code' => (string) json_encode($line['auto_tax'])]);
         }
 
         if (($line['cost_center'] ?? null) !== null && (array_keys($line['cost_center']) !== ['field'] || preg_match(self::NAME_PATTERN, (string) $line['cost_center']['field']) !== 1)) {
@@ -249,6 +260,25 @@ final class PostingRules
     }
 
     /**
+     * How a journal in a foreign currency is brought to the base: every line converted on its own at the
+     * rate of the document, and the rounding put on one line, the first (first) or the largest debit
+     * that no line of the rules named in except made (largest_debit).
+     *
+     * @throws PostingException
+     */
+    public static function assertForeignRounding(mixed $rounding): void
+    {
+        $valid = is_array($rounding)
+            && in_array($rounding['balancing'] ?? null, self::BALANCING, true)
+            && array_diff(array_keys($rounding), ['balancing', 'except']) === []
+            && (! isset($rounding['except']) || (is_array($rounding['except']) && array_is_list($rounding['except']) && array_filter($rounding['except'], static fn (mixed $line): bool => ! is_int($line) || $line < 1) === []));
+
+        if (! $valid) {
+            throw new PostingException(PostingError::RuleInvalid, 'The rounding of a foreign journal names the line that takes it and nothing else.', ['code' => (string) json_encode($rounding)]);
+        }
+    }
+
+    /**
      * @throws PostingException
      */
     private function assertName(string $name, string $what): void
@@ -270,7 +300,7 @@ final class PostingRules
                 throw new PostingException(PostingError::RuleInvalid, "Line {$line->line_no} of the rules of {$row->operation} cannot be read.", ['code' => (string) $row->operation]);
             }
 
-            $lines[] = new RuleLine((int) $line->line_no, (string) $line->side, $account, (string) $line->amount, $line->repeat_over, $line->foreign_amount, $costCenter, $line->matrix_ref);
+            $lines[] = new RuleLine((int) $line->line_no, (string) $line->side, $account, (string) $line->amount, $line->repeat_over, $line->foreign_amount, $costCenter, $line->matrix_ref, (int) $line->auto_tax === 1);
         }
 
         return new RuleSet(
@@ -283,6 +313,29 @@ final class PostingRules
             (string) $row->description,
             (int) $row->cross_branch === 1,
             $lines,
+            $this->foreignRounding($row),
         );
+    }
+
+    /**
+     * @return array{balancing: string, except?: list<int>}|null
+     *
+     * @throws PostingException
+     */
+    private function foreignRounding(object $row): ?array
+    {
+        if ($row->foreign_rounding === null) {
+            return null;
+        }
+
+        try {
+            $rounding = json_decode((string) $row->foreign_rounding, true, 4, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            throw new PostingException(PostingError::RuleInvalid, "The rounding of the rules of {$row->operation} cannot be read.", ['code' => (string) $row->operation]);
+        }
+
+        self::assertForeignRounding($rounding);
+
+        return $rounding;
     }
 }

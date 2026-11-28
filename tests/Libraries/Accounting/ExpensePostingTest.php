@@ -143,7 +143,7 @@ class ExpensePostingTest extends CIUnitTestCase
 
         $this->assertSame($this->accountId('tax_input') . '=30.00/0.00', $this->postedLines(self::SOURCE, $expenseId)[1], 'The journal of the code is what was posted');
         $this->assertCount(1, $diffs);
-        $this->assertSame([$this->accountId('tax_input') . '|debit|60.0000|1|||'], json_decode((string) $diffs[0]->differences, true)['only_engine']);
+        $this->assertSame([$this->accountId('tax_input') . '|debit|60.0000|1||||'], json_decode((string) $diffs[0]->differences, true)['only_engine']);
     }
 
     public function testSaveValue_SavesTheExpenseWithTheJournalOfTheCodeWhenTheEngineThrowsATypeError(): void

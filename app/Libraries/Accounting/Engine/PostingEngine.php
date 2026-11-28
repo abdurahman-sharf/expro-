@@ -2,6 +2,8 @@
 
 namespace App\Libraries\Accounting\Engine;
 
+use App\Libraries\Accounting\DocumentCurrency;
+use App\Libraries\Accounting\ForeignConversion;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PaymentType;
@@ -46,17 +48,20 @@ final class PostingEngine
      */
     public function build(PostingFacts $facts): ?JournalDraft
     {
-        $set   = $this->rules->current($facts->operation, $facts->date);
-        $lines = [];
+        $set     = $this->rules->current($facts->operation, $facts->date);
+        $convert = $set->foreignRounding !== null && $facts->currencyCode !== null;
+        $lines   = [];
+        $made    = [];
 
         try {
             foreach ($this->groups($set->lines) as [$over, $rules]) {
                 foreach ($over === null ? [[]] : ($facts->lists[$over] ?? []) as $entry) {
                     foreach ($rules as $rule) {
-                        $line = $this->line($rule, $facts, $entry);
+                        $line = $this->line($rule, $facts, $entry, $convert);
 
                         if ($line !== null) {
                             $lines[] = $line;
+                            $made[]  = $rule->lineNo;
                         }
                     }
                 }
@@ -69,7 +74,7 @@ final class PostingEngine
             return null;
         }
 
-        return new JournalDraft(
+        $draft = new JournalDraft(
             date: $facts->date,
             lines: $lines,
             sourceType: $set->sourceType,
@@ -81,6 +86,42 @@ final class PostingEngine
             branchId: $facts->branchId,
             entryType: $set->entryType,
         );
+
+        return $convert ? $this->inBase($draft, $made, $set->foreignRounding, $facts) : $draft;
+    }
+
+    /**
+     * A journal written in the currency of its document, brought to the base as the code brings one: each
+     * line converted on its own at the rate of the document, and the rounding put on the line the rules
+     * name. The largest debit is the first line whose debit is more than every one before it, among the
+     * lines that no line of the rules in except made, and the first line of the journal when there is none.
+     *
+     * @param list<int>                                    $made     The line of the rules each line of the journal came from.
+     * @param array{balancing: string, except?: list<int>} $rounding
+     *
+     * @throws PostingException
+     */
+    private function inBase(JournalDraft $draft, array $made, array $rounding, PostingFacts $facts): JournalDraft
+    {
+        if ($facts->currencyRate === null) {
+            throw new PostingException(PostingError::ForeignRateMismatch, 'A document in a foreign currency has no rate to bring its journal to the base.', ['code' => (string) $facts->currencyCode]);
+        }
+
+        $balancing = 0;
+
+        if ($rounding['balancing'] === 'largest_debit') {
+            $largest = '0';
+            $except  = $rounding['except'] ?? [];
+
+            foreach ($draft->lines as $index => $line) {
+                if (! in_array($made[$index], $except, true) && bccomp($line->debit, $largest, self::SCALE) > 0) {
+                    $largest   = $line->debit;
+                    $balancing = $index;
+                }
+            }
+        }
+
+        return ForeignConversion::toBase($draft, new DocumentCurrency((string) $facts->currencyCode, $facts->currencyRate, 2), $facts->baseDecimals, $balancing);
     }
 
     /**
@@ -113,7 +154,7 @@ final class PostingEngine
      *
      * @throws PostingException
      */
-    private function line(RuleLine $rule, PostingFacts $facts, array $entry): ?JournalLineDraft
+    private function line(RuleLine $rule, PostingFacts $facts, array $entry, bool $convert): ?JournalLineDraft
     {
         $figures = array_merge($facts->figures, $entry['figures'] ?? []);
         $fields  = array_merge($facts->fields, $entry['fields'] ?? []);
@@ -128,7 +169,7 @@ final class PostingEngine
         $magnitude = ltrim($amount, '-');
         $debit     = ($rule->side === 'debit') === ($sign > 0);
         $account   = $this->account($rule, $fields, $flags);
-        $foreign   = $rule->foreignAmount === null || $facts->currencyCode === null ? null : ltrim(PostingExpression::evaluate($rule->foreignAmount, $figures), '-');
+        $foreign   = $convert || $rule->foreignAmount === null || $facts->currencyCode === null ? null : ltrim(PostingExpression::evaluate($rule->foreignAmount, $figures), '-');
         $center    = $rule->costCenter === null ? null : $fields[$rule->costCenter['field']] ?? null;
 
         return new JournalLineDraft(
@@ -138,6 +179,7 @@ final class PostingEngine
             costCenterId: $center === null ? null : (int) $center,
             foreignAmount: $foreign,
             currencyCode: $foreign === null ? null : $facts->currencyCode,
+            autoTax: $rule->autoTax,
         );
     }
 
@@ -196,6 +238,10 @@ final class PostingEngine
             if ($account !== null) {
                 return $account;
             }
+        }
+
+        if (($rule->account['else'] ?? null) === 'supplier_required') {
+            throw new PostingException(PostingError::SupplierRequired, 'A purchase that is not paid at once needs a supplier to owe it.', ['line' => $rule->lineNo]);
         }
 
         if (($rule->account['else'] ?? null) === 'entity_account_missing') {

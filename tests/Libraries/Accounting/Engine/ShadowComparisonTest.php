@@ -83,7 +83,7 @@ class ShadowComparisonTest extends CIUnitTestCase
             $this->assertNotSame(['only_legacy' => [], 'only_engine' => []], $differences, $what);
         }
 
-        $this->assertSame(['only_legacy' => ['5|debit|100.0000|1|||'], 'only_engine' => ['6|debit|100.0000|1|||']], ShadowComparison::differences($this->draft($base), $this->draft([new JournalLineDraft(6, debit: '100'), new JournalLineDraft(9, credit: '100')])));
+        $this->assertSame(['only_legacy' => ['5|debit|100.0000|1||||'], 'only_engine' => ['6|debit|100.0000|1||||']], ShadowComparison::differences($this->draft($base), $this->draft([new JournalLineDraft(6, debit: '100'), new JournalLineDraft(9, credit: '100')])));
     }
 
     public function testDifferences_RejectsAnotherForeignAmountOrCurrencyOnALine(): void
@@ -98,10 +98,19 @@ class ShadowComparisonTest extends CIUnitTestCase
             $differences = ShadowComparison::differences($legacy, $this->draft($lines));
 
             $this->assertCount(1, $differences['only_legacy'], $what);
-            $this->assertSame('5|debit|375.0000|1||100.0000|USD', $differences['only_legacy'][0], $what);
+            $this->assertSame('5|debit|375.0000|1||100.0000|USD|', $differences['only_legacy'][0], $what);
         }
 
         $this->assertSame(['only_legacy' => [], 'only_engine' => []], ShadowComparison::differences($legacy, $this->draft([new JournalLineDraft(9, credit: '375.00', foreignAmount: '100.0000', currencyCode: 'USD'), new JournalLineDraft(5, debit: '375', foreignAmount: '100.00', currencyCode: 'USD')])));
+    }
+
+    public function testDifferences_RejectsALineMarkedAsTheTaxWorkedOutOfAnotherOnOneSideOnly(): void
+    {
+        $legacy = $this->draft([new JournalLineDraft(5, debit: '100'), new JournalLineDraft(6, debit: '15', autoTax: true), new JournalLineDraft(9, credit: '115')]);
+        $engine = $this->draft([new JournalLineDraft(5, debit: '100'), new JournalLineDraft(6, debit: '15'), new JournalLineDraft(9, credit: '115')]);
+
+        $this->assertSame(['only_legacy' => ['6|debit|15.0000|1||||auto_tax'], 'only_engine' => ['6|debit|15.0000|1||||']], ShadowComparison::differences($legacy, $engine));
+        $this->assertSame(['only_legacy' => [], 'only_engine' => []], ShadowComparison::differences($legacy, $legacy));
     }
 
     public function testDifferences_RejectsAnotherDateSourceKindOrBranchOfTheJournal(): void
@@ -133,7 +142,7 @@ class ShadowComparisonTest extends CIUnitTestCase
 
         $this->assertSame([42, 41], array_column($recorded, 'source_id'));
         $this->assertSame('rule_missing: No rule.', $recorded[0]['differences']['engine_failed']);
-        $this->assertSame(['5|debit|100.0000|1|||', '9|credit|100.0000|1|||'], $recorded[1]['differences']['only_legacy']);
+        $this->assertSame(['5|debit|100.0000|1||||', '9|credit|100.0000|1||||'], $recorded[1]['differences']['only_legacy']);
         $this->assertSame([], (new ShadowComparison())->recorded('sale'));
     }
 }
