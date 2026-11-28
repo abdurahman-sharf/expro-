@@ -28,7 +28,7 @@ final class PostingRules
     private const SOURCE_KEYS  = ['when', 'field', 'role', 'entity', 'system', 'payment', 'no_journal'];
     private const ELSE_ERRORS  = ['payment_type_unknown', 'routing_row_cancelled', 'fx_accounts_missing', 'entity_account_missing', 'supplier_required'];
     private const NAME_PATTERN = '/^[a-z][a-z0-9_]{0,31}$/';
-    private const BALANCING    = ['first', 'largest_debit'];
+    private const BALANCING    = ['first', 'largest_debit', 'largest_of'];
 
     private BaseConnection $db;
 
@@ -261,17 +261,27 @@ final class PostingRules
 
     /**
      * How a journal in a foreign currency is brought to the base: every line converted on its own at the
-     * rate of the document, and the rounding put on one line, the first (first) or the largest debit
-     * that no line of the rules named in except made (largest_debit).
+     * rate of the document, and the rounding put on one line: the first (first); the largest debit that no
+     * line of the rules named in except made (largest_debit); or the largest line, on either side, of those
+     * the lines of the rules named in lines made, and when they made none the first that the lines in else
+     * made (largest_of).
      *
      * @throws PostingException
      */
     public static function assertForeignRounding(mixed $rounding): void
     {
+        $lineNumbers = static fn (mixed $lines): bool => is_array($lines) && array_is_list($lines) && array_filter($lines, static fn (mixed $line): bool => ! is_int($line) || $line < 1) === [];
+        $balancing   = is_array($rounding) ? ($rounding['balancing'] ?? null) : null;
+        $keys        = match ($balancing) {
+            'largest_of' => ['balancing', 'lines', 'else'],
+            default      => ['balancing', 'except'],
+        };
+
         $valid = is_array($rounding)
-            && in_array($rounding['balancing'] ?? null, self::BALANCING, true)
-            && array_diff(array_keys($rounding), ['balancing', 'except']) === []
-            && (! isset($rounding['except']) || (is_array($rounding['except']) && array_is_list($rounding['except']) && array_filter($rounding['except'], static fn (mixed $line): bool => ! is_int($line) || $line < 1) === []));
+            && in_array($balancing, self::BALANCING, true)
+            && array_diff(array_keys($rounding), $keys) === []
+            && ($balancing !== 'largest_of' || ($lineNumbers($rounding['lines'] ?? null) && $rounding['lines'] !== [] && (! isset($rounding['else']) || $lineNumbers($rounding['else']))))
+            && (! isset($rounding['except']) || $lineNumbers($rounding['except']));
 
         if (! $valid) {
             throw new PostingException(PostingError::RuleInvalid, 'The rounding of a foreign journal names the line that takes it and nothing else.', ['code' => (string) json_encode($rounding)]);

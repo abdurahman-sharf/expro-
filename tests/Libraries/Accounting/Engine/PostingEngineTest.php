@@ -313,6 +313,54 @@ class PostingEngineTest extends CIUnitTestCase
         $this->assertSame([$this->accountId('expenses_default') . ':10.0000:0.0000', $this->accountId('other_payables') . ':20.0000:0.0000', $this->accountId('cash') . ':0.0000:30.0000'], $this->shape($this->engine->build($this->foreignFacts(['10.00', '20.00'], '0', '3.75', null))));
     }
 
+    public function testBuild_RequiresTheRoundingOnTheFirstLargestLineOfTheLinesNamedAndElseOnTheFirstOfTheOthers(): void
+    {
+        $this->publish([
+            ['line_no' => 1, 'side' => 'debit', 'account' => ['first' => [['system' => 'cash']]], 'amount' => 'total'],
+            ['line_no' => 2, 'side' => 'credit', 'account' => ['first' => [['field' => 'account_id']]], 'amount' => 'value', 'repeat_over' => 'parts'],
+            ['line_no' => 3, 'side' => 'credit', 'account' => $this->role('tax.output'), 'amount' => 'tax'],
+            ['line_no' => 4, 'side' => 'credit', 'account' => ['first' => [['system' => 'other_payables']]], 'amount' => 'shipping'],
+        ], header: ['foreign_rounding' => ['balancing' => 'largest_of', 'lines' => [2], 'else' => [4]]]);
+
+        $accounts = [$this->accountId('revenues_default'), $this->accountId('expenses_default')];
+        $facts    = fn (array $parts, string $tax, string $shipping): PostingFacts => $this->facts([
+            'figures'      => ['tax' => $tax, 'shipping' => $shipping, 'total' => array_reduce([...$parts, $tax, $shipping], static fn (string $sum, string $amount): string => bcadd($sum, $amount, 4), '0')],
+            'lists'        => ['parts' => array_map(static fn (string $value, int $index): array => ['fields' => ['account_id' => $accounts[$index % 2]], 'figures' => ['value' => $value]], $parts, array_keys($parts))],
+            'currencyCode' => 'USD', 'currencyRate' => '3.7512', 'baseDecimals' => 2,
+        ]);
+        $byTheCode = function (array $parts, string $tax, string $shipping, int $balancing) use ($accounts): JournalDraft {
+            $total = array_reduce([...$parts, $tax, $shipping], static fn (string $sum, string $amount): string => bcadd($sum, $amount, 4), '0');
+            $lines = [new JournalLineDraft($this->accountId('cash'), debit: $total)];
+
+            foreach ($parts as $index => $value) {
+                $lines[] = new JournalLineDraft($accounts[$index % 2], credit: $value);
+            }
+
+            foreach ([[$this->accountId('tax_output'), $tax], [$this->accountId('other_payables'), $shipping]] as [$account, $amount]) {
+                if (bccomp($amount, '0', 4) > 0) {
+                    $lines[] = new JournalLineDraft($account, credit: $amount);
+                }
+            }
+
+            return ForeignConversion::toBase(new JournalDraft('2026-10-21', $lines, 'probe', 7, branchId: 1), new DocumentCurrency('USD', '3.7512', 2), 2, $balancing);
+        };
+
+        foreach ([
+            'the largest of the goods'           => [['33.33', '33.34', '33.33'], '15.01', '20.00', 2],
+            'the first of two that are as large' => [['50.00', '50.00'], '15.00', '0', 1],
+            'the shipping when there are none'   => [[], '3.00', '20.01', 2],
+        ] as $what => [$parts, $tax, $shipping, $balancing]) {
+            $this->assertSame(['only_legacy' => [], 'only_engine' => []], ShadowComparison::differences($byTheCode($parts, $tax, $shipping, $balancing), $this->engine->build($facts($parts, $tax, $shipping))), $what);
+        }
+
+        try {
+            $this->engine->build($facts([], '3.00', '0'));
+            $this->fail('A journal with neither line was brought to the base.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::ForeignRoundingTooBig, $failure->error);
+        }
+    }
+
     public function testBuild_RejectsAForeignJournalWithNoRateOrARoundingLargerThanRounding(): void
     {
         $this->publishForeign(['balancing' => 'largest_debit']);

@@ -149,7 +149,7 @@ class PostingRulesTest extends CIUnitTestCase
 
     public function testPublish_RejectsARoundingOfAForeignJournalThatIsNotOneAndKeepsOneThatIs(): void
     {
-        foreach ([['balancing' => 'smallest'], ['balancing' => 'largest_debit', 'except' => ['tax']], ['balancing' => 'first', 'line' => 2], 'largest_debit'] as $rounding) {
+        foreach ([['balancing' => 'smallest'], ['balancing' => 'largest_debit', 'except' => ['tax']], ['balancing' => 'first', 'line' => 2], 'largest_debit', ['balancing' => 'largest_of'], ['balancing' => 'largest_of', 'lines' => []], ['balancing' => 'largest_of', 'lines' => [3], 'except' => [1]], ['balancing' => 'largest_debit', 'lines' => [3]]] as $rounding) {
             try {
                 $this->rules->publish('probe', '2026-01-01', ['source_type' => 'probe', 'foreign_rounding' => $rounding], $this->lines(), 1);
                 $this->fail('The rules were published with ' . json_encode($rounding));

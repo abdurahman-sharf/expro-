@@ -96,8 +96,8 @@ final class PostingEngine
      * name. The largest debit is the first line whose debit is more than every one before it, among the
      * lines that no line of the rules in except made, and the first line of the journal when there is none.
      *
-     * @param list<int>                                    $made     The line of the rules each line of the journal came from.
-     * @param array{balancing: string, except?: list<int>} $rounding
+     * @param list<int>                                                                         $made     The line of the rules each line of the journal came from.
+     * @param array{balancing: string, except?: list<int>, lines?: list<int>, else?: list<int>} $rounding
      *
      * @throws PostingException
      */
@@ -121,7 +121,50 @@ final class PostingEngine
             }
         }
 
+        if ($rounding['balancing'] === 'largest_of') {
+            $balancing = $this->largestOf($draft, $made, $rounding['lines'], $rounding['else'] ?? []);
+        }
+
         return ForeignConversion::toBase($draft, new DocumentCurrency((string) $facts->currencyCode, $facts->currencyRate, 2), $facts->baseDecimals, $balancing);
+    }
+
+    /**
+     * The first of the largest lines, on either side, that the lines of the rules given made; when they
+     * made none, the first line the lines in else made.
+     *
+     * @param list<int> $made
+     * @param list<int> $lines
+     * @param list<int> $else
+     *
+     * @throws PostingException
+     */
+    private function largestOf(JournalDraft $draft, array $made, array $lines, array $else): int
+    {
+        $largest = null;
+
+        foreach ($draft->lines as $index => $line) {
+            if (! in_array($made[$index], $lines, true)) {
+                continue;
+            }
+
+            $amount = bccomp($line->debit, '0', self::SCALE) > 0 ? $line->debit : $line->credit;
+
+            if ($largest === null || bccomp($amount, $largest[1], self::SCALE) > 0) {
+                $largest = [$index, $amount];
+            }
+        }
+
+        if ($largest !== null) {
+            return $largest[0];
+        }
+
+        foreach ($draft->lines as $index => $line) {
+            if (in_array($made[$index], $else, true)) {
+                return $index;
+            }
+        }
+
+        throw new PostingException(PostingError::ForeignRoundingTooBig, 'The line that balances the journal is not one of its lines.', ['lines' => implode(',', [...$lines, ...$else])]);
     }
 
     /**

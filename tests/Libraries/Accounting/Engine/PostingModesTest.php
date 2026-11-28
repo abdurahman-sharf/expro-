@@ -75,7 +75,7 @@ class PostingModesTest extends CIUnitTestCase
         (new PostingModes())->set('supplier_advance', PostingMode::Legacy, 1);
 
         $this->assertSame(PostingMode::Legacy, (new PostingModes())->of('supplier_advance'), 'An operation with a gap may still go back to its code');
-        $this->assertSame(['supplier_advance', 'purchase'], array_keys(PostingGaps::OPEN));
+        $this->assertSame(['supplier_advance', 'sale', 'sale_cost', 'purchase'], array_keys(PostingGaps::OPEN));
         $this->accountingDb()->table('accounting_posting_modes')->replace(['company_id' => 1, 'operation' => 'supplier_advance', 'mode' => 'shadow']);
     }
 }

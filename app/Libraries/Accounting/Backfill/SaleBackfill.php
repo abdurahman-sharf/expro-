@@ -6,6 +6,7 @@ use App\Libraries\Accounting\CrossBranchPayments;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\SaleAmounts;
+use App\Libraries\Accounting\SaleJournal;
 use App\Libraries\Accounting\SaleLoader;
 use App\Libraries\Accounting\SalePaymentJournal;
 use App\Libraries\Accounting\SalePostingBuilder;
@@ -24,6 +25,7 @@ final class SaleBackfill extends BackfillAdapter
     private SaleLoader $loader;
     private SalePostingBuilder $builder;
     private SalePaymentJournal $payments;
+    private SaleJournal $sales;
     private CrossBranchPayments $crossBranch;
 
     public function __construct(BaseConnection $db, ?BackfillGate $gate = null)
@@ -33,6 +35,7 @@ final class SaleBackfill extends BackfillAdapter
         $this->loader      = new SaleLoader($this->db);
         $this->builder     = SalePostingBuilder::forDatabase($this->db);
         $this->payments    = SalePaymentJournal::forDatabase($this->db, $this->builder);
+        $this->sales       = SaleJournal::forDatabase($this->db, $this->builder);
         $this->crossBranch = new CrossBranchPayments($this->db);
     }
 
@@ -98,7 +101,7 @@ final class SaleBackfill extends BackfillAdapter
             $this->builder->assertSettled($sale);
 
             $steps   = [];
-            $invoice = $this->builder->invoice($sale, 1, $employeeId);
+            $invoice = $this->sales->invoice($sale, 1, $employeeId);
 
             if ($invoice !== null) {
                 $steps[] = new BackfillStep($invoice);
@@ -118,7 +121,7 @@ final class SaleBackfill extends BackfillAdapter
                 $steps[] = new BackfillStep($draft);
             }
 
-            $cost = $this->builder->costPlan($sale, 1, $employeeId);
+            $cost = $this->sales->costPlan($sale, 1, $employeeId);
 
             if ($this->stockOpenedAfter('sales', 'sale_id', 'sale_time', $sale->saleId, $cost->movements)) {
                 return BackfillPlan::refused(BackfillRefusal::StockOpenedAfter, $source);

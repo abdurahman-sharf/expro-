@@ -27,6 +27,7 @@ final class SalePosting
     private SaleLoader $loader;
     private SalePostingBuilder $builder;
     private SalePaymentJournal $paymentJournal;
+    private SaleJournal $saleJournal;
     private StockLedger $stock;
     private AccountingSettings $settings;
     private OperationsHold $hold;
@@ -46,6 +47,7 @@ final class SalePosting
         $this->builder  = SalePostingBuilder::forDatabase($this->db);
 
         $this->paymentJournal = SalePaymentJournal::forDatabase($this->db, $this->builder);
+        $this->saleJournal    = SaleJournal::forDatabase($this->db, $this->builder);
 
         $this->crossBranch = new CrossBranchPayments($this->db);
     }
@@ -332,7 +334,7 @@ final class SalePosting
             return;
         }
 
-        $draft = $this->builder->invoice($sale, $this->nextRevision(SalePostingBuilder::SOURCE_SALE, $sale->saleId, JournalEntryType::Revenue), $employeeId);
+        $draft = $this->saleJournal->invoice($sale, $this->nextRevision(SalePostingBuilder::SOURCE_SALE, $sale->saleId, JournalEntryType::Revenue), $employeeId);
 
         if ($draft !== null) {
             $this->posting->post((new JournalDescriptions($this->db))->ofSale($draft, $sale));
@@ -349,7 +351,7 @@ final class SalePosting
         }
 
         $revision  = $this->nextRevision(SalePostingBuilder::SOURCE_SALE, $sale->saleId, JournalEntryType::Cogs);
-        $plan      = $this->builder->costPlan($sale, $revision, $employeeId);
+        $plan      = $this->saleJournal->costPlan($sale, $revision, $employeeId);
         $journalId = $plan->journal === null ? null : $this->posting->post($plan->journal)->journalId;
 
         $this->stock->record(SalePostingBuilder::SOURCE_SALE, $sale->saleId, JournalEntryType::Cogs, $revision, $sale->date, $sale->branchId, $plan->movements, $journalId);

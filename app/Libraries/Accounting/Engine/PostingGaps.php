@@ -16,6 +16,12 @@ final class PostingGaps
         'supplier_advance' => [
             'an opening balance a supplier owes is posted under the same source by the code, and has no rules of its own yet',
         ],
+        'sale' => [
+            'a return of a sale is posted under the same source by the code, and has no rules of its own yet',
+        ],
+        'sale_cost' => [
+            'the cost of a return of a sale is posted under the same source by the code, and has no rules of its own yet',
+        ],
         'purchase' => [
             'the stock movements of a purchase in a foreign currency are valued from the journal of the code, so a journal of the engine that differed would leave the stock untied',
         ],

@@ -74,8 +74,16 @@ class PostingMatrixTest extends CIUnitTestCase
             'supplier_id' => $supplier,
             'supplier'    => (new EntityAccountService())->ensure(EntityAccountService::SUPPLIER, $supplier, 'Matrix supplier'),
             'purchases'   => $this->accountId('purchases'),
-            'variance'    => $this->accountId('cogs'),
+            'cogs'        => $this->accountId('cogs'),
+            'revenue'     => $this->accountId('sales_revenue'),
+            'discount'    => $this->accountId('sales_discount'),
+            'shipping'    => $this->accountId('sales_shipping'),
+            'adjustment'  => $this->accountId('sales_adjustment'),
+            'rounding'    => $this->accountId('tax_rounding'),
+            'chosen_tax'  => $this->customAccount('21', '2196', 'Chosen tax'),
         ];
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.discount')->update(['routing_type' => 'auto', 'account_id' => $this->roles['discount']]);
 
         $location     = $this->insertStockLocation('Matrix store');
         $this->roles += ['location_id' => $location, 'store' => (new EntityAccountService())->ensure(EntityAccountService::STOCK_LOCATION, $location, 'Matrix store')];
@@ -206,12 +214,33 @@ class PostingMatrixTest extends CIUnitTestCase
             'P-35 a return given back above its cost, the difference of price credited' => [
                 ['P-35'], 'purchase_return',
                 ['figures' => ['total' => '115.00', 'foreign_total' => '115.00', 'tax' => '15.00', 'foreign_tax' => '15.00', 'net' => '0', 'variance' => '20.00'], 'fields' => ['supplier_id' => '@supplier_id', 'treasury_id' => null, 'payment_type' => null], 'flags' => ['has_supplier' => true, 'by_treasury' => false, 'by_payment' => false], 'lists' => ['locations' => [['fields' => ['location_id' => '@location_id'], 'figures' => ['value' => '80.00']]]]],
-                [['supplier', 'debit', '115.0000'], ['vat_input', 'credit', '15.0000'], ['store', 'credit', '80.0000'], ['variance', 'credit', '20.0000']],
+                [['supplier', 'debit', '115.0000'], ['vat_input', 'credit', '15.0000'], ['store', 'credit', '80.0000'], ['cogs', 'credit', '20.0000']],
             ],
             'P-35 a return below its cost with a line that is not stocked, the difference of price debited' => [
                 ['P-35'], 'purchase_return',
                 ['figures' => ['total' => '150.00', 'foreign_total' => '150.00', 'tax' => '0', 'foreign_tax' => '0', 'net' => '100.00', 'variance' => '-30.00'], 'fields' => ['supplier_id' => '@supplier_id', 'treasury_id' => null, 'payment_type' => null], 'flags' => ['has_supplier' => true, 'by_treasury' => false, 'by_payment' => false], 'lists' => ['locations' => [['fields' => ['location_id' => '@location_id'], 'figures' => ['value' => '80.00']]]]],
-                [['supplier', 'debit', '150.0000'], ['store', 'credit', '80.0000'], ['purchases', 'credit', '100.0000'], ['variance', 'debit', '30.0000']],
+                [['supplier', 'debit', '150.0000'], ['store', 'credit', '80.0000'], ['purchases', 'credit', '100.0000'], ['cogs', 'debit', '30.0000']],
+            ],
+            'P-07 P-08 P-09 P-11 P-13 a sale with a discount of its own, an item and a tax of their own, and shipping' => [
+                ['P-07', 'P-08', 'P-11', 'P-13'], 'sale',
+                ['figures' => ['total' => '238.00', 'discount' => '10.00', 'shipping' => '20.00', 'adjustment' => '0', 'rounding' => '0'], 'fields' => ['customer_id' => '@customer_id', 'shipping_account_id' => null], 'flags' => ['has_customer' => true, 'counter' => false], 'lists' => [
+                    'goods' => [['fields' => ['item_account_id' => '@chosen_revenue'], 'figures' => ['value' => '120.00']], ['fields' => ['item_account_id' => null], 'figures' => ['value' => '80.00']]],
+                    'taxes' => [['fields' => ['account_id' => null], 'figures' => ['value' => '18.00']], ['fields' => ['account_id' => '@chosen_tax'], 'figures' => ['value' => '10.00']]],
+                ]],
+                [['customer', 'debit', '238.0000'], ['discount', 'debit', '10.0000'], ['chosen_revenue', 'credit', '120.0000'], ['revenue', 'credit', '80.0000'], ['vat_output', 'credit', '18.0000'], ['chosen_tax', 'credit', '10.0000'], ['shipping', 'credit', '20.0000']],
+            ],
+            'P-12 P-14 a sale at the counter adjusted down with the rounding of its tax up, shipped by a company' => [
+                ['P-12', 'P-14'], 'sale',
+                ['figures' => ['total' => '134.51', 'discount' => '0', 'shipping' => '20.00', 'adjustment' => '-0.50', 'rounding' => '0.01'], 'fields' => ['customer_id' => null, 'shipping_account_id' => '@other_payables'], 'flags' => ['has_customer' => false, 'counter' => true], 'lists' => [
+                    'goods' => [['fields' => ['item_account_id' => null], 'figures' => ['value' => '100.00']]],
+                    'taxes' => [['fields' => ['account_id' => null], 'figures' => ['value' => '15.00']]],
+                ]],
+                [['counter', 'debit', '134.5100'], ['revenue', 'credit', '100.0000'], ['vat_output', 'credit', '15.0000'], ['other_payables', 'credit', '20.0000'], ['adjustment', 'debit', '0.5000'], ['rounding', 'credit', '0.0100']],
+            ],
+            'P-10 the cost of the goods that left two stores' => [
+                ['P-10'], 'sale_cost',
+                ['figures' => ['cost' => '150.00'], 'lists' => ['locations' => [['fields' => ['location_id' => '@location_id'], 'figures' => ['value' => '150.00']]]]],
+                [['cogs', 'debit', '150.0000'], ['store', 'credit', '150.0000']],
             ],
             'P-04 P-05 a manual journal whose debit line carries a tax on top of its amount' => [
                 ['P-04', 'P-05'], 'manual',
