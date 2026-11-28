@@ -86,9 +86,9 @@ class PostingMatrixTest extends CIUnitTestCase
     /**
      * Each case: the rules of the posting matrix it checks, the operation, the facts of a made-up
      * document (an account written as @role is the account of that role), and the lines expected as
-     * role, side and amount.
+     * role, side and amount, and auto_tax for a line marked as the tax worked out of another.
      *
-     * @return array<string, array{list<string>, string, array<string, mixed>, list<array{string, string, string}>}>
+     * @return array<string, array{list<string>, string, array<string, mixed>, list<list<string>>}>
      */
     public static function caseProvider(): array
     {
@@ -194,7 +194,7 @@ class PostingMatrixTest extends CIUnitTestCase
                     ['figures' => ['amount' => '100.00', 'net' => '100.00', 'tax' => '15.00'], 'fields' => ['account_id' => '@other_expenses', 'cost_center_id' => null], 'flags' => ['on_debit' => true, 'on_credit' => false]],
                     ['figures' => ['amount' => '-115.00', 'net' => '-115.00', 'tax' => '0'], 'fields' => ['account_id' => '@cash', 'cost_center_id' => null], 'flags' => ['on_debit' => false, 'on_credit' => true]],
                 ]]],
-                [['other_expenses', 'debit', '100.0000'], ['vat_input', 'debit', '15.0000'], ['cash', 'credit', '115.0000']],
+                [['other_expenses', 'debit', '100.0000'], ['vat_input', 'debit', '15.0000', 'auto_tax'], ['cash', 'credit', '115.0000']],
             ],
             'P-04 P-05 a manual journal whose credit line holds its tax in its amount' => [
                 ['P-04', 'P-05'], 'manual',
@@ -202,7 +202,7 @@ class PostingMatrixTest extends CIUnitTestCase
                     ['figures' => ['amount' => '115.00', 'net' => '115.00', 'tax' => '0'], 'fields' => ['account_id' => '@cash', 'cost_center_id' => null], 'flags' => ['on_debit' => true, 'on_credit' => false]],
                     ['figures' => ['amount' => '-115.00', 'net' => '-100.00', 'tax' => '-15.00'], 'fields' => ['account_id' => '@other_incomes', 'cost_center_id' => null], 'flags' => ['on_debit' => false, 'on_credit' => true]],
                 ]]],
-                [['cash', 'debit', '115.0000'], ['other_incomes', 'credit', '100.0000'], ['vat_output', 'credit', '15.0000']],
+                [['cash', 'debit', '115.0000'], ['other_incomes', 'credit', '100.0000'], ['vat_output', 'credit', '15.0000', 'auto_tax']],
             ],
         ];
     }
@@ -210,7 +210,7 @@ class PostingMatrixTest extends CIUnitTestCase
     /**
      * @param list<string>                         $references
      * @param array<string, mixed>                 $facts
-     * @param list<array{string, string, string}>  $expected
+     * @param list<list<string>>  $expected
      */
     #[DataProvider('caseProvider')]
     public function testBuild_PostsTheLinesThePostingMatrixSaysForTheRule(array $references, string $operation, array $facts, array $expected): void
@@ -224,7 +224,7 @@ class PostingMatrixTest extends CIUnitTestCase
             array_map(static function ($line) use ($names): array {
                 $debit = bccomp($line->debit, '0', 4) > 0;
 
-                return [$names[$line->accountId] ?? 'account ' . $line->accountId, $debit ? 'debit' : 'credit', bcadd($debit ? $line->debit : $line->credit, '0', 4)];
+                return [$names[$line->accountId] ?? 'account ' . $line->accountId, $debit ? 'debit' : 'credit', bcadd($debit ? $line->debit : $line->credit, '0', 4), ...($line->autoTax ? ['auto_tax'] : [])];
             }, $draft->lines),
             implode(' ', $references),
         );
